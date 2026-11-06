@@ -90,18 +90,61 @@
         android:localeConfig="@xml/locales_config"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
-        <!-- 界面只有一个:从桌面、通知、别的 App 或命令打开都回到这一个(新的打开交给 onNewIntent),不在上面叠出第二个 -->
+        <!-- 界面只有一个:从桌面、通知、别的 App 或命令打开都回到这一个(新的打开交给 onNewIntent),不在上面叠出第二个。
+             桌面的入口在下面的 activity-alias 上:四套图标变体各一个,同一时刻只有一个开着
+             (见 LauncherIconController:先启新的,再关旧的,桌面永远有一个入口)。 -->
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:theme="@style/Theme.Mika"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- 桌面图标变体:雾紫(默认)、珠白、夜色、单色。targetActivity 都指向唯一的 MainActivity。 -->
+        <activity-alias
+            android:name=".ui.MainActivityAliasReverie"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:targetActivity=".ui.MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias
+            android:name=".ui.MainActivityAliasPearl"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_pearl"
+            android:targetActivity=".ui.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".ui.MainActivityAliasNight"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_night"
+            android:targetActivity=".ui.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+        <activity-alias
+            android:name=".ui.MainActivityAliasMono"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_mono"
+            android:targetActivity=".ui.MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- 通知里接管按钮的落点:从通知启动 Activity 才会收起通知栏,让用户直接看到挪到主屏的 App -->
         <activity

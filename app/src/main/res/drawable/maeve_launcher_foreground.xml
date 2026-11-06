@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher foreground: the Maeve mark as vector art on the 108dp adaptive grid.
+     Same geometry as MaeveMarkGeo (24 grid x4.5): outer ring (50,50) r24,
+     inner ring (58,57) r15, light dot at (68,32) r3.5. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M 26,50 a 24,24 0 1,0 48,0 a 24,24 0 1,0 -48,0"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeAlpha="0.95"
+        android:strokeWidth="3.2"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M 43,57 a 15,15 0 1,0 30,0 a 15,15 0 1,0 -30,0"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeAlpha="0.68"
+        android:strokeWidth="3.2"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M 64.5,32 a 3.5,3.5 0 1,0 7,0 a 3.5,3.5 0 1,0 -7,0"
+        android:fillColor="#FFFFFFFF" />
+</vector>

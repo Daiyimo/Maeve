@@ -13,13 +13,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +43,7 @@ import com.daiyimo.maeve.ui.theme.AccentPreset
 import com.daiyimo.maeve.ui.theme.AccentSpec
 import com.daiyimo.maeve.ui.theme.MaeveAccentStore
 import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveMark
 import com.daiyimo.maeve.ui.theme.MaeveTheme
 import com.daiyimo.maeve.ui.theme.MikaType
 
@@ -149,6 +153,80 @@ fun accentName(spec: AccentSpec): String = when (spec.id) {
     ACCENT_WALLPAPER -> stringResource(R.string.accent_wallpaper)
     ACCENT_CUSTOM -> stringResource(R.string.accent_custom)
     else -> stringResource(AccentPreset.byId(spec.id).labelRes)
+}
+
+/**
+ * 外观 › 桌面图标:四套变体。预览就是启动图标的画法(同一套几何),
+ * 选了当场翻 alias 的启用状态——先启新的,再关旧的(见 [LauncherIconController])。
+ */
+@Composable
+fun LauncherIconCard(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var current by remember(context) { mutableStateOf(LauncherIconController.current(context)) }
+    val haptics = MaeveTheme.haptics
+    val c = MaeveTheme.colors
+    GroupCard(modifier) {
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Text(stringResource(R.string.icon_title), style = MikaType.BodyStrong, color = c.ink)
+            Text(
+                stringResource(R.string.icon_sub),
+                Modifier.padding(top = 3.dp),
+                style = MikaType.Caption, color = c.ink3,
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                LauncherIcon.entries.forEach { icon ->
+                    LauncherIconOption(
+                        icon = icon,
+                        selected = icon == current,
+                        onClick = {
+                            if (icon != current) {
+                                haptics.tick()
+                                LauncherIconController.apply(context, icon)
+                                current = icon
+                            }
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 一枚桌面图标预览:渐变圆角方 + 双环 + 光点,几何与启动图标同一套。 */
+@Composable
+private fun LauncherIconOption(icon: LauncherIcon, selected: Boolean, onClick: () -> Unit) {
+    val c = MaeveTheme.colors
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(52.dp)
+                .then(
+                    if (selected) Modifier.border(2.5.dp, c.accent, RoundedCornerShape(15.dp)).padding(3.5.dp)
+                    else Modifier.padding(5.5.dp),
+                )
+                .clip(RoundedCornerShape(12.dp))
+                .background(Brush.linearGradient(listOf(Color(icon.bgTop), Color(icon.bgBottom))))
+                .clickable(role = Role.RadioButton, onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            // 和 MaeveMarkTile 里同一套 24 网格几何:预览和真图标不会漂移
+            MaeveMark(
+                size = 34.dp,
+                ringColor = Color.White.copy(alpha = 0.95f),
+                dotColor = Color.White,
+                glowColor = Color.Transparent,
+                strokeWidth = 1.7.dp,
+            )
+        }
+        Text(
+            stringResource(icon.labelRes),
+            Modifier.padding(top = 5.dp),
+            fontSize = 11.sp,
+            color = if (selected) c.ink else c.ink3,
+        )
+    }
 }
 
 /** 六套预设的名字(各语言共用中文名:它们是《西部世界》的意象,不是普通文案)。 */

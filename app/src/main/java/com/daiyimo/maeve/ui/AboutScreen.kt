@@ -2,7 +2,6 @@ package com.daiyimo.maeve.ui
 
 import androidx.compose.ui.res.stringResource
 import android.widget.Toast
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,13 +38,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.about.CheckStatus
 import com.daiyimo.maeve.about.MikaLinks
@@ -59,6 +58,7 @@ import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.ValueTone
+import com.daiyimo.maeve.ui.theme.MaeveMarkTile
 import com.daiyimo.maeve.ui.theme.MikaIcons
 import com.daiyimo.maeve.ui.theme.MikaTheme
 import com.daiyimo.maeve.ui.theme.MikaType
@@ -176,11 +176,8 @@ private fun Hero(versionName: String, build: String, beta: Boolean) {
         Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Image(
-            painterResource(R.drawable.maeve_logo), contentDescription = null,
-            Modifier.size(72.dp).clip(RoundedCornerShape(20.dp)),
-        )
-        Text("Maeve", Modifier.padding(top = 12.dp), style = MikaType.Title, fontWeight = FontWeight.Bold, color = c.ink)
+        MaeveMarkTile(72.dp, Modifier.testTag("about-mark"), corner = 20.dp, breathing = true)
+        Text("Maeve", Modifier.padding(top = 12.dp), style = MikaType.Title, fontWeight = FontWeight.Bold, color = c.ink, letterSpacing = 1.5.sp)
         Text(AboutCopy.TAGLINE, Modifier.padding(top = 4.dp), style = MikaType.Caption, color = c.ink2, textAlign = TextAlign.Center)
         Row(Modifier.padding(top = 10.dp).testTag("about-version"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(AboutCopy.version(versionName), style = MikaType.Hint, color = c.ink3)

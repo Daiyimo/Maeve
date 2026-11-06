@@ -1,22 +1,15 @@
 package com.daiyimo.maeve.ui.components
 
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
-import com.daiyimo.maeve.R
+import com.daiyimo.maeve.ui.theme.MaeveMarkTile
 
-/** Mika 的标志:圆角方块里的图标画。圆角默认按边长的 0.28(36dp 约 10,76dp 约 22)。 */
+/**
+ * Mika 的标志:渐变圆角方块 + 双环 + 光点(见 [MaeveMarkTile])。
+ * 圆角默认按边长的 0.28(36dp 约 10,76dp 约 22)。方块跟着当前配色走。
+ */
 @Composable
-fun MikaLogo(size: Dp, modifier: Modifier = Modifier, corner: Dp = size * 0.28f) {
-    Image(
-        painterResource(R.drawable.maeve_logo), contentDescription = null,
-        modifier.size(size).clip(RoundedCornerShape(corner)),
-        contentScale = ContentScale.Crop,
-    )
+fun MikaLogo(size: Dp, modifier: Modifier = Modifier, corner: Dp = size * 0.28f, breathing: Boolean = false) {
+    MaeveMarkTile(size, modifier, corner, breathing = breathing)
 }

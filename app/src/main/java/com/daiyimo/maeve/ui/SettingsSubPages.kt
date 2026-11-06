@@ -397,6 +397,10 @@ fun LanguageScreen(language: AppLanguage, onLanguage: (AppLanguage) -> Unit, onB
         // 配色:六套西部世界意象的预设,换了当场生效
         AccentPickerCard(Modifier.padding(top = 12.dp))
         FooterNote(stringResource(R.string.accent_footnote))
+        // 桌面图标:四套变体,翻 alias 的启用状态(先启新的再关旧的)
+        GroupLabel(stringResource(R.string.icon_title))
+        LauncherIconCard(Modifier.padding(top = 8.dp))
+        FooterNote(stringResource(R.string.icon_footnote))
         GroupLabel(stringResource(R.string.language_title))
         GroupCard {
             AppLanguage.entries.forEachIndexed { i, l ->

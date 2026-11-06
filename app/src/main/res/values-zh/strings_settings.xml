@@ -127,12 +127,13 @@
     <string name="accent_wallpaper_sub">只借系统强调色的色相,明度和对比度仍是 Maeve 自己的</string>
     <string name="accent_wallpaper">壁纸</string>
     <string name="accent_custom">自定义</string>
-    <string name="accent_reverie" translatable="false">雾紫</string>
-    <string name="accent_dolores" translatable="false">晨金</string>
-    <string name="accent_maze" translatable="false">沙褐</string>
-    <string name="accent_pearl" translatable="false">珠白</string>
-    <string name="accent_sublime" translatable="false">深靛</string>
-    <string name="accent_graphite" translatable="false">石墨</string>
+    <string name="icon_title">桌面图标</string>
+    <string name="icon_sub">桌面上那个图标。App 里面不变。</string>
+    <string name="icon_footnote">马上生效。有的桌面要等一会儿,或者重启桌面才刷新。</string>
+    <string name="icon_reverie">雾紫</string>
+    <string name="icon_pearl">珠白</string>
+    <string name="icon_night">夜色</string>
+    <string name="icon_mono">单色</string>
     <string name="settings_self_config">允许 Maeve 改自己的设置</string>
     <string name="settings_self_config_sub">打开后，任务里会多一件工具，能看和改这些偏好（操作节奏、静音、胶囊、外观、屏幕常亮）。模型和 Key、容器联网、任何删数据的操作都不在其中</string>
     <string name="settings_step_limit">每个任务的步数上限</string>

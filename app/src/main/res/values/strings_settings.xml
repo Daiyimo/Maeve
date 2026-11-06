@@ -147,6 +147,13 @@
     <string name="accent_pearl" translatable="false">珠白</string>
     <string name="accent_sublime" translatable="false">深靛</string>
     <string name="accent_graphite" translatable="false">石墨</string>
+    <string name="icon_title">Launcher icon</string>
+    <string name="icon_sub">The icon on your home screen. The app itself stays the same.</string>
+    <string name="icon_footnote">Takes effect right away. Some launchers take a moment — or a relaunch — to show the new icon.</string>
+    <string name="icon_reverie">Reverie</string>
+    <string name="icon_pearl">Pearl</string>
+    <string name="icon_night">Night</string>
+    <string name="icon_mono">Mono</string>
     <string name="settings_self_config">Let Maeve change its own settings</string>
     <string name="settings_self_config_sub">When on, tasks get one tool to read and change these preferences (pace, mute, capsule, appearance, screen-on). Models, API keys, container network and anything that deletes data are never included</string>
     <string name="settings_step_limit">Step limit per task</string>

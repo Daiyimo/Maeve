@@ -340,6 +340,8 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
         // 界面以外的文字(通知、服务、悬浮胶囊)按 App 语言取
         AppLanguage.applyDefaultLocale(this)
         UiText.source = ResourceTexts { AppLanguage.resources(this) }
+        // 桌面图标:manifest 默认开着雾紫,偏好里可能是别的;对齐一次(先启新的再关旧的)
+        com.daiyimo.maeve.ui.LauncherIconController.sync(this)
         registerActivityLifecycleCallbacks(foreground)
         // 设置 › 网络代理:Mika 自己的连接从第一个请求起就按它走;SOCKS 代理的账号密码经全进程的认证器给
         com.daiyimo.maeve.settings.NetProxyStore.get(this)
