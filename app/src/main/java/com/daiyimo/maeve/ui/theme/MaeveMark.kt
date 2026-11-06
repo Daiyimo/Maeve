@@ -24,7 +24,7 @@ import androidx.compose.ui.unit.dp
  *
  * - 外环 = 你的主屏;内环 = 她干活的那块隐藏显示;光点 = 此刻正在跑的那一步。
  * - 光点停在外环 45° 的位置上——"这一步踩在你的屏边,但不占你的屏"。
- * - 几何与启动图标(`maeve_launcher_mono` / `maeve_launcher_art`)同一套 24 网格,
+ * - 几何与启动图标(`maeve_launcher_mono` / `maeve_launcher_foreground`)同一套 24 网格,
  *   标志和图标永远不会各长各的。
  *
  * [breathing] 为真时(且没关动画)光点缓慢明暗:2.4s 一个周期,慢到不打扰。

@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.ui.components.GroupCard
-import com.daiyimo.maeve.ui.components.Hairline
 import com.daiyimo.maeve.ui.components.ListRow
 import com.daiyimo.maeve.ui.theme.ACCENT_CUSTOM
 import com.daiyimo.maeve.ui.theme.ACCENT_WALLPAPER
@@ -93,8 +92,8 @@ fun AccentPickerCard(modifier: Modifier = Modifier) {
             }
         }
         // 跟随壁纸:只借系统强调色的色相,明度和对比度仍是 Maeve 自己的(API 31+ 才有系统强调色)
+        // 分隔线由 ListRow 自己画(从文字处开始),和设置页其他分组一致
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            Hairline()
             ListRow(
                 icon = MaeveIcons.Photo,
                 title = stringResource(R.string.accent_wallpaper_title),
