@@ -104,7 +104,7 @@ import com.daiyimo.maeve.ui.components.MikaLogo
 import com.daiyimo.maeve.ui.components.StepItem
 import com.daiyimo.maeve.ui.components.StepState
 import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaMotion
+import com.daiyimo.maeve.ui.theme.MaeveMotion
 import com.daiyimo.maeve.ui.theme.MikaShapes
 import com.daiyimo.maeve.ui.theme.MikaTheme
 import com.daiyimo.maeve.voice.HoldToTalk
@@ -266,7 +266,7 @@ fun OverlayMotion(
                 // 刚出来那一帧要排版、窗口换大小,最慢:等它画完再起步,动画的头几帧不被它吃掉
                 if (shown.value == 0f) repeat(SETTLE_FRAMES) { withFrameNanos { } }
                 opened()
-                shown.animateTo(1f, tween(CARD_IN_MS, easing = MikaMotion.Decelerate))
+                shown.animateTo(1f, tween(CARD_IN_MS, easing = MaeveMotion.Decelerate))
             }
         } else {
             runOverlayClose(still) {

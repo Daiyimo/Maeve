@@ -86,7 +86,7 @@ import com.daiyimo.maeve.ui.components.TileTone
 import com.daiyimo.maeve.ui.components.TopBar
 import com.daiyimo.maeve.ui.components.ValueTone
 import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaRadius
+import com.daiyimo.maeve.ui.theme.MaeveRadius
 import com.daiyimo.maeve.ui.theme.MikaShapes
 import com.daiyimo.maeve.ui.theme.MikaSize
 import com.daiyimo.maeve.ui.theme.MikaTheme
@@ -540,7 +540,7 @@ fun AllModelsContent(ui: ModelSetupUi, p: Provider, actions: ProviderDetailActio
 
 /** 一张卡拆成懒加载的行时,每行的圆角:首行上圆、末行下圆。 */
 private fun rowShape(i: Int, n: Int): RoundedCornerShape {
-    val r = MikaRadius.Card
+    val r = MaeveRadius.Lg
     return RoundedCornerShape(topStart = if (i == 0) r else 0.dp, topEnd = if (i == 0) r else 0.dp,
         bottomStart = if (i == n - 1) r else 0.dp, bottomEnd = if (i == n - 1) r else 0.dp)
 }

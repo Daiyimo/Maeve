@@ -40,7 +40,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.daiyimo.maeve.ui.theme.MaeveMotion
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
@@ -52,7 +51,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.daiyimo.maeve.ui.theme.MikaMotion
+import com.daiyimo.maeve.ui.theme.MaeveMotion
 import com.daiyimo.maeve.ui.theme.MikaIcons
 import com.daiyimo.maeve.ui.theme.MikaShapes
 import com.daiyimo.maeve.ui.theme.MikaSize
@@ -75,8 +74,8 @@ fun MikaSwitch(
 ) {
     val c = MikaTheme.colors
     val reduce = MikaTheme.reduceMotion
-    val position by animateFloatAsState(if (checked) 1f else 0f, MikaMotion.switch(reduce), label = "switch")
-    val track by animateColorAsState(if (checked) c.accent else c.greySoft, MikaMotion.switch(reduce), label = "switch-track")
+    val position by animateFloatAsState(if (checked) 1f else 0f, MaeveMotion.switch(reduce), label = "switch")
+    val track by animateColorAsState(if (checked) c.accent else c.greySoft, MaeveMotion.switch(reduce), label = "switch-track")
     val thumb = c.thumb
     val ring = c.floatShadow.copy(alpha = 0.12f)
     Box(

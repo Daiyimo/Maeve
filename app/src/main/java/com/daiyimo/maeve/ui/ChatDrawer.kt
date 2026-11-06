@@ -80,7 +80,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.toSize
-import com.daiyimo.maeve.ui.theme.MikaMotion
+import com.daiyimo.maeve.ui.theme.MaeveMotion
 import com.daiyimo.maeve.ui.components.MikaLogo
 import com.daiyimo.maeve.ui.components.keepsKeyboard
 import androidx.compose.foundation.text.KeyboardActions
@@ -532,14 +532,14 @@ fun ChatWithDrawer(
     val lift = remember { Animatable(0f) }
     LaunchedEffect(acting) {
         if (acting != null) {
-            if (reduceMotion) lift.snapTo(1f) else lift.animateTo(1f, tween(MENU_IN_MS, easing = MikaMotion.Decelerate))
+            if (reduceMotion) lift.snapTo(1f) else lift.animateTo(1f, tween(MENU_IN_MS, easing = MaeveMotion.Decelerate))
         }
     }
     /** 收起菜单:倒着放一遍出现的动画,放完再清掉;[then] 当场做(改名、删除的弹窗不用等菜单收完)。 */
     fun closeMenu(then: () -> Unit = {}) {
         then()
         scope.launch {
-            if (reduceMotion) lift.snapTo(0f) else lift.animateTo(0f, tween(MENU_OUT_MS, easing = MikaMotion.Decelerate))
+            if (reduceMotion) lift.snapTo(0f) else lift.animateTo(0f, tween(MENU_OUT_MS, easing = MaeveMotion.Decelerate))
             acting = null
         }
     }

@@ -11,9 +11,9 @@ import androidx.compose.ui.graphics.vector.addPathNodes
  * 自己画的线条图标:24 视窗、默认显示 22dp、线宽 1.7、圆头圆角。颜色由 Icon 的 tint 给。
  * 都是 object 里的常量,只建一次;个别要在小尺寸下看清的(勾、发送、箭头、关闭)线宽加粗一点。
  */
-object MikaIcons {
-    private fun stroke(name: String, vararg paths: String, width: Float = MikaSize.IconStroke): ImageVector =
-        ImageVector.Builder(name, MikaSize.Icon, MikaSize.Icon, 24f, 24f).apply {
+object MaeveIcons {
+    private fun stroke(name: String, vararg paths: String, width: Float = MaeveSize.IconStroke): ImageVector =
+        ImageVector.Builder(name, MaeveSize.Icon, MaeveSize.Icon, 24f, 24f).apply {
             paths.forEach {
                 addPath(
                     addPathNodes(it), stroke = SolidColor(Color.Black), strokeLineWidth = width,
@@ -23,7 +23,7 @@ object MikaIcons {
         }.build()
 
     private fun filled(name: String, vararg paths: String): ImageVector =
-        ImageVector.Builder(name, MikaSize.Icon, MikaSize.Icon, 24f, 24f).apply {
+        ImageVector.Builder(name, MaeveSize.Icon, MaeveSize.Icon, 24f, 24f).apply {
             paths.forEach { addPath(addPathNodes(it), fill = SolidColor(Color.Black)) }
         }.build()
 
@@ -217,5 +217,51 @@ object MikaIcons {
     val Exclaim = filled(
         "exclaim", "M12 4.5 a1.5 1.5 0 0 1 1.5 1.5 v7.5 a1.5 1.5 0 0 1 -3 0 V6 A1.5 1.5 0 0 1 12 4.5 z",
         "M10.2 18.72 a1.8 1.8 0 1 0 3.6 0 a1.8 1.8 0 1 0 -3.6 0",
+    )
+
+    // ---------- Maeve 意象 ----------
+
+    /** 回路:两条错开的弧首尾相咬,右端一个箭头(Maeve runs the loop)。 */
+    val Loop = stroke(
+        "loop",
+        "M7.5 5.5 a7 7 0 1 0 9 0",
+        "M7.5 18.5 a7 7 0 0 0 9 0",
+        "M7.5 2.5 v3 h3 M16.5 21.5 v-3 h-3",
+        width = 2f,
+    )
+    /** 迷宫:方城 + 城里错动的墙。 */
+    val Maze = stroke(
+        "maze",
+        "M4 20.5 V3.5 h16 v17 z",
+        "M4 12 h6 M14 3.5 v8.5 M10 12 v8.5 M14 12 h6 M14 16.5 h3.5",
+    )
+    /** 宿主:一个站着的人形(host)。 */
+    val Host = stroke(
+        "host",
+        "M12 3.5 a3.6 3.6 0 1 0 0 7.2 a3.6 3.6 0 1 0 0 -7.2 z",
+        "M4.8 20.5 c0 -3.9 3.2 -6.4 7.2 -6.4 s7.2 2.5 7.2 6.4",
+    )
+    /** 声波:语音输入的波形。 */
+    val Wave = stroke("wave", "M3.5 12 h2.2 l2 -6.5 l3.2 13 l3 -9.5 l2.2 3 h4.4", width = 2f)
+    /** 双环:品牌母题(外环=你的屏,内环=隐藏的屏)。 */
+    val Rings = stroke(
+        "rings",
+        "M12 4 a8 8 0 1 0 0.01 0",
+        "M16.5 9.5 a4.5 4.5 0 1 0 0.01 0",
+        width = 2f,
+    )
+    /** 觉醒:一只睁开的眼睛,瞳孔是一个光点。 */
+    val Awake = stroke(
+        "awake",
+        "M2.5 12 s3.6 -6.5 9.5 -6.5 s9.5 6.5 9.5 6.5 s-3.6 6.5 -9.5 6.5 S2.5 12 2.5 12 z",
+        "M12 9.2 a2.8 2.8 0 1 0 0.01 0",
+    )
+    /** 甜水镇:一座房子带炊烟(家的意象)。 */
+    val Town = stroke(
+        "town",
+        "M4 11 l8 -6.5 l8 6.5",
+        "M6.5 9.5 v10.5 h11 V9.5",
+        "M10.5 20 v-5.5 h3 V20",
+        "M17.5 4.5 c1.2 0.8 1.2 2 0 2.8",
     )
 }

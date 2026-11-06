@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.ui.theme
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
@@ -86,8 +88,14 @@ class SquircleShape(
 
 /** 全站共用的一组连续曲率形状。改这里等于改所有卡片和按钮。 */
 object MaeveShapes {
+    /** 卡片、按钮、图标块统一走连续曲率(squircle),改一处等于改全站。 */
     val Card = SquircleShape(MaeveRadius.Lg)
+    /** 用户消息气泡:右下角是尾角。 */
+    val UserBubble = RoundedCornerShape(MaeveRadius.Lg, MaeveRadius.Lg, MaeveRadius.Xs, MaeveRadius.Lg)
+    /** Maeve 的回答:左下角是尾角,和用户气泡对称。 */
+    val AnswerBubble = RoundedCornerShape(MaeveRadius.Lg, MaeveRadius.Lg, MaeveRadius.Lg, MaeveRadius.Xs)
     val Button = SquircleShape(MaeveRadius.Md)
     val Tile = SquircleShape(MaeveRadius.Sm)
     val Sheet = SquircleShape(MaeveRadius.Xl)
+    val Pill = CircleShape
 }

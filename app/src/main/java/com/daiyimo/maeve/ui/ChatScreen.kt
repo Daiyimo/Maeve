@@ -137,7 +137,7 @@ import com.daiyimo.maeve.ui.components.floatShadow
 import com.daiyimo.maeve.ui.components.glassSource
 import com.daiyimo.maeve.ui.components.rememberGlassBackdrop
 import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaMotion
+import com.daiyimo.maeve.ui.theme.MaeveMotion
 import com.daiyimo.maeve.ui.theme.MikaShapes
 import com.daiyimo.maeve.ui.theme.MikaSize
 import com.daiyimo.maeve.ui.theme.MikaTheme
@@ -275,14 +275,14 @@ fun ChatScreen(
     val lift = remember { Animatable(0f) }
     LaunchedEffect(menu) {
         if (menu != null) {
-            if (reduceMotion) lift.snapTo(1f) else lift.animateTo(1f, tween(MENU_IN_MS, easing = MikaMotion.Decelerate))
+            if (reduceMotion) lift.snapTo(1f) else lift.animateTo(1f, tween(MENU_IN_MS, easing = MaeveMotion.Decelerate))
         }
     }
     /** 收起菜单:倒着放一遍出现的动画,放完再清掉;[then] 当场做。 */
     fun closeMenu(then: () -> Unit = {}) {
         then()
         scope.launch {
-            if (reduceMotion) lift.snapTo(0f) else lift.animateTo(0f, tween(MENU_OUT_MS, easing = MikaMotion.Decelerate))
+            if (reduceMotion) lift.snapTo(0f) else lift.animateTo(0f, tween(MENU_OUT_MS, easing = MaeveMotion.Decelerate))
             menu = null
         }
     }
