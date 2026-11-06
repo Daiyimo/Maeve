@@ -134,6 +134,19 @@
     <string name="appearance_system_detail">Light or dark, whichever the phone is in</string>
     <string name="appearance_light">Always light</string>
     <string name="appearance_dark">Always dark</string>
+    <string name="accent_title">Accent</string>
+    <string name="accent_sub">Six palettes, each named after a Westworld motif. A preset sets the seed; every other color is derived from it.</string>
+    <string name="accent_footnote">The two rings and the dot are Maeve\'s mark: the outer ring is your screen, the inner one the hidden screen she works on, and the dot is the step running right now.</string>
+    <string name="accent_wallpaper_title">Match the wallpaper</string>
+    <string name="accent_wallpaper_sub">Borrows only the hue of the system accent; lightness and contrast stay Maeve’s own</string>
+    <string name="accent_wallpaper">Wallpaper</string>
+    <string name="accent_custom">Custom</string>
+    <string name="accent_reverie" translatable="false">雾紫</string>
+    <string name="accent_dolores" translatable="false">晨金</string>
+    <string name="accent_maze" translatable="false">沙褐</string>
+    <string name="accent_pearl" translatable="false">珠白</string>
+    <string name="accent_sublime" translatable="false">深靛</string>
+    <string name="accent_graphite" translatable="false">石墨</string>
     <string name="settings_self_config">Let Maeve change its own settings</string>
     <string name="settings_self_config_sub">When on, tasks get one tool to read and change these preferences (pace, mute, capsule, appearance, screen-on). Models, API keys, container network and anything that deletes data are never included</string>
     <string name="settings_step_limit">Step limit per task</string>

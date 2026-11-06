@@ -1,7 +1,6 @@
 package com.daiyimo.maeve.ui
 
 import com.daiyimo.maeve.i18n.tr
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,18 +13,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,6 +31,7 @@ import com.daiyimo.maeve.ui.components.IconTile
 import com.daiyimo.maeve.ui.components.MikaButton
 import com.daiyimo.maeve.ui.components.PageBackground
 import com.daiyimo.maeve.ui.components.ProgressDots
+import com.daiyimo.maeve.ui.theme.MaeveMarkTile
 import com.daiyimo.maeve.ui.theme.MikaIcons
 import com.daiyimo.maeve.ui.theme.MikaTheme
 import com.daiyimo.maeve.ui.theme.MikaType
@@ -48,15 +43,16 @@ fun WelcomeScreen(onStart: () -> Unit) {
     PageBackground {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBars).windowInsetsPadding(WindowInsets.navigationBars)) {
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                Column(Modifier.fillMaxWidth().padding(top = 40.dp, start = 8.dp, end = 8.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Image(
-                        painterResource(R.drawable.maeve_logo), null,
-                        Modifier.size(76.dp).shadow(14.dp, LogoShape, clip = false).clip(LogoShape),
-                        contentScale = ContentScale.Crop,
-                    )
-                    Text(WelcomeCopy.TITLE, Modifier.padding(top = 20.dp), style = MikaType.LargeTitle, fontSize = 26.sp, color = c.ink, textAlign = TextAlign.Center)
+                Column(Modifier.fillMaxWidth().padding(top = 44.dp, start = 8.dp, end = 8.dp, bottom = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    // 标志 hero:渐变方块 + 双环 + 呼吸的光点。光点 2.4s 一呼一吸,"她醒着"。
+                    MaeveMarkTile(92.dp, Modifier.testTag("welcome-mark"), breathing = true)
                     Text(
-                        WelcomeCopy.LEAD, Modifier.padding(top = 8.dp),
+                        WelcomeCopy.TITLE, Modifier.padding(top = 22.dp),
+                        style = MikaType.LargeTitle, color = c.ink, textAlign = TextAlign.Center,
+                        letterSpacing = 1.5.sp,
+                    )
+                    Text(
+                        WelcomeCopy.LEAD, Modifier.padding(top = 10.dp),
                         fontSize = 15.sp, lineHeight = 24.sp, color = c.ink2, textAlign = TextAlign.Center,
                     )
                 }
@@ -90,8 +86,6 @@ private fun Feature(icon: ImageVector, title: String, body: String, first: Boole
         }
     }
 }
-
-private val LogoShape = RoundedCornerShape(22.dp)
 
 /** 欢迎页的文字。 */
 object WelcomeCopy {

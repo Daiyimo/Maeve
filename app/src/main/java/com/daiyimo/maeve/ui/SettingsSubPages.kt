@@ -394,6 +394,9 @@ fun LanguageScreen(language: AppLanguage, onLanguage: (AppLanguage) -> Unit, onB
                 )
             }
         }
+        // 配色:六套西部世界意象的预设,换了当场生效
+        AccentPickerCard(Modifier.padding(top = 12.dp))
+        FooterNote(stringResource(R.string.accent_footnote))
         GroupLabel(stringResource(R.string.language_title))
         GroupCard {
             AppLanguage.entries.forEachIndexed { i, l ->

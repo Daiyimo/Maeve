@@ -45,8 +45,10 @@ const val ACCENT_WALLPAPER = "wallpaper"
  *
  * 阶梯(与 dsh-Go 的 accent.dart 同一组设计决策,OKLCH 明度/彩度倍数):
  *
- * - 浅色:seed/pressed L 0.53→0.47;container L 0.93 彩度 ×0.26;bubble L 0.918 ×0.29;glow L 0.819 ×0.68
- * - 深色:seed L 0.764 ×0.76;pressed L 0.704;onSeed L 0.231 ×0.39;container L 0.361 ×0.51;bubble L 0.314 ×0.29
+ * - 浅色:seed/pressed L 0.53→0.47;container L 0.93 彩度 ×0.26;glow L 0.819 ×0.68。
+ *   气泡直接用种子色(和主按钮一致,白字 ≥4.5 由 guardSeed 保证)。
+ * - 深色:seed L 0.764 ×0.76;pressed L 0.704;onSeed L 0.231 ×0.39;container L 0.361 ×0.51;
+ *   bubble L 0.314 ×0.29 配 onBubble L 0.93(深色下气泡是深色调,文字近白)。
  *
  * 中性色(页面、玻璃、文字)的色相转到 [tintHue],彩度乘 [tintChroma] —— 换配色时
  * 各级文字对比度不变,只有色调在走。
@@ -70,6 +72,7 @@ data class AccentSpec(
     val darkContainer: Color,
     val darkOnContainer: Color,
     val darkBubble: Color,
+    val darkOnBubble: Color,
     val darkGlow: Color,
     val hazeLight: Color,
     val hazeDark: Color,
@@ -114,6 +117,7 @@ fun deriveAccent(preset: AccentPreset): AccentSpec {
         darkContainer = Oklch(0.361f, cd * 0.51f, hue).toColor(),
         darkOnContainer = Oklch(0.909f, cd * 0.24f, hue).toColor(),
         darkBubble = Oklch(0.314f, cd * 0.29f, hue).toColor(),
+        darkOnBubble = Oklch(0.93f, cd * 0.06f, hue).toColor(),
         darkGlow = Oklch(0.52f, cd * 0.72f, hue).toColor(),
         hazeLight = Oklch(0.80f, c * 0.45f, normDeg(hue + 24f)).toColor(),
         hazeDark = Oklch(0.45f, cd * 0.55f, normDeg(hue + 24f)).toColor(),
@@ -146,6 +150,7 @@ fun deriveCustom(hue: Float, chroma: Float): AccentSpec {
         darkContainer = Oklch(0.361f, dd.C * 0.51f, h).toColor(),
         darkOnContainer = Oklch(0.909f, dd.C * 0.24f, h).toColor(),
         darkBubble = Oklch(0.314f, dd.C * 0.29f, h).toColor(),
+        darkOnBubble = Oklch(0.93f, dd.C * 0.06f, h).toColor(),
         darkGlow = Oklch(0.52f, dd.C * 0.72f, h).toColor(),
         hazeLight = Oklch(0.80f, ld.C * 0.45f, normDeg(h + 24f)).toColor(),
         hazeDark = Oklch(0.45f, dd.C * 0.55f, normDeg(h + 24f)).toColor(),

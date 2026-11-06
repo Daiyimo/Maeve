@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.translate
@@ -43,34 +44,63 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.dp
-import com.daiyimo.maeve.ui.theme.MikaColors
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaSize
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.GlassStyle
+import com.daiyimo.maeve.ui.theme.LocalMaeveSurfaces
+import com.daiyimo.maeve.ui.theme.MaeveBackdrop
+import com.daiyimo.maeve.ui.theme.MaeveColors
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
-/** 页面底:干净的近白(深色下近黑),不加渐变。 */
+/**
+ * 页面底:竖向渐变 + 右上主色光晕 + 左下暮色光晕(见 [MaeveBackdrop])。
+ * 所有页面共用同一张背景,切页面时背景不动。
+ */
 @Composable
 fun PageBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
-    Box(modifier.fillMaxSize().background(MikaTheme.colors.bg), content = content)
+    MaeveBackdrop(modifier, content = content)
 }
 
-/** 卡片的底:白底 + 黑 5% 描边 + 极淡阴影;深色下只有描边。 */
-fun Modifier.cardSurface(colors: MikaColors, shape: Shape = MikaShapes.Card): Modifier =
-    (if (colors.cardShadow.alpha > 0f) {
-        shadow(6.dp, shape, clip = false, ambientColor = colors.cardShadow.copy(alpha = 0.45f), spotColor = colors.cardShadow.copy(alpha = 0.16f))
-    } else this)
-        .background(colors.surface, shape)
-        .border(0.5.dp, colors.edge, shape)
+/**
+ * 卡片的底:玻璃卡层级(半透明填充 + 0.5dp 发丝线 + 顶边 rim 高光)。
+ * 浅色下再压一道极淡的阴影帮助分层;深色下只靠材质(铁律:层次靠材质,不靠阴影)。
+ */
+@Composable
+fun Modifier.cardSurface(colors: MaeveColors, shape: Shape = MaeveShapes.Card): Modifier {
+    val style: GlassStyle = LocalMaeveSurfaces.current.card
+    return this
+        .then(
+            if (colors.cardShadow.alpha > 0f) {
+                shadow(6.dp, shape, clip = false, ambientColor = colors.cardShadow.copy(alpha = 0.45f), spotColor = colors.cardShadow.copy(alpha = 0.16f))
+            } else this,
+        )
+        .background(style.fill, shape)
+        .border(style.hairlineWidth, style.hairline, shape)
+        .drawBehind { glassRim(style) }
+}
+
+/** 顶边高光:光从上方打在玻璃边上,往里渐隐。 */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.glassRim(style: GlassStyle) {
+    val rimHeight = 14.dp.toPx().coerceAtMost(size.height / 3f)
+    drawRect(
+        Brush.verticalGradient(
+            colors = listOf(style.rim, androidx.compose.ui.graphics.Color.Transparent),
+            startY = 0f,
+            endY = rimHeight,
+        ),
+        size = size.copy(height = rimHeight),
+    )
+}
 
 /** 悬浮元素的阴影(输入栏、浮在内容上的按钮)。 */
-fun Modifier.floatShadow(colors: MikaColors, shape: Shape): Modifier =
+fun Modifier.floatShadow(colors: MaeveColors, shape: Shape): Modifier =
     shadow(14.dp, shape, clip = false, ambientColor = colors.floatShadow.copy(alpha = 0.3f), spotColor = colors.floatShadow.copy(alpha = 0.35f))
 
 /** 一张卡片,内容裁在圆角里(行的按压效果不出角)。 */
 @Composable
-fun MikaCard(modifier: Modifier = Modifier, shape: Shape = MikaShapes.Card, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().cardSurface(MikaTheme.colors, shape).clip(shape), content = content)
+fun MikaCard(modifier: Modifier = Modifier, shape: Shape = MaeveShapes.Card, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier.fillMaxWidth().cardSurface(MaeveTheme.colors, shape).clip(shape), content = content)
 }
 
 /**
@@ -92,7 +122,7 @@ fun StateCard(
     modifier: Modifier = Modifier,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     MikaCard(modifier.padding(bottom = 12.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
@@ -104,8 +134,8 @@ fun StateCard(
                 Icon(icon, null, Modifier.size(20.dp), tint = fg)
             }
             Column(Modifier.weight(1f)) {
-                Text(title, style = MikaType.BodyStrong, color = c.ink)
-                if (!subtitle.isNullOrEmpty()) Text(subtitle, style = MikaType.Caption, color = c.ink3)
+                Text(title, style = MaeveType.BodyStrong, color = c.ink)
+                if (!subtitle.isNullOrEmpty()) Text(subtitle, style = MaeveType.Caption, color = c.ink3)
             }
             trailing()
         }
@@ -143,17 +173,18 @@ fun Modifier.glassSource(backdrop: GlassBackdrop?): Modifier =
 private val GlassBlur = BlurEffect(30f, 30f, TileMode.Clamp)
 
 /**
- * 玻璃输入栏的外壳:半透明底 + 背景模糊 + 悬浮阴影,高至少 52。
+ * 玻璃输入栏的外壳:chrome 玻璃层级(半透明底 + 背景模糊 + 悬浮阴影 + 发丝线 + 顶边高光),高至少 52。
  * [backdrop] 为 null(不支持模糊、或后面没有内容)时用不透明底。
  */
 @Composable
 fun GlassBar(
     modifier: Modifier = Modifier,
     backdrop: GlassBackdrop? = null,
-    shape: Shape = MikaShapes.Pill,
+    shape: Shape = MaeveShapes.Pill,
     content: @Composable RowScope.() -> Unit,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
+    val style = LocalMaeveSurfaces.current.chrome
     var origin by remember { mutableStateOf(Offset.Zero) }
     Box(
         modifier.floatShadow(c, shape).clip(shape)
@@ -170,9 +201,11 @@ fun GlassBar(
             )
         }
         Row(
-            Modifier.fillMaxWidth().background(if (backdrop != null) c.glass else c.surface)
-                .border(0.5.dp, c.glassEdge, shape)
-                .heightIn(min = MikaSize.Composer).padding(6.dp),
+            Modifier.fillMaxWidth()
+                .background(if (backdrop != null) style.fill else style.fallbackFill)
+                .border(style.hairlineWidth, style.hairline, shape)
+                .drawBehind { glassRim(style) }
+                .heightIn(min = MaeveSize.Composer).padding(6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
             content = content,
