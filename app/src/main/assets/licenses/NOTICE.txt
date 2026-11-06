@@ -1,0 +1,14 @@
+Mika
+Copyright 2026 wangzan101
+
+----
+
+Maeve
+Copyright 2026 Daiyimo
+
+Maeve is a derivative work of Mika (Apache-2.0), by wangzan101 and contributors,
+via the Daiyimo/Mika fork (base commit bbc8922a).
+The package was renamed to com.daiyimo.maeve and the product identity, visual
+system and connection layer are being reworked. See FORK.md for the full change
+record. The original attribution above is retained verbatim, as required by
+Apache-2.0 section 4(d).

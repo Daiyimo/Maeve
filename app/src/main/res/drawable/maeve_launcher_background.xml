@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Reverie preset: foggy violet gradient. Design contract: docs/spec/visual-tokens.md §4. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:type="linear"
+        android:angle="270"
+        android:startColor="#FF6E6296"
+        android:endColor="#FF332B4A" />
+</shape>
