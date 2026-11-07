@@ -93,7 +93,7 @@ class BuiltinShellRecovery(
                 write(AccessibilityList.without(current, me))
                 withContext(NonCancellable) {
                     delay(gapMs)
-                    // 加回失败时把原来的列表(连同总开关)写回,不让 Mika 从列表里消失;这次仍按加回失败报
+                    // 加回失败时把原来的列表(连同总开关)写回,不让 Maeve 从列表里消失;这次仍按加回失败报
                     try {
                         write(AccessibilityList.with(read(), me))
                     } catch (e: Exception) {
@@ -154,7 +154,7 @@ class BuiltinShellRecovery(
         }.stateIn(scope, SharingStarted.Eagerly, read())
     }
 
-    /** 系统列表里有没有 Mika(跟着系统设置的变化)和服务实例是否连着(跟着连上、断开)。整个进程一份。 */
+    /** 系统列表里有没有 Maeve(跟着系统设置的变化)和服务实例是否连着(跟着连上、断开)。整个进程一份。 */
     val accessibility: StateFlow<A11yObservation> by lazy { serviceObservations() }
 
     private fun serviceObservations(): StateFlow<A11yObservation> {
@@ -186,7 +186,7 @@ class BuiltinShellRecovery(
 
     /** 开机后按已生效的「重启后自动恢复」重新打开无线调试并重起助手;不需要动手时返回 null。 */
     suspend fun restoreAfterBoot(): RestoreOutcome? {
-        // 没配对过(助手是电脑经 USB 起的):Mika 自己起不来助手,不去动无线调试;
+        // 没配对过(助手是电脑经 USB 起的):Maeve 自己起不来助手,不去动无线调试;
         // 用 root 启动时看门狗经 su 起助手,也不去动无线调试
         if (!control.paired || control.rootStart) return null
         val holds = app.checkSelfPermission(PermissionCommands.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED

@@ -42,10 +42,10 @@ class ResponsesModelTest {
     @Test fun requestKeepsOnlyAllowedFieldsAndPutsSystemPromptInInstructions() = runTest {
         server.enqueue(stream(completed()))
         val history = listOf(
-            Message(Role.System, listOf(Part.Text("备注")), Author.Mika),
+            Message(Role.System, listOf(Part.Text("备注")), Author.Maeve),
             Message(Role.User, listOf(Part.Text("看图"), Part.Image("QUJD", "image/jpeg")), Author.User),
         )
-        model().complete("你是 Mika", history, listOf(tool))
+        model().complete("你是 Maeve", history, listOf(tool))
         val req = server.takeRequest()
         assertEquals("/v1/responses", req.path)
         assertEquals("Bearer k", req.getHeader("Authorization"))
@@ -53,7 +53,7 @@ class ResponsesModelTest {
         assertEquals(setOf("model", "instructions", "input", "tools", "store", "stream", "include"), body.keys)
         assertEquals("false", body["store"].toString())
         assertEquals("true", body["stream"].toString())
-        assertEquals("你是 Mika", body["instructions"]!!.jsonPrimitive.content)
+        assertEquals("你是 Maeve", body["instructions"]!!.jsonPrimitive.content)
         assertEquals("""["reasoning.encrypted_content"]""", body["include"].toString())
         val input = body["input"]!!.jsonArray
         assertEquals("developer", input[0].jsonObject["role"]!!.jsonPrimitive.content)
@@ -109,8 +109,8 @@ class ResponsesModelTest {
         server.enqueue(stream(completed()))
         val reasoning = """[{"type":"reasoning","summary":[],"encrypted_content":"ENC"}]"""
         val history = user + listOf(
-            Message(Role.Assistant, listOf(Part.Thinking("想一下"), Part.Text("先点"), Part.ToolCall("call_1", "phone_tap", "{}", reasoning)), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("call_1", "好了", isError = false)), Author.Mika),
+            Message(Role.Assistant, listOf(Part.Thinking("想一下"), Part.Text("先点"), Part.ToolCall("call_1", "phone_tap", "{}", reasoning)), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("call_1", "好了", isError = false)), Author.Maeve),
         )
         model().complete("s", history, listOf(tool))
         val input = sentBody()["input"]!!.jsonArray.map { it.jsonObject }

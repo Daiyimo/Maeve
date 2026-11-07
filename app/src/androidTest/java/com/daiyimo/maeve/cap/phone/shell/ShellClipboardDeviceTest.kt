@@ -38,7 +38,7 @@ object ShellClipboardProbe {
             val originalText = clipboard.primaryClip?.getItemAt(0)?.text?.toString()
             val shell = ShellService(ShellContext.SHELL_UID)
             try {
-                val text = "Mika 中文输入回归"
+                val text = "Maeve 中文输入回归"
                 val result = shell.setClipText(text)
                 check(result == ShellService.CLIP_SET) { "setClipText returned $result" }
                 check(clipboard.primaryClip?.getItemAt(0)?.text?.toString() == text)

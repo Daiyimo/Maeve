@@ -17,14 +17,14 @@ class StructuredCompactionTest {
     private var seq = 0
     private val head = listOf(
         Message(Role.User, listOf(Part.Text("帮我查上海的天气")), Author.User),
-        Message(Role.User, listOf(Part.Text(ContextBuilder.envelope(ContextKind.Memory, "记忆", "1. 喜欢摄氏度"))), Author.Mika),
+        Message(Role.User, listOf(Part.Text(ContextBuilder.envelope(ContextKind.Memory, "记忆", "1. 喜欢摄氏度"))), Author.Maeve),
     )
 
     private fun round(name: String, args: String = "{}", result: String = """{"ok":true,"changed":true}""", said: String? = null): List<Message> {
         val id = "c${++seq}"
         return listOf(
-            Message(Role.Assistant, listOfNotNull(said?.let { Part.Text(it) }, Part.ToolCall(id, name, args)), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult(id, result, isError = false)), Author.Mika),
+            Message(Role.Assistant, listOfNotNull(said?.let { Part.Text(it) }, Part.ToolCall(id, name, args)), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult(id, result, isError = false)), Author.Maeve),
         )
     }
 

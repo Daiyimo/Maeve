@@ -34,7 +34,7 @@ class ProviderStoreTest {
 
     private val setups = mutableListOf<ClientSetup>()
 
-    private fun store() = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Mika/1.2.3") { cfg, apiKey, endpoint, setup ->
+    private fun store() = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Maeve/1.2.3") { cfg, apiKey, endpoint, setup ->
         built += cfg to apiKey
         setups += setup
         endpoints += endpoint
@@ -741,7 +741,7 @@ class ProviderStoreTest {
         val sent = setups.map { it.headers["x-test-session"] }
         assertEquals(listOf(a.id, a.id, ModelSession.of("conv-b").id), sent)
         assertTrue(sent[0] != sent[2])
-        assertTrue(setups.all { it.headers["User-Agent"] == "Mika/1.2.3" })
+        assertTrue(setups.all { it.headers["User-Agent"] == "Maeve/1.2.3" })
     }
 
     /** 列表把模型指到 Responses 的(同一服务商下只说这一种协议的模型):走真的 Responses 适配器,照样带客户端标识和会话号。 */
@@ -749,7 +749,7 @@ class ProviderStoreTest {
     fun responsesRoutedModelCarriesTheSessionHeader() = runTest {
         val server = okhttp3.mockwebserver.MockWebServer().also { it.start() }
         try {
-            val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Mika/1.2.3")
+            val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Maeve/1.2.3")
             val responsesBase = server.url("/v1").toString()
             val listed = ListedModel("r-only", endpoint = ModelEndpoint(ModelProtocol.Responses, responsesBase))
             val p = s.connect("Go", ProviderConfig.Kind.OpenAiCompat, "https://go.test/v1", "k", listOf(listed), sessionHeader = "x-test-session")
@@ -760,7 +760,7 @@ class ProviderStoreTest {
             s.modelFor(ModelRole.Main, session)!!.complete("s", emptyList(), emptyList())
             val req = server.takeRequest()
             assertEquals("/v1/responses", req.path)
-            assertEquals("Mika/1.2.3", req.getHeader("User-Agent"))
+            assertEquals("Maeve/1.2.3", req.getHeader("User-Agent"))
             assertEquals(session.id, req.getHeader("x-test-session"))
             assertEquals("Bearer k", req.getHeader("Authorization"))
         } finally {
@@ -774,7 +774,7 @@ class ProviderStoreTest {
         val p = connected(s)
         s.use(ModelRole.Main, p.id, "m1", none)
         s.modelFor(ModelRole.Main, ModelSession.of("conv-a"))
-        assertEquals(mapOf("User-Agent" to "Mika/1.2.3"), setups.single().headers)
+        assertEquals(mapOf("User-Agent" to "Maeve/1.2.3"), setups.single().headers)
     }
 
     /** 会话头随服务商存下;旧版本存下的(没有这一项)按地址对得上的预设补上,预设的地址就会带。 */
@@ -797,7 +797,7 @@ class ProviderStoreTest {
     fun probeGoesThroughTheRealAdapterWithHeaders() = runTest {
         val server = okhttp3.mockwebserver.MockWebServer().also { it.start() }
         try {
-            val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Mika/1.2.3")
+            val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Maeve/1.2.3")
             val url = server.url("/v1").toString()
             server.enqueue(okhttp3.mockwebserver.MockResponse().setHeader("Content-Type", "application/json").setBody(
                 """{"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function",""" +
@@ -806,7 +806,7 @@ class ProviderStoreTest {
             assertEquals(ProbeResult.ToolCalled, s.probe(ProviderConfig.Kind.OpenAiCompat, url, "sk", "x-test-session", "m", null, none))
             val req = server.takeRequest()
             assertEquals("/v1/chat/completions", req.path)
-            assertEquals("Mika/1.2.3", req.getHeader("User-Agent"))
+            assertEquals("Maeve/1.2.3", req.getHeader("User-Agent"))
             assertTrue(req.getHeader("x-test-session").orEmpty().isNotEmpty())
             assertEquals("Bearer sk", req.getHeader("Authorization"))
             val body = req.body.readUtf8()
@@ -826,7 +826,7 @@ class ProviderStoreTest {
             assertEquals(ProbeResult.ToolCalled, s.probe(ProviderConfig.Kind.OpenAiResponses, url, "sk", null, "m", null, none))
             val responses = server.takeRequest()
             assertEquals("/v1/responses", responses.path)
-            assertEquals("Mika/1.2.3", responses.getHeader("User-Agent"))
+            assertEquals("Maeve/1.2.3", responses.getHeader("User-Agent"))
             val responsesBody = responses.body.readUtf8()
             assertFalse(responsesBody.contains("max_output_tokens"))
             assertTrue(responsesBody.contains("get_time"))
@@ -840,7 +840,7 @@ class ProviderStoreTest {
     fun probeThatGetsOnlyTextReportsNoToolCall() = runTest {
         val server = okhttp3.mockwebserver.MockWebServer().also { it.start() }
         try {
-            val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Mika/1.2.3")
+            val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Maeve/1.2.3")
             server.enqueue(okhttp3.mockwebserver.MockResponse().setHeader("Content-Type", "application/json")
                 .setBody("""{"choices":[{"message":{"role":"assistant","content":"It is noon."},"finish_reason":"stop"}]}"""))
             assertEquals(ProbeResult.NoToolCall, s.probe(ProviderConfig.Kind.OpenAiCompat, server.url("/v1").toString(), "sk", null, "m", null, none))
@@ -854,7 +854,7 @@ class ProviderStoreTest {
     fun probeLeavesRoomForAToolCall() = runTest {
         val server = okhttp3.mockwebserver.MockWebServer().also { it.start() }
         try {
-            val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Mika/1.2.3")
+            val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Maeve/1.2.3")
             server.enqueue(okhttp3.mockwebserver.MockResponse().setHeader("Content-Type", "application/json").setBody(
                 """{"content":[{"type":"tool_use","id":"t1","name":"get_time","input":{}}],"stop_reason":"tool_use","usage":{"input_tokens":1,"output_tokens":1}}""",
             ))

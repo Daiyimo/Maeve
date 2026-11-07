@@ -51,10 +51,10 @@ class WebEditorInputTest {
         val s = snapUntil { snap -> snap.elements.any { it.editable } }
         val field = s.elements.first { it.editable }
 
-        val r = screen.typeText(field.ref, s.snapshotId, "你好 Mika")
+        val r = screen.typeText(field.ref, s.snapshotId, "你好 Maeve")
         assertTrue("$r", r is ActionResult.Ok)
         assertEquals(Verification.MATCH, (r as ActionResult.Ok).verification)
-        val after = snapUntil { snap -> status(snap)?.endsWith("text=你好 Mika") == true }
+        val after = snapUntil { snap -> status(snap)?.endsWith("text=你好 Maeve") == true }
         assertTrue(status(after)!!, !status(after)!!.startsWith("inputs=0"))
 
         // 再打一次是替换,不是接在后面
@@ -68,7 +68,7 @@ class WebEditorInputTest {
     }
 
     /**
-     * 用户原来复制的内容(带自己的标签)在打字后原样还回去。Mika 的界面开在主屏上,这样测试进程读得到剪贴板;
+     * 用户原来复制的内容(带自己的标签)在打字后原样还回去。Maeve 的界面开在主屏上,这样测试进程读得到剪贴板;
      * 还原后截一张主屏图(files/shots/clip-restored.png),人工确认没有弹「已复制」浮层。
      */
     @Test

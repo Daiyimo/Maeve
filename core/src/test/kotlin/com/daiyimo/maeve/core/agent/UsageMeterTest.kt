@@ -13,8 +13,8 @@ import org.junit.Test
 class UsageMeterTest {
     private val task = Message(Role.User, listOf(Part.Text("帮我查天气")), Author.User)
     private var seq = 0
-    private fun call() = Message(Role.Assistant, listOf(Part.ToolCall("c${++seq}", "phone_tap", """{"target":"按钮"}""")), Author.Mika)
-    private fun result(pad: Int = 400) = Message(Role.Tool, listOf(Part.ToolResult("c$seq", """{"ok":true,"pad":"${"x".repeat(pad)}"}""", false)), Author.Mika)
+    private fun call() = Message(Role.Assistant, listOf(Part.ToolCall("c${++seq}", "phone_tap", """{"target":"按钮"}""")), Author.Maeve)
+    private fun result(pad: Int = 400) = Message(Role.Tool, listOf(Part.ToolResult("c$seq", """{"ok":true,"pad":"${"x".repeat(pad)}"}""", false)), Author.Maeve)
 
     @Test fun noUsageYetEstimatesMessagesAndOverheadOnce() {
         val h = listOf(task, call(), result())

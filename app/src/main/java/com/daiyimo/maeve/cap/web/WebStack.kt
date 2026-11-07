@@ -192,7 +192,7 @@ class WebStack private constructor(
     }
 
     companion object {
-        private const val TAG = "MikaWebStack"
+        private const val TAG = "MaeveWebStack"
 
         /** 建一套;系统 WebView 不可用等原因建不起来时抛出,调用方就只给手机界面。主线程调用。 */
         fun create(

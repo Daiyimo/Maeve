@@ -29,14 +29,14 @@ import com.daiyimo.maeve.browser.SiteLook
 import com.daiyimo.maeve.browser.SiteLooks
 import com.daiyimo.maeve.browser.StartPageModel
 import com.daiyimo.maeve.settings.Prerequisites
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** 侧栏的「浏览器」入口;起始页的几段(搜索、常用网站、整理、最近打开),网页的顶栏和工具栏、「更多」面板、「给 Mika 登录」横幅。 */
+/** 侧栏的「浏览器」入口;起始页的几段(搜索、常用网站、整理、最近打开),网页的顶栏和工具栏、「更多」面板、「给 Maeve 登录」横幅。 */
 @RunWith(AndroidJUnit4::class)
 class BrowserScreenTest {
     @get:Rule(order = Int.MIN_VALUE) val chinese = ChineseUi()
@@ -56,7 +56,7 @@ class BrowserScreenTest {
 
     private fun start() {
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 BrowserStart(
                     sites, recent, face,
                     onBack = { calls += "back" },
@@ -75,7 +75,7 @@ class BrowserScreenTest {
     @Test
     fun drawerHasBrowserEntryThatOpensIt() {
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 ChatDrawer(
                     Prerequisites.Check(emptyList()), DrawerSections(emptyList(), emptyList()), canSwitch = true,
                     onNew = {}, onPlans = {}, onMemory = {},
@@ -147,7 +147,7 @@ class BrowserScreenTest {
     fun pageBarAndToolbar() {
         val page = BrowserPage("https://shop.example.com/", "购物", 40, loading = true, canBack = false, canForward = false, desktop = true)
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 Column {
                     BrowserPageBar(page, face("shop.example.com"), onClose = { calls += "close" }, onSubmit = {}, onReload = {}, onStop = { calls += "stop" })
                     BrowserToolbar(page, onBackPage = {}, onForward = {}, onHome = { calls += "home" }, onShare = { calls += "share" }, onMore = { calls += "more" })
@@ -169,7 +169,7 @@ class BrowserScreenTest {
     @Test
     fun moreSheetOffersSiteActions() {
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 BrowserMoreSheet(
                     face("shop.example.com"), "shop.example.com", favorite = false, desktop = false,
                     onDismiss = { calls += "dismiss" }, onReload = {}, onCopy = { calls += "copy" }, onOpenOutside = {},
@@ -187,7 +187,7 @@ class BrowserScreenTest {
 
     @Test
     fun loginBannerConfirms() {
-        compose.setContent { MikaTheme { LoginBanner(desktop = true, onDone = { calls += "done" }) } }
+        compose.setContent { MaeveTheme { LoginBanner(desktop = true, onDone = { calls += "done" }) } }
         compose.onNodeWithTag("browser-login-banner").assertIsDisplayed()
         compose.onNodeWithText(BROWSER_LOGIN_DONE).performClick()
         assertEquals(listOf("done"), calls)
@@ -195,7 +195,7 @@ class BrowserScreenTest {
 
     @Test
     fun siteTileFallsBackToInitial() {
-        compose.setContent { MikaTheme { SiteTile(face("news.example.org"), 54.dp, RoundedCornerShape(16.dp), MikaType.Title) } }
+        compose.setContent { MaeveTheme { SiteTile(face("news.example.org"), 54.dp, RoundedCornerShape(16.dp), MaeveType.Title) } }
         compose.onNodeWithText("新").assertIsDisplayed()
     }
 }

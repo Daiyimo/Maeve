@@ -12,7 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.chat.ConversationStore
 import com.daiyimo.maeve.core.agent.Turn
@@ -62,7 +62,7 @@ object TriggerRuntime {
             .setSmallIcon(R.drawable.ic_notification).setContentTitle(ExactAlarmGuide.TITLE)
             .setContentText(ExactAlarmGuide.BODY).setStyle(Notification.BigTextStyle().bigText(ExactAlarmGuide.BODY))
             .setContentIntent(open).setAutoCancel(true).build()) }
-            .onFailure { Log.w("MikaTrigger", "exact alarm prompt failed", it) }.isSuccess
+            .onFailure { Log.w("MaeveTrigger", "exact alarm prompt failed", it) }.isSuccess
     }
 
     @Synchronized fun rearm(context: Context) { engine(context, store(context)).rearm(System.currentTimeMillis()) }
@@ -99,7 +99,7 @@ object TriggerRuntime {
         store.windows().firstOrNull { it.key == key }?.let { window ->
             store.get(window.triggerId)?.let { trigger ->
                 if (!hasSavedResult(context, key)) runCatching { reportUncertain(context, trigger, key) }
-                    .onFailure { Log.w("MikaTrigger", "could not report interrupted task", it) }
+                    .onFailure { Log.w("MaeveTrigger", "could not report interrupted task", it) }
             }
         }
         engine(context, store).rearm(System.currentTimeMillis())
@@ -181,7 +181,7 @@ object TriggerRuntime {
                     store.mark(it.key, TriggerWindowState.Unknown, "process restarted before result was confirmed")
                     if (trigger != null && !hasSavedResult(context, it.key))
                         runCatching { reportUncertain(context, trigger, it.key) }
-                            .onFailure { error -> Log.w("MikaTrigger", "could not report recovered task", error) }
+                            .onFailure { error -> Log.w("MaeveTrigger", "could not report recovered task", error) }
                 }
             }
             recovered = true
@@ -190,7 +190,7 @@ object TriggerRuntime {
     }
 
     private fun engine(context: Context, store: FileTriggerStore) = TriggerEngine(store,
-        { at -> arm(context, at) }, isIdle = { !((context.applicationContext as MikaApp).taskState.busy.value) }) { trigger, window ->
+        { at -> arm(context, at) }, isIdle = { !((context.applicationContext as MaeveApp).taskState.busy.value) }) { trigger, window ->
             if (trigger.reminderText != null) deliverReminder(context, store, trigger, window.key)
             else try { TaskService.startTrigger(context, trigger.goal, trigger.threadId, window.key, trigger.conditionGoal) }
                 catch (e: Exception) { reportStartFailure(context, store, trigger, window.key, e); throw e }
@@ -211,7 +211,7 @@ object TriggerRuntime {
     private fun reportStartFailure(context: Context, store: FileTriggerStore, trigger: TriggerDefinition,
         key: String, error: Exception, resetCondition: Boolean = false) {
         val message = tr(R.string.trigger_not_started_body)
-        Log.w("MikaTrigger", "scheduled task could not start", error)
+        Log.w("MaeveTrigger", "scheduled task could not start", error)
         store.mark(key, TriggerWindowState.Failed, tr(R.string.trigger_start_failed))
         if (resetCondition) store.get(trigger.id)?.let { store.upsert(it.copy(lastConditionMet = false)) }
         val conversations = ConversationStore.shared(context)
@@ -250,7 +250,7 @@ object TriggerRuntime {
                 .setSmallIcon(R.drawable.ic_notification).setContentTitle(title)
                 .setContentText(text).setStyle(Notification.BigTextStyle().bigText(text))
                 .setContentIntent(open).setAutoCancel(true).build()) }
-                .onFailure { Log.w("MikaTrigger", "reminder notification failed", it) }
+                .onFailure { Log.w("MaeveTrigger", "reminder notification failed", it) }
         }
     }
 
@@ -285,7 +285,7 @@ class TriggerAlarmReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try { TriggerRuntime.fire(context.applicationContext) }
-            catch (e: Exception) { Log.e("MikaTrigger", "alarm dispatch failed", e) }
+            catch (e: Exception) { Log.e("MaeveTrigger", "alarm dispatch failed", e) }
             finally { pending.finish() }
         }
     }

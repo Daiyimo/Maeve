@@ -67,7 +67,7 @@ class BuiltinShellManager(context: Context, private val hub: HelperHub, private 
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /** 已 root 的手机上「用 root 启动手机助手」「允许 Mika 执行 root 命令」两个开关;变了就让看门狗按新的情况再试。 */
+    /** 已 root 的手机上「用 root 启动手机助手」「允许 Maeve 执行 root 命令」两个开关;变了就让看门狗按新的情况再试。 */
     val root = RootControl(app, scope) { engine.rootChanged() }
 
     private val platform: AndroidPlatform by lazy {
@@ -252,7 +252,7 @@ class BuiltinShellManager(context: Context, private val hub: HelperHub, private 
         override suspend fun launchHelper() {
             launchStage("preparing")
             val tls = AndroidAdb.tls(AndroidAdb.identity(app))
-            // 助手每次交接前都核对 Mika 的签名
+            // 助手每次交接前都核对 Maeve 的签名
             val command = HelperHandoff.command(app.applicationInfo.sourceDir, app.packageName, Process.myUid(), ownCertPin(app))
             launchStage("adb_connecting")
             val connection = connect(tls)
@@ -310,7 +310,7 @@ class BuiltinShellManager(context: Context, private val hub: HelperHub, private 
         const val MIN_SDK = Build.VERSION_CODES.S
         private const val PREFS = "builtin_shell"
         /** 和配对其余几处(PairingCoordinator、PairingCodeReader)用同一个,按它一条命令就能看完配对经过。 */
-        private const val PAIRING_TAG = "MikaPairing"
+        private const val PAIRING_TAG = "MaevePairing"
         /** 安卓原版 adbd 把无线调试的连接端口写在这个系统属性里;读不到时靠缓存、mDNS、扫本机端口和用户填的端口。 */
         private const val TLS_PORT_PROPERTY = "service.adb.tls.port"
         private const val LOCALHOST = AdbConnectPort.LOCALHOST

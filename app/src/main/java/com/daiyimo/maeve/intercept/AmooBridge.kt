@@ -1,7 +1,7 @@
 package com.daiyimo.maeve.intercept
 
 import android.util.Log
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.remote.RemoteStatus
 import com.daiyimo.maeve.core.remote.RemoteTaskService
 import com.daiyimo.maeve.settings.FeatureFlags
@@ -21,16 +21,16 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * amoo 文件桥。
  *
- * amoo(跑在 stepclaw 的沙箱里)与 Mika 的网络命名空间不同:它能连外网,但连不到手机的 127.0.0.1,
+ * amoo(跑在 stepclaw 的沙箱里)与 Maeve 的网络命名空间不同:它能连外网,但连不到手机的 127.0.0.1,
  * 手机的 18770 它也看不见。两边唯一都读得到的地方是 /sdcard/Android/media/<包名>/ ——
- * 沙箱挂载了 /sdcard,Mika 又是这个目录的属主,于是用它当信箱:
+ * 沙箱挂载了 /sdcard,Maeve 又是这个目录的属主,于是用它当信箱:
  *
- *   <root>/in/<id>.json   {"goal": "要做的事"}        amoo 写,Mika 读到就开工
- *   <root>/out/<id>.json  {"status": "done", ...}     Mika 写,amoo 读结果
+ *   <root>/in/<id>.json   {"goal": "要做的事"}        amoo 写,Maeve 读到就开工
+ *   <root>/out/<id>.json  {"status": "done", ...}     Maeve 写,amoo 读结果
  *
  * 开关见 [FeatureFlags.bridgeAmoo]。协议文本见 docs/dev/amoo-bridge.md。
  */
-class AmooBridge(private val app: MikaApp) {
+class AmooBridge(private val app: MaeveApp) {
 
     private val tasks = RemoteTaskService(app.remoteTasks)
     private val flags = FeatureFlags.get(app)
@@ -167,7 +167,7 @@ internal fun parseAmooRequest(body: String): AmooRequest? {
     return AmooRequest(goal.take(4000))
 }
 
-/** 写回给 amoo 的结果。字段名叫 status/answer,和 Mika 的 /api/v1 任务接口一致,便于它复用同一套理解。 */
+/** 写回给 amoo 的结果。字段名叫 status/answer,和 Maeve 的 /api/v1 任务接口一致,便于它复用同一套理解。 */
 internal fun amooResultJson(id: String, taskId: String?, status: String, answer: String?, note: String?): String =
     buildString {
         append('{')

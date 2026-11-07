@@ -63,7 +63,7 @@ class AgentLoopTimingTest {
         assertEquals("model", observe.source)
     }
 
-    // 等用户回答(ask_user)的时间不算进工具耗时:那是等人,不是 Mika 慢
+    // 等用户回答(ask_user)的时间不算进工具耗时:那是等人,不是 Maeve 慢
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test fun durationMsExcludesUserWaits() = runTest {
         val m = FakeModel(reply(call("ask_user", """{"prompt":"发给谁?"}""")), com.daiyimo.maeve.core.testing.answerReply("x"))

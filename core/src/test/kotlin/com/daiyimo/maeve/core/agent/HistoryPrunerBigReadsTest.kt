@@ -18,8 +18,8 @@ import com.daiyimo.maeve.core.testing.TOOLS
 /** 读屏以外的大结果(读网页、命令输出、读文件……)按同一条裁剪线裁:线前的只剩短字段。 */
 class HistoryPrunerBigReadsTest {
     private fun round(id: String, tool: String, content: String) = listOf(
-        Message(Role.Assistant, listOf(Part.ToolCall(id, tool, "{}")), Author.Mika),
-        Message(Role.Tool, listOf(Part.ToolResult(id, content, false)), Author.Mika),
+        Message(Role.Assistant, listOf(Part.ToolCall(id, tool, "{}")), Author.Maeve),
+        Message(Role.Tool, listOf(Part.ToolResult(id, content, false)), Author.Maeve),
     )
 
     private fun page(i: Int, chars: Int, filler: String) = buildJsonObject {
@@ -29,7 +29,7 @@ class HistoryPrunerBigReadsTest {
     private fun results(ms: List<Message>) = ms.flatMap { it.parts }.filterIsInstance<Part.ToolResult>()
 
     @Test fun fivePageReadsOf30kFitA64kBudget() {
-        val history = listOf(Message(Role.User, listOf(Part.Text("task")), Author.Mika)) +
+        val history = listOf(Message(Role.User, listOf(Part.Text("task")), Author.Maeve)) +
             (1..5).flatMap { round("c$it", "web_read_page", page(it, 30_000, "网页正文内容")) }
         assertTrue(TokenEstimate.of(history) > 64_000)
         val out = ContextCompressor(TOOLS).compress(history, contextTokens = 64_000).messages
@@ -47,7 +47,7 @@ class HistoryPrunerBigReadsTest {
 
     @Test fun sameRuleForEveryReadingToolAndReferenceIsKept() {
         val big = "x".repeat(10_000)
-        val history = listOf(Message(Role.User, listOf(Part.Text("task")), Author.Mika)) +
+        val history = listOf(Message(Role.User, listOf(Part.Text("task")), Author.Maeve)) +
             round("a", "knowledge_read", buildJsonObject { put("content", big) }.toString()) +
             round("b", "run_command", buildJsonObject { put("output", big); put("exitCode", 0) }.toString()) +
             round("c", "read_file", buildJsonObject { put("content", big); put("path", "/workspace/a.txt"); put("nextOffset", 10) }.toString()) +
@@ -64,7 +64,7 @@ class HistoryPrunerBigReadsTest {
         assertEquals(HistoryPruner.OMITTED_READ, rs["e"]!!.content)
         assertEquals(results(history).first { it.callId == "f" }.content, rs["f"]!!.content)
         // 小结果不动
-        val small = listOf(Message(Role.User, listOf(Part.Text("t")), Author.Mika)) + (1..9).flatMap { round("s$it", "run_command", "{\"output\":\"ok\"}") }
+        val small = listOf(Message(Role.User, listOf(Part.Text("t")), Author.Maeve)) + (1..9).flatMap { round("s$it", "run_command", "{\"output\":\"ok\"}") }
         assertEquals(small, HistoryPruner.prune(small, TOOLS, HistoryPruner.Cut(2)))
     }
 }

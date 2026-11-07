@@ -108,7 +108,7 @@ class PromptSurfaceTest {
             val system = m.system!!.toByteArray().size
             val tools = m.tools.sumOf { (it.name + it.description + it.parametersJsonSchema).toByteArray().size }
             val tokens = TokenEstimate.of(listOf(com.daiyimo.maeve.core.model.Message(com.daiyimo.maeve.core.model.Role.User,
-                listOf(Part.Text(m.system!! + m.tools.joinToString("") { it.name + it.description + it.parametersJsonSchema })), com.daiyimo.maeve.core.model.Author.Mika)))
+                listOf(Part.Text(m.system!! + m.tools.joinToString("") { it.name + it.description + it.parametersJsonSchema })), com.daiyimo.maeve.core.model.Author.Maeve)))
             sizes.appendLine("$name: system $system bytes, ${m.tools.size} tools $tools bytes, total ${system + tools} bytes, ~$tokens tokens")
         }
         print(sizes)

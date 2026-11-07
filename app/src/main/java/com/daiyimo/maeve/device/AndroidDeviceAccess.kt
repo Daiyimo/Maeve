@@ -18,18 +18,18 @@ import com.daiyimo.maeve.core.device.DeviceCredential
 import com.daiyimo.maeve.core.device.DeviceState
 import com.daiyimo.maeve.settings.DeviceAccessSettings
 import com.daiyimo.maeve.settings.KeystoreKeyCipher
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
 /** App 级唯一实例:设置页与经过认证的 MCP 共用,不经过模型、屏幕工具或运行记录。 */
-class AndroidDeviceAccess(context: Context, helper: () -> IMikaShell?) {
-    val settings = DeviceAccessSettings(File(context.filesDir, "settings"), KeystoreKeyCipher("mika-device-access"))
+class AndroidDeviceAccess(context: Context, helper: () -> IMaeveShell?) {
+    val settings = DeviceAccessSettings(File(context.filesDir, "settings"), KeystoreKeyCipher("maeve-device-access"))
     val access = DeviceAccess(AndroidDeviceAccessPort(context, helper), settings)
 }
 
-internal class AndroidDeviceAccessPort(context: Context, private val helper: () -> IMikaShell?) : DeviceAccessPort {
+internal class AndroidDeviceAccessPort(context: Context, private val helper: () -> IMaeveShell?) : DeviceAccessPort {
     private val power = context.getSystemService(PowerManager::class.java)
     private val keyguard = context.getSystemService(KeyguardManager::class.java)
     private val user = context.getSystemService(UserManager::class.java)
@@ -115,7 +115,7 @@ internal class AndroidDeviceAccessPort(context: Context, private val helper: () 
     }
 
     private companion object {
-        const val TAG = "MikaDeviceAccess"
+        const val TAG = "MaeveDeviceAccess"
         const val SYSTEM_UI = "com.android.systemui"
     }
 }

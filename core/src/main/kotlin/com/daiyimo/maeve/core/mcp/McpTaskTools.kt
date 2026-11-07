@@ -19,7 +19,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
-/** 电脑能用的工具:只给高层的「把事交给 Mika」,具体怎么做由手机上的 Mika 自己决定。 */
+/** 电脑能用的工具:只给高层的「把事交给 Maeve」,具体怎么做由手机上的 Maeve 自己决定。 */
 class McpTaskTools(
     private val service: RemoteTaskService,
     device: DeviceAccess? = null,
@@ -33,9 +33,9 @@ class McpTaskTools(
     data class Tool(val name: String, val description: String, val schema: JsonObject, val readOnly: Boolean)
 
     val tools: List<Tool> = listOf(
-        Tool(RUN, "Hand Mika a task to do on the Android phone. Mika runs its own agent on the phone (apps, web, files) " +
+        Tool(RUN, "Hand Maeve a task to do on the Android phone. Maeve runs its own agent on the phone (apps, web, files) " +
             "and records the task in a conversation the user can see in the app. Returns a task_id right away; " +
-            "follow it with mika_wait_task. Payments and confirmations are never approved over MCP.",
+            "follow it with maeve_wait_task. Payments and confirmations are never approved over MCP.",
             schema(required = listOf("goal")) {
                 putJsonObject("goal") { put("type", "string"); put("description", "What to get done, in plain words, as you would tell a person.") }
                 putJsonObject("request_id") {
@@ -44,7 +44,7 @@ class McpTaskTools(
                 }
                 putJsonObject("conversation") {
                     put("type", "string")
-                    put("description", "Optional: continue a conversation returned by an earlier task so Mika keeps its context.")
+                    put("description", "Optional: continue a conversation returned by an earlier task so Maeve keeps its context.")
                 }
             }, readOnly = false),
         Tool(STATUS, "Current state of a task: status, latest progress note, the question it is waiting on, or the final answer.",
@@ -58,14 +58,14 @@ class McpTaskTools(
                     put("description", "Longest wait in seconds.")
                 }
             }, readOnly = true),
-        Tool(ANSWER, "Answer the question Mika asked in this task (status waiting_for_answer). " +
+        Tool(ANSWER, "Answer the question Maeve asked in this task (status waiting_for_answer). " +
             "Cannot approve payments, confirmations or steps handed to the user; those stay on the phone.",
             schema(required = listOf("task_id", "text")) {
                 taskIdProp()
                 putJsonObject("text") { put("type", "string"); put("description", "The answer.") }
             }, readOnly = false),
         Tool(STEER, "Add instructions to a running remote task, keeping its task_id and context. " +
-            "Accepted means queued, not executed; check steers in mika_task_status for the message_id. " +
+            "Accepted means queued, not executed; check steers in maeve_task_status for the message_id. " +
             "Does not answer questions, approve payments, resume paused tasks, or start a new task.",
             schema(required = listOf("task_id", "text")) {
                 taskIdProp()
@@ -141,7 +141,7 @@ class McpTaskTools(
             is RemoteTaskError.NoSuchTask -> "No MCP task with id ${e.id}"
             is RemoteTaskError.BadConversation -> "conversation must be one returned by an earlier MCP task (looks like mcp-<uuid>)"
             is RemoteTaskError.NeedsPhone -> ON_PHONE_NOTE
-            is RemoteTaskError.QuestionClosed -> "The question is no longer open; check mika_task_status."
+            is RemoteTaskError.QuestionClosed -> "The question is no longer open; check maeve_task_status."
             is RemoteTaskError.General -> e.message.orEmpty()
         })
     }
@@ -152,7 +152,7 @@ class McpTaskTools(
         RemoteStatus.describe(task).forEach { (k, v) -> put(k, v) }
         when (RemoteStatus.of(task.state)) {
             RemoteStatus.WAITING_ON_PHONE -> put("note", ON_PHONE_NOTE)
-            RemoteStatus.WAITING_FOR_ANSWER -> put("note", "Mika is asking a question. Reply with mika_answer; the user can also answer on the phone.")
+            RemoteStatus.WAITING_FOR_ANSWER -> put("note", "Maeve is asking a question. Reply with maeve_answer; the user can also answer on the phone.")
         }
     }
 
@@ -173,13 +173,13 @@ class McpTaskTools(
     }
 
     companion object {
-        const val RUN = "mika_run_task"
-        const val STEER = "mika_steer_task"
-        const val STATUS = "mika_task_status"
-        const val WAIT = "mika_wait_task"
-        const val ANSWER = "mika_answer"
-        const val CANCEL = "mika_cancel_task"
-        const val LIST = "mika_list_tasks"
+        const val RUN = "maeve_run_task"
+        const val STEER = "maeve_steer_task"
+        const val STATUS = "maeve_task_status"
+        const val WAIT = "maeve_wait_task"
+        const val ANSWER = "maeve_answer"
+        const val CANCEL = "maeve_cancel_task"
+        const val LIST = "maeve_list_tasks"
         const val DEFAULT_WAIT_S = RemoteTaskService.DEFAULT_WAIT_S
         const val MAX_WAIT_S = RemoteTaskService.MAX_WAIT_S
         const val DEFAULT_LIST = RemoteTaskService.DEFAULT_LIST
@@ -187,7 +187,7 @@ class McpTaskTools(
         const val MAX_GOAL = RemoteTaskService.MAX_GOAL
         const val MAX_ANSWER = RemoteTaskService.MAX_ANSWER
         private const val ON_PHONE_NOTE = "This step needs the user on the phone and cannot be answered over MCP. " +
-            "Mika has shown its usual notification there; keep waiting with mika_wait_task or cancel the task."
+            "Maeve has shown its usual notification there; keep waiting with maeve_wait_task or cancel the task."
 
         fun newConversation(): String = RemoteTaskService.newConversation()
         fun isConversation(id: String): Boolean = RemoteTaskService.isConversation(id)
@@ -200,6 +200,6 @@ class McpTaskTools(
         }
 
         private fun kotlinx.serialization.json.JsonObjectBuilder.taskIdProp() =
-            putJsonObject("task_id") { put("type", "string"); put("description", "The task_id returned by mika_run_task.") }
+            putJsonObject("task_id") { put("type", "string"); put("description", "The task_id returned by maeve_run_task.") }
     }
 }

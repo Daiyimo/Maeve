@@ -13,7 +13,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport
 import com.daiyimo.maeve.cap.phone.a11y.AndroidScreen
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import com.daiyimo.maeve.cap.phone.PhoneServices
 import com.daiyimo.maeve.cap.phone.shell.BuiltinShellConnection
 import com.daiyimo.maeve.cap.phone.shell.ShellService
@@ -61,12 +61,12 @@ class AgentDisplayTest {
             InstrumentationRegistry.getInstrumentation().runOnMainSync { connection.unbind() }
         }
 
-        private fun awaitShell(): IMikaShell =
+        private fun awaitShell(): IMaeveShell =
             DeviceSupport.awaitShell(connection)
     }
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val shell: IMikaShell get() = awaitShell()
+    private val shell: IMaeveShell get() = awaitShell()
     private var display: AgentDisplay? = null
 
     @After
@@ -250,14 +250,14 @@ class AgentDisplayTest {
     @Test
     fun coldStartDoesNotKillAppWithTaskOnAnotherScreen() {
         val d = newDisplay()
-        // 用另一块虚拟屏代表「Mika 屏以外的任务」,不碰用户的主屏
+        // 用另一块虚拟屏代表「Maeve 屏以外的任务」,不碰用户的主屏
         val other = AgentDisplay(shell, 720, 1600, 320, InstrumentationRegistry.getInstrumentation().targetContext.getSystemService(android.hardware.display.DisplayManager::class.java))
         try {
             assertEquals(ShellService.START_OK, shell.startApp(other.displayId, SETTINGS))
             assertNotNull(pollUntil(5_000) { shell.topTaskId(other.displayId).takeIf { it != -1 } })
             val pid = pollUntil(3_000) { shellCommand("pidof $SETTINGS").trim().takeIf { it.isNotEmpty() } }
             assertNotNull(pid)
-            // 另一块屏也是 Mika 的屏(代表另一个任务):直接拒绝、不强停,返回「被别的任务占用」
+            // 另一块屏也是 Maeve 的屏(代表另一个任务):直接拒绝、不强停,返回「被别的任务占用」
             assertEquals(ShellService.START_IN_USE_BY_OTHER, shell.restartApp(d.displayId, SETTINGS))
             assertEquals("settings process was killed", pid, shellCommand("pidof $SETTINGS").trim())
         } finally {

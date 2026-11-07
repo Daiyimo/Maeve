@@ -11,7 +11,7 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 
 /**
- * 真机测试里把 Mika 的界面固定成简体中文(断言写的是简体中文):安卓 13 起经系统的「应用语言」临时换成简体中文,测完换回;
+ * 真机测试里把 Maeve 的界面固定成简体中文(断言写的是简体中文):安卓 13 起经系统的「应用语言」临时换成简体中文,测完换回;
  * 要放在最外层(`@get:Rule(order = Int.MIN_VALUE)`),在界面起来之前换好。
  * 安卓 12 及以前没有单个 App 的语言,测试界面跟着系统:请在简体中文系统上跑。
  */

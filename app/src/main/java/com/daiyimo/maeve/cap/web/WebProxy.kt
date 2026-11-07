@@ -30,7 +30,7 @@ object WebProxy {
         SocksWithCredentials,
     }
 
-    private const val TAG = "MikaWebProxy"
+    private const val TAG = "MaeveWebProxy"
     @Volatile private var overridden = false
 
     /** 按此刻的设置决定浏览器怎么连(纯函数,便于测试)。 */

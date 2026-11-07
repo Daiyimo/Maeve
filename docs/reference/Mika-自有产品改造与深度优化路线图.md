@@ -68,7 +68,7 @@ flowchart TD
 
 ### 2.3 GPL / LGPL：不传染，但有分发义务
 
-打包进 APK 的 `libproot.so`、`libproot_loader.so`（GPL-2.0-or-later）、`libmikarun.so`、31MB 的 `rootfs.tar.xz`（65 个 Alpine 包，21 个含 GPL/LGPL/MPL）都是**独立可执行程序，Mika 只以子进程运行、不链接**（`tools/sandbox/README.md:3-4`），属 GPL §2 的 mere aggregation，**不限制你的主体代码闭源或商用**。
+打包进 APK 的 `libproot.so`、`libproot_loader.so`（GPL-2.0-or-later）、`libmaeverun.so`、31MB 的 `rootfs.tar.xz`（65 个 Alpine 包，21 个含 GPL/LGPL/MPL）都是**独立可执行程序，Mika 只以子进程运行、不链接**（`tools/sandbox/README.md:3-4`），属 GPL §2 的 mere aggregation，**不限制你的主体代码闭源或商用**。
 
 但每个副本仍须满足：附许可证全文 + 对应源码或**有效期 ≥3 年、面向任何第三方**的书面要约（GPL-2.0 §1/§3、GPL-3.0 §4/§6、LGPL-3.0 §4）。项目在源码侧做得很扎实（每次发版附 `mika-<版本>-gpl-sources.tar.gz`、`--check` 可逐字节重现、逐包 `packages.json`），**缺口在 APK 侧**：`app/src/main/assets/licenses/` 目前只有 2 个文件。
 

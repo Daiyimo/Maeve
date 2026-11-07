@@ -17,7 +17,7 @@ import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.sh
 import com.daiyimo.maeve.core.agent.TaskState
 import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.model.Role
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import com.daiyimo.maeve.task.ScriptedModel
 import com.daiyimo.maeve.task.TaskService
 import android.util.Log
@@ -33,14 +33,14 @@ import com.daiyimo.maeve.task.TaskEnvironment
 /**
  * 真机测试:脚本模型在虚拟屏的设置里申报一次花钱的操作(只是申报,从不真的去做;只有花钱要同意,申报都带金额),
  * 检查高优先级通知的标题、正文和「同意」「不同意」按钮,以及不同意、同意、评测自动拒绝三条路。
- * 需要内置助手在运行、Mika 无障碍服务已开启。
+ * 需要内置助手在运行、Maeve 无障碍服务已开启。
  */
 @RunWith(AndroidJUnit4::class)
 class ConfirmationDeviceTest {
     @get:Rule(order = Int.MIN_VALUE) val chinese = ChineseUi()
 
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-    private lateinit var shell: IMikaShell
+    private lateinit var shell: IMaeveShell
     // 界面发起的任务在第一个工具调用前另问一次意图(没配轻量模型时问的就是这个模型):固定答 ACT,不占脚本
     private val model = ScriptedModel().apply { intent = "ACT" }
     private var appTask = -1

@@ -9,14 +9,14 @@ import org.junit.Test
 import java.net.URI
 import java.net.URLDecoder
 
-class MikaLinksTest {
+class MaeveLinksTest {
     @get:Rule val texts = ChineseTexts()
 
-    private val device = MikaLinks.Device("Google", "Pixel 8", "14", 34, "0.1.0", "65fcf92")
+    private val device = MaeveLinks.Device("Google", "Pixel 8", "14", 34, "0.1.0", "65fcf92")
 
     @Test
     fun bodyHasThreePrefilledLines() {
-        val lines = MikaLinks.issueBody(device).lines()
+        val lines = MaeveLinks.issueBody(device).lines()
         assertEquals("- 机型：Google Pixel 8", lines[0])
         assertEquals("- 安卓版本：14（SDK 34）", lines[1])
         assertEquals("- Maeve 版本：0.1.0（构建 65fcf92）", lines[2])
@@ -31,20 +31,20 @@ class MikaLinksTest {
     /** 型号里已经带厂商名时不重复写。 */
     @Test
     fun modelNotDoubled() {
-        val body = MikaLinks.issueBody(device.copy(manufacturer = "samsung", model = "SAMSUNG SM-S9180"))
+        val body = MaeveLinks.issueBody(device.copy(manufacturer = "samsung", model = "SAMSUNG SM-S9180"))
         assertTrue(body.startsWith("- 机型：SAMSUNG SM-S9180\n"))
     }
 
     @Test
     fun issueUrlIsEncoded() {
-        val url = MikaLinks.issueUrl(device)
-        assertTrue(url.startsWith("${MikaLinks.NEW_ISSUE}?title=&body="))
+        val url = MaeveLinks.issueUrl(device)
+        assertTrue(url.startsWith("${MaeveLinks.NEW_ISSUE}?title=&body="))
         val query = url.substringAfter('?')
         assertFalse("no raw spaces or newlines", query.any { it == ' ' || it == '\n' || it == '+' })
         assertFalse("no raw non-ASCII", query.any { it.code > 127 })
         // 能被当成合法 URI 解析,正文解码回原样
         URI(url)
         val body = URLDecoder.decode(query.substringAfter("body="), "UTF-8")
-        assertEquals(MikaLinks.issueBody(device), body)
+        assertEquals(MaeveLinks.issueBody(device), body)
     }
 }

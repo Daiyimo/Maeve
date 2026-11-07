@@ -40,7 +40,7 @@ class RootfsInstallerTest {
         b: RuntimeBundle = bundle(),
         client: ByteArray? = "#!/usr/bin/env python3\n".toByteArray(),
         free: Long = 4L shl 30,
-        selfTest: Pair<Int, String> = 0 to "mikarun ok\nseccomp ok\n",
+        selfTest: Pair<Int, String> = 0 to "maeverun ok\nseccomp ok\n",
     ) = RootfsInstaller(
         dirs, state, b,
         abis = { listOf("arm64-v8a") },
@@ -61,7 +61,7 @@ class RootfsInstallerTest {
         assertEquals("one\n", File(dirs.rootfs, "etc/marker").readText())
         assertEquals("127.0.0.1 localhost\n::1 localhost\n", File(dirs.rootfs, "etc/hosts").readText())
         assertTrue(File(dirs.rootfs, "etc/resolv.conf").readText().startsWith("nameserver "))
-        assertTrue(File(dirs.rootfs, "usr/local/bin/mika").canExecute())
+        assertTrue(File(dirs.rootfs, "usr/local/bin/maeve").canExecute())
         assertEquals(listOf("stat"), dirs.procStandIns.list()!!.toList())
         assertFalse(File(dirs.root, "rootfs.new").exists())
         assertFalse(File(dirs.root, "rootfs.old").exists())
@@ -148,7 +148,7 @@ class RootfsInstallerTest {
 
     @Test
     fun selfTestFailureStopsAtCheck() = runBlocking {
-        expectFailure { installer(selfTest = 125 to "mikarun: cannot exec\n").install { _, _ -> } }
+        expectFailure { installer(selfTest = 125 to "maeverun: cannot exec\n").install { _, _ -> } }
         assertEquals(0, opens)
         assertEquals(null, state.completedStep())
         assertTrue(state.status.value is SandboxStatus.Broken)

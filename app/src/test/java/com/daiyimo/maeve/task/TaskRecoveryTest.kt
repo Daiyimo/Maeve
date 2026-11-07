@@ -45,16 +45,16 @@ class TaskRecoveryTest {
         override fun decrypt(data: ByteArray) = encrypt(data)
     }
 
-    // Focus 5 的剪贴板一半:Mika 借着剪贴板粘贴时被杀,下次启动把用户原来的文字还回去;留底是加密的,用完即删
+    // Focus 5 的剪贴板一半:Maeve 借着剪贴板粘贴时被杀,下次启动把用户原来的文字还回去;留底是加密的,用完即删
     @Test fun restoresClipboardFromEncryptedBackupAfterKill() {
         var stored: String? = null
         val backup = ClipBackup({ stored }, { stored = it }, XorCipher())
-        backup.save("用户原来的文字", "Mika 要粘贴的")
+        backup.save("用户原来的文字", "Maeve 要粘贴的")
         assertFalse(stored!!.contains("用户原来的文字"))
 
         val restored = mutableListOf<Pair<String, String>>()
         assertTrue(TaskRecovery.restoreClip(ClipBackup({ stored }, { stored = it }, XorCipher())) { o, u -> restored += o to u })
-        assertEquals(listOf("用户原来的文字" to "Mika 要粘贴的"), restored)
+        assertEquals(listOf("用户原来的文字" to "Maeve 要粘贴的"), restored)
         assertNull(stored)
         // 没有留底就什么也不做
         assertTrue(TaskRecovery.restoreClip(backup) { _, _ -> error("nothing to restore") })

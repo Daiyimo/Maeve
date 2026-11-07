@@ -8,13 +8,13 @@ class EvalTaskTest {
     private val full = """
         {"id":"settings-android-version","goal":"看看手机安卓版本是多少 {run}","apps":["com.android.settings"],
          "category":"read","requires":["installed:com.android.settings"],"expect":"succeeded",
-         "maxSteps":20,"timeoutSec":300,"marker":"Mika评测-{run}",
+         "maxSteps":20,"timeoutSec":300,"marker":"Maeve评测-{run}",
          "answers":{"哪个":"第一个"},"probesBefore":{"ver":"android_release"},
          "checks":[
           {"type":"answer_contains","all":["{probe:ver}"]},
           {"type":"answer_regex","pattern":"\\d+"},
           {"type":"answer_grounded","minItems":3},
-          {"type":"screen_has","packageName":"com.android.settings","text":"Mika评测-{run}","deepLink":"x://y"},
+          {"type":"screen_has","packageName":"com.android.settings","text":"Maeve评测-{run}","deepLink":"x://y"},
           {"type":"probe_equals","probe":"android_release","expected":"{probe:ver}","contains":true},
           {"type":"confirmation_shows","action":"发送","target":"张三","content":null,"amount":"10"}
          ]}
@@ -33,7 +33,7 @@ class EvalTaskTest {
                 Check.AnswerContains(listOf("{probe:ver}")),
                 Check.AnswerRegex("\\d+"),
                 Check.AnswerGrounded(3),
-                Check.ScreenHas("com.android.settings", "Mika评测-{run}", "x://y"),
+                Check.ScreenHas("com.android.settings", "Maeve评测-{run}", "x://y"),
                 Check.ProbeEquals("android_release", "{probe:ver}", true),
                 Check.ConfirmationShows("发送", "张三", null, "10"),
             ),
@@ -103,9 +103,9 @@ class EvalTaskTest {
     @Test fun substitutesRunAndProbe() {
         val t = EvalTasks.substitute(EvalTasks.parse(full), run = "r7", probes = mapOf("ver" to "14"))
         assertEquals("看看手机安卓版本是多少 r7", t.goal)
-        assertEquals("Mika评测-r7", t.marker)
+        assertEquals("Maeve评测-r7", t.marker)
         assertEquals(Check.AnswerContains(listOf("14")), t.checks[0])
-        assertEquals(Check.ScreenHas("com.android.settings", "Mika评测-r7", "x://y"), t.checks[3])
+        assertEquals(Check.ScreenHas("com.android.settings", "Maeve评测-r7", "x://y"), t.checks[3])
         assertEquals(Check.ProbeEquals("android_release", "14", true), t.checks[4])
     }
 

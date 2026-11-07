@@ -135,11 +135,11 @@ class WebActionsTest {
     fun editorReceivesRealInput() = runBlocking<Unit> {
         open("inputs.html")
         val s = screen.snapshot()
-        val r = screen.typeText(s.ref("#editor"), s.snapshotId, "你好 Mika") as ActionResult.Ok
+        val r = screen.typeText(s.ref("#editor"), s.snapshotId, "你好 Maeve") as ActionResult.Ok
         assertEquals(Verification.MATCH, r.verification)
         val st = status()
         assertFalse(st, st.contains("inputs=0 "))
-        assertTrue(st, st.endsWith("text=你好 Mika\""))
+        assertTrue(st, st.endsWith("text=你好 Maeve\""))
         // 再打一次是替换,不是接在后面
         val s2 = screen.snapshot()
         assertEquals(Verification.MATCH, (screen.typeText(s2.ref("#editor"), s2.snapshotId, "第二次") as ActionResult.Ok).verification)

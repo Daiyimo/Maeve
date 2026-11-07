@@ -389,7 +389,7 @@ class WebDownloads(
         private const val MAX_REDIRECTS = 10
         /** 名字是网页给的,交给模型前限长。 */
         const val MAX_NAME_CHARS = 80
-        private const val TAG = "MikaDownloads"
+        private const val TAG = "MaeveDownloads"
         private const val DIR = "downloads"
         private const val SANDBOX_DIR = "/workspace/downloads"
         private const val BUFFER = 64 * 1024

@@ -86,6 +86,6 @@ class WechatChannel(
 
     companion object {
         const val ID = "wechat"
-        private const val TAG = "MikaWechat"
+        private const val TAG = "MaeveWechat"
     }
 }

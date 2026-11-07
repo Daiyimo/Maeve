@@ -17,7 +17,7 @@ class AppAccessScreenTest {
     @get:Rule val compose = createComposeRule()
 
     @Test fun appAccessLoadsWithoutModelAndRecommendedCanBeCancelled() {
-        compose.setContent { com.daiyimo.maeve.ui.theme.MikaTheme { AppAccessScreen(onBack = {}, classifyApps = false) } }
+        compose.setContent { com.daiyimo.maeve.ui.theme.MaeveTheme { AppAccessScreen(onBack = {}, classifyApps = false) } }
         compose.onNodeWithText("应用访问").assertIsDisplayed()
         compose.onNodeWithText("推荐禁用", substring = true).performScrollTo().performClick()
         compose.onNodeWithText("推荐禁用金融交易应用").assertIsDisplayed()

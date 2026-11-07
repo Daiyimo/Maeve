@@ -42,7 +42,7 @@ class PageAskModelTest {
         assertFalse(PageAskModel.glow(null))
     }
 
-    @Test fun panelCollapsesWhenYouTakeOverAndOpensWhenMikaNeedsYou() {
+    @Test fun panelCollapsesWhenYouTakeOverAndOpensWhenMaeveNeedsYou() {
         assertEquals(false, PageAskModel.follow(running, paused))
         assertNull(PageAskModel.follow(paused, paused))
         assertEquals(true, PageAskModel.follow(running, asking))

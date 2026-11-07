@@ -6,7 +6,7 @@ import org.junit.Test
 class ColdStartTest {
     private val agent = 7
 
-    @Test fun forceStopsOnlyWhenEveryTaskIsOnMikasScreen() {
+    @Test fun forceStopsOnlyWhenEveryTaskIsOnMaevesScreen() {
         assertEquals(ColdStart.RESTART, ColdStart.decide(emptyList(), agent, visibleOnMain = false))
         assertEquals(ColdStart.RESTART, ColdStart.decide(listOf(agent, agent), agent, visibleOnMain = false))
     }

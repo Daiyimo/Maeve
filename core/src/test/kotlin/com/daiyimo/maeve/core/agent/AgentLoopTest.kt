@@ -242,7 +242,7 @@ class AgentLoopTest {
             Part.ToolResult("c", """{"ok":true,"screen":"${HistoryPruner.OMITTED}"}""", false),
             Part.ToolResult("d", """{"ok":true,"snapshotId":"s4","elements":[]}""", false),
         )
-        val h = calls.zip(results).flatMap { (c, r) -> listOf(Message(Role.Assistant, listOf(c), Author.Mika), Message(Role.Tool, listOf(r), Author.Mika)) }
+        val h = calls.zip(results).flatMap { (c, r) -> listOf(Message(Role.Assistant, listOf(c), Author.Maeve), Message(Role.Tool, listOf(r), Author.Maeve)) }
         assertEquals(setOf("s2", "s4"), visibleReads(h))
     }
 

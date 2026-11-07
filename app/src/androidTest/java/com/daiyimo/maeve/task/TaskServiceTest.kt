@@ -14,7 +14,7 @@ import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.SETTINGS
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.pollUntil
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.sh
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.agent.FailKind
 import com.daiyimo.maeve.core.agent.TaskState
 import com.daiyimo.maeve.core.model.Capabilities
@@ -25,7 +25,7 @@ import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.model.StopReason
 import com.daiyimo.maeve.core.model.ToolSpec
 import com.daiyimo.maeve.core.verify.Verifier
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -39,14 +39,14 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 真机测试:用脚本模型驱动 TaskService,在虚拟屏上打开系统设置,检验常亮、静音、被挪走暂停与锁屏等待。
- * 需要内置助手在运行、Mika 无障碍服务已开启。
+ * 需要内置助手在运行、Maeve 无障碍服务已开启。
  */
 @RunWith(AndroidJUnit4::class)
 class TaskServiceTest {
     @get:Rule(order = Int.MIN_VALUE) val chinese = ChineseUi()
 
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-    private lateinit var shell: IMikaShell
+    private lateinit var shell: IMaeveShell
     /**
      * 每个任务一个脚本模型:模型的调用编号、核查次数各任务分开数。共用一个时,上一个任务没取走的调用
      * (核查、收尾)会被下一个任务的等待取到,测试就跑到了任务前面。
@@ -118,8 +118,8 @@ class TaskServiceTest {
     private fun awaitState(predicate: (TaskState) -> Boolean): TaskState =
         pollUntil(10_000) { DeviceTaskState.state.value.takeIf(predicate) } ?: error("state never matched: ${DeviceTaskState.state.value}")
 
-    private fun mikaScreenLock(): String? =
-        sh("dumpsys power").lines().map { it.trim() }.firstOrNull { "'Mika:task'" in it }
+    private fun maeveScreenLock(): String? =
+        sh("dumpsys power").lines().map { it.trim() }.firstOrNull { "'Maeve:task'" in it }
 
     /**
      * 产品路径上回答不另请核查(任务以 reviewFinalAnswer = false 运行):模型给的回答原样交出,结局是办成、未经核查;
@@ -219,8 +219,8 @@ class TaskServiceTest {
     @Test
     fun keepsScreenOnDuringTask() {
         startWithSettingsOpen()
-        val line = mikaScreenLock()
-        assertNotNull("Mika holds no screen wake lock while running", line)
+        val line = maeveScreenLock()
+        assertNotNull("Maeve holds no screen wake lock while running", line)
         // 有的系统在类型前加锁对象编号(mLock:<id>),只认类型字样
         // 只保持亮屏、允许系统调暗,不锁在全亮
         assertTrue(line!!, "SCREEN_DIM_WAKE_LOCK" in line)
@@ -231,8 +231,8 @@ class TaskServiceTest {
         assertTrue(summary, if (bits != null) bits and (1 shl 2) != 0 else "SCREEN_DIM" in summary)
 
         finishAndAwait()
-        val released = pollUntil(3_000) { if (mikaScreenLock() == null) true else null }
-        assertTrue("screen wake lock still held after the task: ${mikaScreenLock()}", released == true)
+        val released = pollUntil(3_000) { if (maeveScreenLock() == null) true else null }
+        assertTrue("screen wake lock still held after the task: ${maeveScreenLock()}", released == true)
     }
 
     /** 第一步之前的准备(开模型、读知识、选路线)也算在跑:模型还没开出来时屏幕锁就已拿上。 */
@@ -241,9 +241,9 @@ class TaskServiceTest {
         val opening = java.util.concurrent.CountDownLatch(1)
         testTasks.modelFactory = { _, _ -> opening.await(); model }
         start("测试任务")
-        val held = pollUntil(5_000) { mikaScreenLock() }
+        val held = pollUntil(5_000) { maeveScreenLock() }
         opening.countDown()
-        assertNotNull("Mika holds no screen wake lock while preparing", held)
+        assertNotNull("Maeve holds no screen wake lock while preparing", held)
         assertEquals(1, model.awaitCall().number)
         finishAndAwait()
     }
@@ -325,7 +325,7 @@ class TaskServiceTest {
 
     @Test
     fun scheduledTaskFailsAndNotifiesWhenUnlockIsNotAllowed() {
-        val access = (context.applicationContext as MikaApp).deviceAccess
+        val access = (context.applicationContext as MaeveApp).deviceAccess
         val wasEnabled = access.settings.config.value.enabled
         val power = context.getSystemService(PowerManager::class.java)
         val notifications = context.getSystemService(NotificationManager::class.java)

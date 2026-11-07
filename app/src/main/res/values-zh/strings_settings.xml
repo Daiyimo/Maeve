@@ -122,7 +122,7 @@
     <string name="appearance_dark">一直深色</string>
     <string name="accent_title">配色</string>
     <string name="accent_sub">六套配色,取名来自《西部世界》的意象。预设只定种子,其余颜色都由它推出来。</string>
-    <string name="accent_footnote">双环与光点是 Maeve 的标志:外环是你的主屏,内环是她干活的那块隐藏屏,光点是此刻正在跑的那一步。</string>
+    <string name="accent_footnote">一座俯瞰的圆形迷宫是 Maeve 的标志:螺线从外圈盘到中心,入口那一点是任务进来的地方,中心的点是路走完的地方。App 里的标志和桌面图标是同一套几何。</string>
     <string name="accent_wallpaper_title">跟随壁纸取色</string>
     <string name="accent_wallpaper_sub">只借系统强调色的色相,明度和对比度仍是 Maeve 自己的</string>
     <string name="accent_wallpaper">壁纸</string>
@@ -130,8 +130,8 @@
     <string name="icon_title">桌面图标</string>
     <string name="icon_sub">桌面上那个图标。App 里面不变。</string>
     <string name="icon_footnote">马上生效。有的桌面要等一会儿,或者重启桌面才刷新。</string>
-    <string name="icon_reverie">雾紫</string>
-    <string name="icon_pearl">珠白</string>
+    <string name="icon_reverie">梅子</string>
+    <string name="icon_pearl">珍珠</string>
     <string name="icon_night">夜色</string>
     <string name="icon_mono">单色</string>
     <string name="settings_self_config">允许 Maeve 改自己的设置</string>

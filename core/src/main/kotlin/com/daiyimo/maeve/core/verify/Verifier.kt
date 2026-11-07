@@ -163,7 +163,7 @@ class Verifier(
         return try {
             withTimeoutOrNull(timeoutMs(body.length, if (image != null) 1 else 0)) {
                 // 回复走容错解析;读不出来时再问一次、只要 JSON;还不行才算解析不了
-                ModelJson.completeParsed(model, PROMPT, listOf(Message(Role.User, parts, Author.Mika)), ::parse).also { unparsed = it == null }
+                ModelJson.completeParsed(model, PROMPT, listOf(Message(Role.User, parts, Author.Maeve)), ::parse).also { unparsed = it == null }
             }?.let { Asked.Done(it) } ?: if (unparsed) Asked.Failed("核查器的回复无法解析") else Asked.TimedOut
         } catch (e: CancellationException) {
             throw e

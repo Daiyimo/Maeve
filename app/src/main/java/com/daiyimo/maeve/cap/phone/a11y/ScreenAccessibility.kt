@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
-/** Mika 的无障碍服务:操作和事件转给当前已连接实例,任务持有旧实例时也能在重连后恢复。 */
+/** Maeve 的无障碍服务:操作和事件转给当前已连接实例,任务持有旧实例时也能在重连后恢复。 */
 open class ScreenAccessibility : AccessibilityService() {
 
     private class DisplayEvent(val displayId: Int, val event: AccessibilityEvent)
@@ -73,7 +73,7 @@ open class ScreenAccessibility : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             windowGeneration.incrementAndGet()
         }
-        val access = (application as com.daiyimo.maeve.MikaApp).appAccess.current()
+        val access = (application as com.daiyimo.maeve.MaeveApp).appAccess.current()
         if (access.denial(event.packageName?.toString()) != null) return
         if (event.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED && notifications.subscriptionCount.value > 0) {
             val notification = event.parcelableData as? Notification
@@ -128,7 +128,7 @@ open class ScreenAccessibility : AccessibilityService() {
             }
             if (!service.dispatchGesture(gesture, callback, null) && cont.isActive) cont.resume(false)
         }
-        // 注入是在用户屏幕上操作别的 App,不是操作 Mika 自己的浮层;所有单点、双击和拖动统一隔离
+        // 注入是在用户屏幕上操作别的 App,不是操作 Maeve 自己的浮层;所有单点、双击和拖动统一隔离
         return service.overlayHost?.passInjectedGesturesThrough { send() } ?: send()
     }
 
@@ -140,7 +140,7 @@ open class ScreenAccessibility : AccessibilityService() {
     }
 
     /**
-     * 截一张主屏(用户看着的那块屏,包括 Mika 自己的浮层:要不要藏起来由调用方定)。系统限制两次截图至少隔一会儿,
+     * 截一张主屏(用户看着的那块屏,包括 Maeve 自己的浮层:要不要藏起来由调用方定)。系统限制两次截图至少隔一会儿,
      * 太快时等一秒再截一次。画面是软件位图(可以读像素、编码)。
      */
     suspend fun takeMainScreenshot(): MainShot {
@@ -223,7 +223,7 @@ open class ScreenAccessibility : AccessibilityService() {
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
 
-        private const val TAG = "MikaA11y"
+        private const val TAG = "MaeveA11y"
         private val _instance = MutableStateFlow<ScreenAccessibility?>(null)
         /** 已连接的服务实例;服务未开启或已断开时为 null。 */
         val instance: StateFlow<ScreenAccessibility?> = _instance.asStateFlow()

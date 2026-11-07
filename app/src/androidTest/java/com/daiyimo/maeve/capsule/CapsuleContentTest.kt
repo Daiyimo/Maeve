@@ -16,7 +16,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -33,7 +33,7 @@ class CapsuleContentTest {
 
     private fun show(view: CapsuleView.Shown) {
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) {
+            MaeveTheme(dark = false, reduceMotion = true) {
                 CapsuleContent(view, onTap = { clicks += "open" }, onStop = { clicks += "stop" }, onHandBack = { clicks += "back" })
             }
         }
@@ -41,7 +41,7 @@ class CapsuleContentTest {
 
     @Test fun runningIsABallWithRingThatSaysWhatItDoesAndOpensOnTap() {
         show(CapsuleView.Shown(CapsuleKind.Running, "在搜牙膏", count = 1, runKey = "a", conversationId = "c"))
-        compose.onNodeWithContentDescription("Mika 在干活：在搜牙膏，点开看详情").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Maeve 在干活：在搜牙膏，点开看详情").assertIsDisplayed()
         compose.onNodeWithTag("capsule-ring", useUnmergedTree = true).assertIsDisplayed()
         // 一颗上不写那句话
         compose.onNodeWithText("在搜牙膏").assertDoesNotExist()
@@ -52,7 +52,7 @@ class CapsuleContentTest {
     @Test fun eachBallStateShowsItsMarks() {
         var view by mutableStateOf(CapsuleView.Shown(CapsuleKind.Running, "在搜", count = 3))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleContent(view, {}, {}, {}) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleContent(view, {}, {}, {}) }
         }
         // 好几件:角上写件数
         compose.onNodeWithTag("capsule-count", useUnmergedTree = true).assertIsDisplayed()
@@ -81,12 +81,12 @@ class CapsuleContentTest {
     @Test fun pillShowsItsLineAndOpensOnTap() {
         var view by mutableStateOf(CapsuleView.Shown(CapsuleKind.NeedTakeover, "需要你：付款", pill = true))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleContent(view, { clicks += "open" }, {}, {}) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleContent(view, { clicks += "open" }, {}, {}) }
         }
         for (v in listOf(
             CapsuleView.Shown(CapsuleKind.NeedTakeover, "需要你：付款", pill = true),
             CapsuleView.Shown(CapsuleKind.NeedConfirm, "要你同意：发送", pill = true),
-            CapsuleView.Shown(CapsuleKind.NeedAnswer, "Mika 问你：要哪个？", pill = true),
+            CapsuleView.Shown(CapsuleKind.NeedAnswer, "Maeve 问你：要哪个？", pill = true),
             CapsuleView.Shown(CapsuleKind.Done, "办好了 · 点开看结果", pill = true),
             CapsuleView.Shown(CapsuleKind.Failed, "没办成 · 点开看原因", pill = true),
             CapsuleView.Shown(CapsuleKind.Cancelled, "已停止", pill = true),
@@ -104,7 +104,7 @@ class CapsuleContentTest {
     @Test fun pillShrinksBackToBall() {
         var view by mutableStateOf(CapsuleView.Shown(CapsuleKind.Done, "办好了 · 点开看结果", pill = true))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleContent(view, {}, {}, {}, side = DockSide.Left) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleContent(view, {}, {}, {}, side = DockSide.Left) }
         }
         val wide = compose.onNodeWithTag("capsule").getBoundsInRoot().width
         view = view.copy(pill = false)
@@ -126,9 +126,9 @@ class CapsuleContentTest {
 
     /** 同一段([CapsuleView.Shown.widthEpoch] 不变)里换成短句,胶囊不变窄;换了一段才重新定宽。 */
     @Test fun widthOnlyGrowsWithinEpoch() {
-        var view by mutableStateOf(CapsuleView.Shown(CapsuleKind.NeedAnswer, "Mika 问你：要三家店里哪一家的", pill = true, widthEpoch = 1))
+        var view by mutableStateOf(CapsuleView.Shown(CapsuleKind.NeedAnswer, "Maeve 问你：要三家店里哪一家的", pill = true, widthEpoch = 1))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleContent(view, {}, {}, {}) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleContent(view, {}, {}, {}) }
         }
         val wide = compose.onNodeWithTag("capsule").getBoundsInRoot().width
         view = view.copy(text = "短")
@@ -143,7 +143,7 @@ class CapsuleContentTest {
     @Test fun fadedBallKeepsMarksAndOffersSwapSide() {
         var swapped = 0
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) {
+            MaeveTheme(dark = false, reduceMotion = true) {
                 CapsuleContent(
                     CapsuleView.Shown(CapsuleKind.Running, "在搜", count = 2), {}, {}, {},
                     alpha = CapsuleFade.BALL, onSwapSide = { swapped++ },
@@ -161,7 +161,7 @@ class CapsuleContentTest {
     @Test fun talkActionAndHoldingRing() {
         var talked = 0
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) {
+            MaeveTheme(dark = false, reduceMotion = true) {
                 CapsuleContent(
                     CapsuleView.Shown(CapsuleKind.Idle, ""), {}, {}, {},
                     holding = true, onTalk = { talked++ }, talkLabel = "说话",

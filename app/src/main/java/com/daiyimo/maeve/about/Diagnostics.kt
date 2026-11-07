@@ -64,7 +64,7 @@ data class DiagnosticsSnapshot(
         val appCopies: String? = null,
         /** 配对钥匙在这个进程里的状况(没用过、读回、新建、读不出及原因);读不到为 null。 */
         val adbKey: String? = null,
-        /** 这个进程里最近一次任务结束时 Mika 屏上的 App 留下、关掉了几个(只有个数,不列包名);还没有过为 null。 */
+        /** 这个进程里最近一次任务结束时 Maeve 屏上的 App 留下、关掉了几个(只有个数,不列包名);还没有过为 null。 */
         val appsAfterTask: String? = null,
         /** 最近启动助手到达的固定阶段;这次进程还没启动过为 null。 */
         val helperLaunchStage: String? = null,
@@ -75,12 +75,12 @@ data class DiagnosticsSnapshot(
     data class Recovery(
         val consent: RecoveryConsent,
         val writeSecureSettings: Boolean,
-        /** 系统电池优化里 Mika 是不是不受限制;读不到为 null。 */
+        /** 系统电池优化里 Maeve 是不是不受限制;读不到为 null。 */
         val ignoringBatteryOptimizations: Boolean?,
         val lastRestore: String?,
-        /** 内置助手在 Mika 被杀后把它拉起来的记录(助手交接时报来);没有为 null。 */
+        /** 内置助手在 Maeve 被杀后把它拉起来的记录(助手交接时报来);没有为 null。 */
         val helperRestores: HelperRestoreReport? = null,
-        /** 上一次 Mika 启动时发现无障碍服务被拿掉或没绑定;没有为 null。 */
+        /** 上一次 Maeve 启动时发现无障碍服务被拿掉或没绑定;没有为 null。 */
         val lastA11yLoss: A11yLossRecord? = null,
     )
 

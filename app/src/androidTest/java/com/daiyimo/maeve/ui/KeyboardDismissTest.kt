@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.daiyimo.maeve.ui.components.KeyboardDismissArea
 import com.daiyimo.maeve.ui.components.keepsKeyboard
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -38,7 +38,7 @@ class KeyboardDismissTest {
     private var clicks = 0
 
     private fun page() = compose.setContent {
-        MikaTheme {
+        MaeveTheme {
             KeyboardDismissArea(Modifier.fillMaxSize()) {
                 Column(Modifier.fillMaxSize()) {
                     Box(Modifier.fillMaxWidth().height(300.dp).testTag("outside"))

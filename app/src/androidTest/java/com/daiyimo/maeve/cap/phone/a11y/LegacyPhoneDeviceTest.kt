@@ -64,11 +64,11 @@ class LegacyPhoneDeviceTest {
             assertTrue("tap result: $tapped", tapped is ActionResult.Ok)
             val revealed = screen.snapshot()
             val field = revealed.elements.first { it.editable && it.name == "真正的输入框" }
-            val typed = screen.typeText(field.ref, revealed.snapshotId, "Mika 兼容输入测试")
+            val typed = screen.typeText(field.ref, revealed.snapshotId, "Maeve 兼容输入测试")
             assertTrue("type result: $typed", typed is ActionResult.Ok)
             assertEquals(Verification.MATCH, (typed as ActionResult.Ok).verification)
             val after = screen.snapshot()
-            assertTrue(after.elements.any { it.editable && it.name == "Mika 兼容输入测试" })
+            assertTrue(after.elements.any { it.editable && it.name == "Maeve 兼容输入测试" })
         } finally {
             display.release()
         }

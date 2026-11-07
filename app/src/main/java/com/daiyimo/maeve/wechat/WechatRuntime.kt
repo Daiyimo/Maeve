@@ -6,7 +6,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.util.Log
 import com.daiyimo.maeve.BuildConfig
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.action.ConfirmChoice
 import com.daiyimo.maeve.core.net.NetProxy
 import com.daiyimo.maeve.core.run.ChannelGateway
@@ -55,7 +55,7 @@ class WechatRuntime(
         .readTimeout(45, TimeUnit.SECONDS))
     private val api = WechatApi(http, BuildConfig.VERSION_NAME)
     private val owners = MemoryOwnerIdentity()
-    private val app get() = context.applicationContext as MikaApp
+    private val app get() = context.applicationContext as MaeveApp
     private val gateway = ChannelGateway(owners,
         { threadId -> app.taskState.run(threadId)?.activeAsk },
         object : ChannelGateway.Route {
@@ -193,7 +193,7 @@ class WechatRuntime(
 
     private fun backoff(failures: Int) = min(30_000L, 1_000L * (1L shl (failures - 1).coerceAtMost(5)))
 
-    companion object { private const val TAG = "MikaWechat" }
+    companion object { private const val TAG = "MaeveWechat" }
 }
 
 private class WechatNetwork(context: Context, private val changed: () -> Unit) {

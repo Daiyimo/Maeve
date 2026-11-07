@@ -20,7 +20,7 @@ data class ProbeEvent(
     val keyCode: Int,
 )
 
-/** 在 Mika 进程里收 [ShellProbeActivity] 的广播。用完 close。 */
+/** 在 Maeve 进程里收 [ShellProbeActivity] 的广播。用完 close。 */
 class ShellProbe(private val context: Context) : AutoCloseable {
     private val events = CopyOnWriteArrayList<ProbeEvent>()
     private val receiver = object : BroadcastReceiver() {
@@ -68,7 +68,7 @@ class ShellProbe(private val context: Context) : AutoCloseable {
     companion object {
         const val BROADCAST = ShellProbeActivity.BROADCAST
         const val COMPONENT = "com.daiyimo.maeve.test/com.daiyimo.maeve.shell.ShellProbeActivity"
-        const val LINK = "mika-parity://probe"
+        const val LINK = "maeve-parity://probe"
 
         const val RESUMED = ShellProbeActivity.RESUMED
         const val FOCUSED = ShellProbeActivity.FOCUSED

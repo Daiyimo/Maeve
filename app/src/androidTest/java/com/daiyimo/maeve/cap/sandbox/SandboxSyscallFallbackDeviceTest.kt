@@ -15,7 +15,7 @@ import org.junit.runner.RunWith
  * 有的安卓版本给 App 装的 seccomp 策略对新系统调用(io_uring、clone3、faccessat2、epoll_pwait2、rseq……)
  * 发 SIGSYS,有的直接放行。两种平台上沙箱里的程序都不能被信号杀掉:被拦下的调用收到「不支持」(ENOSYS)
  * 走自己的退路,放行的调用拿到内核自己的结果;带路径的调用无论哪种都必须按沙箱内的路径判断。
- * 全部经产品路径 AndroidSandbox.run → mikarun → PRoot。
+ * 全部经产品路径 AndroidSandbox.run → maeverun → PRoot。
  */
 @RunWith(AndroidJUnit4::class)
 class SandboxSyscallFallbackDeviceTest {

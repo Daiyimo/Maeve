@@ -35,7 +35,7 @@ class MainScreenSpillTest {
         assertTrue(decide(arrival(at = since + window + 1)).isEmpty())
     }
 
-    @Test fun launcherMikaAndNonStandardPagesAreNotSpills() {
+    @Test fun launcherMaeveAndNonStandardPagesAreNotSpills() {
         assertTrue(decide(arrival(pkg = "com.home")).isEmpty())
         assertTrue(decide(arrival(pkg = "com.daiyimo.maeve")).isEmpty())
         assertTrue(decide(arrival(standard = false)).isEmpty())
@@ -43,7 +43,7 @@ class MainScreenSpillTest {
     }
 
     @Test fun taskMovedFromAnotherDisplayIsATakeoverNotASpill() {
-        // 接管(本任务或别的任务)是把任务从 Mika 的屏挪到主屏
+        // 接管(本任务或别的任务)是把任务从 Maeve 的屏挪到主屏
         assertTrue(decide(arrival(from = 5)).isEmpty())
     }
 

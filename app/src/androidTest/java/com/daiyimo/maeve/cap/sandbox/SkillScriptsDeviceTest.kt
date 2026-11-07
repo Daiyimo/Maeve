@@ -82,10 +82,10 @@ class SkillScriptsDeviceTest {
 
     @Test fun extractPdfGetsText() {
         File(SandboxDirs(context).workspace(ws), "inbox/sample.pdf").apply { parentFile!!.mkdirs() }
-            .writeBytes(samplePdf("Hello from Mika page one", "Second page text"))
+            .writeBytes(samplePdf("Hello from Maeve page one", "Second page text"))
         val r = runScript("skills/documents", "scripts/extract_pdf.py", "inbox/sample.pdf")
         assertRan(r)
-        assertTrue(r.toString(), r.s("output")!!.contains("--- page 1 ---\nHello from Mika page one"))
+        assertTrue(r.toString(), r.s("output")!!.contains("--- page 1 ---\nHello from Maeve page one"))
         assertTrue(r.toString(), r.s("output")!!.contains("Second page text"))
         val meta = runScript("skills/documents", "scripts/extract_pdf.py", "inbox/sample.pdf", "--metadata")
         assertRan(meta)
@@ -95,6 +95,6 @@ class SkillScriptsDeviceTest {
     @Test fun authScriptIsUnavailable() {
         val r = runScript("sites/github.com", "scripts/api.mjs", "GET", "/user")
         assertEquals(r.toString(), "script_unavailable", r.s("error"))
-        assertTrue(r.toString(), r.s("message")!!.contains("需要账号授权,Mika 暂不支持"))
+        assertTrue(r.toString(), r.s("message")!!.contains("需要账号授权,Maeve 暂不支持"))
     }
 }

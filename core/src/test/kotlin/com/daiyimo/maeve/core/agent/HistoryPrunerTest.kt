@@ -13,19 +13,19 @@ class HistoryPrunerTest {
     private val big = """[{"ref":"@e1","name":"${"x".repeat(500)}"}]"""
     private val task = Message(Role.User, listOf(Part.Text("task")), Author.User)
     private fun obs(id: String) = listOf(
-        Message(Role.Assistant, listOf(Part.ToolCall(id, "phone_observe", "{}")), Author.Mika),
-        Message(Role.Tool, listOf(Part.ToolResult(id, """{"ok":true,"currentApp":"com.x","snapshotId":"s$id","elements":$big}""", false)), Author.Mika),
+        Message(Role.Assistant, listOf(Part.ToolCall(id, "phone_observe", "{}")), Author.Maeve),
+        Message(Role.Tool, listOf(Part.ToolResult(id, """{"ok":true,"currentApp":"com.x","snapshotId":"s$id","elements":$big}""", false)), Author.Maeve),
     )
     private fun tap(id: String) = listOf(
-        Message(Role.Assistant, listOf(Part.ToolCall(id, "phone_tap", "{}")), Author.Mika),
-        Message(Role.Tool, listOf(Part.ToolResult(id, """{"ok":true,"changed":true}""", false)), Author.Mika),
+        Message(Role.Assistant, listOf(Part.ToolCall(id, "phone_tap", "{}")), Author.Maeve),
+        Message(Role.Tool, listOf(Part.ToolResult(id, """{"ok":true,"changed":true}""", false)), Author.Maeve),
     )
     private fun act(id: String, sid: String) = listOf(
-        Message(Role.Assistant, listOf(Part.ToolCall(id, "phone_tap", "{}")), Author.Mika),
+        Message(Role.Assistant, listOf(Part.ToolCall(id, "phone_tap", "{}")), Author.Maeve),
         Message(Role.Tool, listOf(Part.ToolResult(id,
-            """{"ok":true,"screen":{"snapshotId":"$sid","base":"x","full":false,"added":$big,"removed":[],"changed":[],"unchanged":3}}""", false)), Author.Mika),
+            """{"ok":true,"screen":{"snapshotId":"$sid","base":"x","full":false,"added":$big,"removed":[],"changed":[],"unchanged":3}}""", false)), Author.Maeve),
     )
-    private fun shot(id: Int) = Message(Role.User, listOf(Part.Text("screen"), Part.Image("AAAA", "image/jpeg", 580, 1280, screenshotId = id)), Author.Mika)
+    private fun shot(id: Int) = Message(Role.User, listOf(Part.Text("screen"), Part.Image("AAAA", "image/jpeg", 580, 1280, screenshotId = id)), Author.Maeve)
 
     /** [n] 次读屏往返。 */
     private fun observations(n: Int) = listOf(task) + (1..n).flatMap { obs("c$it") }
@@ -55,10 +55,10 @@ class HistoryPrunerTest {
     @Test fun oldScreenDropsTreeAndOtherLargeStructuresNotJustElements() {
         val long = "x".repeat(500)
         val structured = listOf(
-            Message(Role.Assistant, listOf(Part.ToolCall("structured", "phone_observe", "{}")), Author.Mika),
+            Message(Role.Assistant, listOf(Part.ToolCall("structured", "phone_observe", "{}")), Author.Maeve),
             Message(Role.Tool, listOf(Part.ToolResult("structured",
                 """{"ok":true,"snapshotId":"old","elements":$big,"tree":[{"id":1,"nodes":[{"role":"TextView","text":"$long"}]}],"screenMap":{"rows":["$long"]}}""",
-                false)), Author.Mika),
+                false)), Author.Maeve),
         )
         // c2 是线前保留的最近全屏,因此 structured 必须按旧界面缩短。
         val h = listOf(task) + structured + obs("c2") + (1..6).flatMap { tap("t$it") }
@@ -98,8 +98,8 @@ class HistoryPrunerTest {
         assertTrue(diffs.drop(4).all { "@e1" in it.content })
         // 全量的 screen 结果也算全量读屏:线前最近的全量是 f,c1 照常裁
         val withFull = listOf(task) + obs("c1") +
-            listOf(Message(Role.Assistant, listOf(Part.ToolCall("f", "phone_back", "{}")), Author.Mika),
-                Message(Role.Tool, listOf(Part.ToolResult("f", """{"ok":true,"screen":{"snapshotId":"z","full":true,"elements":$big}}""", false)), Author.Mika)) +
+            listOf(Message(Role.Assistant, listOf(Part.ToolCall("f", "phone_back", "{}")), Author.Maeve),
+                Message(Role.Tool, listOf(Part.ToolResult("f", """{"ok":true,"screen":{"snapshotId":"z","full":true,"elements":$big}}""", false)), Author.Maeve)) +
             (1..5).flatMap { act("a$it", "d$it") }
         val r2 = results(HistoryPruner.prune(withFull, TOOLS, cut))
         assertTrue("@e1" !in r2.first { it.callId == "c1" }.content)
@@ -108,7 +108,7 @@ class HistoryPrunerTest {
 
     // 压缩时线之前的图换占位;平常只有图的张数超过服务商上限时才换
     @Test fun imagesDroppedBeforeTheLineAndAtTheProviderLimit() {
-        val file = Message(Role.User, listOf(Part.Text("file"), Part.Image("BBBB", "image/jpeg")), Author.Mika)
+        val file = Message(Role.User, listOf(Part.Text("file"), Part.Image("BBBB", "image/jpeg")), Author.Maeve)
         val h = listOf(task) + tap("t0") + file + (1..6).flatMap { tap("t$it") + shot(it) }
         fun ids(out: List<Message>) = out.flatMap { it.parts }.filterIsInstance<Part.Image>().map { it.screenshotId }
         assertEquals(h, HistoryPruner.limitImages(h, Int.MAX_VALUE))
@@ -126,8 +126,8 @@ class HistoryPrunerTest {
     // 缩短按结果里读到的观察是什么样的东西,缩短后留着结局和观察编号
     @Test fun shrinksByObservationFormAndKeepsOutcomeAndObsIds() {
         fun round(id: String, tool: String, content: String, form: com.daiyimo.maeve.core.observation.ObsForm, obsId: Int) = listOf(
-            Message(Role.Assistant, listOf(Part.ToolCall(id, tool, "{}")), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult(id, content, false, listOf(com.daiyimo.maeve.core.observation.ReadTag(obsId, form)))), Author.Mika),
+            Message(Role.Assistant, listOf(Part.ToolCall(id, tool, "{}")), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult(id, content, false, listOf(com.daiyimo.maeve.core.observation.ReadTag(obsId, form)))), Author.Maeve),
         )
         val long = "x".repeat(5000)
         val h = listOf(task) +
@@ -158,8 +158,8 @@ class HistoryPrunerTest {
     @Test fun recallBeforeTheLineLosesElementText() {
         val text = "x".repeat(500)
         val recall = listOf(
-            Message(Role.Assistant, listOf(Part.ToolCall("r1", "view_past_screens", """{"ids":[1]}""")), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("r1", """{"ok":true,"screenshots":[{"id":1,"step":1,"app":"com.x","elementsText":"$text"}]}""", false)), Author.Mika),
+            Message(Role.Assistant, listOf(Part.ToolCall("r1", "view_past_screens", """{"ids":[1]}""")), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("r1", """{"ok":true,"screenshots":[{"id":1,"step":1,"app":"com.x","elementsText":"$text"}]}""", false)), Author.Maeve),
         )
         val old = results(HistoryPruner.prune(obs("c1") + recall + (2..6).flatMap { obs("c$it") }, TOOLS, cut)).first { it.callId == "r1" }.content
         assertTrue(old, HistoryPruner.OMITTED in old && text !in old && "\"id\":1" in old)

@@ -109,36 +109,36 @@ class TraceArchive internal constructor(internal val dir: File, private val disk
 
     private fun spans(): List<Span> {
         val children = spanDir.listFiles().orEmpty().filter { it.extension == "pb" }.map { Span.parseFrom(it.readBytes()) }
-        return listOf(Span.parseFrom(root.readBytes())) + children.sortedBy { span -> span.attributesList.firstOrNull { it.key == "mika.sequence" }?.value?.intValue }
+        return listOf(Span.parseFrom(root.readBytes())) + children.sortedBy { span -> span.attributesList.firstOrNull { it.key == "maeve.sequence" }?.value?.intValue }
     }
 
     fun rows(): List<TraceRow> = spans().map { span ->
         val a = span.attributesList.associate { it.key to it.value }
-        TraceRow(span.id(), span.name, a["mika.step.index"]?.intValue, a["mika.attempt"]?.intValue,
-            a["mika.status"]?.stringValue ?: "partial",
+        TraceRow(span.id(), span.name, a["maeve.step.index"]?.intValue, a["maeve.attempt"]?.intValue,
+            a["maeve.status"]?.stringValue ?: "partial",
             a["gen_ai.usage.input_tokens"]?.intValue, a["gen_ai.usage.cache_read.input_tokens"]?.intValue,
             a["gen_ai.usage.output_tokens"]?.intValue,
             TimeUnit.NANOSECONDS.toMillis(span.endTimeUnixNano - span.startTimeUnixNano),
-            a["mika.context.first_changed_block"]?.stringValue, a["mika.context.change"]?.stringValue,
-            a["mika.request.captured"]?.boolValue == true, a["gen_ai.tool.call.id"]?.stringValue)
+            a["maeve.context.first_changed_block"]?.stringValue, a["maeve.context.change"]?.stringValue,
+            a["maeve.request.captured"]?.boolValue == true, a["gen_ai.tool.call.id"]?.stringValue)
     }
 
     /** Location and reason come from manifests even for runs recorded before diagnostics were exported. */
     private fun exportSpans(): List<Span> {
         val recorded = spans()
         val root = recorded.first()
-        val legacy = root.attributesList.none { it.key == "mika.trace.format_version" }
-        if (!legacy && root.attribute("mika.status") != "partial") return recorded
+        val legacy = root.attributesList.none { it.key == "maeve.trace.format_version" }
+        if (!legacy && root.attribute("maeve.status") != "partial") return recorded
         val reasons = linkedSetOf<String>()
-        root.attribute("mika.trace.stop_reason")?.let(reasons::add)
+        root.attribute("maeve.trace.stop_reason")?.let(reasons::add)
         val children = recorded.drop(1).map { span ->
-            if (span.attributesList.none { it.key == "mika.attempt" }) return@map span
+            if (span.attributesList.none { it.key == "maeve.attempt" }) return@map span
             val builder = span.toBuilder()
             fun truncated(path: String, reason: String, time: Long) {
                 reasons += reason
-                builder.addEvents(Span.Event.newBuilder().setName("mika.trace.truncated").setTimeUnixNano(time)
-                    .addAttributes(textAttribute("mika.block.path", path))
-                    .addAttributes(textAttribute("mika.truncation.reason", reason)))
+                builder.addEvents(Span.Event.newBuilder().setName("maeve.trace.truncated").setTimeUnixNano(time)
+                    .addAttributes(textAttribute("maeve.block.path", path))
+                    .addAttributes(textAttribute("maeve.truncation.reason", reason)))
             }
             val manifest = File(bodyDir, span.id() + ".json")
             if (manifest.isFile) {
@@ -158,23 +158,23 @@ class TraceArchive internal constructor(internal val dir: File, private val disk
                     }
                 }
             }
-            val reply = span.attribute("mika.trace.reply_truncation")
+            val reply = span.attribute("maeve.trace.reply_truncation")
                 ?: if (legacy) legacyReplyTruncation(span.id()) else null
             reply?.let { truncated("response", it, span.endTimeUnixNano) }
             builder.build()
         }
-        if (root.attribute("mika.status") == "partial") {
+        if (root.attribute("maeve.status") == "partial") {
             if (root.startTimeUnixNano == root.endTimeUnixNano) reasons += "not_finalized"
-            if (legacy && root.attribute("mika.run.outcome") == "cancelled") reasons += "run_cancelled"
+            if (legacy && root.attribute("maeve.run.outcome") == "cancelled") reasons += "run_cancelled"
             if (reasons.isEmpty()) reasons += "unknown"
         }
         if (reasons.isEmpty()) return recorded
         val summary = ArrayValue.newBuilder().addAllValues(reasons.map { AnyValue.newBuilder().setStringValue(it).build() })
-        val updated = root.toBuilder().addAttributes(KeyValue.newBuilder().setKey("mika.trace.partial_reasons")
+        val updated = root.toBuilder().addAttributes(KeyValue.newBuilder().setKey("maeve.trace.partial_reasons")
             .setValue(AnyValue.newBuilder().setArrayValue(summary)))
         // Older writers did not mark the root when only a reply was clipped.
-        if (root.attribute("mika.status") != "partial") {
-            updated.setAttributes(root.attributesList.indexOfFirst { it.key == "mika.status" }, textAttribute("mika.status", "partial"))
+        if (root.attribute("maeve.status") != "partial") {
+            updated.setAttributes(root.attributesList.indexOfFirst { it.key == "maeve.status" }, textAttribute("maeve.status", "partial"))
         }
         return listOf(updated.build()) + children
     }
@@ -197,7 +197,7 @@ class TraceArchive internal constructor(internal val dir: File, private val disk
     }
 
     private fun payload(spans: List<Span>): ByteArray {
-        val scope = ScopeSpans.newBuilder().setScope(InstrumentationScope.newBuilder().setName("mika.harness")).addAllSpans(spans)
+        val scope = ScopeSpans.newBuilder().setScope(InstrumentationScope.newBuilder().setName("maeve.harness")).addAllSpans(spans)
         val resource = Resource.newBuilder().addAttributes(KeyValue.newBuilder().setKey("service.name")
             .setValue(AnyValue.newBuilder().setStringValue("Maeve")))
         return ExportTraceServiceRequest.newBuilder().addResourceSpans(ResourceSpans.newBuilder().setResource(resource)

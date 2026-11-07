@@ -15,7 +15,7 @@ import com.daiyimo.maeve.ChineseUi
 import com.daiyimo.maeve.core.remote.RemoteActivity
 import com.daiyimo.maeve.core.remote.RelayState
 import com.daiyimo.maeve.mcp.McpServerState
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -41,7 +41,7 @@ class ComputerAccessScreenTest {
     private fun page(initial: ComputerAccessUi = example) {
         state.value = initial
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 ComputerAccessPage(state.value, {}, usbChanges::add, networkChanges::add, copied::add, {},
                     deviceSettings = { Text("Device settings slot") }, relayGuide = { mcp -> Text(if (mcp) "Remote MCP guide" else "Remote CLI guide") })
             }
@@ -92,9 +92,9 @@ class ComputerAccessScreenTest {
         compose.onNodeWithText("Device settings slot").assertDoesNotExist()
         tap("复制安装指引")
         compose.onAllNodesWithText("复制命令")[0].performScrollTo().performClick()
-        compose.onNodeWithText("mika doctor").assertDoesNotExist()
+        compose.onNodeWithText("maeve doctor").assertDoesNotExist()
         assertTrue(copied[0].contains("docs/cli.md"))
-        assertEquals(listOf("mika connect"), copied.drop(1))
+        assertEquals(listOf("maeve connect"), copied.drop(1))
         networkGuide()
         assertTrue(networkChanges.isEmpty())
         assertTrue(usbChanges.isEmpty())
@@ -107,10 +107,10 @@ class ComputerAccessScreenTest {
         compose.onNodeWithTag("computer-network").performClick()
         tap("http://100.64.0.2:8765")
         compose.onNodeWithTag("computer-copy-cli-network").performScrollTo().performClick()
-        assertEquals("mika connect --url http://100.64.0.2:8765 --token-file /path/to/token", copied.single())
+        assertEquals("maeve connect --url http://100.64.0.2:8765 --token-file /path/to/token", copied.single())
         assertFalse(copied.single().contains(example.token!!))
         assertFalse(copied.single().contains("/mcp"))
-        compose.onNodeWithText("mika doctor").assertDoesNotExist()
+        compose.onNodeWithText("maeve doctor").assertDoesNotExist()
         compose.onNodeWithTag("computer-mcp").performScrollTo().performClick()
         compose.onNodeWithText("http://100.64.0.2:8765/mcp").assertExists()
         compose.onNodeWithTag("computer-cli").performScrollTo().performClick()
@@ -157,7 +157,7 @@ class ComputerAccessScreenTest {
         compose.onNodeWithText(example.token!!, substring = true).assertDoesNotExist()
         compose.onNodeWithText("<token>", substring = true).assertExists()
         compose.onNodeWithTag("computer-copy-config").performScrollTo().performClick()
-        val config = JSONObject(copied.single()).getJSONObject("mcpServers").getJSONObject("mika")
+        val config = JSONObject(copied.single()).getJSONObject("mcpServers").getJSONObject("maeve")
         assertEquals("http://100.64.0.2:8765/mcp", config.getString("url"))
         assertEquals("Bearer ${example.token}", config.getJSONObject("headers").getString("Authorization"))
         assertTrue(networkChanges.isEmpty())

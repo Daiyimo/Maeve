@@ -18,11 +18,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 真机测试:Mika 屏上的页面经另一个进程里的服务打开另一个 App(和从后台打开一样),系统把它放到主屏;
- * 点的那一下的结果要报 opened、它要被挪回 Mika 的屏,主屏最上面回到原来那个。
+ * 真机测试:Maeve 屏上的页面经另一个进程里的服务打开另一个 App(和从后台打开一样),系统把它放到主屏;
+ * 点的那一下的结果要报 opened、它要被挪回 Maeve 的屏,主屏最上面回到原来那个。
  * 打开哪个 App 由仪器参数 spillTarget 指定(默认系统设置);它已经有任务时不跑(挪过来再随屏销毁会丢掉那个任务)。
  * 装了两份的 App 会先问打开哪一个:那个问题不挪、留在主屏,报 picker、onUserScreen,任务等用户选;
- * 仪器参数 pickOption 给了时测试当用户在主屏上选(或 back 关掉),再看选出来的被挪回 Mika 的屏、报开的是哪一份。
+ * 仪器参数 pickOption 给了时测试当用户在主屏上选(或 back 关掉),再看选出来的被挪回 Maeve 的屏、报开的是哪一份。
  */
 @RunWith(AndroidJUnit4::class)
 class MainScreenSpillDeviceTest {
@@ -43,7 +43,7 @@ class MainScreenSpillDeviceTest {
 
     @After
     fun tearDown() {
-        // 没挪回来时,把留在主屏上的那个挪到 Mika 的屏,随屏一起销毁
+        // 没挪回来时,把留在主屏上的那个挪到 Maeve 的屏,随屏一起销毁
         val main = shell.topTaskId(Display.DEFAULT_DISPLAY)
         // 中途失败、问题还留在主屏上:按返回关掉它
         screen.userPick.value?.let { p -> if (main >= 0 && shell.packageOfTask(main) == p.packageName) sh("input keyevent 4") }
@@ -66,7 +66,7 @@ class MainScreenSpillDeviceTest {
         return s!!
     }
 
-    /** 对照:不经 Mika 的动作、直接往 Mika 的屏上注入一下点按,开出来的落在主屏(这就是要修的现象)。 */
+    /** 对照:不经 Maeve 的动作、直接往 Maeve 的屏上注入一下点按,开出来的落在主屏(这就是要修的现象)。 */
     @Test
     fun withoutTheWatchTheLaunchLandsOnTheMainScreen() = runBlocking<Unit> {
         noTaskYet()
@@ -77,9 +77,9 @@ class MainScreenSpillDeviceTest {
         val vdBefore = shell.topTaskId(vd)
         assertTrue(shell.injectTap(vd, b.centerX, b.centerY))
         val landed = pollUntil(5_000) { shell.topTaskId(Display.DEFAULT_DISPLAY).takeIf { it != mainBefore } }
-        println("before: main top $mainBefore -> $landed (${landed?.let { shell.packageOfTask(it) }}), Mika screen top $vdBefore -> ${shell.topTaskId(vd)}")
+        println("before: main top $mainBefore -> $landed (${landed?.let { shell.packageOfTask(it) }}), Maeve screen top $vdBefore -> ${shell.topTaskId(vd)}")
         assertNotNull("launch did not land on the main screen", landed)
-        assertEquals("Mika's screen changed", vdBefore, shell.topTaskId(vd))
+        assertEquals("Maeve's screen changed", vdBefore, shell.topTaskId(vd))
     }
 
     @Test
@@ -94,7 +94,7 @@ class MainScreenSpillDeviceTest {
         val opened = (r as ActionResult.Ok).opened
         assertNotNull("tap did not report opened: $r", opened)
         val now = screen.snapshot()
-        println("spill result: $r; on Mika's screen (${now.packageName}): ${now.elements.filter { it.clickable }.map { it.name }}")
+        println("spill result: $r; on Maeve's screen (${now.packageName}): ${now.elements.filter { it.clickable }.map { it.name }}")
         if (!opened!!.picker) {
             assertTrue("not pulled back: $opened", opened.pulledBack)
             assertEquals(target, shell.packageOfTask(shell.topTaskId(vd)))
@@ -106,7 +106,7 @@ class MainScreenSpillDeviceTest {
         val chooserTask = shell.topTaskId(Display.DEFAULT_DISPLAY)
         assertEquals("question is not on the main screen", opened.packageName, shell.packageOfTask(chooserTask))
         assertNotNull("run is not waiting for the user", screen.userPick.value)
-        assertEquals("Mika's screen changed", SpillTestActivity::class.java.name, shell.topActivity(vd))
+        assertEquals("Maeve's screen changed", SpillTestActivity::class.java.name, shell.topActivity(vd))
         // 仪器参数 pickOption=<第几个,从 0 起> 或 back:这时测试当用户,在主屏上点那个选项(或按返回关掉问题)
         val pick = InstrumentationRegistry.getArguments().getString("pickOption") ?: return@runBlocking
         if (pick == "back") sh("input keyevent 4")
@@ -125,7 +125,7 @@ class MainScreenSpillDeviceTest {
         if (settled is AndroidScreen.PickResult.NeedsUser) screen.afterUserStep(settled)
         val after = screen.snapshot()
         val top = shell.topTaskId(vd)
-        println("after the user ($pick): $settled; opened=${after.opened}; Mika's screen top ${shell.packageOfTask(top)} user ${shell.userOfTask(top)}; " +
+        println("after the user ($pick): $settled; opened=${after.opened}; Maeve's screen top ${shell.packageOfTask(top)} user ${shell.userOfTask(top)}; " +
             "main top ${shell.topTaskId(Display.DEFAULT_DISPLAY)} (before $mainBefore)")
         if (pick == "back") assertTrue("not reported closed: ${after.opened}", after.opened?.closed == true)
         else {

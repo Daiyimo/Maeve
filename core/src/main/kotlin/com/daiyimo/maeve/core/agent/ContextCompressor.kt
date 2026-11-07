@@ -246,7 +246,7 @@ class ContextCompressor(
 
     private fun summary(lines: List<String>) = notice((listOf(HEADER, SUMMARY_REMINDER) + lines).joinToString("\n"))
 
-    private fun notice(text: String) = Message(Role.User, listOf(Part.Text(ContextBuilder.envelope(ContextKind.Notice, SUMMARY_SOURCE, text))), Author.Mika)
+    private fun notice(text: String) = Message(Role.User, listOf(Part.Text(ContextBuilder.envelope(ContextKind.Notice, SUMMARY_SOURCE, text))), Author.Maeve)
 
     /** 开头里用户的原话(不在上下文外壳里的那条)。 */
     private fun goal(head: List<Message>): String = head.firstOrNull { it.author == Author.User }

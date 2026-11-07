@@ -28,7 +28,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -45,7 +45,7 @@ class ChatAttachmentsTest {
     private val images = AttachImages { _, _ -> ImageBitmap(40, 30) }
 
     private fun composer(attachments: List<PendingAttachment> = emptyList(), text: String = "", onSend: () -> Unit = {}) = compose.setContent {
-        MikaTheme {
+        MaeveTheme {
             CompositionLocalProvider(LocalAttachImages provides images) {
                 var t by remember { mutableStateOf(text) }
                 Box(Modifier.fillMaxSize()) {
@@ -116,7 +116,7 @@ class ChatAttachmentsTest {
     @Test fun removingFromTheTrayCallsBack() {
         val removed = mutableListOf<String>()
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 CompositionLocalProvider(LocalAttachImages provides images) {
                     PendingTray(listOf(PendingAttachment("content://f/9", "a.pdf", 10)), { removed += it })
                 }
@@ -128,7 +128,7 @@ class ChatAttachmentsTest {
 
     private fun panel(access: PhotoAccess, recent: List<PendingAttachment>?, selected: List<PendingAttachment> = emptyList(), onGrant: () -> Unit = {}) =
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 CompositionLocalProvider(LocalAttachImages provides images) {
                     AttachPanel(access, recent, selected, {}, {}, {}, {}, onGrant)
                 }
@@ -165,7 +165,7 @@ class ChatAttachmentsTest {
     }
 
     private fun bubble(text: String) = compose.setContent {
-        MikaTheme {
+        MaeveTheme {
             CompositionLocalProvider(LocalAttachImages provides images) {
                 Box(Modifier.width(360.dp)) { UserBubble(text, "c-test") }
             }

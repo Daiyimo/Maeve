@@ -5,7 +5,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.daiyimo.maeve.ChineseUi
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.model.ChatModel
 import com.daiyimo.maeve.core.model.Message
 import com.daiyimo.maeve.core.model.ToolSpec
@@ -34,7 +34,7 @@ class RunTraceDeviceTest {
 
     @Test fun releaseIgnoresAPreviouslyEnabledRecordingPreference() {
         org.junit.Assume.assumeFalse(com.daiyimo.maeve.record.DetailedTraces.supportedBuild)
-        val app = compose.activity.application as MikaApp
+        val app = compose.activity.application as MaeveApp
         val prefs = app.getSharedPreferences("trace_settings", android.content.Context.MODE_PRIVATE)
         val previous = prefs.getBoolean("enabled", false)
         try {
@@ -48,7 +48,7 @@ class RunTraceDeviceTest {
 
     @Test fun recordsAndViewsARequestFromTheSettingsSwitch() {
         org.junit.Assume.assumeTrue(com.daiyimo.maeve.record.DetailedTraces.supportedBuild)
-        val app = compose.activity.application as MikaApp
+        val app = compose.activity.application as MaeveApp
         val previous = app.detailedTraces.enabled
         val previousLimit = app.detailedTraces.limitMiB
         MockWebServer().use { server ->

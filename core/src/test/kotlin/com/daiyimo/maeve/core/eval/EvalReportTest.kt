@@ -16,7 +16,7 @@ class EvalReportTest {
         pair("a-ok", "succeeded", true, 4, 10_000),
         pair("b-false", "succeeded", false, 6, 20_000, falseSuccess = true, cls = FailureClass.false_success),
         pair("c-unv", "unverified", false, 8, 30_000, cls = FailureClass.unknown),
-        pair("d-write", "succeeded", true, 10, 40_000, marker = "Mika评测-r1"),
+        pair("d-write", "succeeded", true, 10, 40_000, marker = "Maeve评测-r1"),
     )
 
     @Test fun containsMetricsAndNoAnswers() {
@@ -24,7 +24,7 @@ class EvalReportTest {
         assertFalse(secret in md)
         assertFalse("屏幕文字" in md)
         listOf("r1", "deepseek-flash", "办成率", "2/4", "假成功率", "1/3", "1/4", "未核实成功", "步数", "耗时", "token",
-            "false_success", "a-ok", "b-false", "e-xhs", "未安装 com.xingin.xhs", "Mika评测-r1").forEach {
+            "false_success", "a-ok", "b-false", "e-xhs", "未安装 com.xingin.xhs", "Maeve评测-r1").forEach {
             assertTrue(it, it in md)
         }
         assertTrue(md, "| 输入 token | 4000000 |" in md)

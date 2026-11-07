@@ -21,9 +21,9 @@ class InferenceTraceTest {
     private val http = OkHttpClient()
     private val history = listOf(
         Message(Role.User, listOf(Part.Text("PUBLIC_GOAL")), Author.User),
-        Message(Role.Assistant, listOf(Part.ToolCall("call1", "phone_type_text", """{"text":"PRIVATE_TYPED"}""")), Author.Mika),
+        Message(Role.Assistant, listOf(Part.ToolCall("call1", "phone_type_text", """{"text":"PRIVATE_TYPED"}""")), Author.Maeve),
         Message(Role.Tool, listOf(Part.ToolResult("call1", """{"ok":true,"password":"PRIVATE_PASSWORD"}""", false),
-            Part.Image("cHJpdmF0ZWltYWdl", width = 20, height = 30)), Author.Mika),
+            Part.Image("cHJpdmF0ZWltYWdl", width = 20, height = 30)), Author.Maeve),
     )
     private fun response(text: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(text)
 

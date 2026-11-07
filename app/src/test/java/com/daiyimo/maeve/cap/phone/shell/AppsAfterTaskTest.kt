@@ -20,7 +20,7 @@ class AppsAfterTaskTest {
         assertEquals(false to Why.Playing, f[2])
     }
 
-    @Test fun unknownPlaybackKeepsUnlessMikaIsMutingIt() {
+    @Test fun unknownPlaybackKeepsUnlessMaeveIsMutingIt() {
         assertEquals(true to Why.Default, fates(task(1, "a.app", playing = null))[1])
         val muted = AppsAfterTask.Task(2, listOf("a.music"), standard = true, own = false, playing = null, muted = true)
         assertEquals(false to Why.PlaybackUnknown, fates(muted)[2])
@@ -36,7 +36,7 @@ class AppsAfterTaskTest {
     }
 
     @Test fun ownPagesAndNonAppPagesAlwaysClose() {
-        val f = fates(task(1, "mika", own = true), task(2, "a.home", standard = false), keep = setOf("mika", "a.home"))
+        val f = fates(task(1, "maeve", own = true), task(2, "a.home", standard = false), keep = setOf("maeve", "a.home"))
         assertEquals(false to Why.Own, f[1])
         assertEquals(false to Why.NotApp, f[2])
     }

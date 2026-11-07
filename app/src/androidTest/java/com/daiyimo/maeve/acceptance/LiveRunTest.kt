@@ -10,7 +10,7 @@ import android.os.Bundle
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.memory.MemoryRuntime
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -75,10 +75,10 @@ import com.daiyimo.maeve.core.cap.phone.OperatingPace
  *
  * - 在浏览器页上问:`-e liveUrl <网址> -e liveGoal <问题> -e liveRun <记录目录名> [-e liveTimeoutSec 600] [-e liveDesktop true]
  *   [-e liveNew true] [-e liveTouchAtStep N -e liveResumeAfterSec S] [-e liveOnTakeover cancel|handback]`,运行 [runPageAsk]。
- *   经由真实界面:侧栏进浏览器,打开网址(liveDesktop 时换成电脑版),等页面加载完,在网页底下「问问 Mika」里写问题、点发送
+ *   经由真实界面:侧栏进浏览器,打开网址(liveDesktop 时换成电脑版),等页面加载完,在网页底下「问问 Maeve」里写问题、点发送
  *   (liveNew 时先点「新对话」),这一页借给那个任务。liveTouchAtStep:到第 N 步时经窗口在网页上用手指往上划一下
  *   (和真人一样经 PageFrame,不点到链接),记下有没有暂停、横幅和小卡片出没出来,等 S 秒(缺省 5)后点横幅上的「继续」,记下恢复。
- *   不给 liveTouchAtStep 时,任务里因「你在操作」而暂停算失败(Mika 自己的点按、滚动不该让任务暂停),记录照写。
+ *   不给 liveTouchAtStep 时,任务里因「你在操作」而暂停算失败(Maeve 自己的点按、滚动不该让任务暂停),记录照写。
  *   result.txt 在 runGoal 那些之外还有:borrowed(页面借给了任务)、firstToolCalls、urlsOpened(web_navigate 打开过的网址)、
  *   reopenedSameUrl(又打开了这一页,不该有)、userTabUrlAtEnd、pausedByTouch、resumed、pauses(各种暂停的次数)、userPauses、
  *   conversationId、pageOrigin、listedAsWeb(侧栏里这条对话带「网页」小标签)。每一步、暂停、恢复、结束、侧栏各截一张主屏(step-NN.png 等)。
@@ -172,7 +172,7 @@ class LiveRunTest {
             compose.activity.currentFocus?.clearFocus()
             WindowCompat.getInsetsController(w, w.decorView).hide(WindowInsetsCompat.Type.ime())
         }
-        val chat = (context.applicationContext as MikaApp).chat
+        val chat = (context.applicationContext as MaeveApp).chat
         chat.ui.value.blocked?.let { error("blocked by prerequisites: $it") }
         // 发出去了,对话里就有这一问;没有就立刻报,不白等到超时
         check(chat.ui.value.exchanges.any { it.goal == goal.trim() }) {
@@ -205,14 +205,14 @@ class LiveRunTest {
             if (cancelAt > 0 && !cancelled && s is TaskState.Running && s.step >= cancelAt) {
                 cancelled = true
                 note("stopping at step ${s.step}")
-                compose.runOnUiThread { (context.applicationContext as MikaApp).chat.cancel() }
+                compose.runOnUiThread { (context.applicationContext as MaeveApp).chat.cancel() }
             }
             if (s is TaskState.Held && s.reason.resumable && pausesHandled == 0) {
                 pausesHandled++
                 Thread.sleep(3000)
                 val shell = DeviceSupport.shell()
                 note("paused; still paused after 3s: ${DeviceTaskState.state.value}; main top task=${shell.topTaskId(0)} pkg=${shell.packageOfTask(shell.topTaskId(0))}")
-                note("notifications: " + mikaNotifications())
+                note("notifications: " + maeveNotifications())
                 mainShot(dir, "paused-main")
                 TaskService.resume(context)
                 note("resume requested")
@@ -282,7 +282,7 @@ class LiveRunTest {
      * 不碰页面自己的东西),存一张它那块显示的画面。返回写进 result.txt 的几行。
      */
     private fun keptPageCheck(seconds: Long, dir: File, note: (String) -> Unit): String {
-        val keeper = (context.applicationContext as MikaApp).pageKeeper
+        val keeper = (context.applicationContext as MaeveApp).pageKeeper
         val page = keeper.page.value
         val tab = keeper.keptTab()
         if (page == null || tab == null) {
@@ -312,7 +312,7 @@ class LiveRunTest {
         kotlinx.coroutines.runBlocking { kotlinx.coroutines.withTimeoutOrNull(5_000) { keeper.frames().filterNotNull().first() } }?.let { bmp ->
             File(dir, "kept-frame.png").outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
         }
-        val notified = mikaNotifications().contains(appString(R.string.kept_notif_title))
+        val notified = maeveNotifications().contains(appString(R.string.kept_notif_title))
         // WebView 只能在主线程上问
         var keptUrl: String? = null
         InstrumentationRegistry.getInstrumentation().runOnMainSync { keptUrl = if (tab.destroyed) null else tab.view.url }
@@ -335,7 +335,7 @@ class LiveRunTest {
         val log = File(dir, "log.txt")
         fun note(s: String) = log.appendText("[${System.currentTimeMillis()}] $s\n")
         val instr = InstrumentationRegistry.getInstrumentation()
-        val app = context.applicationContext as MikaApp
+        val app = context.applicationContext as MaeveApp
         val store = ProviderStore.get(context)
         val cfg = store.configFor(ModelRole.Main) ?: error("no main model configured")
         val recorder = Recorder(::note)
@@ -506,7 +506,7 @@ class LiveRunTest {
                 "conversationId=$conversationId\npageOrigin=${origin?.let { "${it.host} ${it.url} ${it.title}" }}\nlistedAsWeb=$listedAsWeb\n" +
                 "answer=$answer\n",
         )
-        // Mika 自己的点按、滚动不该让任务以为用户在操作
+        // Maeve 自己的点按、滚动不该让任务以为用户在操作
         if (touchAt <= 0) check(userPauses == 0) { "the run paused as if the user touched the page ($userPauses times) though nobody did" }
         else check(pausedByTouch && resumed) { "touch at step $touchAt: paused=$pausedByTouch resumed=$resumed" }
     }
@@ -548,11 +548,11 @@ class LiveRunTest {
         skills.list().forEach { appendLine("skill ${it.name} status=${it.status} outcomes=${it.outcomes}\n${it.markdown}\n") }
         skills.drafts().forEach { (id, s) -> appendLine("skill-draft $id ${s.name}\n${s.markdown}\n") }
         memory.appKnowledge().all().forEach { appendLine("app ${it.appName} stage=${it.stage} lesson=${it.lesson} revises=${it.revises} trials=${it.trialOutcomes}\n${it.markdown}\n") }
-        appendLine("routes=${(context.applicationContext as MikaApp).routes.count()}")
+        appendLine("routes=${(context.applicationContext as MaeveApp).routes.count()}")
     }
 
-    /** Mika 当前通知的标题、正文和按钮(从 dumpsys notification 里摘)。 */
-    private fun mikaNotifications(): String = sh("dumpsys notification --noredact")
+    /** Maeve 当前通知的标题、正文和按钮(从 dumpsys notification 里摘)。 */
+    private fun maeveNotifications(): String = sh("dumpsys notification --noredact")
         .split("NotificationRecord(").drop(1).filter { "pkg=com.daiyimo.maeve " in it }
         .joinToString(" || ") { rec ->
             rec.lines().map { it.trim() }

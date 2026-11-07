@@ -28,7 +28,7 @@ class OpenAiCompatModelTest {
     private fun caps(vision: Boolean = false) = Capabilities(true, vision, 32000, false)
     private fun model(vision: Boolean = false, key: String? = "sk-x") =
         OpenAiCompatModel(server.url("/v1").toString().trimEnd('/'), key, "m", caps(vision), OkHttpClient())
-    private val user = listOf(Message(Role.User, listOf(Part.Text("hi")), Author.Mika))
+    private val user = listOf(Message(Role.User, listOf(Part.Text("hi")), Author.Maeve))
     private fun ok(body: String) = MockResponse().setResponseData(body)
     private fun MockResponse.setResponseData(b: String) = setHeader("Content-Type", "application/json").setBody(b)
 
@@ -145,7 +145,7 @@ class OpenAiCompatModelTest {
         assertEquals(StopReason.EndTurn, r.stopReason)
     }
 
-    private val withImage = listOf(Message(Role.User, listOf(Part.Text("look"), Part.Image("QUJD")), Author.Mika))
+    private val withImage = listOf(Message(Role.User, listOf(Part.Text("look"), Part.Image("QUJD")), Author.Maeve))
 
     @Test fun sendsImagesOnlyWhenVision() = runTest {
         server.enqueue(ok("""{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"""))
@@ -161,7 +161,7 @@ class OpenAiCompatModelTest {
 
     @Test fun sendsJpegMime() = runTest {
         server.enqueue(ok("""{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"""))
-        val jpeg = listOf(Message(Role.User, listOf(Part.Image("QUJD", mime = "image/jpeg")), Author.Mika))
+        val jpeg = listOf(Message(Role.User, listOf(Part.Image("QUJD", mime = "image/jpeg")), Author.Maeve))
         model(vision = true).complete("s", jpeg, emptyList())
         assertTrue(server.takeRequest().body.readUtf8().contains("data:image/jpeg;base64,QUJD"))
     }
@@ -220,9 +220,9 @@ class OpenAiCompatModelTest {
     @Test fun toolResultRoundTrip() = runTest {
         server.enqueue(ok("""{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"""))
         val hist = listOf(
-            Message(Role.User, listOf(Part.Text("go")), Author.Mika),
-            Message(Role.Assistant, listOf(Part.Thinking("secret"), Part.ToolCall("c1", "phone_tap", """{"ref":"a1"}""")), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("c1", "done", false)), Author.Mika),
+            Message(Role.User, listOf(Part.Text("go")), Author.Maeve),
+            Message(Role.Assistant, listOf(Part.Thinking("secret"), Part.ToolCall("c1", "phone_tap", """{"ref":"a1"}""")), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("c1", "done", false)), Author.Maeve),
         )
         model().complete("s", hist, emptyList())
         val raw = server.takeRequest().body.readUtf8()
@@ -251,10 +251,10 @@ class OpenAiCompatModelTest {
         server.takeRequest()
 
         val history = user + listOf(
-            Message(Role.Assistant, first.parts, Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("c1", "done", false)), Author.Mika),
+            Message(Role.Assistant, first.parts, Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("c1", "done", false)), Author.Maeve),
             // 来历不明的(别的适配器给的、旧版本存下的)不发
-            Message(Role.Assistant, listOf(Part.Thinking("别处想的"), Part.Text("已打开")), Author.Mika),
+            Message(Role.Assistant, listOf(Part.Thinking("别处想的"), Part.Text("已打开")), Author.Maeve),
             Message(Role.User, listOf(Part.Text("再看一下")), Author.User),
         )
         server.enqueue(ok("""{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"""))
@@ -279,8 +279,8 @@ class OpenAiCompatModelTest {
         assertEquals("想想", (first.parts.first() as Part.Thinking).text)
         server.takeRequest()
         server.enqueue(ok("""{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"""))
-        m.complete("s", user + Message(Role.Assistant, first.parts, Author.Mika) +
-            Message(Role.Tool, listOf(Part.ToolResult("c1", "done", false)), Author.Mika), tools)
+        m.complete("s", user + Message(Role.Assistant, first.parts, Author.Maeve) +
+            Message(Role.Tool, listOf(Part.ToolResult("c1", "done", false)), Author.Maeve), tools)
         val assistant = body()["messages"]!!.jsonArray[2].jsonObject
         assertEquals("想想", assistant["reasoning"]!!.jsonPrimitive.content)
         assertFalse("reasoning_content" in assistant)
@@ -290,14 +290,14 @@ class OpenAiCompatModelTest {
     @Test fun reasoningReceivedFromAnotherEndpointIsNotSent() = runTest {
         val elsewhere = Part.Thinking("那边想的", ReasoningVia.ReasoningContent.tag("https://other.example/v1/chat/completions"))
         server.enqueue(ok("""{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"""))
-        model().complete("s", user + Message(Role.Assistant, listOf(elsewhere, Part.Text("next")), Author.Mika), tools)
+        model().complete("s", user + Message(Role.Assistant, listOf(elsewhere, Part.Text("next")), Author.Maeve), tools)
         val assistant = body()["messages"]!!.jsonArray[2].jsonObject
         assertFalse("reasoning_content" in assistant)
         assertFalse("reasoning" in assistant)
         // 同一个地址收到的就发
         val here = Part.Thinking("这边想的", ReasoningVia.ReasoningContent.tag(endpoint))
         server.enqueue(ok("""{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"""))
-        model().complete("s", user + Message(Role.Assistant, listOf(here, Part.Text("next")), Author.Mika), tools)
+        model().complete("s", user + Message(Role.Assistant, listOf(here, Part.Text("next")), Author.Maeve), tools)
         assertEquals("这边想的", body()["messages"]!!.jsonArray[2].jsonObject["reasoning_content"]!!.jsonPrimitive.content)
     }
 
@@ -305,7 +305,7 @@ class OpenAiCompatModelTest {
     @Test fun modelsListedWithReasoningContentFieldReplayItWithTools() = runTest {
         val m = OpenAiCompatModel(server.url("/v1").toString().trimEnd('/'), "k", "kimi-k3", caps(), OkHttpClient(), "reasoning_content")
         server.enqueue(ok("""{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"""))
-        val history = user + Message(Role.Assistant, listOf(Part.Thinking("先想"), Part.Text("next")), Author.Mika)
+        val history = user + Message(Role.Assistant, listOf(Part.Thinking("先想"), Part.Text("next")), Author.Maeve)
         m.complete("s", history, tools)
         assertEquals("先想", body()["messages"]!!.jsonArray[2].jsonObject["reasoning_content"]!!.jsonPrimitive.content)
     }
@@ -318,7 +318,7 @@ class OpenAiCompatModelTest {
         assertEquals(listOf<Any>("先想再想", Part.Text("答案")), texts(first.parts))
         server.takeRequest()
         server.enqueue(ok("""{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"""))
-        m.complete("s", user + Message(Role.Assistant, first.parts, Author.Mika) + Message(Role.User, listOf(Part.Text("接着")), Author.User), tools)
+        m.complete("s", user + Message(Role.Assistant, first.parts, Author.Maeve) + Message(Role.User, listOf(Part.Text("接着")), Author.User), tools)
         val content = body()["messages"]!!.jsonArray[2].jsonObject["content"]!!.jsonArray.map { it.jsonObject }
         assertEquals("thinking", content[0]["type"]!!.jsonPrimitive.content)
         assertEquals("先想再想", content[0]["thinking"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content)
@@ -361,9 +361,9 @@ class OpenAiCompatModelTest {
         val m = OpenAiCompatModel(server.url("/v1").toString().trimEnd('/'), "k", "m",
             Capabilities(true, true, 32000, false, promptCaching = PromptCaching.Explicit), OkHttpClient())
         val history = listOf(
-            Message(Role.User, listOf(Part.Text("任务")), Author.Mika),
-            Message(Role.Assistant, listOf(Part.ToolCall("c1", "phone_observe", "{}")), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("c1", "屏幕", false)), Author.Mika),
+            Message(Role.User, listOf(Part.Text("任务")), Author.Maeve),
+            Message(Role.Assistant, listOf(Part.ToolCall("c1", "phone_observe", "{}")), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("c1", "屏幕", false)), Author.Maeve),
         )
         val reply = """{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}],"usage":{"prompt_tokens":3000,"completion_tokens":5,"prompt_tokens_details":{"cached_tokens":2048,"cache_creation_input_tokens":900}}}"""
         server.enqueue(ok(reply)); server.enqueue(ok(reply))
@@ -379,8 +379,8 @@ class OpenAiCompatModelTest {
         assertEquals("tool", first[3]["role"]!!.jsonPrimitive.content)
 
         // 下一步:多了一轮;标记挪到新的最后一条,之前那条恢复原样(服务端按内容找开头,标记本身不算内容)
-        m.complete("SYS", history + Message(Role.Assistant, listOf(Part.ToolCall("c2", "phone_tap", "{}")), Author.Mika) +
-            Message(Role.Tool, listOf(Part.ToolResult("c2", "点了", false)), Author.Mika), emptyList())
+        m.complete("SYS", history + Message(Role.Assistant, listOf(Part.ToolCall("c2", "phone_tap", "{}")), Author.Maeve) +
+            Message(Role.Tool, listOf(Part.ToolResult("c2", "点了", false)), Author.Maeve), emptyList())
         val second = body()["messages"]!!.jsonArray.map { it.jsonObject }
         assertEquals(listOf(0, 5), marks(second))
         assertEquals(first.subList(1, 3), second.subList(1, 3))

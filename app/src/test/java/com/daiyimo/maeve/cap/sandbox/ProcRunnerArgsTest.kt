@@ -17,7 +17,7 @@ class ProcRunnerArgsTest {
     @Test fun argvOrderAndBinds() {
         val argv = ProcRunner.argv(dirs, ws, "sub/dir", 60, network = false, standIns = listOf("stat"),
             command = listOf("/bin/sh", "-lc", "echo hi"), devices = listOf("-b", "/dev/null"))
-        assertEquals("/data/app/lib/arm64/libmikarun.so", argv[0])
+        assertEquals("/data/app/lib/arm64/libmaeverun.so", argv[0])
         assertTrue(argv.hasPair("--timeout", "60"))
         assertTrue(argv.hasPair("--net", "off"))
         val proot = argv.indexOf("/data/app/lib/arm64/libproot.so")
@@ -28,7 +28,7 @@ class ProcRunnerArgsTest {
         assertFalse("whole /dev must not be bound", argv.hasPair("-b", "/dev"))
         assertTrue(argv.hasPair("-b", "/data/m/files/sandbox/proc/stat:/proc/stat"))
         assertTrue(argv.hasPair("-b", "/data/m/files/sandbox/work/c-conv1:/workspace"))
-        assertTrue(argv.hasPair("-b", "/data/m/files/sandbox/skills:/opt/mika/skills"))
+        assertTrue(argv.hasPair("-b", "/data/m/files/sandbox/skills:/opt/maeve/skills"))
         assertTrue(argv.hasPair("-w", "/workspace/sub/dir"))
         assertEquals(listOf("/bin/sh", "-lc", "echo hi"), argv.takeLast(3))
         assertTrue(argv.indexOf("-w") < argv.size - 3)
@@ -40,12 +40,12 @@ class ProcRunnerArgsTest {
 
     @Test fun envIsMinimal() {
         val env = ProcRunner.env(dirs, null, null, "conv1")
-        assertEquals(setOf("PROOT_LOADER", "PROOT_TMP_DIR", "HOME", "PATH", "LANG", "TMPDIR", "TZ", "MIKA_CONVERSATION"), env.keys)
+        assertEquals(setOf("PROOT_LOADER", "PROOT_TMP_DIR", "HOME", "PATH", "LANG", "TMPDIR", "TZ", "MAEVE_CONVERSATION"), env.keys)
         assertEquals("/data/app/lib/arm64/libproot_loader.so", env["PROOT_LOADER"])
         assertEquals("/data/m/cache/proot-tmp", env["PROOT_TMP_DIR"])
         assertTrue(env.keys.none { it == "LD_PRELOAD" || it.startsWith("ANDROID_") })
-        val bridged = ProcRunner.env(dirs, "mika-bridge-x", "tok", "conv1")
-        assertEquals("mika-bridge-x", bridged["MIKA_BRIDGE"]); assertEquals("tok", bridged["MIKA_TOKEN"])
+        val bridged = ProcRunner.env(dirs, "maeve-bridge-x", "tok", "conv1")
+        assertEquals("maeve-bridge-x", bridged["MAEVE_BRIDGE"]); assertEquals("tok", bridged["MAEVE_TOKEN"])
     }
 
     /** 代理只在给了时出现:大小写两套变量都给(有的工具只认大写),本机地址照旧直连。 */

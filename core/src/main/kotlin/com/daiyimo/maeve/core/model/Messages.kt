@@ -1,6 +1,7 @@
 package com.daiyimo.maeve.core.model
 
 import com.daiyimo.maeve.core.observation.ReadTag
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -24,7 +25,7 @@ sealed interface Part {
      */
     @Serializable data class ToolCall(val id: String, val name: String, val argsJson: String, val opaque: String? = null) : Part
     /**
-     * [reads]:这次结果里读到、记进证据账本的观察(编号与形态);只在 Mika 内部用(裁剪按观察的形态定怎么缩短,缩短后指回编号),不发给服务商。
+     * [reads]:这次结果里读到、记进证据账本的观察(编号与形态);只在 Maeve 内部用(裁剪按观察的形态定怎么缩短,缩短后指回编号),不发给服务商。
      */
     @Serializable data class ToolResult(val callId: String, val content: String, val isError: Boolean, val reads: List<ReadTag> = emptyList()) : Part
     /**
@@ -37,13 +38,19 @@ sealed interface Part {
 @Serializable
 enum class Role { System, User, Assistant, Tool }
 
-/** 消息是谁写的:[User] 是用户亲口说的(任务原话、任务中途补充的话与照片),[Mika] 是 Mika 生成的(附注、上下文、工具往返)。 */
+/** 消息是谁写的:[User] 是用户亲口说的(任务原话、任务中途补充的话与照片),[Maeve] 是 Maeve 生成的(附注、上下文、工具往返)。 */
 @Serializable
-enum class Author { User, Mika }
+enum class Author {
+    User,
+    // ★ 序列化名固定成 "Maeve"：这个枚举会随对话一起落盘，改名会让
+    //   所有已存的历史对话读不出来（kotlinx.serialization 按名字匹配）。
+    //   代码里叫 Maeve，磁盘上永远叫 Maeve，两者靠这里对齐。
+    @SerialName("Maeve") Maeve,
+}
 
 /**
- * [author] 必须写明(没有默认值):新加的地方要是放进了用户的话或照片,不会被当成 Mika 的附注裁掉。
- * 只在 Mika 内部用(压缩时保住用户的话),不发给服务商。
+ * [author] 必须写明(没有默认值):新加的地方要是放进了用户的话或照片,不会被当成 Maeve 的附注裁掉。
+ * 只在 Maeve 内部用(压缩时保住用户的话),不发给服务商。
  */
 @Serializable
 data class Message(val role: Role, val parts: List<Part>, val author: Author)

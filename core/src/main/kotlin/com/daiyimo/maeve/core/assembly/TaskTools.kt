@@ -94,7 +94,7 @@ fun toolDispatcher(
     workspace: () -> String = { "default" },
     /** 沙箱开始跑一条命令或脚本时(任务卡片显示「沙箱:…」)。 */
     onSandboxCommand: (String) -> Unit = {},
-    /** 沙箱里 `mika progress` 报的进度。 */
+    /** 沙箱里 `maeve progress` 报的进度。 */
     onSandboxProgress: (String) -> Unit = {},
     /** 沙箱工具在等运行环境准备好(任务卡片显示「正在准备」)。 */
     onSandboxPreparing: () -> Unit = {},
@@ -114,11 +114,11 @@ fun toolDispatcher(
     userScreens: UserScreenSource? = null,
     /** 用户的个人技能;和 [skills]、[utterances] 都给了才提供 skill_save(用户要求时写下或改一份个人技能)。 */
     personalSkills: PersonalSkills? = null,
-    /** 改 Mika 自己设置的白名单入口;为空时不提供 settings_list、settings_set(见 [SelfConfig])。 */
+    /** 改 Maeve 自己设置的白名单入口;为空时不提供 settings_list、settings_set(见 [SelfConfig])。 */
     selfConfig: com.daiyimo.maeve.core.settings.SelfConfig? = null,
     /** 存下的运行记录;给了、而这个对话之前有记过运行的轮次时提供 history_read(查之前几轮读到的东西)。 */
     runRecords: RunRecords? = null,
-    /** 以 root 跑命令(已 root 的手机上用户打开了「允许 Mika 执行 root 命令」才给);为空时 root 工具不登记。 */
+    /** 以 root 跑命令(已 root 的手机上用户打开了「允许 Maeve 执行 root 命令」才给);为空时 root 工具不登记。 */
     root: RootPort? = null,
 ): ToolDispatcher {
     val config = ToolConfig(visionEnabled, skills, recordFrames, vision, inlineScreen, adaptiveVision, memory, profile, utterances, conversationId,
@@ -186,12 +186,12 @@ fun legacyNames(): LegacyNames =
 /** 读运行记录用的工具声明:改名前记下的旧名也认成现在的工具(动作、能力相同),旧的记录和新的评分一样。 */
 fun recordedTools(): ToolIndex = legacyNames().let { legacy -> ToolIndex(allTools()) { legacy.resolve(it) } }
 
-/** Mika 所有可能提供的工具,按发给模型的顺序。 */
+/** Maeve 所有可能提供的工具,按发给模型的顺序。 */
 internal fun allTools(): List<AgentTool> =
     GeneralGroup.tools + PhoneCapability.tools() + WebGroup.tools + SandboxGroup.tools + RootGroup.tools
 
-/** Mika 所有可能提供的工具的声明。 */
+/** Maeve 所有可能提供的工具的声明。 */
 fun knownTools(): ToolIndex = ToolIndex(allTools())
 
-/** Mika 所有可能提供的工具名(技能文档里提到的工具名据此校验)。 */
+/** Maeve 所有可能提供的工具名(技能文档里提到的工具名据此校验)。 */
 fun knownToolNames(): Set<String> = knownTools().names + DO_STEPS_TOOL

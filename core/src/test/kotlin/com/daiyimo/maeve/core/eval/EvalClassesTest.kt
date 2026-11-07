@@ -112,9 +112,9 @@ class EvalClassesTest {
         assertEquals("用App查长江", EvalTasks.withChannel("用App查长江", "app"))
     }
 
-    private val alarmTask = EvalTask(id = "alarm", goal = "在手机自带的时钟里新建闹钟「Mika评测-{run}」", apps = listOf("{app:alarm}"),
+    private val alarmTask = EvalTask(id = "alarm", goal = "在手机自带的时钟里新建闹钟「Maeve评测-{run}」", apps = listOf("{app:alarm}"),
         category = EvalCategory.Write, requires = listOf("app:alarm"), expect = Expect.Succeeded,
-        checks = listOf(Check.ScreenHas("{app:alarm}", "Mika评测-{run}")), marker = "Mika评测-{run}")
+        checks = listOf(Check.ScreenHas("{app:alarm}", "Maeve评测-{run}")), marker = "Maeve评测-{run}")
 
     @Test fun systemAppsResolveFromCapabilities() {
         assertEquals(emptyList<String>(), EvalTasks.validate(alarmTask))
@@ -147,12 +147,12 @@ class EvalClassesTest {
         val query = "2 activities found:\n  Activity #0:\n    priority=0\n    com.example.calendar/.Launcher\n  Activity #1:\n    org.other.cal/org.other.cal.Main\n"
         assertEquals(listOf("com.example.calendar", "org.other.cal"), AppCapabilities.packagesIn(query))
         assertTrue(AppCapabilities.commands(APP_CAPABILITIES.getValue("calendar").single()).all { "-c android.intent.category.APP_CALENDAR" in it })
-        // Agent 打开过的候选优先;没有候选时取 Agent 打开的第一个 App(Mika 自己不算)
-        assertEquals("org.other.cal", AppCapabilities.choose(listOf("com.example.calendar", "org.other.cal"), listOf("com.mika", "org.other.cal"), "com.mika"))
+        // Agent 打开过的候选优先;没有候选时取 Agent 打开的第一个 App(Maeve 自己不算)
+        assertEquals("org.other.cal", AppCapabilities.choose(listOf("com.example.calendar", "org.other.cal"), listOf("com.maeve", "org.other.cal"), "com.maeve"))
         assertEquals("com.example.calendar", AppCapabilities.choose(listOf("com.example.calendar"), emptyList()))
         // 没有候选时只认 Agent 打字时在前台的那一个 App;只打开过、或在几个 App 里都打过字,说不准就不定
-        assertEquals("com.example.notes", AppCapabilities.choose(emptyList(), listOf("com.example.other"), "com.mika", written = listOf("com.mika", "com.example.notes")))
-        assertNull(AppCapabilities.choose(emptyList(), listOf("com.mika", "com.example.notes"), "com.mika"))
+        assertEquals("com.example.notes", AppCapabilities.choose(emptyList(), listOf("com.example.other"), "com.maeve", written = listOf("com.maeve", "com.example.notes")))
+        assertNull(AppCapabilities.choose(emptyList(), listOf("com.maeve", "com.example.notes"), "com.maeve"))
         assertNull(AppCapabilities.choose(emptyList(), emptyList(), written = listOf("com.a.notes", "com.b.notes")))
         assertNull(AppCapabilities.choose(emptyList(), emptyList()))
     }

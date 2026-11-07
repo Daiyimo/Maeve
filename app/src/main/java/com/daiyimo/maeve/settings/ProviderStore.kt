@@ -250,7 +250,7 @@ data class ClientSetup(
 sealed interface ProbeResult {
     /** 模型调用了试用的工具:接口通,也会调用工具。 */
     data object ToolCalled : ProbeResult
-    /** 接口通,模型只回了话、没调用工具:Mika 干活靠工具,这个模型当不了主模型。 */
+    /** 接口通,模型只回了话、没调用工具:Maeve 干活靠工具,这个模型当不了主模型。 */
     data object NoToolCall : ProbeResult
     /** 请求失败;[error] 带着服务端的报错。 */
     data class Failed(val error: ModelError) : ProbeResult
@@ -275,7 +275,7 @@ class ProviderStore(
     private val cipher: KeyCipher,
     private val usage: UsageSink = UsageSink { _, _ -> },
     private val newId: () -> String = { UUID.randomUUID().toString() },
-    /** 发给模型服务的 User-Agent;App 给 `Mika/<版本>`。 */
+    /** 发给模型服务的 User-Agent;App 给 `Maeve/<版本>`。 */
     private val userAgent: String = "Maeve",
     /** 列模型:接口类型、地址、Key、每个请求都带的头。 */
     private val modelLister: suspend (ProviderConfig.Kind, String, String?, Map<String, String>) -> ModelListResult = ::listAvailable,
@@ -582,7 +582,7 @@ class ProviderStore(
         val cfg = ProviderConfig(PROBE_ID, kind, baseUrl, model, caps.copy(toolCalls = true))
         val m = modelFactory(cfg, apiKey, endpoint, ClientSetup(headers(sessionHeader, ModelSession.fresh()), PROBE_MAX_TOKENS))
         return try {
-            val reply = m.complete(PROBE_SYSTEM, listOf(Message(Role.User, listOf(Part.Text(PROBE_TEXT)), Author.Mika)), listOf(PROBE_TOOL))
+            val reply = m.complete(PROBE_SYSTEM, listOf(Message(Role.User, listOf(Part.Text(PROBE_TEXT)), Author.Maeve)), listOf(PROBE_TOOL))
             if (reply.parts.any { it is Part.ToolCall }) ProbeResult.ToolCalled else ProbeResult.NoToolCall
         } catch (e: ModelError) {
             ProbeResult.Failed(e)

@@ -11,7 +11,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.daiyimo.maeve.core.record.RunMetrics
 import com.daiyimo.maeve.core.record.RunStats
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -27,7 +27,7 @@ class RunMetricsUiTest {
     @Test fun summaryLineShowsAndExpands() {
         val m = RunMetrics(totalMs = 133_000, firstFeedbackMs = 3_200, modelCalls = 14, inputTokens = 80_000, outputTokens = 6_000,
             modelMs = 60_000, observeMs = 30_000, actMs = 20_000, steps = 9)
-        compose.setContent { MikaTheme { Column { RunMetricsSummary(m) } } }
+        compose.setContent { MaeveTheme { Column { RunMetricsSummary(m) } } }
         compose.onNodeWithText(RunMetricsCopy.summaryLine(m)).assertIsDisplayed()
         compose.onNodeWithTag("run-metrics-summary").performClick()
         compose.onNodeWithText(RunMetricsCopy.MODEL).assertIsDisplayed()
@@ -41,7 +41,7 @@ class RunMetricsUiTest {
         ))
         var range = 1
         var copied = 0
-        compose.setContent { MikaTheme { RunStatsContent(stats, 1, { range = it }, onCopy = { copied++ }, onShare = {}, onBack = {}) } }
+        compose.setContent { MaeveTheme { RunStatsContent(stats, 1, { range = it }, onCopy = { copied++ }, onShare = {}, onBack = {}) } }
         compose.onNodeWithText(RunMetricsCopy.STATS_TITLE).assertIsDisplayed()
         compose.onNodeWithText("50%（1/2）").assertExists()
         compose.onNodeWithText("20 秒").assertExists()
@@ -52,7 +52,7 @@ class RunMetricsUiTest {
     }
 
     @Test fun statsPageWithoutRunsSaysSo() {
-        compose.setContent { MikaTheme { RunStatsContent(null, 0, {}, onCopy = {}, onShare = {}, onBack = {}) } }
+        compose.setContent { MaeveTheme { RunStatsContent(null, 0, {}, onCopy = {}, onShare = {}, onBack = {}) } }
         compose.onNodeWithText(RunMetricsCopy.STATS_EMPTY).assertExists()
     }
 }

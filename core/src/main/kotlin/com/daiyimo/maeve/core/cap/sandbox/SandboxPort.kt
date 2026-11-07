@@ -57,18 +57,18 @@ interface SandboxPort {
     /** 规范化后的沙箱路径 → (宿主根目录, 根下相对路径),交给 [files];技能目录只读,越界为 null。工作区目录不存在时建上。 */
     fun hostRoot(workspace: String, normalized: String, forWrite: Boolean): Pair<File, String>?
 
-    /** 存到手机的「下载/Mika」,返回 "Download/Mika/<名字>"。 */
+    /** 存到手机的「下载/Maeve」,返回 "Download/Maeve/<名字>"。 */
     suspend fun share(file: File, name: String): String
 
     fun freeBytes(): Long
     fun workspaceBytes(workspace: String): Long
 
     /**
-     * 存完整输出到 /workspace/.mika/out-<n>.txt,返回沙箱路径。经 [files] 新建(.mika 被换成链接等时抛异常,不写任何东西)。
+     * 存完整输出到 /workspace/.maeve/out-<n>.txt,返回沙箱路径。经 [files] 新建(.maeve 被换成链接等时抛异常,不写任何东西)。
      */
     fun saveOutput(workspace: String, text: String): String
 
-    /** [skillPath]:`/opt/mika/skills` 下的技能目录(相对路径);读随 App 打包的那份清单,没有为空。 */
+    /** [skillPath]:`/opt/maeve/skills` 下的技能目录(相对路径);读随 App 打包的那份清单,没有为空。 */
     fun scriptManifest(skillPath: String): List<ScriptEntry>
 
     /**
@@ -77,7 +77,7 @@ interface SandboxPort {
      */
     suspend fun awaitReady(timeoutMs: Long): SandboxStatus = status()
 
-    /** 把 `/opt/mika/skills` 核对成随 App 打包的那份:多出、缺少、改过的都重新同步。失败只记下,不抛。 */
+    /** 把 `/opt/maeve/skills` 核对成随 App 打包的那份:多出、缺少、改过的都重新同步。失败只记下,不抛。 */
     suspend fun prepare() {}
 
     /** [skillPath] 下的 [file] 与打包的那份逐字节相同;不同就重新同步一次再核,仍不同为 false。 */

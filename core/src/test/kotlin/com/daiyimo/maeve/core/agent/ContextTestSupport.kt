@@ -18,4 +18,4 @@ internal fun List<Message>.contextBodies(vararg kinds: ContextKind): List<String
 /** 一次请求里的运行时状态正文,按出现顺序。 */
 internal fun List<Message>.runtimeStates(): List<String> = flatMap { it.parts }.filterIsInstance<Part.Text>()
     .filter { ContextBuilder.kindOf(it.text) == ContextKind.RuntimeState }
-    .map { ContextBuilder.bodyOf(com.daiyimo.maeve.core.model.Message(com.daiyimo.maeve.core.model.Role.User, listOf(it), com.daiyimo.maeve.core.model.Author.Mika))!! }
+    .map { ContextBuilder.bodyOf(com.daiyimo.maeve.core.model.Message(com.daiyimo.maeve.core.model.Role.User, listOf(it), com.daiyimo.maeve.core.model.Author.Maeve))!! }

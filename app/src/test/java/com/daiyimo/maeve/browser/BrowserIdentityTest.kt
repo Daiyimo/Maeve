@@ -11,20 +11,20 @@ class BrowserIdentityTest {
 
     @Test
     fun userBrowsingDefaultsToMobile() {
-        assertTrue(BrowserIdentity.mobile(loginForMika = false, agentMobile = false, userDesktop = false))
+        assertTrue(BrowserIdentity.mobile(loginForMaeve = false, agentMobile = false, userDesktop = false))
         // Agent 那边用哪一版不影响平常浏览
-        assertTrue(BrowserIdentity.mobile(loginForMika = false, agentMobile = true, userDesktop = false))
+        assertTrue(BrowserIdentity.mobile(loginForMaeve = false, agentMobile = true, userDesktop = false))
     }
 
     @Test
     fun perSiteOverrideSwitchesToDesktop() {
-        assertFalse(BrowserIdentity.mobile(loginForMika = false, agentMobile = true, userDesktop = true))
+        assertFalse(BrowserIdentity.mobile(loginForMaeve = false, agentMobile = true, userDesktop = true))
     }
 
     @Test
-    fun loginForMikaUsesTheAgentIdentity() {
-        assertFalse(BrowserIdentity.mobile(loginForMika = true, agentMobile = false, userDesktop = false))
-        assertTrue(BrowserIdentity.mobile(loginForMika = true, agentMobile = true, userDesktop = true))
+    fun loginForMaeveUsesTheAgentIdentity() {
+        assertFalse(BrowserIdentity.mobile(loginForMaeve = true, agentMobile = false, userDesktop = false))
+        assertTrue(BrowserIdentity.mobile(loginForMaeve = true, agentMobile = true, userDesktop = true))
     }
 
     @Test

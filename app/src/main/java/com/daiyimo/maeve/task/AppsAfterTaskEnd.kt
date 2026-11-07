@@ -3,10 +3,10 @@ package com.daiyimo.maeve.task
 import android.util.Log
 import com.daiyimo.maeve.cap.phone.shell.AppsAfterTask
 import com.daiyimo.maeve.core.uistate.AfterTaskMarks
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 
 /**
- * 任务收尾时 Mika 屏上的 App 怎么办:把模型标下的去留交给内置助手([IMikaShell.finishDisplay]),
+ * 任务收尾时 Maeve 屏上的 App 怎么办:把模型标下的去留交给内置助手([IMaeveShell.finishDisplay]),
  * 由它按规则([AppsAfterTask])留下或关掉、再释放虚拟屏。要在还原静音之前调:正在出声的先关掉,留下的不会在还原时突然响。
  * 助手没做成(出错、不认得这块屏)时屏照旧在收尾时释放,上面的 App 随屏关掉。
  */
@@ -29,7 +29,7 @@ internal object AppsAfterTaskEnd {
         val diagnostics: String get() = AppsAfterTask.diagnosticsLine(kept.size, closed, note)
     }
 
-    fun finish(shell: IMikaShell, displayId: Int, marks: AfterTaskMarks?): Outcome {
+    fun finish(shell: IMaeveShell, displayId: Int, marks: AfterTaskMarks?): Outcome {
         val keep = marks?.keepKeys().orEmpty().toTypedArray()
         val close = marks?.closeKeys().orEmpty().toTypedArray()
         val result = try {

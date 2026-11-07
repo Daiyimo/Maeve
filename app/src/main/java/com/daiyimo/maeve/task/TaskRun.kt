@@ -39,7 +39,7 @@ import com.daiyimo.maeve.cap.phone.setup.RootShell
 import com.daiyimo.maeve.cap.root.RootCommands
 import com.daiyimo.maeve.cap.phone.a11y.launchableApps
 import com.daiyimo.maeve.confirm.ConfirmationNotifier
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.action.ConfirmChoice
 import com.daiyimo.maeve.core.agent.AgentLoop
 import com.daiyimo.maeve.core.agent.SystemPrompt
@@ -477,7 +477,7 @@ class TaskRun(
     /** 本任务的沙箱:一个任务一份(导出额度按任务算),工作区是本对话的。 */
     private val sandbox by lazy { AndroidSandbox(service, SandboxState.get(service), onShared = ::addShared) }
 
-    /** 沙箱导出了一个文件(share_file 或 `mika share`)。 */
+    /** 沙箱导出了一个文件(share_file 或 `maeve share`)。 */
     fun addShared(f: SharedFile) = synchronized(service.taskState.shownLock) { _sharedFiles.value = _sharedFiles.value + f }
 
     fun clearTakeoverStage() { _takeoverStage.value = Takeover.Stage.None }
@@ -503,7 +503,7 @@ class TaskRun(
         var afterTask: com.daiyimo.maeve.core.uistate.AfterTaskMarks? = null
         var shellDeath: IBinder.DeathRecipient? = null
         var shellBinder: IBinder? = null
-        val traces = (service.application as MikaApp).detailedTraces
+        val traces = (service.application as MaeveApp).detailedTraces
         val traceTicket = traces.ticket()
         var record: RunHandle? = null
         var runStore: RunStore? = null
@@ -516,7 +516,7 @@ class TaskRun(
         var mcpEvents: AutoCloseable? = null
         var liveFeed: AutoCloseable? = null
         // 询问 / 自主:开工时取一份,开发者选项里换开关时跟着变;收尾时交还
-        val approvalControl = (service.application as MikaApp).approvalControl
+        val approvalControl = (service.application as MaeveApp).approvalControl
         var approval: RunApproval? = null
         // 任务期间的旁路协程(助手连接状态、静音与挪走监视、状态发布),任务结束一并取消
         val side = CoroutineScope(
@@ -549,7 +549,7 @@ class TaskRun(
                 val learnedNotes = legacyNames().let { legacy -> memoryRuntime.appKnowledge().notes().mapValues { it.value.copy(text = legacy.rewrite(it.value.text)) } }
                 KnowledgeStore(KnowledgeStore.loadBundled(), userNotes, learnedNotes) to GuideCatalog.loadBundled()
             }
-            val appAccess = (service.application as MikaApp).appAccess
+            val appAccess = (service.application as MaeveApp).appAccess
             // 应用访问边界:工具和预览画面共用一份(下面接手机端口时建),窗口没变时核对结果直接沿用,预览不必每一帧都问窗口
             var accessGuard: com.daiyimo.maeve.core.uistate.AppAccessScreenPort? = null
             suspend fun previewAllowed(): Boolean {
@@ -672,7 +672,7 @@ class TaskRun(
                 refreshLocked = states::refresh,
                 unattendedUnlock = if (provenance.origin == RunOrigin.Trigger) {
                     {
-                        val result = (service.application as MikaApp).deviceAccess.access.unlock()
+                        val result = (service.application as MaeveApp).deviceAccess.access.unlock()
                         states.refresh()
                         Log.i(TAG, "scheduled unlock finished: ${result.status}")
                     }
@@ -758,7 +758,7 @@ class TaskRun(
                 }
             }
             // 这个对话里用户发来的屏幕(跟着对话存在工作区里)
-            val userScreens = (service.application as MikaApp).userScreens.source(conversationId)
+            val userScreens = (service.application as MaeveApp).userScreens.source(conversationId)
             val stepLimit = if (conditionCheck) null else FeatureFlags.get(service).taskStepLimit()
             val runSpec = RunSpec(RunId(key), goal, conversationId,
                 priorTurns,
@@ -767,14 +767,14 @@ class TaskRun(
             // 外部 MCP server 只在主任务接;子任务/条件检查/评测不接,避免绕过父任务审批、影响评测可复现
             if (!conditionCheck) {
                 // 连上的当场归 resources:收尾(含取消、失败、连到一半被停)关作用域时一起关,stdio server 的进程和沙箱租约跟着放掉
-                mcpConnections = (service.application as MikaApp).mcpServers.connectionsFor(
+                mcpConnections = (service.application as MaeveApp).mcpServers.connectionsFor(
                     resources,
                     com.daiyimo.maeve.mcp.ConversationMcpResultStore(SandboxDirs(service), conversationId),
                     conversationId,
                 )
                 // 连接失败、超过总时限没连上的只在任务卡片上提示一句,不打断任务;详情在设置页的健康状态里
                 mcpConnections?.failures?.takeIf { it.isNotEmpty() }?.let { failures ->
-                    val store = (service.application as MikaApp).mcpServers
+                    val store = (service.application as MaeveApp).mcpServers
                     val names = store.servers.value.associate { it.id to it.name }
                     (_state.value as? TaskState.Running)?.let {
                         publish(it.copy(note = tr(R.string.mcp_servers_run_failed, failures.joinToString(", ") { f -> names[f.first] ?: f.first })))
@@ -796,11 +796,11 @@ class TaskRun(
                         confirmations = runApproval.gate(), approvals = runApproval, autonomous = runApproval.startedAutonomous,
                         reviewFinalAnswer = false, flags = speed, outwardPacing = OutwardPacing.human())
                 },
-                store = (service.application as MikaApp).childRuns,
+                store = (service.application as MaeveApp).childRuns,
                 ownerAlive = { job?.isActive == true },
             ).also { children = it } else null
             val tools = toolDispatcher(accessedPhone, model.capabilities.vision, catalog, recordFrames = true, vision = vision?.let { VisionService(it, BitmapImageOps) },
-                // 设置里允许 Mika 改自己时,才把 settings_list、settings_set 发给模型
+                // 设置里允许 Maeve 改自己时,才把 settings_list、settings_set 发给模型
                 selfConfig = if (FeatureFlags.get(service).selfConfig()) {
                     com.daiyimo.maeve.settings.SelfConfigImpl(FeatureFlags.get(service))
                 } else null,
@@ -834,7 +834,7 @@ class TaskRun(
                 // 这个对话之前几轮的运行记录(只读;history_read 只认 runSpec 里这个对话的轮次)
                 runRecords = RunStore(service).reader(),
                 mcpServers = mcpEndpoints(),
-                // 已 root 的手机上用户打开了「允许 Mika 执行 root 命令」才登记 root 工具(子任务、条件检查不给)
+                // 已 root 的手机上用户打开了「允许 Maeve 执行 root 命令」才登记 root 工具(子任务、条件检查不给)
                 root = phoneServices.shellManager.root.takeIf { !conditionCheck && it.commandsAllowed() }
                     ?.let { r -> RootCommands(RootShell::su, r::commandsAllowed) { a -> if (a == null) r.suGone() else r.commandsDenied(a) } })
             dispatcher = tools
@@ -846,7 +846,7 @@ class TaskRun(
                     if (phoneScreen.acquired && dispatcher?.surface != WEB) phone?.screen?.let { awaitUserPick(it, taskGate, w) }
                     taskGate.pass({ phoneScreen.acquired && dispatcher?.surface != WEB }, w)
                 }, knowledge = knowledge, sink = sink, trace = trace, installedApps = { apps },
-                // 选渠道用的事实:装了哪些 App、在 Mika 里登录过哪些网站、有没有内置浏览器
+                // 选渠道用的事实:装了哪些 App、在 Maeve 里登录过哪些网站、有没有内置浏览器
                 channelFacts = {
                     val registry = WebSites.registry(service)
                     ChannelFacts(
@@ -883,7 +883,7 @@ class TaskRun(
             )
             loop = agent
             liveFeed = agent.events.subscribe(liveEvents)
-            mcpExternalId?.let { mcpEvents = (service.application as MikaApp).remoteTasks.attach(it, agent.events) }
+            mcpExternalId?.let { mcpEvents = (service.application as MaeveApp).remoteTasks.attach(it, agent.events) }
             kit = LearnKit(switches, memory, utterances, tools, agent, catalog, knowledge, model, light, runStore, agent.flags.replay, priorTurns)
             suspend fun <T> io(fallback: T, call: () -> T): T =
                 withContext(Dispatchers.IO) { runCatching(call).getOrDefault(fallback) }
@@ -1013,7 +1013,7 @@ class TaskRun(
             withContext(Dispatchers.IO + NonCancellable) {
                 // 前面哪步抛错,屏和网页显示也照放(按建的反序)
                 try {
-                    // 先定 Mika 屏上 App 的去留(留下的挪到主屏后面、正在出声的关掉)并释放屏,再还原静音:留下的不会突然出声
+                    // 先定 Maeve 屏上 App 的去留(留下的挪到主屏后面、正在出声的关掉)并释放屏,再还原静音:留下的不会突然出声
                     val apps = phone?.takeIf { !shellDied }?.let { p ->
                         p.display.current?.let { d -> AppsAfterTaskEnd.finish(p.shell, d.displayId, afterTask) }
                     }
@@ -1040,15 +1040,15 @@ class TaskRun(
 
     /** 手机一侧:用过手机的任务才有。 */
     private class PhoneSide(
-        val shell: com.daiyimo.maeve.shell.IMikaShell, val a11y: ScreenAccessibility, val screen: AndroidScreen,
+        val shell: com.daiyimo.maeve.shell.IMaeveShell, val a11y: ScreenAccessibility, val screen: AndroidScreen,
         val display: LazyAgentDisplay, val audio: AppMuter,
     )
 
     /**
-     * 这次任务的静音规则(见 [AppMuter]):Mika 自己不静;没有桌面入口的系统包不静(系统界面、选择框一类);
+     * 这次任务的静音规则(见 [AppMuter]):Maeve 自己不静;没有桌面入口的系统包不静(系统界面、选择框一类);
      * 用户在主屏上看得见的不静;没静成的记下,任务进度上提示可能出声。
      */
-    private fun appMuter(shell: com.daiyimo.maeve.shell.IMikaShell, audio: AudioMute): AppMuter {
+    private fun appMuter(shell: com.daiyimo.maeve.shell.IMaeveShell, audio: AudioMute): AppMuter {
         val pm = service.packageManager
         val own = service.packageName
         fun system(pkg: String) = runCatching {
@@ -1086,7 +1086,7 @@ class TaskRun(
 
     /**
      * 目标 App 换了就静音(启动前多半已静上,这里补上没静成的),并盯着它有没有被用户挪到主屏。
-     * Mika 屏上冒出别的 App(从目标 App 里点开的、另一份顶上来的)也是第一次看到就静;静音按「包 + 用户」,另一份单独静。
+     * Maeve 屏上冒出别的 App(从目标 App 里点开的、另一份顶上来的)也是第一次看到就静;静音按「包 + 用户」,另一份单独静。
      * 用户接管期间屏上的事归用户,不去静。
      */
     private fun watchTarget(p: PhoneSide, states: DeviceStateWatcher) {
@@ -1300,13 +1300,13 @@ class TaskRun(
         const val WEB_FRAME_MS = 500L
         const val SHELL_WAIT_MS = 15_000L
         const val DISPLAY_RETRY_MS = 1_000L
-        /** Mika 屏上的前台 App 两次重读之间至少隔这么久。 */
+        /** Maeve 屏上的前台 App 两次重读之间至少隔这么久。 */
         const val FOREGROUND_GAP_MS = 300L
         val WAITING_DISPLAY: String get() = tr(R.string.task_waiting_display)
         const val A11Y_WAIT_MS = 5_000L
         val NO_PHONE_HELPER: String get() = tr(R.string.task_no_phone_helper)
         val NO_PHONE_HELPER_USB: String get() = tr(R.string.task_no_phone_helper_usb)
         val NO_ACCESSIBILITY: String get() = tr(R.string.task_no_a11y)
-        const val TAG = "MikaTask"
+        const val TAG = "MaeveTask"
     }
 }

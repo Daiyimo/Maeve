@@ -10,7 +10,7 @@ import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.TEST_PACKAGE
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.pollUntil
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.sh
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,14 +21,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 任务结束时 Mika 屏上的 App 怎么办(IMikaShell.finishDisplay):没出声的留下,挪到主屏最后面、不到用户眼前;
- * 下次经启动入口打开时同一个任务挪回 Mika 的屏;正在出声的、标了 close 的随屏关掉;标了 keep 的出声也留下。
+ * 任务结束时 Maeve 屏上的 App 怎么办(IMaeveShell.finishDisplay):没出声的留下,挪到主屏最后面、不到用户眼前;
+ * 下次经启动入口打开时同一个任务挪回 Maeve 的屏;正在出声的、标了 close 的随屏关掉;标了 keep 的出声也留下。
  * 需要外壳已连上。用户的主屏不该有任何变化(焦点、焦点窗口都不变,留下的任务看不见)。
  */
 @RunWith(AndroidJUnit4::class)
 class AppsAfterTaskDeviceTest {
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val shell: IMikaShell get() = DeviceSupport.shell()
+    private val shell: IMaeveShell get() = DeviceSupport.shell()
     private val screens = mutableListOf<ParityScreen>()
     private lateinit var probe: ShellProbe
 
@@ -79,7 +79,7 @@ class AppsAfterTaskDeviceTest {
         // 最近任务的记录里每个任务写成 Task{… #<编号> …}
         assertTrue("kept task is gone from recents", Regex("#$task\\b").containsMatchIn(sh("dumpsys activity recents")))
 
-        // 下次打开:同一个任务挪回 Mika 的新屏
+        // 下次打开:同一个任务挪回 Maeve 的新屏
         val s2 = newScreen()
         probe.clear()
         assertEquals(ShellService.START_OK, shell.startApp(s2.id, TEST_PACKAGE))

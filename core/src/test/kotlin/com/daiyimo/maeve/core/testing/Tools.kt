@@ -7,7 +7,7 @@ import com.daiyimo.maeve.core.cap.web.WEB
 import com.daiyimo.maeve.core.tool.ToolIndex
 import com.daiyimo.maeve.core.tool.Verb
 
-/** 测试用:Mika 全部工具的声明。 */
+/** 测试用:Maeve 全部工具的声明。 */
 internal val TOOLS: ToolIndex get() = knownTools()
 
 /** 测试用:读运行记录的工具声明(改名前的旧名也认得)。 */

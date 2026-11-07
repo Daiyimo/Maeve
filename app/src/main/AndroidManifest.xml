@@ -34,7 +34,7 @@
         tools:ignore="ProtectedPermissions" />
 
     <!-- 对话页附件可以拍照(走系统相机),声明用到相机、但不是必需:没有相机的设备照常安装。
-         有的系统按 APK 特征给应用分类,不声明时 Mika 可能被当成游戏、限制刷新率;这条声明要留着 -->
+         有的系统按 APK 特征给应用分类,不声明时 Maeve 可能被当成游戏、限制刷新率;这条声明要留着 -->
     <uses-feature
         android:name="android.hardware.camera"
         android:required="false" />
@@ -82,7 +82,7 @@
     </queries>
 
     <application
-        android:name=".MikaApp"
+        android:name=".MaeveApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:supportsRtl="true"
@@ -97,7 +97,7 @@
             android:name=".ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:theme="@style/Theme.Mika"
+            android:theme="@style/Theme.Maeve"
             android:windowSoftInputMode="adjustResize" />
 
         <!-- 桌面图标变体:雾紫(默认)、珠白、夜色、单色。targetActivity 都指向唯一的 MainActivity。 -->
@@ -160,7 +160,7 @@
             android:name=".ui.viewer.FileViewerActivity"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|uiMode|density"
             android:exported="false"
-            android:theme="@style/Theme.Mika" />
+            android:theme="@style/Theme.Maeve" />
 
         <!-- 网页接管:把后台的网页标签(同一个 WebView)拿到主屏给用户处理 -->
         <activity
@@ -172,7 +172,7 @@
             android:taskAffinity=""
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- 兼容性自检在 Mika 虚拟屏上操作的测试页。对外开放只为让内置助手(shell)按组件名把它开到 Mika 的屏上:
+        <!-- 兼容性自检在 Maeve 虚拟屏上操作的测试页。对外开放只为让内置助手(shell)按组件名把它开到 Maeve 的屏上:
              调用方必须持有 INTERACT_ACROSS_USERS_FULL,shell 有,普通 App 没有;没有 intent-filter。单独一个任务,不进最近任务 -->
         <activity
             android:name=".selfcheck.SelfCheckTargetActivity"
@@ -184,7 +184,7 @@
             android:windowSoftInputMode="stateHidden" />
 
         <service
-            android:name=".a11y.MikaAccessibilityService"
+            android:name=".a11y.MaeveAccessibilityService"
             android:exported="true"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
@@ -270,7 +270,7 @@
                 android:resource="@xml/attach_files" />
         </provider>
 
-        <!-- 走网络代理时 Mika 自己下的更新安装包:只读交给系统安装器,不对外导出,安装时临时授权 -->
+        <!-- 走网络代理时 Maeve 自己下的更新安装包:只读交给系统安装器,不对外导出,安装时临时授权 -->
         <provider
             android:name=".about.UpdateFilesProvider"
             android:authorities="${applicationId}.updatefiles"

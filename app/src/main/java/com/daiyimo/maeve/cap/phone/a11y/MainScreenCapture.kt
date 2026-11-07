@@ -19,17 +19,17 @@ import java.io.ByteArrayOutputStream
 /**
  * 截下用户此刻在主屏上看着的那一屏,连同前台 App 和屏上的字(见 [UserScreenText]:先读无障碍树,不够用时认画面上的字)。
  * 屏上有防截屏窗口(截图报错,或截出来几乎全黑而屏上有 App 窗口)时不留画面,只记下是哪个 App、截不到。
- * Mika 自己的浮层要不要先藏起来由调用方定(见 [OverlayWindow.hiddenWhile]);读树时浮层、输入法本来就不算。
+ * Maeve 自己的浮层要不要先藏起来由调用方定(见 [OverlayWindow.hiddenWhile]);读树时浮层、输入法本来就不算。
  */
 internal object MainScreenCapture {
-    private const val TAG = "MikaScreenCapture"
+    private const val TAG = "MaeveScreenCapture"
     private const val JPEG_QUALITY = 88
     /** 认字最多等这么久:超时就只用树里的字。 */
     private const val OCR_WAIT_MS = 4_000L
 
     sealed interface Result {
         class Captured(val shot: CapturedScreen) : Result
-        /** 前台是 Mika 自己:不截。 */
+        /** 前台是 Maeve 自己:不截。 */
         data object Self : Result
         data object Unavailable : Result
     }

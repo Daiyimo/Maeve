@@ -19,7 +19,7 @@ class AndroidSandboxRunTest {
     private val sb = AndroidSandbox(SandboxDirs(File(tmp, "files/sandbox"), File(tmp, "cache"), File(tmp, "lib"), JVM_GATE, SandboxTree()), { SandboxStatus.Ready(false) }, { emptyList() })
 
     @Test fun cwdOutsideWorkspaceRejected() = runBlocking {
-        for (cwd in listOf("../..", "/etc", "/opt/mika/skills/x", "a/../../b")) {
+        for (cwd in listOf("../..", "/etc", "/opt/maeve/skills/x", "a/../../b")) {
             try {
                 sb.run("c1", listOf("true"), cwd, 1_000) {}
                 fail("cwd $cwd was accepted")
@@ -42,7 +42,7 @@ class AndroidSandboxRunTest {
 
     @Test fun existingSandboxGetsUpdatedClientScript() = runBlocking {
         val dirs = SandboxDirs(File(tmp, "client/files/sandbox"), File(tmp, "client/cache"), File(tmp, "client/lib"), JVM_GATE, SandboxTree())
-        val client = File(dirs.rootfs, "usr/local/bin/mika")
+        val client = File(dirs.rootfs, "usr/local/bin/maeve")
         client.parentFile!!.mkdirs()
         client.writeText("old bridge")
         val sb = AndroidSandbox(dirs, { SandboxStatus.Ready(false) }, { emptyList() },
@@ -78,7 +78,7 @@ class AndroidSandboxRunTest {
 
     @Test fun preparerNeedsWork() {
         assertTrue(RuntimePreparer.needsWork(SandboxStatus.NotInstalled, null, "v2", skipBroken = false))
-        assertTrue(RuntimePreparer.needsWork(SandboxStatus.Ready(false), "v1", "v2", skipBroken = false)) // Mika 升级了
+        assertTrue(RuntimePreparer.needsWork(SandboxStatus.Ready(false), "v1", "v2", skipBroken = false)) // Maeve 升级了
         assertFalse(RuntimePreparer.needsWork(SandboxStatus.Ready(true), "v2", "v2", skipBroken = false))
         assertTrue(RuntimePreparer.needsWork(SandboxStatus.Broken("x"), "v2", "v2", skipBroken = false))
         assertFalse(RuntimePreparer.needsWork(SandboxStatus.Broken("x"), "v2", "v2", skipBroken = true))
@@ -98,12 +98,12 @@ class AndroidSandboxRunTest {
         var fail: Exception? = null
         val sb = AndroidSandbox(dirs, { SandboxStatus.Ready(false) }, { emptyList() }, exporter = { g, n ->
             // 交给导出的是过了关口的句柄:内容从它读
-            calls += String(g.read(0, 100)) to n; fail?.let { throw it }; com.daiyimo.maeve.chat.SharedFile(n, g.size, "Download/Mika/$n", "content://x")
+            calls += String(g.read(0, 100)) to n; fail?.let { throw it }; com.daiyimo.maeve.chat.SharedFile(n, g.size, "Download/Maeve/$n", "content://x")
         })
         val f = sb.hostPath("c1", "out/a.txt", forWrite = true)!!.apply { parentFile?.mkdirs(); writeText("a") }
-        assertEquals("Download/Mika/a.txt", sb.share(f, "a.txt"))
+        assertEquals("Download/Maeve/a.txt", sb.share(f, "a.txt"))
         assertEquals("a" to "a.txt", calls.single())
-        // 工作区里的硬链接(可能链着 Mika 的私有文件)不导出
+        // 工作区里的硬链接(可能链着 Maeve 的私有文件)不导出
         val private = File(tmp, "s2/private.db").apply { writeText("secret") }
         val linked = File(f.parentFile, "linked.db")
         Files.createLink(linked.toPath(), private.toPath())
@@ -123,7 +123,7 @@ class AndroidSandboxRunTest {
         assertEquals(com.daiyimo.maeve.core.workspace.WorkspacePathCheck.Ok, sb.uploadCheck("c1", "/workspace/in/a.pdf"))
         assertEquals(com.daiyimo.maeve.core.workspace.WorkspacePathCheck.NotFound, sb.uploadCheck("c1", "/workspace/in/none.pdf"))
         assertEquals(com.daiyimo.maeve.core.workspace.WorkspacePathCheck.NotFound, sb.uploadCheck("c1", "/workspace/in"))
-        assertEquals(com.daiyimo.maeve.core.workspace.WorkspacePathCheck.Outside, sb.uploadCheck("c1", "/opt/mika/skills/skills/x/SKILL.md"))
+        assertEquals(com.daiyimo.maeve.core.workspace.WorkspacePathCheck.Outside, sb.uploadCheck("c1", "/opt/maeve/skills/skills/x/SKILL.md"))
         assertEquals(com.daiyimo.maeve.core.workspace.WorkspacePathCheck.Outside, sb.uploadCheck("c1", "/workspace/../etc/passwd"))
         assertEquals(com.daiyimo.maeve.core.workspace.WorkspacePathCheck.NotFound, sb.uploadCheck("c2", "/workspace/in/a.pdf")) // 别的对话看不到
         // 指向工作区外的链接不跟过去

@@ -22,9 +22,9 @@ import org.junit.Test
 class ClientHeadersTest {
     private lateinit var server: MockWebServer
     private val caps = Capabilities(toolCalls = true, vision = false, contextTokens = 64_000, reasoning = false)
-    private val user = listOf(Message(Role.User, listOf(Part.Text("hi")), Author.Mika))
+    private val user = listOf(Message(Role.User, listOf(Part.Text("hi")), Author.Maeve))
     private val session = ModelSession.of("conversation-1")
-    private val headers = ClientHeaders.of("Mika/9.9.9", "x-test-session", session)
+    private val headers = ClientHeaders.of("Maeve/9.9.9", "x-test-session", session)
 
     @Before fun setUp() { server = MockWebServer().also { it.start() } }
     @After fun tearDown() { server.shutdown() }
@@ -35,7 +35,7 @@ class ClientHeadersTest {
         .setBody(events.joinToString("") { "data: $it\n\n" })
 
     private fun RecordedRequest.assertCarries() {
-        assertEquals("Mika/9.9.9", getHeader("User-Agent"))
+        assertEquals("Maeve/9.9.9", getHeader("User-Agent"))
         assertEquals(session.id, getHeader("x-test-session"))
     }
 
@@ -47,9 +47,9 @@ class ClientHeadersTest {
     }
 
     @Test fun noSessionHeaderUnlessDeclared() {
-        assertEquals(mapOf("User-Agent" to "Mika/1"), ClientHeaders.of("Mika/1", null, session))
-        assertEquals(mapOf("User-Agent" to "Mika/1"), ClientHeaders.of("Mika/1", " ", session))
-        assertEquals(session.id, ClientHeaders.of("Mika/1", "x-s", session)["x-s"])
+        assertEquals(mapOf("User-Agent" to "Maeve/1"), ClientHeaders.of("Maeve/1", null, session))
+        assertEquals(mapOf("User-Agent" to "Maeve/1"), ClientHeaders.of("Maeve/1", " ", session))
+        assertEquals(session.id, ClientHeaders.of("Maeve/1", "x-s", session)["x-s"])
     }
 
     @Test fun chatCompletionsCarriesHeaders() = runTest {

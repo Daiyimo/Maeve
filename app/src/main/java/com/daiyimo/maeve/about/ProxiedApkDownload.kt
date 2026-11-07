@@ -15,7 +15,7 @@ import java.io.IOException
 import kotlin.coroutines.coroutineContext
 
 /**
- * 设了网络代理时的更新下载:系统下载服务不走 App 自己的代理,改由 Mika 用走代理的 [http] 在进程里下。
+ * 设了网络代理时的更新下载:系统下载服务不走 App 自己的代理,改由 Maeve 用走代理的 [http] 在进程里下。
  * 先写到 `<目标>.part`,下完整了再改名成目标文件,所以「目标文件在」就是下好了。
  * 进程里只有一份(同一时间只下一个);进程被杀后没下完的算失败,用户重试即可。
  */

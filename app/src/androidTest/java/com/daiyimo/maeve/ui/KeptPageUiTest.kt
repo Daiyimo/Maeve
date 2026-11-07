@@ -16,7 +16,7 @@ import com.daiyimo.maeve.capsule.CapsuleKind
 import com.daiyimo.maeve.capsule.CapsuleView
 import com.daiyimo.maeve.capsule.CardActions
 import com.daiyimo.maeve.capsule.CardView
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -40,7 +40,7 @@ class KeptPageUiTest {
         override fun answer(runKey: String, text: String) {}
         override fun approve(runKey: String, requestKey: Int) {}
         override fun decline(runKey: String, requestKey: Int) {}
-        override fun openMika(conversationId: String) { calls += "open $conversationId" }
+        override fun openMaeve(conversationId: String) { calls += "open $conversationId" }
         override fun zoom(on: Boolean) { calls += "zoom $on" }
         override fun openInput() {}
         override fun draft(text: String) {}
@@ -54,7 +54,7 @@ class KeptPageUiTest {
 
     @Test fun chatRowShowsHostTimeAndCloses() {
         var closed = 0
-        compose.setContent { MikaTheme(dark = false, reduceMotion = true) { KeptLine(page) { closed++ } } }
+        compose.setContent { MaeveTheme(dark = false, reduceMotion = true) { KeptLine(page) { closed++ } } }
         compose.onNodeWithText("这一页保持在后台运行").assertIsDisplayed()
         compose.onNodeWithText("course.example.com · 2 小时后自动关").assertIsDisplayed()
         compose.onNodeWithTag("kept-close").performClick()
@@ -63,7 +63,7 @@ class KeptPageUiTest {
 
     @Test fun capsuleSaysBackgroundPageRunning() {
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) {
+            MaeveTheme(dark = false, reduceMotion = true) {
                 CapsuleContent(CapsuleView.Shown(CapsuleKind.KeptPage, "后台网页运行中", conversationId = "c1", pill = true), onTap = {}, onStop = {}, onHandBack = {})
             }
         }
@@ -74,7 +74,7 @@ class KeptPageUiTest {
     @Test fun cardShowsLiveViewTimeSourceAndButtons() {
         val frame = Bitmap.createBitmap(160, 90, Bitmap.Config.ARGB_8888)
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) {
+            MaeveTheme(dark = false, reduceMotion = true) {
                 CapsuleCard(CardView.Kept(page), frame, zoomed = false, actions = actions, elapsed = { null }, height = 520.dp)
             }
         }

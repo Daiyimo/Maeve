@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 探针页把记录广播给 Mika 进程里的测试 -->
+    <!-- 探针页把记录广播给 Maeve 进程里的测试 -->
     <queries>
         <package android:name="com.daiyimo.maeve" />
         <!-- 重现「开到用户主屏上」的页面要拿别的 App 的启动入口 -->

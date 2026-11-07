@@ -8,7 +8,7 @@ import com.daiyimo.maeve.core.shell.RecoveryCapability
 import com.daiyimo.maeve.core.shell.RecoveryConsent
 import com.daiyimo.maeve.core.shell.RestoreWish
 import com.daiyimo.maeve.core.shell.RestoreWishSender
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,9 +22,9 @@ import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 
 /**
- * 把「Mika 被杀后要不要拉起来」([RestoreWish])交给内置助手:胶囊模式、有没有任务在跑、「替我打开无障碍」、
- * 系统列表里有没有 Mika 的无障碍服务,任一变了、或换了助手,就经 [IMikaShell.setRestoreWish] 再交一次。
- * 助手读不到 Mika 的设置,Mika 死后只按最后交到的这一份行事。
+ * 把「Maeve 被杀后要不要拉起来」([RestoreWish])交给内置助手:胶囊模式、有没有任务在跑、「替我打开无障碍」、
+ * 系统列表里有没有 Maeve 的无障碍服务,任一变了、或换了助手,就经 [IMaeveShell.setRestoreWish] 再交一次。
+ * 助手读不到 Maeve 的设置,Maeve 死后只按最后交到的这一份行事。
  */
 class RestoreWishSync(
     private val hub: HelperHub,
@@ -34,7 +34,7 @@ class RestoreWishSync(
     private val accessibility: Flow<A11yObservation>,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val sender = RestoreWishSender<IMikaShell> { shell, wish ->
+    private val sender = RestoreWishSender<IMaeveShell> { shell, wish ->
         runCatching { shell.setRestoreWish(wish.flags) }
             .onFailure { Log.w(TAG, "cannot hand the restore wish to the helper", it) }
             .isSuccess
@@ -43,7 +43,7 @@ class RestoreWishSync(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun start() {
         var lastOn: Boolean? = null
-        // 列表里没了 Mika 的服务要过一会儿才交出去:进程被强行停止时系统会先拿掉它,不能让这一下把心愿改掉;
+        // 列表里没了 Maeve 的服务要过一会儿才交出去:进程被强行停止时系统会先拿掉它,不能让这一下把心愿改掉;
         // 一直没有(用户在系统设置里关掉了)才不替他写回
         val accessibilityOn = accessibility.map { it.enabled }.distinctUntilChanged().mapLatest { on ->
             if (!on && lastOn == true) delay(OFF_SETTLE_MS)
@@ -57,7 +57,7 @@ class RestoreWishSync(
     }
 
     private companion object {
-        const val TAG = "MikaRestoreWish"
+        const val TAG = "MaeveRestoreWish"
         const val OFF_SETTLE_MS = 3_000L
     }
 }

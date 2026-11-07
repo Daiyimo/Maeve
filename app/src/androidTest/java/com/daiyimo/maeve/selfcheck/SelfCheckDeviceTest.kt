@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 
 /**
  * 真机:把兼容性自检完整跑一遍,和设置里点「开始自检」走的是同一个 [AndroidSelfCheck]。
- * 要内置助手在运行、Mika 的无障碍开着;报告打在 logcat(标签 MikaSelfCheck)。默认只要求跑完、每项都有结论;
+ * 要内置助手在运行、Maeve 的无障碍开着;报告打在 logcat(标签 MaeveSelfCheck)。默认只要求跑完、每项都有结论;
  * 带 `-e selfcheck.strict true` 时还要求没有一项失败。
  */
 @RunWith(AndroidJUnit4::class)
@@ -47,6 +47,6 @@ class SelfCheckDeviceTest {
     }
 
     private companion object {
-        const val TAG = "MikaSelfCheck"
+        const val TAG = "MaeveSelfCheck"
     }
 }

@@ -37,7 +37,7 @@ class RemoteEndpoints(tasks: RemoteTasks, private val serverVersion: String, pri
             return surface.rpc.handle(req)
         }
         if (req.path == RemoteTaskApi.ROOT || req.path.startsWith("${RemoteTaskApi.ROOT}/")) {
-            seen(req.remote, req.header("x-mika-client")?.take(64))
+            seen(req.remote, req.header("x-maeve-client")?.take(64))
             return surface.api.handle(req)
         }
         return RemoteTaskApi.error(404, "not_found", "No such endpoint")

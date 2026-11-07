@@ -209,13 +209,13 @@ class HelperHandoffTest {
         // 口令只在变量里,经内建 echo 走管道,不进命令行参数
         assertTrue(script.contains("\nn='f00d'\n"))
         assertEquals(1, script.split("f00d").size - 1)
-        // 只有 shell 身份才起;APK 不在(更新过)就请用户先打开 Mika
+        // 只有 shell 身份才起;APK 不在(更新过)就请用户先打开 Maeve
         assertTrue(script.contains("if [ \"\$(id -u)\" != \"2000\" ]; then"))
         assertTrue(script.contains("if [ ! -f '$apk' ]; then"))
         // 等 setsid 生效再返回,并说清结果和怎么确认
         assertTrue(script.contains("\nsleep 2\n"))
         assertTrue(script.contains("if pidof 'com.daiyimo.maeve:helper' >/dev/null 2>&1; then"))
-        assertTrue(script.contains("Mika helper starting... Open Mika to confirm"))
+        assertTrue(script.contains("Maeve helper starting... Open Maeve to confirm"))
         assertTrue(script.contains("adb shell sh /sdcard/Android/data/com.daiyimo.maeve/files/usb-start.sh"))
         assertTrue(script.endsWith("fi\n"))
     }

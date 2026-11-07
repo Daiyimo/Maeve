@@ -221,7 +221,7 @@ class DiagnosticsTest {
         assertTrue(t, t.contains("last reboot restore: NotRecovered"))
     }
 
-    /** 内置助手拉起 Mika 的记录、启动时无障碍服务的问题:有就写何时、几次,没有写 never / ok。 */
+    /** 内置助手拉起 Maeve 的记录、启动时无障碍服务的问题:有就写何时、几次,没有写 never / ok。 */
     @Test
     fun helperRestoresAndAccessibilityLoss() {
         val base = snapshot()

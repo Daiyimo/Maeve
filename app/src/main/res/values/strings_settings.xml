@@ -136,16 +136,16 @@
     <string name="appearance_dark">Always dark</string>
     <string name="accent_title">Accent</string>
     <string name="accent_sub">Six palettes, each named after a Westworld motif. A preset sets the seed; every other color is derived from it.</string>
-    <string name="accent_footnote">The two rings and the dot are Maeve\'s mark: the outer ring is your screen, the inner one the hidden screen she works on, and the dot is the step running right now.</string>
+    <string name="accent_footnote">A circular maze seen from above is Maeve\'s mark: a spiral winds in from the rim to the centre, the dot on the rim is where a task comes in, and the dot at the centre is where the road ends. The mark in the app and the launcher icon are the same geometry.</string>
     <string name="accent_wallpaper_title">Match the wallpaper</string>
     <string name="accent_wallpaper_sub">Borrows only the hue of the system accent; lightness and contrast stay Maeve’s own</string>
     <string name="accent_wallpaper">Wallpaper</string>
     <string name="accent_custom">Custom</string>
-    <string name="accent_reverie" translatable="false">雾紫</string>
-    <string name="accent_dolores" translatable="false">晨金</string>
-    <string name="accent_maze" translatable="false">沙褐</string>
-    <string name="accent_pearl" translatable="false">珠白</string>
-    <string name="accent_sublime" translatable="false">深靛</string>
+    <string name="accent_reverie" translatable="false">梅子</string>
+    <string name="accent_dolores" translatable="false">黄铜</string>
+    <string name="accent_maze" translatable="false">沙原</string>
+    <string name="accent_pearl" translatable="false">珍珠</string>
+    <string name="accent_sublime" translatable="false">夜靛</string>
     <string name="accent_graphite" translatable="false">石墨</string>
     <string name="icon_title">Launcher icon</string>
     <string name="icon_sub">The icon on your home screen. The app itself stays the same.</string>

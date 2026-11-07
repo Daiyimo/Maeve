@@ -10,25 +10,25 @@ import org.junit.Test
 class QuoteMessageTest {
     @get:Rule val texts = ChineseTexts()
 
-    private val mika = QuoteMessage.Quote(QuoteMessage.From.Mika, "明天上午有小雨\n下午转晴")
+    private val maeve = QuoteMessage.Quote(QuoteMessage.From.Maeve, "明天上午有小雨\n下午转晴")
 
     // 引用加附件:附件行接在话后面,拆的时候各归各
     @Test fun quotesAndAttachmentsTogether() {
-        val goal = ChatViewModel.withAttachments(QuoteMessage.compose(mika, "照这个改"), listOf("/workspace/inbox/a.pdf" to 2048L))
+        val goal = ChatViewModel.withAttachments(QuoteMessage.compose(maeve, "照这个改"), listOf("/workspace/inbox/a.pdf" to 2048L))
         val q = QuoteMessage.parse(goal)
-        assertEquals(mika, q.quote)
+        assertEquals(maeve, q.quote)
         val a = AttachmentMessage.parse(q.words)
         assertEquals("照这个改", a.words)
         assertEquals(listOf("a.pdf"), a.files.map { it.name })
         // 只有引用和附件、没写话
-        val only = QuoteMessage.parse(ChatViewModel.withAttachments(QuoteMessage.compose(mika, ""), listOf("/workspace/inbox/a.pdf" to 2048L)))
-        assertEquals(mika, only.quote)
+        val only = QuoteMessage.parse(ChatViewModel.withAttachments(QuoteMessage.compose(maeve, ""), listOf("/workspace/inbox/a.pdf" to 2048L)))
+        assertEquals(maeve, only.quote)
         assertEquals("a.pdf", AttachmentMessage.plain(only.words))
     }
 
     // 标题、通知里称呼这句话时不带引用
     @Test fun titlesSkipTheQuote() {
-        val goal = QuoteMessage.compose(mika, "那要带伞吗")
+        val goal = QuoteMessage.compose(maeve, "那要带伞吗")
         assertEquals("那要带伞吗", ChatCopy.plainTitle(goal))
         assertEquals("那要带伞吗", ScreenCopy.plain(goal))
     }

@@ -117,7 +117,7 @@ class AgentLoop(
     private val approvals: ApprovalSettings = ApprovalSettings.ASK,
     /** 等用户回答确认的时限,到时按不同意;为 null 时一直等(测试)。 */
     confirmTimeoutMs: Long? = null,
-    /** Mika 自己的包名:作用在它上面的写操作不做。 */
+    /** Maeve 自己的包名:作用在它上面的写操作不做。 */
     private val selfPackage: String? = null,
     /** 追问(ask_user 与开工前的歧义问题)等用户回答的时限;计时走协程调度器的时钟,测试里用虚拟时间。 */
     inputTimeoutMs: Long = DEFAULT_INPUT_TIMEOUT_MS,
@@ -484,7 +484,7 @@ class AgentLoop(
                 }
             }
             val text = reply.parts.filterIsInstance<Part.Text>().joinToString("") { it.text }.trim()
-            history += Message(Role.Assistant, reply.parts, Author.Mika).also { caller.noteReply(it, used, reply.usage) }
+            history += Message(Role.Assistant, reply.parts, Author.Maeve).also { caller.noteReply(it, used, reply.usage) }
             val calls = reply.parts.filterIsInstance<Part.ToolCall>()
             note = text.ifEmpty { calls.firstOrNull()?.name ?: note }
             val tool = calls.firstOrNull()?.name
@@ -585,7 +585,7 @@ class AgentLoop(
                 val content = buildJsonObject {
                     put("ok", false); put("error", "approved_step_first"); put("message", APPROVED_STEP_FIRST); put("recoverable", true)
                 }
-                history += Message(Role.Tool, listOf(Part.ToolResult(first.id, content.toString(), isError = true)) + skipped, Author.Mika)
+                history += Message(Role.Tool, listOf(Part.ToolResult(first.id, content.toString(), isError = true)) + skipped, Author.Maeve)
                 recordReply(if (first.name == DO_STEPS_TOOL) BatchRunner.redactArgs(first.argsJson) else Redactor.args(tools.verb(first.name), first.argsJson, secretField = true))
                 recorder.result(step, first.name, tools.verb(first.name), content, JsonObject(emptyMap()), null, null, 0, "model", first.id)
                 track.after(tools.verb(first.name), ok = false, guard = false, changed = null, recovery = false, app = null)
@@ -636,7 +636,7 @@ class AgentLoop(
                         (if (verdicts.isEmpty()) emptyMap() else mapOf("guard" to JsonArray(verdicts.map { it.toJson() }))) +
                         (advice?.let { mapOf("advice" to JsonPrimitive(it)) } ?: emptyMap()))
                     val isError = (e.content["ok"] as? JsonPrimitive)?.booleanOrNull == false
-                    history += Message(Role.Tool, listOf(Part.ToolResult(first.id, content.toString(), isError, e.observations.map { it.tag })) + skipped, Author.Mika)
+                    history += Message(Role.Tool, listOf(Part.ToolResult(first.id, content.toString(), isError, e.observations.map { it.tag })) + skipped, Author.Maeve)
                     // 只有端口明确说「不是密码框」才记原文
                     val secret = (e.content["secret"] as? JsonPrimitive)?.booleanOrNull != false
                     if (!waitsForUser) recordReply(Redactor.args(tools.verb(first.name), first.argsJson, secret))
@@ -644,7 +644,7 @@ class AgentLoop(
                 }
 
                 override fun refused(content: JsonObject) {
-                    history += Message(Role.Tool, listOf(Part.ToolResult(first.id, content.toString(), isError = true)) + skipped, Author.Mika)
+                    history += Message(Role.Tool, listOf(Part.ToolResult(first.id, content.toString(), isError = true)) + skipped, Author.Maeve)
                     recordReply(Redactor.args(tools.verb(first.name), first.argsJson, secretField = true))
                 }
 
@@ -664,7 +664,7 @@ class AgentLoop(
                         track.after(tools.verb(first.name), ok = false, guard = false, changed = null, recovery = false, app = null)
                         continue
                     }
-                    // 模型单步只会被守卫叫停、被确认关卡拦下或因作用在 Mika 自己身上不做;别的拒绝说明执行入口和这里对不上
+                    // 模型单步只会被守卫叫停、被确认关卡拦下或因作用在 Maeve 自己身上不做;别的拒绝说明执行入口和这里对不上
                     check(action.hit != null || action.code == Refusals.OWN_APP) { "unexpected refusal ${action.code} for ${first.name}" }
                     // 被确认关卡拦下:不计入失败熔断,交给模型走确认流程
                     track.after(tools.verb(first.name), ok = false, guard = action.before.isNotEmpty(), changed = null, recovery = false, app = null)
@@ -700,7 +700,7 @@ class AgentLoop(
             if (exec.images.isNotEmpty()) {
                 // 读到的图片文件不是屏幕画面,不带 screenshotId
                 history += Message(Role.User, listOf(Part.Text(NoticePolicy.imageNote(verb, offScreen))) +
-                    exec.images.mapIndexed { i, img -> tools.modelImage(img, if (offScreen) null else exec.imageIds.getOrNull(i)) }, Author.Mika)
+                    exec.images.mapIndexed { i, img -> tools.modelImage(img, if (offScreen) null else exec.imageIds.getOrNull(i)) }, Author.Maeve)
             }
             for (lookup in NoticePolicy.knowledgeAfter(verb, exec.place, !isError)) when (lookup) {
                 is KnowledgeLookup.App -> knowledge?.byPackage(lookup.pkg).let { injectKnowledge(history, it) }
@@ -741,7 +741,7 @@ class AgentLoop(
         val mode = if (place?.kind == PlaceKind.Site) tools.placeMode() else null
         val state = ctx.runtimeState(place, place?.name?.let(labels::get), mode, step, maxSteps, now(), latestWords)
         val last = history.lastOrNull()
-        if (last == null || last.role == Role.Assistant) history += Message(Role.User, listOf(state), Author.Mika)
+        if (last == null || last.role == Role.Assistant) history += Message(Role.User, listOf(state), Author.Maeve)
         else history[history.lastIndex] = last.copy(parts = last.parts + state)
     }
 
@@ -825,7 +825,7 @@ class AgentLoop(
         val partial = current?.takeIf { it.step == step }?.preview?.trim()
         if (current?.preview != null) _state.value = current.copy(preview = null)
         if (!partial.isNullOrEmpty() && steers.isNotEmpty()) {
-            history += Message(Role.Assistant, listOf(Part.Text(partial)), Author.Mika)
+            history += Message(Role.Assistant, listOf(Part.Text(partial)), Author.Maeve)
             emit(RunEvent.State(now(), "reply_interrupted", RunEvent.clip(Redactor.text(partial))))
         }
         appendSteers(history, steers)
@@ -865,11 +865,11 @@ class AgentLoop(
         }
         val durationMs = now() - started
         val isError = exec.content["ok"] != JsonPrimitive(true)
-        history += Message(Role.Tool, listOf(Part.ToolResult(first.id, exec.content.toString(), isError, exec.observations.map { it.tag })) + skipped, Author.Mika)
+        history += Message(Role.Tool, listOf(Part.ToolResult(first.id, exec.content.toString(), isError, exec.observations.map { it.tag })) + skipped, Author.Maeve)
         // 批做完(或停下)后再给模型一份当前元素表；只有元素信息不足才附画面。
         if (steps != null && ranAnyStep(exec.content)) {
             tools.lookNow()?.let { v ->
-                history += Message(Role.User, listOfNotNull(Part.Text(batchViewNote(v.content.toString())), v.image?.let { tools.modelImage(it, v.imageId) }), Author.Mika)
+                history += Message(Role.User, listOfNotNull(Part.Text(batchViewNote(v.content.toString())), v.image?.let { tools.modelImage(it, v.imageId) }), Author.Maeve)
             }
         }
         recordReply(BatchRunner.redactArgs(first.argsJson))
@@ -959,7 +959,7 @@ class AgentLoop(
                 return StopRules.stepLimit(maxSteps)
             }
             val text = reply.parts.filterIsInstance<Part.Text>().joinToString("") { it.text }.trim()
-            history += Message(Role.Assistant, reply.parts, Author.Mika)
+            history += Message(Role.Assistant, reply.parts, Author.Maeve)
             val calls = reply.parts.filterIsInstance<Part.ToolCall>()
             val call = calls.firstOrNull { tools.verb(it.name) in TurnPolicy.FINAL_VERBS }
             val retryWaitMs = caller.lastRetryWaitMs

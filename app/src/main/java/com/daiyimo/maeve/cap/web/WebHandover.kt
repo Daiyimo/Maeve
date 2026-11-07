@@ -70,7 +70,7 @@ object WebHandover {
         val guarded: (Action) -> Unit = { a ->
             val now = currentKey?.invoke()
             // 「取消任务」不论哪一次等待都作数
-            if (a != Action.Cancel && currentKey != null && now != waitKey) android.util.Log.i("MikaWebHandover", "ignored $a for a past wait ($waitKey, now $now)")
+            if (a != Action.Cancel && currentKey != null && now != waitKey) android.util.Log.i("MaeveWebHandover", "ignored $a for a past wait ($waitKey, now $now)")
             else onAction(a)
         }
         _session.value = Session(tab, home, reason, message, waitKey, guarded)
@@ -118,7 +118,7 @@ object WebHandover {
             restore(s)
             if (loggedIn && registry != null) LoginProbe.probe(s.tab) { host, state ->
                 if (state == LoginState.SignedIn) registry.markLoggedIn(host)
-                else android.util.Log.i("MikaWebHandover", "takeover on $host handed back; sign-in not confirmed ($state), not recorded")
+                else android.util.Log.i("MaeveWebHandover", "takeover on $host handed back; sign-in not confirmed ($state), not recorded")
             }
         }
         return HandoverActivity(s.inputs, s.title?.takeIf { it.isNotBlank() })

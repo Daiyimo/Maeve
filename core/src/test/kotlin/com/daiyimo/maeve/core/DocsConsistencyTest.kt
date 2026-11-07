@@ -17,7 +17,7 @@ import java.io.File
  *  - 路径:带 / 的,只有第一段是仓库根下真有的目录或文件才查(`files/sandbox/rootfs`、`read/system` 这类是运行时产物或分类名);
  *    不带 / 的,只有代码类扩展名(kt、py、xml 等)才查,json、md、txt 这类常是运行时产物;
  *    查的时候:根目录下直接存在,或「模块/包路径/文件」的简写(`app/task/X.kt`),或中间用 ... 省略(`core/.../X.kt`),或短文件名在仓库任意位置;
- *  - 类名:大驼峰且至少两个大写字母(`Mika` 这样的单词不当类名);在 core、app 的源码(含测试)里有 class/object/interface/typealias
+ *  - 类名:大驼峰且至少两个大写字母(`Maeve` 这样的单词不当类名);在 core、app 的源码(含测试)里有 class/object/interface/typealias
  *    声明或同名文件;源码里从本仓库以外的包导入过的(安卓、JDK、库的类)不归本仓库管;
  *  - 工具名:只查「第一段是现有工具名的第一段」的 snake_case(`max_seconds` 这样的参数名不查),对照 [knownToolNames],
  *    那是工具注册处的名单,不是金样快照。
@@ -106,7 +106,7 @@ class DocsConsistencyTest {
         name in sourceNames || Regex("""\b(class|object|interface|typealias)\s+$name\b""").containsMatchIn(sourceText)
 
     private fun importedFromOutside(name: String): Boolean =
-        Regex("""(?m)^import\s+(?!com\.wangzan101\.mika\.)[\w.]+\.$name\b""").containsMatchIn(sourceText)
+        Regex("""(?m)^import\s+(?!com\.wangzan101\.maeve\.)[\w.]+\.$name\b""").containsMatchIn(sourceText)
 
     private fun problems(doc: File): List<String> {
         val rel = doc.relativeTo(root).invariantSeparatorsPath

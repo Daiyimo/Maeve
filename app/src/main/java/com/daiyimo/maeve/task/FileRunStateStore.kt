@@ -39,7 +39,7 @@ class FileRunStateStore(private val file: File) : RunStore {
                 )
             }
         }.onFailure {
-            Log.e("MikaRunStore", "run store could not be read; preserving damaged file", it)
+            Log.e("MaeveRunStore", "run store could not be read; preserving damaged file", it)
             file.copyTo(File(file.parentFile, file.name + ".corrupt"), overwrite = true)
             records.clear()
         }

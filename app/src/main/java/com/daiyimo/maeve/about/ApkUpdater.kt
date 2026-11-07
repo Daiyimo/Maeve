@@ -27,7 +27,7 @@ data class ApkDownloadState(
 /**
  * 系统负责后台下载;只保存任务编号,进程重启后仍能查询、取消或安装。方法在 IO 线程调用。
  * 文件放在本应用的外部专属目录(别的 App 读写不到),同一时间只留一个;换版本、删除、装好后都清掉。
- * 设了网络代理(设置 › 网络代理)时系统下载服务不走它,改由 Mika 自己经代理在进程里下([ProxiedApkDownload])。
+ * 设了网络代理(设置 › 网络代理)时系统下载服务不走它,改由 Maeve 自己经代理在进程里下([ProxiedApkDownload])。
  */
 class ApkUpdater(private val context: Context, private val net: NetProxy = NetProxy.shared) {
     private val manager = context.getSystemService(DownloadManager::class.java)
@@ -35,7 +35,7 @@ class ApkUpdater(private val context: Context, private val net: NetProxy = NetPr
     private val directory: File get() = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
         ?: error("external files unavailable"), "updates")
     private val file: File? get() = prefs.getString("file", null)?.let { File(directory, it) }
-    /** 这一份是 Mika 自己经代理下的(不是系统下载服务)。 */
+    /** 这一份是 Maeve 自己经代理下的(不是系统下载服务)。 */
     private val viaApp: Boolean get() = prefs.getBoolean("viaApp", false)
 
     fun state(release: ReleaseInfo): ApkDownloadState =

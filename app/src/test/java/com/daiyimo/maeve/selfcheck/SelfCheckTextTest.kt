@@ -15,7 +15,7 @@ class SelfCheckTextTest {
     @Test
     fun extraOrOddWhitespaceStillMatches() {
         assertTrue(SelfCheckText.same("  Tap  me\n", "Tap me"))
-        assertTrue(SelfCheckText.same("Mika  self-check\tpage", "Mika self-check page"))
+        assertTrue(SelfCheckText.same("Maeve  self-check\tpage", "Maeve self-check page"))
     }
 
     @Test
@@ -32,7 +32,8 @@ class SelfCheckTextTest {
 
     @Test
     fun containsIgnoresCaseAndWhitespace() {
-        assertTrue(SelfCheckText.contains("MIKA 123", "Mika 123"))
+        // 这里测的是「忽略大小写」，两边用同一个词的不同大小写
+        assertTrue(SelfCheckText.contains("MAEVE 123", "Maeve 123"))
         assertTrue(SelfCheckText.contains("text  CLICKED 1 here", "Clicked 1"))
         assertFalse(SelfCheckText.contains("Clicked 0", "Clicked 1"))
     }

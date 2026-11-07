@@ -65,7 +65,7 @@ internal object MemorySearch : AgentTool {
     }
 }
 
-/** 只改 Mika 自己的记忆,不动屏幕和外部世界。 */
+/** 只改 Maeve 自己的记忆,不动屏幕和外部世界。 */
 internal object MemorySave : AgentTool {
     override val verb = Verb.MemorySave
     override val risk = Risk.Read

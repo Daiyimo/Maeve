@@ -47,7 +47,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.system.exitProcess
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 
 /**
  * 以 shell 身份(uid 2000)常驻,持有 Agent 的虚拟屏,跑在内置助手进程([HelperMain])里。
@@ -56,18 +56,18 @@ import com.daiyimo.maeve.shell.IMikaShell
  * 隐藏接口一律反射调用,反射失败时退回到同等效果的 shell 命令。
  */
 class ShellService(
-    /** 只接受这个 uid(Mika)的调用。 */
+    /** 只接受这个 uid(Maeve)的调用。 */
     private val allowedUid: Int,
     /** 静音记录放的目录;shell 身份能写的位置。 */
     stateDir: File = File("/data/local/tmp"),
-) : IMikaShell.Stub() {
+) : IMaeveShell.Stub() {
     private val context: Context = ShellContext.create()
     private val displays = HashMap<Int, VirtualDisplay>()
     private var orientationWatch: DisplayOrientationWatch? = null
     private val requestedOrientations = ConcurrentHashMap<Int, Int>()
     /** 被静音的包 → 静音前的 PLAY_AUDIO 模式("default" 表示原先未设置),落在 [stateDir] 里,进程被杀后下次启动接着恢复。 */
-    private val muted = AudioMuteLedger(File(stateDir, "mika_audio_mute_$allowedUid"))
-    /** Mika 所在的用户:本来那份 App 装在这里;别的用户里的是另一份(分身、工作资料)。 */
+    private val muted = AudioMuteLedger(File(stateDir, "maeve_audio_mute_$allowedUid"))
+    /** Maeve 所在的用户:本来那份 App 装在这里;别的用户里的是另一份(分身、工作资料)。 */
     private val myUser = allowedUid / PER_USER_RANGE
 
     // 不能用 getSystemService:那样拿到的 DisplayManager 绑的是系统上下文,包名与 shell uid 对不上
@@ -84,7 +84,7 @@ class ShellService(
     /** setClipText 之前用户的剪贴板(null 表示原先确实是空的,读不到的不会换出);[clipSaved] 为 false 表示没有待还原的。 */
     private var savedClip: ClipData? = null
     private var clipSaved = false
-    /** Mika 最后放进去的文字;还原前据此判断剪贴板还是不是 Mika 的(用户中途复制了别的就不动)。 */
+    /** Maeve 最后放进去的文字;还原前据此判断剪贴板还是不是 Maeve 的(用户中途复制了别的就不动)。 */
     private var ourText: String? = null
 
     private val taskManager: Any by lazy {
@@ -112,7 +112,7 @@ class ShellService(
 
     private fun createVirtualDisplay(surface: Surface, width: Int, height: Int, dpi: Int, trusted: Boolean): Int {
         val flags = displayFlags(Build.VERSION.SDK_INT, trusted)
-        val vd = displayManager.createVirtualDisplay("mika-agent", width, height, dpi, surface, flags)
+        val vd = displayManager.createVirtualDisplay("maeve-agent", width, height, dpi, surface, flags)
         val id = vd.display.displayId
         synchronized(displays) { displays[id] = vd }
         setFullscreenWindowingMode(id)
@@ -124,7 +124,7 @@ class ShellService(
 
     /** 自成一组的虚拟屏一直不睡,见 [DisplayAwake]。 */
     private val awake by lazy {
-        val timer = Executors.newSingleThreadScheduledExecutor { Thread(it, "mika-display-awake").apply { isDaemon = true } }
+        val timer = Executors.newSingleThreadScheduledExecutor { Thread(it, "maeve-display-awake").apply { isDaemon = true } }
         DisplayAwake(::pokeDisplay) { r ->
             val f = timer.scheduleWithFixedDelay(r, 0, DisplayAwake.PERIOD_MS, TimeUnit.MILLISECONDS)
             return@DisplayAwake { f.cancel(false) }
@@ -176,7 +176,7 @@ class ShellService(
 
     /**
      * STEAL_TOP_FOCUS_DISABLED 保住主屏焦点,但有的系统因此不再采纳后台 Activity 的转屏请求。
-     * 有 Mika 的屏时开一个方向监听,只纠正自己这块屏的方向,保留原来的焦点隔离。
+     * 有 Maeve 的屏时开一个方向监听,只纠正自己这块屏的方向,保留原来的焦点隔离。
      * 监听在锁外建(注册要走 binder);两次建屏同时进来时只留一个,多出来的关掉。
      */
     private fun ensureOrientationWatch() {
@@ -225,7 +225,7 @@ class ShellService(
             val ok = runCatching {
                 val wm = Class.forName("android.view.WindowManagerGlobal").getMethod("getWindowManagerService").invoke(null)!!
                 val method = wm.javaClass.methods.first { it.name == "freezeDisplayRotation" }
-                if (method.parameterTypes.size == 3) method.invoke(wm, id, rotation, "mika") else method.invoke(wm, id, rotation)
+                if (method.parameterTypes.size == 3) method.invoke(wm, id, rotation, "maeve") else method.invoke(wm, id, rotation)
             }.isSuccess
             if (!ok) exec("wm", "user-rotation", "-d", "$id", "lock", "$rotation")
         }.onFailure { Log.w(TAG, "orientation sync failed on display $id", it) }
@@ -236,13 +236,13 @@ class ShellService(
      * 否则系统会把用户正在看的界面挪走或打断。后台任务可以被拉到虚拟屏上。
      * 再解析启动入口(包里有些 Activity 是跳板,直接启动会立刻跳走、只在虚拟屏留下空任务),
      * 以 shell 包名调用 IActivityTaskManager.startActivityAsUser,带 ActivityOptions.setLaunchDisplayId。
-     * 占用只看本来那份(Mika 所在用户里的):用户在主屏用着装在别的用户里的那份时,不挡这一份。
+     * 占用只看本来那份(Maeve 所在用户里的):用户在主屏用着装在别的用户里的那份时,不挡这一份。
      */
     override fun startApp(displayId: Int, packageName: String): Int = start(displayId, packageName, myUser)
 
     /**
      * 在 [userId] 那份用户里启动 [packageName](见 [startApp]);占用只看这一份(包名 + 用户)。
-     * [userId] 是 Mika 自己的用户时按原来的方式启动(USER_CURRENT、包管理器给的入口);别的用户先在那份用户里查启动入口,
+     * [userId] 是 Maeve 自己的用户时按原来的方式启动(USER_CURRENT、包管理器给的入口);别的用户先在那份用户里查启动入口,
      * 再以那份用户启动,接口不可用时退回 `am start --user`。
      */
     private fun start(displayId: Int, packageName: String, userId: Int): Int = synchronized(launchLock) {
@@ -292,7 +292,7 @@ class ShellService(
 
     /**
      * 像桌面那样打开另一份用户 [userId] 里的启动页 [component]:ILauncherApps.startActivityAsUser(LauncherApps.startMainActivity
-     * 背后的接口),带同样的 [options](启动到 Mika 的屏)。系统那边按调用方查能不能碰那份用户:shell 有跨用户的权限,
+     * 背后的接口),带同样的 [options](启动到 Maeve 的屏)。系统那边按调用方查能不能碰那份用户:shell 有跨用户的权限,
      * 包名也对得上自己的 uid。接口不在、或被拒(抛错)返回 false,调用方改走 startActivityAsUser。
      */
     private fun startAsLauncher(component: ComponentName, userId: Int, options: Bundle): Boolean = try {
@@ -310,7 +310,7 @@ class ShellService(
     }
 
     /**
-     * 打开 [packageName] 用的 intent:Mika 自己的用户里就是包管理器给的入口;别的用户里查那份用户的启动页
+     * 打开 [packageName] 用的 intent:Maeve 自己的用户里就是包管理器给的入口;别的用户里查那份用户的启动页
      * (隐藏接口 queryIntentActivitiesAsUser,不行改问 `cmd package query-activities --user`)。查不到为 null。
      */
     @SuppressLint("PrivateApi")
@@ -330,7 +330,7 @@ class ShellService(
         return Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(ComponentName(pkg, cls))
     }
 
-    /** 这些包里有在 Mika 另一块屏(不是 [displayId])上的任务:那是别的任务正在用的 App。[userId] 不为空时只看那份用户里的。 */
+    /** 这些包里有在 Maeve 另一块屏(不是 [displayId])上的任务:那是别的任务正在用的 App。[userId] 不为空时只看那份用户里的。 */
     private fun onOtherOwnDisplay(packages: Collection<String>, displayId: Int, userId: Int? = null): Boolean {
         val others = synchronized(displays) { displays.keys.toSet() } - displayId
         if (others.isEmpty()) return false
@@ -343,7 +343,7 @@ class ShellService(
         sameCopy(packagesOf(task), runCatching { TASK_INFO.getField("userId").getInt(task) }.getOrNull(), packageName, userId)
 
     /**
-     * 只有这个 App 的任务全在 Mika 的屏上时才结束进程再启动(回到初始页面)。
+     * 只有这个 App 的任务全在 Maeve 的屏上时才结束进程再启动(回到初始页面)。
      * 它在别的屏上还有任务(用户的状态)就绝不结束,改为普通启动并返回 [START_OK_COLD_IGNORED];
      * 用户正在主屏用它时不启动。
      */
@@ -354,9 +354,9 @@ class ShellService(
         // 不是自己建的屏(含主屏)一律不动,更不能先结束进程
         if (!ownDisplay(displayId)) return START_ERROR
         val decision = try {
-            // 别的任务正在 Mika 另一块屏上用它:绝不结束它的进程
+            // 别的任务正在 Maeve 另一块屏上用它:绝不结束它的进程
             if (onOtherOwnDisplay(listOf(packageName), displayId, userId)) return START_IN_USE_BY_OTHER
-            // 要从头开:上次任务留在主屏后面的那份是 Mika 自己留下的,先关掉,不算用户的状态
+            // 要从头开:上次任务留在主屏后面的那份是 Maeve 自己留下的,先关掉,不算用户的状态
             dropKept(packageName, userId)
             val displayField = TASK_INFO.getField("displayId")
             val taskDisplays = allTasks().filter { isCopy(it, packageName, userId) }.map { displayField.getInt(it) }
@@ -528,12 +528,12 @@ class ShellService(
 
     /**
      * 系统动作(见 [SystemIntents]):只放行那几种 intent。没有页面接返回 [START_UNRESOLVED];和 [startView] 一样,
-     * 接手的 App 在主屏有任务就不启动。先以 shell 身份启动;不成(接手的页面要求 shell 没有的权限,如设闹钟)时发出 Mika 做好的
-     * [asMika]:以 Mika 的身份启动(权限按 Mika 查),屏和后台启动按发出的这一方(shell)查,仍落在这块屏上。
+     * 接手的 App 在主屏有任务就不启动。先以 shell 身份启动;不成(接手的页面要求 shell 没有的权限,如设闹钟)时发出 Maeve 做好的
+     * [asMaeve]:以 Maeve 的身份启动(权限按 Maeve 查),屏和后台启动按发出的这一方(shell)查,仍落在这块屏上。
      */
-    override fun startSystemAction(displayId: Int, intent: Intent, asMika: android.app.PendingIntent?): Int = synchronized(launchLock) {
+    override fun startSystemAction(displayId: Int, intent: Intent, asMaeve: android.app.PendingIntent?): Int = synchronized(launchLock) {
         if (!ownDisplay(displayId)) return START_ERROR
-        // Mika 自己的兼容性自检页:以 shell 身份直接开到这块屏
+        // Maeve 自己的兼容性自检页:以 shell 身份直接开到这块屏
         if (intent.component?.className == SystemIntents.OWN_PAGE_CLASS) return startOwnPage(displayId, intent)
         if (!SystemIntents.allowed(intent.action, intent.dataString)) return START_INVALID_LINK
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -561,31 +561,31 @@ class ShellService(
             false
         }
         if (asShell) return START_OK
-        if (asMika == null) return START_ERROR
+        if (asMaeve == null) return START_ERROR
         // 安卓 14 起 PendingIntent 的发出方要明说允许它从后台启动页面
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             options.setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
         }
         return try {
-            asMika.send(context, 0, null, null, null, null, options.toBundle())
+            asMaeve.send(context, 0, null, null, null, null, options.toBundle())
             START_OK
         } catch (t: Throwable) {
-            Log.w(TAG, "sending ${intent.action} as Mika failed", t)
+            Log.w(TAG, "sending ${intent.action} as Maeve failed", t)
             START_ERROR
         }
     }
 
     /**
-     * 以 shell 身份把 Mika 的兼容性自检页([SystemIntents.OWN_PAGE_CLASS])开到这块屏,和 [startApp] 同一条路
+     * 以 shell 身份把 Maeve 的兼容性自检页([SystemIntents.OWN_PAGE_CLASS])开到这块屏,和 [startApp] 同一条路
      * (startActivityAsUser 带 setLaunchDisplayId,不行退回 `am start --display`)。那一页只对持有 INTERACT_ACROSS_USERS_FULL 的
-     * 调用方开放(shell 有,普通 App 没有);shell 启动不受后台启动页面的限制。包名必须是 Mika 自己的,别的组件一律不开。
+     * 调用方开放(shell 有,普通 App 没有);shell 启动不受后台启动页面的限制。包名必须是 Maeve 自己的,别的组件一律不开。
      */
     private fun startOwnPage(displayId: Int, intent: Intent): Int {
         val component = intent.component ?: return START_INVALID_LINK
         val mine = runCatching { context.packageManager.getPackagesForUid(allowedUid)?.toList() }.getOrNull().orEmpty()
-        // 只有 Mika 调得到这个服务;包名再核一次(查不到 Mika 的包名时只认类名)
+        // 只有 Maeve 调得到这个服务;包名再核一次(查不到 Maeve 的包名时只认类名)
         if (component.className != SystemIntents.OWN_PAGE_CLASS || (mine.isNotEmpty() && component.packageName !in mine)) return START_INVALID_LINK
-        // 每次都从头开一页:旧的那一页连同它的任务清掉,新的一定在 Mika 屏的最上面
+        // 每次都从头开一页:旧的那一页连同它的任务清掉,新的一定在 Maeve 屏的最上面
         val page = Intent().setComponent(component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         val options = ActivityOptions.makeBasic().setLaunchDisplayId(displayId).toBundle()
         val ok = try {
@@ -713,7 +713,7 @@ class ShellService(
 
     /**
      * IActivityTaskManager.moveRootTaskToDisplay(taskId, displayId),即 `am display move-stack` 背后的调用。
-     * 真机(安卓 14)手动验证:任务在虚拟屏与主屏之间双向都能挪。Mika 启动的任务都是根任务。
+     * 真机(安卓 14)手动验证:任务在虚拟屏与主屏之间双向都能挪。Maeve 启动的任务都是根任务。
      */
     override fun moveTask(taskId: Int, displayId: Int): Boolean = try {
         taskManager.javaClass.getMethod("moveRootTaskToDisplay", Int::class.java, Int::class.java)
@@ -725,7 +725,7 @@ class ShellService(
     }
 
     /**
-     * 任务结束时留在主屏后面的任务:任务编号 → 键([AppsAfterTask.keyOf])。下次 Mika 打开同一份 App 时把它挪回来([resumeKept])。
+     * 任务结束时留在主屏后面的任务:任务编号 → 键([AppsAfterTask.keyOf])。下次 Maeve 打开同一份 App 时把它挪回来([resumeKept])。
      * 只在内存里:助手重启后不认得,打开时照常走启动入口(系统多半也会把这个后台任务拉过来)。
      */
     private val kept = HashMap<Int, String>()
@@ -733,7 +733,7 @@ class ShellService(
     /**
      * 任务结束:按 [AppsAfterTask] 定下这块屏上每个任务的去留,留下的挪到主屏最后面,再释放这块屏(屏带着
      * FLAG_DESTROY_CONTENT_ON_REMOVAL,没挪走的随屏关掉)。顺序:定去留 → 挪留下的 → 再看一眼出声的 → 等它们退到看不见([SettleBehind])
-     * → 还看得见的挪回这块屏 → 释放。静音由 Mika 在这之后还原,留下的 App 不会在还原时突然出声。
+     * → 还看得见的挪回这块屏 → 释放。静音由 Maeve 在这之后还原,留下的 App 不会在还原时突然出声。
      *
      * 挪到最后面的做法(都是安卓原版的接口):先用 WindowContainerTransaction.setHidden 把任务藏起来,
      * 再 moveRootTaskToDisplay 挪到主屏(系统总是把它放在最上面,藏着就不显示、不拿焦点、不让用户正在用的页面暂停),
@@ -838,7 +838,7 @@ class ShellService(
         }
     }
 
-    /** 不留的任务挪回 Mika 的屏 [displayId],随屏关掉;挪不回就直接关。 */
+    /** 不留的任务挪回 Maeve 的屏 [displayId],随屏关掉;挪不回就直接关。 */
     private fun sendBackToClose(taskId: Int, displayId: Int) {
         if (!moveRoot(taskId, displayId)) removeTask(taskId)
     }
@@ -846,7 +846,7 @@ class ShellService(
     /** OK:挪到主屏最后面了;HIDDEN:挪过去了,但取消隐藏没做成,还藏着;UNSUPPORTED:这台系统挪不了。 */
     private enum class Behind { OK, HIDDEN, UNSUPPORTED }
 
-    /** 任务的一行给 [AppsAfterTask.decide]:键、是不是普通 App 的页面、是不是 Mika 自己的、此刻出不出声。 */
+    /** 任务的一行给 [AppsAfterTask.decide]:键、是不是普通 App 的页面、是不是 Maeve 自己的、此刻出不出声。 */
     private fun afterTaskRow(t: Any, playing: Map<Int, Set<String>>?): AppsAfterTask.Task {
         val user = runCatching { TASK_INFO.getField("userId").getInt(t) }.getOrDefault(myUser)
         val pkgs = packagesOf(t).distinct()
@@ -876,7 +876,7 @@ class ShellService(
     /**
      * 此刻正在播放的 uid → 这个 uid 的包。先问音频服务(AudioManager.getActivePlaybackConfigurations,
      * 带 MODIFY_AUDIO_ROUTING 时才给出 uid);拿到的 uid 被隐去时改读 `dumpsys audio`。只认播放器状态为 started 的
-     * (被 Mika 静音的照样算在播:静音只是没声,还原就响)。都读不到为 null。
+     * (被 Maeve 静音的照样算在播:静音只是没声,还原就响)。都读不到为 null。
      */
     private fun playingUids(): Map<Int, Set<String>>? {
         val uids = runCatching {
@@ -895,7 +895,7 @@ class ShellService(
     }
 
     /**
-     * 把 Mika 屏上的任务 [row] 挪到主屏最后面。移动成功后 reorder/取消隐藏没做成也不删任务:还看得见的交给 [settleBehind] 等过渡、
+     * 把 Maeve 屏上的任务 [row] 挪到主屏最后面。移动成功后 reorder/取消隐藏没做成也不删任务:还看得见的交给 [settleBehind] 等过渡、
      * 再排到后面;一直藏着的返回 [Behind.HIDDEN],结果里写明,下次 [resumeKept] 挪回来时取消隐藏。
      */
     private fun keepBehind(row: Any): Behind {
@@ -1018,7 +1018,7 @@ class ShellService(
         }
     }
 
-    /** 把留在主屏后面的那个任务挪回 Mika 的屏;没有、或挪不了返回 false(调用方照常启动)。 */
+    /** 把留在主屏后面的那个任务挪回 Maeve 的屏;没有、或挪不了返回 false(调用方照常启动)。 */
     private fun resumeKept(displayId: Int, packageName: String, userId: Int): Boolean {
         val row = runCatching { keptOnMain(packageName, userId).firstOrNull() }.getOrNull() ?: return false
         val id = TASK_INFO.getField("taskId").getInt(row)
@@ -1032,7 +1032,7 @@ class ShellService(
         return true
     }
 
-    /** 冷启动前关掉上次任务留在主屏后面的那份(Mika 自己留下的,不是用户的状态)。 */
+    /** 冷启动前关掉上次任务留在主屏后面的那份(Maeve 自己留下的,不是用户的状态)。 */
     private fun dropKept(packageName: String, userId: Int) {
         keptOnMain(packageName, userId).forEach { t ->
             val id = TASK_INFO.getField("taskId").getInt(t)
@@ -1095,7 +1095,7 @@ class ShellService(
         return injectPair(down, up, displayId) { exec("input", "-d", "$displayId", "keyevent", "$keyCode") == 0 }
     }
 
-    /** Ctrl+A / Ctrl+V:修饰键写在按键事件的 metaState 里(App 按它认组合键),只放行这两个,只发到 Mika 自己的屏(粘贴不能落到用户的屏上)。 */
+    /** Ctrl+A / Ctrl+V:修饰键写在按键事件的 metaState 里(App 按它认组合键),只放行这两个,只发到 Maeve 自己的屏(粘贴不能落到用户的屏上)。 */
     override fun injectCtrlKey(displayId: Int, keyCode: Int): Boolean {
         if (!ownDisplay(displayId)) return false
         if (keyCode != KeyEvent.KEYCODE_A && keyCode != KeyEvent.KEYCODE_V) {
@@ -1137,7 +1137,7 @@ class ShellService(
 
     /**
      * 一根手指的一笔:按下、按 [times] 逐点移动、在最后一点抬起;每个事件到了它的时刻才注入(事件时间就是那一刻),
-     * App 看到的速度就是 Mika 排好的快慢。只发到 Mika 自己的屏。按下没注入成功返回 false(调用方改走别的路);
+     * App 看到的速度就是 Maeve 排好的快慢。只发到 Maeve 自己的屏。按下没注入成功返回 false(调用方改走别的路);
      * 按下之后中途哪个点没注入成功也照样往下走,最后一定补发抬起,不让手指一直按着。
      */
     override fun injectStroke(displayId: Int, xs: IntArray, ys: IntArray, times: LongArray): Boolean {
@@ -1169,7 +1169,7 @@ class ShellService(
     /**
      * `appops set <pkg> PLAY_AUDIO ignore`;首次静音时记下原模式(同时落文件),取消静音时恢复。
      * 原来没设置过的恢复成 allow,不写 default(见 [AudioMuteLedger.restoreMode])。
-     * 命令失败返回 false,且不记录原模式(读不到原值就不改)。作用在 Mika 所在的用户上(本来那份)。
+     * 命令失败返回 false,且不记录原模式(读不到原值就不改)。作用在 Maeve 所在的用户上(本来那份)。
      */
     override fun setAudioMuted(packageName: String, muted: Boolean): Boolean = audioMuted(packageName, null, muted)
 
@@ -1206,14 +1206,14 @@ class ShellService(
         return appops("set", pkg, user, mode).first == 0
     }
 
-    /** [user] 为空是 Mika 所在的用户。 */
+    /** [user] 为空是 Maeve 所在的用户。 */
     private fun appops(verb: String, packageName: String, user: Int?, mode: String? = null): Pair<Int, String> {
         val u = (user ?: myUser).toString()
         return if (mode == null) sh("appops", verb, "--user", u, packageName, "PLAY_AUDIO")
         else sh("appops", verb, "--user", u, packageName, "PLAY_AUDIO", mode)
     }
 
-    /** 别的用户编号原样给出;就是 Mika 所在的用户时为 null(按本来那份处理);不合法时也为 null,调用方据此拒绝。 */
+    /** 别的用户编号原样给出;就是 Maeve 所在的用户时为 null(按本来那份处理);不合法时也为 null,调用方据此拒绝。 */
     private fun otherUser(userId: Int): Int? = userId.takeIf { it >= 0 && it != myUser }
 
     override fun getAudioMode(packageName: String): String? = audioMode(packageName, null)
@@ -1245,7 +1245,7 @@ class ShellService(
 
     /**
      * 该包([userId] 那份用户里的)在主屏上有看得见的任务:用户正在主屏用它。静音按包作用,这时静了它用户手上的也没声了,
-     * Mika 据此不去静它。看不清主屏时按「在用」答,宁可不静也不把用户正在用的静了。
+     * Maeve 据此不去静它。看不清主屏时按「在用」答,宁可不静也不把用户正在用的静了。
      */
     override fun visibleOnMainScreen(packageName: String, userId: Int): Boolean =
         try {
@@ -1325,7 +1325,7 @@ class ShellService(
         Unit
     }
 
-    /** 剪贴板此刻是不是 Mika 放进去的 [ours];读不到(有内容但取不到)时不当成空的。 */
+    /** 剪贴板此刻是不是 Maeve 放进去的 [ours];读不到(有内容但取不到)时不当成空的。 */
     private fun nowState(ours: String?): ShellClip.Now {
         val now = clipboard.primaryClip
         return when (ShellClip.read(now != null, clipboard.hasPrimaryClip(), clipboard.primaryClipDescription != null)) {
@@ -1356,8 +1356,8 @@ class ShellService(
     }
 
     /**
-     * Mika 粘贴的内容(可能是地址、手机号等)标成敏感:系统和输入法的剪贴板预览、历史不显示原文。
-     * 只标 Mika 自己放进去的,还原用户的剪贴板时保持原样。
+     * Maeve 粘贴的内容(可能是地址、手机号等)标成敏感:系统和输入法的剪贴板预览、历史不显示原文。
+     * 只标 Maeve 自己放进去的,还原用户的剪贴板时保持原样。
      */
     private fun markSensitive(clip: ClipData): ClipData {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return clip
@@ -1368,7 +1368,7 @@ class ShellService(
     }
 
     override fun onTransact(code: Int, data: Parcel, reply: Parcel?, flags: Int): Boolean {
-        // 内置助手的进程不跟着 Mika 结束,Binder 也可能被别人拿到:只有 Mika 能调用接口方法
+        // 内置助手的进程不跟着 Maeve 结束,Binder 也可能被别人拿到:只有 Maeve 能调用接口方法
         if (code in FIRST_CALL_TRANSACTION..LAST_CALL_TRANSACTION &&
             Binder.getCallingUid() != allowedUid
         ) {
@@ -1386,7 +1386,7 @@ class ShellService(
 
     override fun runCommand(command: String): Bundle = exec(command, null)
 
-    /** 助手进程看 Mika 交来的心愿(见 [setRestoreWish]);Mika 死后据此决定要不要把它拉起来。 */
+    /** 助手进程看 Maeve 交来的心愿(见 [setRestoreWish]);Maeve 死后据此决定要不要把它拉起来。 */
     @Volatile var onRestoreWish: ((Int) -> Unit)? = null
 
     override fun setRestoreWish(flags: Int) {
@@ -1405,13 +1405,13 @@ class ShellService(
 
     private fun commandResult(code: Int, output: String) = Bundle().apply { putInt("exitCode", code); putString("output", output) }
 
-    /** 以 shell 身份跑 `sh -c`,合并输出,限时限长;[displayId] 不为空时放进 MIKA_DISPLAY_ID。 */
+    /** 以 shell 身份跑 `sh -c`,合并输出,限时限长;[displayId] 不为空时放进 MAEVE_DISPLAY_ID。 */
     private fun exec(command: String, displayId: Int?): Bundle {
         fun result(code: Int, output: String) = commandResult(code, output)
         if (command.isBlank() || command.length > 4_000) return result(-1, "Invalid command length.")
         val process = try {
             ProcessBuilder("/system/bin/sh", "-c", command).redirectErrorStream(true)
-                .apply { if (displayId != null) environment()["MIKA_DISPLAY_ID"] = displayId.toString() }.start()
+                .apply { if (displayId != null) environment()["MAEVE_DISPLAY_ID"] = displayId.toString() }.start()
         } catch (t: Throwable) {
             return result(-1, t.message ?: "Command could not start.")
         }
@@ -1437,10 +1437,10 @@ class ShellService(
 
     override fun openDevtoolsSocket(name: String): ParcelFileDescriptor? {
         val pid = DevtoolsSocket.pidOf(name) ?: return null
-        // 只连 Mika 自己进程的调试套接字:别的 App 的网页不经这里
+        // 只连 Maeve 自己进程的调试套接字:别的 App 的网页不经这里
         val uid = runCatching { DevtoolsSocket.procUid(File("/proc/$pid/status").readText()) }.getOrNull()
         if (uid != allowedUid) {
-            Log.w(TAG, "devtools socket refused: pid $pid is not Mika's (uid $uid)")
+            Log.w(TAG, "devtools socket refused: pid $pid is not Maeve's (uid $uid)")
             return null
         }
         val socket = LocalSocket()
@@ -1475,7 +1475,7 @@ class ShellService(
     }
 
     /**
-     * 只设置刚建好的 Mika 屏,不改主屏。有的系统会把新建的外接/虚拟屏默认设成 freeform,
+     * 只设置刚建好的 Maeve 屏,不改主屏。有的系统会把新建的外接/虚拟屏默认设成 freeform,
      * App 因此缩成小窗,无障碍坐标还会受窗口缩放影响。建屏后、启动任何页面前明确使用全屏模式,
      * 后续的 App 启动、页面跳转和从主屏挪回来的任务都沿用这块屏的策略。
      */
@@ -1561,7 +1561,7 @@ class ShellService(
     }
 
     companion object {
-        private const val TAG = "MikaShell"
+        private const val TAG = "MaeveShell"
         private const val MAX_TASKS = 100
         private const val TAP_MS = 50L
         // injectStroke 一笔的上限:点数、从按下到抬起的毫秒数
@@ -1577,13 +1577,13 @@ class ShellService(
         const val START_IN_USE_ON_MAIN = 1
         const val START_NOT_FOUND = 2
         const val START_ERROR = 3
-        /** 冷启动被改成了普通启动:App 在 Mika 的屏以外还有任务。 */
+        /** 冷启动被改成了普通启动:App 在 Maeve 的屏以外还有任务。 */
         const val START_OK_COLD_IGNORED = 4
         /** startView:没有 App 能打开这个链接。 */
         const val START_UNRESOLVED = 5
         /** startView:链接不允许打开(见 [ShellLinks])。 */
         const val START_INVALID_LINK = 6
-        /** 这个 App 正在 Mika 的另一块屏上给别的任务用。 */
+        /** 这个 App 正在 Maeve 的另一块屏上给别的任务用。 */
         const val START_IN_USE_BY_OTHER = 7
         /** startAppInUser:那份用户不在能用之列(见 [AppCopies])。 */
         const val START_USER_NOT_ALLOWED = 8

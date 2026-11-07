@@ -21,7 +21,7 @@ import com.daiyimo.maeve.core.agent.TaskState
 import com.daiyimo.maeve.core.model.Message
 import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.model.Role
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import com.daiyimo.maeve.task.ScriptedModel
 import com.daiyimo.maeve.task.TaskService
 import kotlinx.serialization.json.buildJsonObject
@@ -38,14 +38,14 @@ import com.daiyimo.maeve.task.TaskEnvironment
 /**
  * 真机测试:脚本模型在虚拟屏的设置子页面上请求接管;「我来处理」把设置挪到主屏并恢复声音,
  * 「处理好了」挪回虚拟屏、重新静音,Agent 下一轮先 observe。
- * 会短暂占用主屏(专用测试机),结束时把设置从主屏关掉。需要内置助手在运行、Mika 无障碍服务已开启。
+ * 会短暂占用主屏(专用测试机),结束时把设置从主屏关掉。需要内置助手在运行、Maeve 无障碍服务已开启。
  */
 @RunWith(AndroidJUnit4::class)
 class TakeoverTest {
     @get:Rule(order = Int.MIN_VALUE) val chinese = ChineseUi()
 
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
-    private lateinit var shell: IMikaShell
+    private lateinit var shell: IMaeveShell
     private val model = ScriptedModel()
     private var settingsTask = -1
     private lateinit var priorAudio: String

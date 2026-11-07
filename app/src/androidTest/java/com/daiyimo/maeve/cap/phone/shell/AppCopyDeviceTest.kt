@@ -13,7 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 真机:有能用的另一份用户(分身、工作资料)时,把装在那里的一个 App 开到 Mika 的屏上,最上面的任务属于那份用户,主屏不变。
+ * 真机:有能用的另一份用户(分身、工作资料)时,把装在那里的一个 App 开到 Maeve 的屏上,最上面的任务属于那份用户,主屏不变。
  * 要测哪一个由参数定:`-Pandroid.testInstrumentationRunnerArguments.copyPackage=<包名>`(可再给 copyUser=<用户编号>);
  * 不给就用列出的第一份。系统先问打开哪一个时,由打开那一步自己点选项、认出要的那份。
  * 没有另一份用户、或那里没有要的 App 时跳过。只打开,不在 App 里做任何操作。
@@ -26,7 +26,7 @@ class AppCopyDeviceTest {
     fun tearDown() = agent.release()
 
     @Test
-    fun launchesTheCopyInItsUserOnMikasDisplay() = runBlocking<Unit> {
+    fun launchesTheCopyInItsUserOnMaevesDisplay() = runBlocking<Unit> {
         val shell = DeviceSupport.shell()
         val users = shell.appCopyUsers()?.getIntArray(ShellService.KEY_COPY_USERS)
         assumeTrue("no usable other user on this device: ${shell.appCopyUsers()?.getString(ShellService.KEY_COPY_SUMMARY)}", users != null && users.isNotEmpty())

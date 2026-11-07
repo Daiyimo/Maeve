@@ -12,7 +12,7 @@ import java.nio.file.StandardCopyOption
  * 设置 › 网络代理,形如 `http://[用户:密码@]主机:端口`;空串表示不用,直连。
  * 地址里可能带账号密码,所以和服务商的 Key 一样经 [KeyCipher] 加密后单独存一个文件,不进明文的偏好设置,也不写进日志。
  *
- * 谁用它:Mika 自己的连接(调模型、列模型、账号登录换令牌、下更新、内置浏览器)经 [NetProxy],本机和局域网地址直连;
+ * 谁用它:Maeve 自己的连接(调模型、列模型、账号登录换令牌、下更新、内置浏览器)经 [NetProxy],本机和局域网地址直连;
  * 文件与计算环境里的命令在允许联网时经环境变量拿到它(见 `AndroidSandbox`)。
  *
  * 早先它只给容器用,存在 `container-proxy.bin`(另一把密钥):第一次读时用 [legacyCipher] 解出来、按新的存好,再删掉旧文件。
@@ -69,8 +69,8 @@ class NetProxyStore(
     companion object {
         private const val FILE = "net-proxy.bin"
         private const val LEGACY_FILE = "container-proxy.bin"
-        private const val KEY_ALIAS = "mika-net-proxy"
-        private const val LEGACY_KEY_ALIAS = "mika-container-proxy"
+        private const val KEY_ALIAS = "maeve-net-proxy"
+        private const val LEGACY_KEY_ALIAS = "maeve-container-proxy"
 
         /** 空串(不用),或带协议、主机、端口的代理地址(http、https、socks5、socks5h),后面不带路径。 */
         fun valid(proxy: String): Boolean = ProxyAddress.valid(proxy)

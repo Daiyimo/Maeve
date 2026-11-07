@@ -69,12 +69,12 @@ internal object Refusals {
         }
         RefusalStyle.Script -> {
             val message = when (code) {
-                "guard_stopped" -> "Mika's operation guard stopped the task."
-                "guard_warning" -> "Mika's operation guard flagged this action; it was not run."
+                "guard_stopped" -> "Maeve's operation guard stopped the task."
+                "guard_warning" -> "Maeve's operation guard flagged this action; it was not run."
                 "confirmation_required" -> "this step spends money (${hit?.matched})"
                 "confirmation_mismatch" -> "this payment step (${hit?.matched}) does not match what the user approved ($reason)"
                 "approval_unavailable" -> "this step spends money and this run cannot get the user's approval; the action was not run"
-                "target_unresolved" -> "that ref is not on the latest snapshot; call mika.snapshot() again"
+                "target_unresolved" -> "that ref is not on the latest snapshot; call maeve.snapshot() again"
                 OWN_APP -> Feedback["own_app"]
                 else -> error("unknown refusal $code")
             }

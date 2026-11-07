@@ -42,7 +42,7 @@ class RouteMatcher(private val model: ChatModel, val store: RouteStore, private 
         if (list.isEmpty()) return null
         val text = list.withIndex().joinToString("\n", "用户原话:$goal\n\n做法模板:\n") { (i, r) -> "${i + 1}. ${r.template}" }
         val reply = try {
-            withTimeoutOrNull(TIMEOUT_MS) { model.complete(PROMPT, listOf(Message(Role.User, listOf(Part.Text(text)), Author.Mika)), emptyList()) } ?: return null
+            withTimeoutOrNull(TIMEOUT_MS) { model.complete(PROMPT, listOf(Message(Role.User, listOf(Part.Text(text)), Author.Maeve)), emptyList()) } ?: return null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

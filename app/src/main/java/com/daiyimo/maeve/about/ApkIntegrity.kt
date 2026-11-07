@@ -9,9 +9,9 @@ class ApkRejected(val reason: Reason) : Exception(reason.name) {
     enum class Reason {
         /** 大小、SHA-256 对不上,或者根本读不出安装包。 */
         Corrupt,
-        /** 不是 Mika,或者版本不比已装的新。 */
+        /** 不是 Maeve,或者版本不比已装的新。 */
         NotNewer,
-        /** 签名证书和已装的 Mika 不同。 */
+        /** 签名证书和已装的 Maeve 不同。 */
         Signer,
     }
 }
@@ -21,7 +21,7 @@ class ApkRejected(val reason: Reason) : Exception(reason.name) {
  * 所以下载完的文件一律再验:大小与 SHA-256(发布元数据给了才验)、包名、版本号、签名证书。
  */
 internal object ApkIntegrity {
-    private val official = "${MikaLinks.RELEASES}/download/".toHttpUrl()
+    private val official = "${MaeveLinks.RELEASES}/download/".toHttpUrl()
 
     fun requireOfficialUrl(url: String) {
         val parsed = url.toHttpUrl()

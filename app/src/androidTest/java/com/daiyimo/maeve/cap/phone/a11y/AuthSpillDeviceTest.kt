@@ -19,7 +19,7 @@ import org.junit.runner.RunWith
  * 真机测试:测试包临时登记成账号认证器(见 TestAuthenticatorService,清单里默认关着,这里打开、测完关掉),
  * 测试包没有桌面图标,就和系统的账号登录服务一样。它的整屏登录页没有对话框主题、没有密码框、也没有
  * excludeFromRecents,形状上和普通 App 页面一样;只有「所在的包是没有桌面图标的账号认证器」这条能认出它
- * 要用户亲手处理,应该留在主屏,不能被挪到 Mika 的屏上。
+ * 要用户亲手处理,应该留在主屏,不能被挪到 Maeve 的屏上。
  */
 @RunWith(AndroidJUnit4::class)
 class AuthSpillDeviceTest {
@@ -103,7 +103,7 @@ class AuthSpillDeviceTest {
             .any { it.root?.packageName?.toString() == DeviceSupport.TEST_PACKAGE }
         println("after: opened=$opened stillOnMain=$stillThere vd top=${shell.topTaskId(vd)} (before $vdBefore)")
         assertTrue("the authenticator page was moved off the user's screen", stillThere)
-        assertEquals("Mika's screen changed", vdBefore, shell.topTaskId(vd))
+        assertEquals("Maeve's screen changed", vdBefore, shell.topTaskId(vd))
         assertNotNull("the auth page was not reported to the model", opened)
         assertTrue("the auth page was reported as pulled back: $opened",
             !opened!!.pulledBack && opened.onUserScreen && opened.needsUser)

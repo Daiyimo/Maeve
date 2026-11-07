@@ -9,7 +9,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.SystemClock
 import android.view.Surface
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,7 +21,7 @@ import java.io.ByteArrayOutputStream
  * 期间旧帧由 acquireLatestImage 丢弃。
  */
 class AgentDisplay(
-    private val shell: IMikaShell,
+    private val shell: IMaeveShell,
     private val bufferWidth: Int,
     private val bufferHeight: Int,
     dpi: Int,

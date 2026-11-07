@@ -823,7 +823,7 @@ class ChatViewModelTest {
         val vm = ChatViewModel(backgroundScope, state, stage, actions, store, sharedFiles = files).also { runCurrent() }
         vm.send("导出表格", ok)
         emit(TaskState.Running(1, "整理"))
-        val f = com.daiyimo.maeve.chat.SharedFile("表.xlsx", 5000, "Download/Mika/表.xlsx", "content://media/1")
+        val f = com.daiyimo.maeve.chat.SharedFile("表.xlsx", 5000, "Download/Maeve/表.xlsx", "content://media/1")
         files.value = listOf(f)
         runCurrent()
         assertEquals(listOf(f), vm.ui.value.exchanges.last().files)
@@ -1082,7 +1082,7 @@ class ChatViewModelTest {
 
     @Test fun suspendedSkillRestoreAndView() = runTest {
         val vm = vmWithHistory()
-        val learned = com.daiyimo.maeve.core.skills.SkillNote("Mika 学会了一项技能:发微信", draftId = "d1")
+        val learned = com.daiyimo.maeve.core.skills.SkillNote("Maeve 学会了一项技能:发微信", draftId = "d1")
         val suspended = com.daiyimo.maeve.core.skills.SkillNote("这项技能最近不灵,先停用了", suspended = "wechat-msg")
         notesFlow.value = mapOf("r1" to com.daiyimo.maeve.memory.RunNotes("c1", "r1", skillNotes = listOf(learned, suspended)))
         runCurrent()
@@ -1134,12 +1134,12 @@ class ChatViewModelTest {
         active.value = listOf("a", "b")
         vm.switchTo("a")
         show("a", TaskState.Running(1, "整理"))
-        val mine = com.daiyimo.maeve.chat.SharedFile("a.csv", 1, "Download/Mika/a.csv", "content://media/1")
+        val mine = com.daiyimo.maeve.chat.SharedFile("a.csv", 1, "Download/Maeve/a.csv", "content://media/1")
         files.value = listOf(mine)
         runCurrent()
         assertEquals(listOf(mine), vm.ui.value.exchanges.last().files)
         show("b", TaskState.Running(1, "查快递"))
-        files.value = listOf(com.daiyimo.maeve.chat.SharedFile("b.csv", 1, "Download/Mika/b.csv", "content://media/2"))
+        files.value = listOf(com.daiyimo.maeve.chat.SharedFile("b.csv", 1, "Download/Maeve/b.csv", "content://media/2"))
         runCurrent()
         assertEquals(listOf(mine), vm.ui.value.exchanges.last().files)
     }
@@ -1240,7 +1240,7 @@ class ChatViewModelTest {
     // 那一问一答的原话、步骤(包括切走期间的)、文件都要在,不能另起一条空原话的
     @Test fun switchingBackRestoresTheRunningExchange() = runTest {
         val runStates = mapOf("a" to MutableStateFlow<TaskState>(TaskState.Running(0, "")), "b" to MutableStateFlow<TaskState>(TaskState.Running(0, "")))
-        val fileA = com.daiyimo.maeve.chat.SharedFile("a.csv", 1, "Download/Mika/a.csv", "content://media/1")
+        val fileA = com.daiyimo.maeve.chat.SharedFile("a.csv", 1, "Download/Maeve/a.csv", "content://media/1")
         val runFiles = mapOf("a" to listOf(fileA), "b" to emptyList())
         val goals = mapOf("a" to "第一个任务", "b" to "第二个任务")
         val files = MutableStateFlow<List<com.daiyimo.maeve.chat.SharedFile>>(emptyList())
@@ -1304,7 +1304,7 @@ class ChatViewModelTest {
         val vm = vm()
         vm.send("当前任务", ok)
         emit(TaskState.Running(1, "在做"))
-        val quote = QuoteMessage.Quote(QuoteMessage.From.Mika, "明天有雨")
+        val quote = QuoteMessage.Quote(QuoteMessage.From.Maeve, "明天有雨")
         vm.quote(quote.from, quote.text)
         vm.send("改这句话", ok)
         val id = steerIds.single()
@@ -1372,7 +1372,7 @@ class ChatViewModelTest {
         assertEquals(listOf(SteerState.Received, SteerState.Withdrawn), vm.ui.value.exchanges.single().steers.map { it.state })
         // 只有字和引用的照旧能编辑
         assertTrue(editableSteer("改这句话"))
-        assertTrue(editableSteer(QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Mika, "明天有雨"), "改这句话")))
+        assertTrue(editableSteer(QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Maeve, "明天有雨"), "改这句话")))
     }
 
     @Test fun withdrawingBeforeTheTaskStartsPreventsLaterDelivery() = runTest {
@@ -1539,8 +1539,8 @@ class ChatViewModelTest {
     // 引用随下一句话发出去:新任务和插话都带上,发完就清掉;只有引用没写话时不发
     @Test fun quoteGoesWithTheNextMessage() = runTest {
         val vm = vm()
-        vm.quote(QuoteMessage.From.Mika, "  明天有小雨 ")
-        assertEquals(QuoteMessage.Quote(QuoteMessage.From.Mika, "明天有小雨"), vm.ui.value.quote)
+        vm.quote(QuoteMessage.From.Maeve, "  明天有小雨 ")
+        assertEquals(QuoteMessage.Quote(QuoteMessage.From.Maeve, "明天有小雨"), vm.ui.value.quote)
         assertFalse(vm.send("  ", ok))
         assertTrue(calls.isEmpty())
 
@@ -1559,7 +1559,7 @@ class ChatViewModelTest {
         assertNull(vm.ui.value.quote)
 
         // 去掉引用:照常只发话
-        vm.quote(QuoteMessage.From.Mika, "x")
+        vm.quote(QuoteMessage.From.Maeve, "x")
         vm.clearQuote()
         vm.send("再快一点", ok)
         assertEquals("steer:再快一点", calls.last())
@@ -1571,10 +1571,10 @@ class ChatViewModelTest {
         val id = store.newConversation()
         store.append(id, Turn("查天气", "晴", "succeeded"))
         val vm = vm(store)
-        vm.quote(QuoteMessage.From.Mika, "晴")
+        vm.quote(QuoteMessage.From.Maeve, "晴")
         vm.openConversation(id)
         assertNull(vm.ui.value.quote)
-        vm.quote(QuoteMessage.From.Mika, "晴")
+        vm.quote(QuoteMessage.From.Maeve, "晴")
         vm.newConversation()
         assertNull(vm.ui.value.quote)
     }
@@ -1583,7 +1583,7 @@ class ChatViewModelTest {
     @Test fun quotedTurnsSurviveReopening() = runTest {
         val store = ConversationStore(tmp.newFolder())
         val id = store.newConversation()
-        val quoted = QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Mika, "晴"), "那后天呢")
+        val quoted = QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Maeve, "晴"), "那后天呢")
         store.append(id, Turn("查天气", "晴", "succeeded"))
         store.append(id, Turn(quoted, "多云", "succeeded", steers = listOf(QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.You, "查天气"), "顺便看风"))))
         val vm = vm(store)
@@ -1591,7 +1591,7 @@ class ChatViewModelTest {
         val (old, new) = vm.ui.value.exchanges
         assertNull(QuoteMessage.parse(old.goal).quote)
         assertEquals("查天气", QuoteMessage.parse(old.goal).words)
-        assertEquals(QuoteMessage.Quote(QuoteMessage.From.Mika, "晴"), QuoteMessage.parse(new.goal).quote)
+        assertEquals(QuoteMessage.Quote(QuoteMessage.From.Maeve, "晴"), QuoteMessage.parse(new.goal).quote)
         assertEquals("那后天呢", QuoteMessage.parse(new.goal).words)
         assertEquals("顺便看风", QuoteMessage.parse(new.steers.single().text).words)
         assertEquals("查天气", ChatCopy.title(vm.ui.value.exchanges))
@@ -1840,7 +1840,7 @@ class ChatViewModelTest {
         assertEquals(listOf("胶囊里说的"), vm.ui.value.exchanges.map { it.goal })
     }
 
-    // 别处在新对话里开始的任务:侧栏列在进行中;打开它(回到 Mika)就看到那句话和在跑的状态
+    // 别处在新对话里开始的任务:侧栏列在进行中;打开它(回到 Maeve)就看到那句话和在跑的状态
     @Test fun runInNewConversationElsewhereOpensWithMessage() = runTest {
         for (parallel in listOf(false, true)) {
             val store = ConversationStore(tmp.newFolder())

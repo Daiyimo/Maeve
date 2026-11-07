@@ -112,7 +112,7 @@ class McpRuntime(
 
     /**
      * 有一种开着就把服务起来(已经在跑就让它按开关重新对一遍)。从后台起前台服务可能被系统拒绝,这时记成没开起来,
-     * 等下次打开 Mika 的界面再起。
+     * 等下次打开 Maeve 的界面再起。
      */
     fun ensureRunning() {
         if (!active) return
@@ -205,7 +205,7 @@ class McpRuntime(
     fun regenerateToken(): String = settings.regenerate()
 
     companion object {
-        private const val TAG = "MikaMcp"
+        private const val TAG = "MaeveMcp"
 
         /** 主用户的外部存储在 shell 里也叫 /sdcard;给人看的命令用短写法(和「用电脑启动」的脚本一样)。 */
         private fun shortPath(path: String) = HelperHandoff.usbCommand(path).removePrefix("adb shell sh ")
@@ -227,7 +227,7 @@ class McpRuntime(
         fun clientConfig(url: String, token: String): String = """
             {
               "mcpServers": {
-                "mika": {
+                "maeve": {
                   "type": "http",
                   "url": "$url",
                   "headers": { "Authorization": "Bearer $token" }

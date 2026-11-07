@@ -102,8 +102,8 @@ class ScoringTest {
     }
 
     @Test fun markerOnlyWhenTaskStarted() {
-        val t = task(Expect.Succeeded, category = EvalCategory.Write).copy(marker = "Mika评测-r1")
-        assertEquals("Mika评测-r1", Scoring.score(t, obs("succeeded", "14")).marker)
+        val t = task(Expect.Succeeded, category = EvalCategory.Write).copy(marker = "Maeve评测-r1")
+        assertEquals("Maeve评测-r1", Scoring.score(t, obs("succeeded", "14")).marker)
         val notStarted = obs("failed", failReason = "API Key 无效").copy(steps = 0)
         assertNull(Scoring.score(t, notStarted).marker)
     }

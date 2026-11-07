@@ -25,7 +25,7 @@ import com.daiyimo.maeve.core.usage.UsageRange
 import com.daiyimo.maeve.core.usage.UsageReport
 import com.daiyimo.maeve.core.usage.UsageRow
 import com.daiyimo.maeve.core.usage.UsageSnapshot
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -65,7 +65,7 @@ class UsageScreenTest {
         onPreset: (UsagePreset) -> Unit = {}, onPickCustom: () -> Unit = {},
     ) {
         compose.setContent {
-            MikaTheme(dark = dark) { UsageContent(r, preset, today, null, onPreset, onPickCustom, onSelect = {}, onBack = {}) }
+            MaeveTheme(dark = dark) { UsageContent(r, preset, today, null, onPreset, onPickCustom, onSelect = {}, onBack = {}) }
         }
     }
 
@@ -134,7 +134,7 @@ class UsageScreenTest {
         var selected by mutableStateOf<String?>(null)
         val r = report()
         compose.setContent {
-            MikaTheme { UsageContent(r, UsagePreset.Week, today, selected, onPreset = {}, onPickCustom = {}, onSelect = { selected = it }, onBack = {}) }
+            MaeveTheme { UsageContent(r, UsagePreset.Week, today, selected, onPreset = {}, onPickCustom = {}, onSelect = { selected = it }, onBack = {}) }
         }
         compose.onNodeWithTag("usage-rank-provider-p1").performScrollTo().performClick()
         assertEquals("p1", selected)

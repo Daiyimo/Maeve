@@ -15,7 +15,7 @@ import com.daiyimo.maeve.ChineseUi
 import com.daiyimo.maeve.core.remote.RelayState
 import com.daiyimo.maeve.settings.RelayConfig
 import com.daiyimo.maeve.ui.components.PageScaffold
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -32,7 +32,7 @@ class RelaySectionTest {
     private var copied = 0
 
     private fun page() {
-        compose.setContent { MikaTheme {
+        compose.setContent { MaeveTheme {
             PageScaffold("远程", {}) {
                 RelayControls(config.value, state.value, false, false,
                     { url, code -> paired = url to code }, changes::add, { unpaired++ }, { copied++ }, { copied++ },
@@ -78,6 +78,6 @@ class RelaySectionTest {
         compose.runOnIdle { state.value = RelayState.Unauthorized }
         compose.onNodeWithText("配对已失效或被撤销，请重新配对网关").assertIsDisplayed()
         compose.runOnIdle { state.value = RelayState.Incompatible }
-        compose.onNodeWithText("请将 Mika 与网关更新到匹配的版本").assertIsDisplayed()
+        compose.onNodeWithText("请将 Maeve 与网关更新到匹配的版本").assertIsDisplayed()
     }
 }

@@ -30,7 +30,7 @@ internal class RemoteTaskReceipts(
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) =
         error("Unknown remote task receipt schema $oldVersion -> $newVersion")
 
-    // MikaApp owns one hub per process. A previous process cannot still be dispatching these tasks.
+    // MaeveApp owns one hub per process. A previous process cannot still be dispatching these tasks.
     init {
         val interrupted: TaskState.Terminal = TaskState.Failed("The phone process stopped before this task finished.", FailKind.Interrupted)
         writableDatabase.execSQL("UPDATE receipts SET result=? WHERE result IS NULL AND goal IS NOT NULL",

@@ -11,7 +11,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.daiyimo.maeve.ChineseUi
 import com.daiyimo.maeve.core.agent.TaskState
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -27,7 +27,7 @@ class ScreensScreenTest {
     private val calls = mutableListOf<String>()
 
     private fun show(rows: List<ScreenRow>) = compose.setContent {
-        MikaTheme {
+        MaeveTheme {
             ScreensContent(rows, onBack = { calls += "back" }, onOpenConversation = { calls += "open $it" })
         }
     }

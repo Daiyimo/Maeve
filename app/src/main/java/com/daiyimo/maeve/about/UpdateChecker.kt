@@ -59,7 +59,7 @@ class UpdateChecker(
     private val file: File,
     private val currentVersion: String,
     private val client: OkHttpClient = defaultClient(),
-    private val releaseApi: String = MikaLinks.LATEST_RELEASE_API,
+    private val releaseApi: String = MaeveLinks.LATEST_RELEASE_API,
     private val now: () -> Long = System::currentTimeMillis,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     /** 本机支持的 ABI(Build.SUPPORTED_ABIS),用来挑发布里合适的 APK;为空时取全架构包。 */

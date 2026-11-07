@@ -53,7 +53,7 @@ internal val InstallStep.label: String get() = when (this) {
 /**
  * 准备运行环境:检查 → 解出自带的根文件系统 → 配置 → 同步技能 → 完成。不联网。
  * 每步完成记进 [SandboxState],下次从记录那一步的下一步开始;失败时状态为 Broken(原因)并抛出。
- * 自带的版本变了(Mika 升级)就重新解包:解到新目录,校验通过后换上,工作区不动。
+ * 自带的版本变了(Maeve 升级)就重新解包:解到新目录,校验通过后换上,工作区不动。
  *
  * 参数除 [dirs]、[state]、[bundle] 外是测试用的接缝,默认值即真机行为。
  */
@@ -63,12 +63,12 @@ class RootfsInstaller(
     private val bundle: RuntimeBundle,
     private val abis: () -> List<String> = { Build.SUPPORTED_ABIS.toList() },
     private val freeBytes: () -> Long = { dirs.root.parentFile?.usableSpace ?: 0L },
-    /** 跑 `libmikarun.so --self-test`,返回(退出码, 输出)。 */
+    /** 跑 `libmaeverun.so --self-test`,返回(退出码, 输出)。 */
     private val selfTest: suspend () -> Pair<Int, String> = { runSelfTest(dirs) },
     /** 宿主上这个 /proc 文件能不能读;读不到的生成替身。 */
     private val procReadable: (String) -> Boolean = ::hostCanRead,
     private val prepareDev: (File) -> Unit = { ProotDevices.prepareRootfsDev(it, dirs.gate) },
-    /** 桥客户端脚本(装到 /usr/local/bin/mika);null = 安装包里没有,安装失败。 */
+    /** 桥客户端脚本(装到 /usr/local/bin/maeve);null = 安装包里没有,安装失败。 */
     private val clientScript: () -> ByteArray? = { null },
     private val dnsServers: () -> List<String> = { emptyList() },
     private val syncSkills: suspend () -> Unit = {},
@@ -85,7 +85,7 @@ class RootfsInstaller(
                 return@withContext
             }
             var step = state.completedStep()?.let { done -> STEPS.getOrNull(STEPS.indexOf(done) + 1) } ?: InstallStep.Check
-            // 装好的是旧版本(Mika 升级了):从解包重来,旧的在新的解好之前照常留着
+            // 装好的是旧版本(Maeve 升级了):从解包重来,旧的在新的解好之前照常留着
             if (state.completedStep() == InstallStep.Done && !upToDate) step = InstallStep.Check
             try {
                 for (s in STEPS.drop(STEPS.indexOf(step))) {
@@ -168,7 +168,7 @@ class RootfsInstaller(
         if (free < need) throw IOException(tr(R.string.install_no_space, need shr 20, free / (1 shl 20)))
         val (code, out) = selfTest()
         val lines = out.lines().map { it.trim() }
-        if (code != 0 || lines.firstOrNull() != "mikarun ok") {
+        if (code != 0 || lines.firstOrNull() != "maeverun ok") {
             throw IOException(tr(R.string.install_cannot_start, lines.lastOrNull { it.isNotEmpty() } ?: tr(R.string.install_exit_code, code)))
         }
         // 断网过滤器不可用不挡安装:联网关着时命令会被拒绝,这里只记下原因给设置页
@@ -179,7 +179,7 @@ class RootfsInstaller(
         writeInRootfs("etc/hosts", "127.0.0.1 localhost\n::1 localhost\n")
         writeInRootfs("etc/resolv.conf", dnsServers().ifEmpty { FALLBACK_DNS }.joinToString("") { "nameserver $it\n" })
         val client = clientScript() ?: throw IOException(tr(R.string.install_no_client))
-        writeInRootfs("usr/local/bin/mika", client, executable = true)
+        writeInRootfs("usr/local/bin/maeve", client, executable = true)
         prepareDev(dirs.rootfs)
         writeProcStandIns()
     }
@@ -195,7 +195,7 @@ class RootfsInstaller(
         }
     }
 
-    /** 删掉 [dir] 整棵树(它的上一层是 Mika 自己的目录);经关口按句柄逐层走。 */
+    /** 删掉 [dir] 整棵树(它的上一层是 Maeve 自己的目录);经关口按句柄逐层走。 */
     private fun deleteReachable(dir: File) {
         val parent = dir.parentFile ?: return
         dirs.gate.deleteTree(parent, dir.name)
@@ -222,7 +222,7 @@ class RootfsInstaller(
             val dirs = SandboxDirs(app)
             return RootfsInstaller(
                 dirs, SandboxState.get(app), RuntimeBundle.bundled(app),
-                clientScript = { runCatching { app.assets.open("sandbox/mika").use { it.readBytes() } }.getOrNull() },
+                clientScript = { runCatching { app.assets.open("sandbox/maeve").use { it.readBytes() } }.getOrNull() },
                 dnsServers = { AndroidSandbox.dns(app) },
                 syncSkills = { SkillsSync.sync(dirs) },
             )
@@ -231,7 +231,7 @@ class RootfsInstaller(
         private fun hostCanRead(path: String): Boolean = runCatching { File(path).inputStream().use { it.read() }; true }.getOrDefault(false)
 
         private suspend fun runSelfTest(dirs: SandboxDirs): Pair<Int, String> {
-            val o = AndroidSandbox.launch(listOf(dirs.lib("libmikarun.so").path, "--self-test"), emptyMap(), 15_000)
+            val o = AndroidSandbox.launch(listOf(dirs.lib("libmaeverun.so").path, "--self-test"), emptyMap(), 15_000)
             return o.exitCode to String(o.output, Charsets.UTF_8)
         }
 
@@ -246,7 +246,7 @@ class RootfsInstaller(
                 },
                 "loadavg" to "0.00 0.00 0.00 1/1 1\n",
                 "uptime" to "1.00 1.00\n",
-                "version" to "Linux version ${System.getProperty("os.version") ?: "0"} (mika@sandbox) #1 SMP PREEMPT\n",
+                "version" to "Linux version ${System.getProperty("os.version") ?: "0"} (maeve@sandbox) #1 SMP PREEMPT\n",
                 "vmstat" to "nr_free_pages 0\nnr_inactive_anon 0\nnr_active_anon 0\nnr_inactive_file 0\nnr_active_file 0\npgpgin 0\npgpgout 0\npswpin 0\npswpout 0\n",
             )
         }

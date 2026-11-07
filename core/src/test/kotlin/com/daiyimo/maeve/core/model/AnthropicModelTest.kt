@@ -32,7 +32,7 @@ class AnthropicModelTest {
         reasoningEffort = reasoningEffort, thinkingTypes = thinkingTypes,
     )
     private val endpoint get() = server.url("/").toString().trimEnd('/') + "/v1/messages"
-    private val user = listOf(Message(Role.User, listOf(Part.Text("hi")), Author.Mika))
+    private val user = listOf(Message(Role.User, listOf(Part.Text("hi")), Author.Maeve))
     private fun ok(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
     private fun JsonObject.arr(k: String) = this[k]!!.jsonArray
     private fun JsonObject.str(k: String) = this[k]!!.jsonPrimitive.content
@@ -108,14 +108,14 @@ class AnthropicModelTest {
     }
 
     private fun signedHistory(endpoint: String) = listOf(
-        Message(Role.User, listOf(Part.Text("go")), Author.Mika),
+        Message(Role.User, listOf(Part.Text("go")), Author.Maeve),
         Message(Role.Assistant, listOf(
             Part.Thinking("想", SignedThinking.signed(endpoint, "sig-1")), Part.Thinking("", SignedThinking.redacted(endpoint, "xyz")),
             // 别的服务商留下的思考不能被当成本家的签名发出去
             Part.Thinking("旧", """{"endpoint":"https://other.test","via":"reasoning"}"""),
             Part.Text("a"), Part.ToolCall("t1", "phone_tap", "{}"),
-        ), Author.Mika),
-        Message(Role.Tool, listOf(Part.ToolResult("t1", "done", false)), Author.Mika),
+        ), Author.Maeve),
+        Message(Role.Tool, listOf(Part.ToolResult("t1", "done", false)), Author.Maeve),
     )
 
     private fun sentAssistantBlocks() = sentBody().arr("messages")[1].jsonObject.arr("content").map { it.jsonObject }
@@ -149,12 +149,12 @@ class AnthropicModelTest {
     @Test fun replaysBlocksInTheOrderReceived() = runTest {
         server.enqueue(ok("""{"content":[],"stop_reason":"end_turn"}"""))
         val history = listOf(
-            Message(Role.User, listOf(Part.Text("go")), Author.Mika),
+            Message(Role.User, listOf(Part.Text("go")), Author.Maeve),
             Message(Role.Assistant, listOf(
                 Part.Thinking("想", SignedThinking.signed(endpoint, "sig-1")), Part.Text("先打开设置"),
                 Part.Thinking("", SignedThinking.signed(endpoint, "sig-2")), Part.ToolCall("t1", "phone_launch_app", "{}"),
-            ), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("t1", "done", false)), Author.Mika),
+            ), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("t1", "done", false)), Author.Maeve),
         )
         model().complete("s", history, emptyList())
         val asst = sentAssistantBlocks()
@@ -177,8 +177,8 @@ class AnthropicModelTest {
         assertEquals(StopReason.ToolUse, reply.stopReason)
 
         server.enqueue(ok("""{"content":[],"stop_reason":"end_turn"}"""))
-        val next = signedHistory(endpoint) + Message(Role.Assistant, reply.parts, Author.Mika) +
-            Message(Role.Tool, listOf(Part.ToolResult("t2", "done", false)), Author.Mika)
+        val next = signedHistory(endpoint) + Message(Role.Assistant, reply.parts, Author.Maeve) +
+            Message(Role.Tool, listOf(Part.ToolResult("t2", "done", false)), Author.Maeve)
         m.complete("s", next, emptyList())
         val sent = sentBody().arr("messages").map { msg -> msg.jsonObject.arr("content").map { it.jsonObject } }
         assertEquals(listOf("text", "tool_use"), sent[1].map { it.str("type") })
@@ -278,12 +278,12 @@ class AnthropicModelTest {
     @Test fun marksCacheOnLastUserMessage() = runTest {
         val first = listOf(
             Message(Role.User, listOf(Part.Text("goal")), Author.User),
-            Message(Role.Assistant, listOf(Part.ToolCall("t1", "a", "{}")), Author.Mika),
-            Message(Role.User, listOf(Part.ToolResult("t1", "r1", false), Part.Text("state 1")), Author.Mika),
+            Message(Role.Assistant, listOf(Part.ToolCall("t1", "a", "{}")), Author.Maeve),
+            Message(Role.User, listOf(Part.ToolResult("t1", "r1", false), Part.Text("state 1")), Author.Maeve),
         )
         val second = first + listOf(
-            Message(Role.Assistant, listOf(Part.ToolCall("t2", "a", "{}")), Author.Mika),
-            Message(Role.User, listOf(Part.ToolResult("t2", "r2", false), Part.Text("state 2")), Author.Mika),
+            Message(Role.Assistant, listOf(Part.ToolCall("t2", "a", "{}")), Author.Maeve),
+            Message(Role.User, listOf(Part.ToolResult("t2", "r2", false), Part.Text("state 2")), Author.Maeve),
         )
         repeat(2) { server.enqueue(ok("""{"content":[],"stop_reason":"end_turn"}""")) }
         model().complete("SYS", first, emptyList())
@@ -305,10 +305,10 @@ class AnthropicModelTest {
     @Test fun toolResultIsUserMessageAndRolesAlternate() = runTest {
         server.enqueue(ok("""{"content":[],"stop_reason":"end_turn"}"""))
         val history = listOf(
-            Message(Role.User, listOf(Part.Text("go")), Author.Mika),
-            Message(Role.Assistant, listOf(Part.Thinking("t"), Part.Text("a"), Part.ToolCall("t1", "phone_tap", """{"ref":"x"}""")), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("t1", "done", false)), Author.Mika),
-            Message(Role.User, listOf(Part.Text("then")), Author.Mika),
+            Message(Role.User, listOf(Part.Text("go")), Author.Maeve),
+            Message(Role.Assistant, listOf(Part.Thinking("t"), Part.Text("a"), Part.ToolCall("t1", "phone_tap", """{"ref":"x"}""")), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("t1", "done", false)), Author.Maeve),
+            Message(Role.User, listOf(Part.Text("then")), Author.Maeve),
         )
         model().complete("s", history, emptyList())
         val msgs = sentBody().arr("messages")
@@ -325,7 +325,7 @@ class AnthropicModelTest {
     }
 
     @Test fun imagesOnlyWhenVision() = runTest {
-        val m = listOf(Message(Role.User, listOf(Part.Text("look"), Part.Image("QUJD")), Author.Mika))
+        val m = listOf(Message(Role.User, listOf(Part.Text("look"), Part.Image("QUJD")), Author.Maeve))
         server.enqueue(ok("""{"content":[],"stop_reason":"end_turn"}"""))
         model(vision = true).complete("s", m, emptyList())
         val img = sentBody().arr("messages")[0].jsonObject.arr("content")[1].jsonObject
@@ -340,7 +340,7 @@ class AnthropicModelTest {
     }
 
     @Test fun sendsJpegMime() = runTest {
-        val m = listOf(Message(Role.User, listOf(Part.Image("QUJD", mime = "image/jpeg")), Author.Mika))
+        val m = listOf(Message(Role.User, listOf(Part.Image("QUJD", mime = "image/jpeg")), Author.Maeve))
         server.enqueue(ok("""{"content":[],"stop_reason":"end_turn"}"""))
         model(vision = true).complete("s", m, emptyList())
         val img = sentBody().arr("messages")[0].jsonObject.arr("content")[0].jsonObject
@@ -349,7 +349,7 @@ class AnthropicModelTest {
 
     @Test fun systemMessagesMergeIntoSystemText() = runTest {
         server.enqueue(ok("""{"content":[],"stop_reason":"end_turn"}"""))
-        model().complete("S1", listOf(Message(Role.System, listOf(Part.Text("S2")), Author.Mika), user[0]), emptyList())
+        model().complete("S1", listOf(Message(Role.System, listOf(Part.Text("S2")), Author.Maeve), user[0]), emptyList())
         val j = sentBody()
         assertEquals("S1\n\nS2", j.arr("system")[0].jsonObject.str("text"))
         assertEquals(1, j.arr("messages").size)

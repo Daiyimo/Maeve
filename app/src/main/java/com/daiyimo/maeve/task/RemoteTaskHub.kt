@@ -28,7 +28,7 @@ import java.util.UUID
  */
 class RemoteTaskHub(
     private val context: Context,
-    private val runs: () -> List<TaskRun> = { (context.applicationContext as com.daiyimo.maeve.MikaApp).taskState.runs.value },
+    private val runs: () -> List<TaskRun> = { (context.applicationContext as com.daiyimo.maeve.MaeveApp).taskState.runs.value },
     private val clock: () -> Long = System::currentTimeMillis,
 ) : McpTaskHost, RemoteTasks {
     private val receipts by lazy { RemoteTaskReceipts(context) }
@@ -142,7 +142,7 @@ class RemoteTaskHub(
     }
 
     private companion object {
-        const val TAG = "MikaMcp"
+        const val TAG = "MaeveMcp"
         const val LOST_MS = 2 * 60_000L
     }
 }

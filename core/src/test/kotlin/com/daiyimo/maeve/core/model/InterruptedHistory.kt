@@ -15,8 +15,8 @@ internal object InterruptedHistory {
 
     val messages = listOf(
         Message(Role.User, listOf(Part.Text(ASK)), Author.User),
-        Message(Role.Assistant, listOf(Part.Text(PARTIAL)), Author.Mika),
+        Message(Role.Assistant, listOf(Part.Text(PARTIAL)), Author.Maeve),
         Message(Role.User, listOf(Part.Text(STEER)), Author.User),
-        Message(Role.User, listOf(Part.Text(RUNTIME)), Author.Mika),
+        Message(Role.User, listOf(Part.Text(RUNTIME)), Author.Maeve),
     )
 }

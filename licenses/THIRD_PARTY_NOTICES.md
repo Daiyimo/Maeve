@@ -260,7 +260,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ## Distribution obligations: GPL / LGPL components
 
-The bundled runtime (`libproot.so`, `libmikarun.so`, `rootfs.tar.xz`) is executed as
+The bundled runtime (`libproot.so`, `libmaeverun.so`, `rootfs.tar.xz`) is executed as
 **independent child processes**, not statically or dynamically linked into the Maeve APK
 itself. On that basis it is treated as mere aggregation and does not change the licence of
 the main work. **However, distributing an APK that carries these components still requires:**

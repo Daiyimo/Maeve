@@ -10,7 +10,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.daiyimo.maeve.cap.phone.display.AgentDisplay
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import com.daiyimo.maeve.cap.phone.PhoneServices
 import com.daiyimo.maeve.cap.phone.shell.BuiltinShellConnection
 import kotlinx.coroutines.CoroutineStart
@@ -27,9 +27,9 @@ import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
-import com.daiyimo.maeve.a11y.MikaAccessibilityService
+import com.daiyimo.maeve.a11y.MaeveAccessibilityService
 
-/** 真机测试:需要内置助手在运行(已配对、无线调试开着),且 Mika 无障碍服务已开启。 */
+/** 真机测试:需要内置助手在运行(已配对、无线调试开着),且 Maeve 无障碍服务已开启。 */
 @RunWith(AndroidJUnit4::class)
 class A11yOnDisplayTest {
     companion object {
@@ -59,11 +59,11 @@ class A11yOnDisplayTest {
         private fun rebindAccessibility() {
             if (ScreenAccessibility.instance.value != null) return
             val key = "enabled_accessibility_services"
-            val mika = "com.daiyimo.maeve/${MikaAccessibilityService::class.java.name}"
+            val maeve = "com.daiyimo.maeve/${MaeveAccessibilityService::class.java.name}"
             val enabled = shellCommand("settings get secure $key").trim().split(':')
-            if (mika !in enabled) return
+            if (maeve !in enabled) return
             try {
-                shellCommand("settings put secure $key ${enabled.filter { it != mika }.joinToString(":").ifEmpty { "\"\"" }}")
+                shellCommand("settings put secure $key ${enabled.filter { it != maeve }.joinToString(":").ifEmpty { "\"\"" }}")
                 Thread.sleep(500)
             } finally {
                 // 无论如何恢复原来的完整列表(含其他 App 的服务)
@@ -72,18 +72,18 @@ class A11yOnDisplayTest {
         }
 
         private fun shellCommand(cmd: String): String {
-            // 不压制其他无障碍服务,否则 Mika 的服务会在测试期间被暂停
+            // 不压制其他无障碍服务,否则 Maeve 的服务会在测试期间被暂停
             val ua = InstrumentationRegistry.getInstrumentation()
                 .getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
             val pfd = ua.executeShellCommand(cmd)
             return ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { it.readText() }
         }
 
-        private fun awaitShell(): IMikaShell =
+        private fun awaitShell(): IMaeveShell =
             DeviceSupport.awaitShell(connection)
     }
 
-    private val shell: IMikaShell get() = awaitShell()
+    private val shell: IMaeveShell get() = awaitShell()
     private var display: AgentDisplay? = null
 
     @After
@@ -93,7 +93,7 @@ class A11yOnDisplayTest {
 
     private fun service(): ScreenAccessibility = runBlocking {
         withTimeoutOrNull(10_000) { ScreenAccessibility.instance.filterNotNull().first() }
-    } ?: error("Mika accessibility service is not enabled")
+    } ?: error("Maeve accessibility service is not enabled")
 
     private fun settingsOnNewDisplay(): AgentDisplay {
         val d = AgentDisplay(shell, 720, 1600, 320, InstrumentationRegistry.getInstrumentation().targetContext.getSystemService(android.hardware.display.DisplayManager::class.java)).also { display = it }

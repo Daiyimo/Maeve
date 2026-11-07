@@ -222,7 +222,7 @@ class WebHost(private val context: Context, widthPx: Int, heightPx: Int, density
 
     init {
         checkMain()
-        frameThread = HandlerThread("mika-web-frames").apply { start() }
+        frameThread = HandlerThread("maeve-web-frames").apply { start() }
         frameHandler = Handler(frameThread.looper)
         // 新标签默认桌面版:先建桌面那块;建不起来再建手机那块,两块都不行就抛出(调用方只给手机界面)
         active = try {
@@ -276,7 +276,7 @@ class WebHost(private val context: Context, widthPx: Int, heightPx: Int, density
         desktop?.let { return it }
         if (desktopFailed) return null
         return try {
-            Layer(DesktopProfile.HOST_WIDTH, DesktopProfile.HOST_HEIGHT, DesktopProfile.HOST_DPI, "mika-web-desktop").also { desktop = it }
+            Layer(DesktopProfile.HOST_WIDTH, DesktopProfile.HOST_HEIGHT, DesktopProfile.HOST_DPI, "maeve-web-desktop").also { desktop = it }
         } catch (e: Throwable) {
             Log.w(TAG, "desktop-size web display failed; desktop pages use the phone-size display", e)
             desktopFailed = true
@@ -325,9 +325,9 @@ class WebHost(private val context: Context, widthPx: Int, heightPx: Int, density
     private fun checkMain() = check(Looper.myLooper() == Looper.getMainLooper()) { "WebHost must be used on the main thread" }
 
     companion object {
-        private const val TAG = "MikaWebHost"
+        private const val TAG = "MaeveWebHost"
         private const val FRAME_INTERVAL_MS = 100L
-        private const val PHONE_NAME = "mika-web"
+        private const val PHONE_NAME = "maeve-web"
 
         /**
          * 视图所在标签换了手机版/桌面版:它若正挂在某个宿主上,就换到对应大小的那块显示上。不论当初是谁挂上去的。

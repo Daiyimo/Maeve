@@ -6,6 +6,7 @@ import com.daiyimo.maeve.chat.BranchOrigin
 import com.daiyimo.maeve.chat.ConversationSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -159,10 +160,18 @@ class ChatCopyTest {
         assertEquals("正在处理", ChatCopy.progressLine(ex.copy(line = "", waitingForModel = true)))
     }
 
+    /**
+     * 占位符跟着输入框状态走。
+     * 这里断言**不同状态给出不同文案**，不锁死具体字句——
+     * 文案会随语气迭代，测试盯着的是"状态串了没有"，不是某一句话。
+     */
     @Test fun placeholderFollowsTheComposer() {
         assertEquals(ChatCopy.EMPTY_PROMPT, ChatCopy.placeholder(ComposerMode.Idle, hasHistory = false))
-        assertEquals("继续说点什么…", ChatCopy.placeholder(ComposerMode.Idle, hasHistory = true))
-        assertEquals("回答 Maeve 的问题", ChatCopy.placeholder(ComposerMode.Answer, hasHistory = true))
-        assertEquals("补充或改要求…", ChatCopy.placeholder(ComposerMode.Busy, hasHistory = true))
+        val idleMore = ChatCopy.placeholder(ComposerMode.Idle, hasHistory = true)
+        val answer = ChatCopy.placeholder(ComposerMode.Answer, hasHistory = true)
+        val busy = ChatCopy.placeholder(ComposerMode.Busy, hasHistory = true)
+        assertTrue(idleMore.isNotBlank() && answer.isNotBlank() && busy.isNotBlank())
+        assertEquals(3, setOf(idleMore, answer, busy).size)
+        assertNotEquals(ChatCopy.EMPTY_PROMPT, idleMore)
     }
 }

@@ -116,7 +116,7 @@ class ToolDispatcherSandboxTest {
             put("source", "skills/report"); put("script", "scripts/tabulate.py"); put("args", JsonArray(args.map(::JsonPrimitive)))
         })).content
         assertEquals(r.toString(), "true", r.s("ok"))
-        assertEquals(listOf("/usr/bin/python3", "/opt/mika/skills/skills/report/scripts/tabulate.py") + args, sb.runs.single().argv)
+        assertEquals(listOf("/usr/bin/python3", "/opt/maeve/skills/skills/report/scripts/tabulate.py") + args, sb.runs.single().argv)
         assertEquals(1, sb.prepares)
     }
 
@@ -178,13 +178,13 @@ class ToolDispatcherSandboxTest {
         assertTrue(sb.runs.isEmpty())
         sb.status = SandboxStatus.Ready(network = true)
         assertEquals("true", d.execute(script("scripts/fetch.mjs")).content.s("ok"))
-        assertEquals(listOf("/usr/bin/node", "/opt/mika/skills/skills/report/scripts/fetch.mjs"), sb.runs.single().argv)
+        assertEquals(listOf("/usr/bin/node", "/opt/maeve/skills/skills/report/scripts/fetch.mjs"), sb.runs.single().argv)
     }
 
     @Test fun writeOutsideWorkspaceRejected() = runTest {
         val d = dispatcher()
         fun write(p: String) = call("write_file", buildJsonObject { put("path", p); put("content", "x") })
-        for (p in listOf("/etc/passwd", "../x", "/opt/mika/skills/app/a/SKILL.md")) {
+        for (p in listOf("/etc/passwd", "../x", "/opt/maeve/skills/app/a/SKILL.md")) {
             assertEquals(p, "path_outside_workspace", d.execute(write(p)).content.s("error"))
         }
         val outside = File(sb.root, "outside").apply { mkdirs() }
@@ -203,7 +203,7 @@ class ToolDispatcherSandboxTest {
         val m = found["matches"]!!.jsonArray.single().jsonObject
         assertEquals("/workspace/out/notes.txt", m.s("file")); assertEquals("2", m.s("line"))
         val shared = d.execute(call("share_file", buildJsonObject { put("path", "out/notes.txt"); put("name", "笔记.txt") })).content
-        assertEquals("Download/Mika/笔记.txt", shared.s("savedAs"))
+        assertEquals("Download/Maeve/笔记.txt", shared.s("savedAs"))
         assertEquals(File(ws, "out/notes.txt").canonicalFile, sb.shared.single().first.canonicalFile)
     }
 
@@ -213,7 +213,7 @@ class ToolDispatcherSandboxTest {
         val r = dispatcher().execute(call("run_command", buildJsonObject { put("command", "cat big") })).content
         assertEquals("true", r.s("outputTruncated"))
         val path = r.s("fullOutputPath")
-        assertTrue(path, path.startsWith("/workspace/.mika/out-"))
+        assertTrue(path, path.startsWith("/workspace/.maeve/out-"))
         assertEquals(long, File(ws, path.removePrefix("/workspace/")).readText())
         assertTrue(r.s("output").contains("10000 characters omitted"))
         assertTrue(r.s("output").length < 16_100)
@@ -270,9 +270,9 @@ class ToolDispatcherSandboxTest {
         assertEquals("9", r.s("nextOffset"))
     }
 
-    @Test fun outputNotSavedThroughSymlinkedMikaDir() = runTest {
-        val outside = File(sb.root, "outside-mika").apply { mkdirs() }
-        java.nio.file.Files.createSymbolicLink(File(ws, ".mika").toPath(), outside.toPath())
+    @Test fun outputNotSavedThroughSymlinkedMaeveDir() = runTest {
+        val outside = File(sb.root, "outside-maeve").apply { mkdirs() }
+        java.nio.file.Files.createSymbolicLink(File(ws, ".maeve").toPath(), outside.toPath())
         sb.next = { CommandResult(0, false, false, 50, "x".repeat(20_000), 0, false) }
         val r = dispatcher().execute(call("run_command", buildJsonObject { put("command", "cat big") })).content
         assertEquals("true", r.s("ok"))
@@ -365,7 +365,7 @@ class ToolDispatcherSandboxTest {
         // 写进去又读回来的是助手自己写的字:只记写入的路径,读回的内容不进证据
         assertTrue(e.read(ObsKind.Output).any { "/workspace/out/r.txt" in it })
         assertFalse(e.read(ObsKind.Output).toString(), e.read(ObsKind.Output).any { "报告正文" in it })
-        assertTrue(e.read(ObsKind.Output).any { "Download/Mika/r.txt" in it })
+        assertTrue(e.read(ObsKind.Output).any { "Download/Maeve/r.txt" in it })
         assertTrue(e.actions.toString(), e.actions.any { it.contains("run_command(wc -l data.csv)") })
         assertTrue(e.actions.any { it.contains("share_file(out/r.txt)") })
         assertFalse(e.nothingRead)

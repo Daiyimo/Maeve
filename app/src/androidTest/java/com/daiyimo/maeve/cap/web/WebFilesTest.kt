@@ -121,7 +121,7 @@ class WebFilesTest {
         assertTrue(staging.list().orEmpty().isEmpty())
     }
 
-    /** 工作区里的硬链接(可能链着 Mika 的私有文件)不交给页面,也不留副本。 */
+    /** 工作区里的硬链接(可能链着 Maeve 的私有文件)不交给页面,也不留副本。 */
     @Test
     fun uploadRefusesHardLinkedFiles() = runBlocking<Unit> {
         val secret = File(ctx.filesDir, "webfiles-secret.txt").apply { writeText("secret") }

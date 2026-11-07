@@ -382,7 +382,7 @@ class BuiltinShellEngineTest {
     }
 
     @Test
-    fun switchOffInMikaNeverWrites() = runTest {
+    fun switchOffInMaeveNeverWrites() = runTest {
         platform.pairedFlag = true
         platform.wireless = false
         wants = false
@@ -462,7 +462,7 @@ class BuiltinShellEngineTest {
         assertEquals(0, launches())
     }
 
-    /** 没配对时电脑起的助手停了:不当作从没设置过,说它停了;Mika 自己不去起(起不来)。 */
+    /** 没配对时电脑起的助手停了:不当作从没设置过,说它停了;Maeve 自己不去起(起不来)。 */
     @Test
     fun usbHelperStoppingSaysSoAndDoesNotLaunch() = runTest {
         val e = engine()

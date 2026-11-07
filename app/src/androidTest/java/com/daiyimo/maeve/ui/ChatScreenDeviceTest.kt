@@ -31,7 +31,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.SETTINGS
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.pollUntil
@@ -57,7 +57,7 @@ import com.daiyimo.maeve.task.TaskEnvironment
 /**
  * 真机走一遍对话页:脚本模型在虚拟屏上打开设置,检查步骤、小窗(收起、展开、拖动、需要你时自动展开)和结果卡片,
  * 每个阶段截一张图到 App 的外部文件目录 shots/(由开发机 adb pull 出来人工查看)。
- * 需要内置助手在运行、Mika 无障碍服务已开启。
+ * 需要内置助手在运行、Maeve 无障碍服务已开启。
  */
 @RunWith(AndroidJUnit4::class)
 class ChatScreenDeviceTest {
@@ -68,7 +68,7 @@ class ChatScreenDeviceTest {
     private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
     // 从界面发起的任务在第一个动作前要另问一次意图;固定答「要操作」,脚本里每一问都是任务循环本身的一步
     private val model = ScriptedModel().apply { intent = "ACT" }
-    private val vm get() = (context.applicationContext as MikaApp).chat
+    private val vm get() = (context.applicationContext as MaeveApp).chat
     private val anyway = Prerequisites.Check(emptyList())
     private var savedSpeed: SpeedFlags? = null
 
@@ -112,7 +112,7 @@ class ChatScreenDeviceTest {
         compose.waitForIdle()
         Thread.sleep(400)
         compose.waitForIdle()
-        // 默认的 UiAutomation 会压制其他无障碍服务,Mika 的服务会被断开
+        // 默认的 UiAutomation 会压制其他无障碍服务,Maeve 的服务会被断开
         val bmp = InstrumentationRegistry.getInstrumentation()
             .getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES).takeScreenshot()
         File(context.getExternalFilesDir(null), "shots/$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -161,7 +161,7 @@ class ChatScreenDeviceTest {
         assertTrue(vm.ui.value.pip.visible)
         shot("03-running-collapsed")
 
-        compose.onNodeWithContentDescription("Mika 的虚拟屏").performClick()
+        compose.onNodeWithContentDescription("Maeve 的虚拟屏").performClick()
         compose.waitForIdle()
         assertTrue(vm.ui.value.pip.expanded)
         shot("04-running-expanded")
@@ -170,12 +170,12 @@ class ChatScreenDeviceTest {
 
         // 小窗平时在右下角(输入栏上方):往左上甩,应吸到左上角
         val d = context.resources.displayMetrics.density
-        val pip = compose.onNodeWithContentDescription("Mika 的虚拟屏").fetchSemanticsNode().boundsInWindow
+        val pip = compose.onNodeWithContentDescription("Maeve 的虚拟屏").fetchSemanticsNode().boundsInWindow
         val x = pip.center.x
         val y = pip.center.y
         sh("input swipe ${x.toInt()} ${y.toInt()} ${(x - 250 * d).toInt()} ${(y - 300 * d).toInt()} 120")
         compose.waitForIdle()
-        val moved = compose.onNodeWithContentDescription("Mika 的虚拟屏").fetchSemanticsNode().boundsInWindow
+        val moved = compose.onNodeWithContentDescription("Maeve 的虚拟屏").fetchSemanticsNode().boundsInWindow
         assertTrue("pip did not move up-left: $pip -> $moved", moved.center.x < x && moved.center.y < y)
         shot("05-dragged")
 
@@ -235,7 +235,7 @@ class ChatScreenDeviceTest {
     fun fileCardOpens() {
         val ws = SandboxDirs(context).workspace("card-device-test").apply { mkdirs() }
         val f = File(ws, "card.txt").apply { writeText("hello") }
-        val name = "mika-card-${System.currentTimeMillis()}.txt"
+        val name = "maeve-card-${System.currentTimeMillis()}.txt"
         val card = runBlocking { com.daiyimo.maeve.cap.sandbox.AndroidFdSys.gate.openRead(ws, f.name).use { ShareExporter(context).export(it, name) } }
         val store = ConversationStore(context)
         val id = store.newConversation()

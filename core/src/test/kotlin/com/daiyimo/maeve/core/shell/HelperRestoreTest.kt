@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HelperRestoreTest {
-    private val mika = PermissionCommands.accessibilityService("com.daiyimo.maeve")
+    private val maeve = PermissionCommands.accessibilityService("com.daiyimo.maeve")
     private val other = "com.example.reader/.ReaderService"
     private val yes = RestoreWish(revive = true, accessibility = true)
 
@@ -22,9 +22,9 @@ class HelperRestoreTest {
     @Test
     fun accessibilityOnlyWhenWantedAndOn() {
         assertTrue(RestoreWish.of(true, false, accessibilityWanted = true, accessibilityOn = true).accessibility)
-        // 用户在 Mika 里关掉了替我打开无障碍
+        // 用户在 Maeve 里关掉了替我打开无障碍
         assertFalse(RestoreWish.of(true, false, accessibilityWanted = false, accessibilityOn = true).accessibility)
-        // 用户趁 Mika 活着在系统设置里关掉了
+        // 用户趁 Maeve 活着在系统设置里关掉了
         assertFalse(RestoreWish.of(true, false, accessibilityWanted = true, accessibilityOn = false).accessibility)
     }
 
@@ -104,18 +104,18 @@ class HelperRestoreTest {
     @Test
     fun accessibilityCommandsAppendWithoutDuplicates() {
         assertEquals(
-            listOf("settings put secure enabled_accessibility_services '$other:$mika'", "settings put secure accessibility_enabled 1"),
-            RestoreCommands.accessibility(other, mika),
+            listOf("settings put secure enabled_accessibility_services '$other:$maeve'", "settings put secure accessibility_enabled 1"),
+            RestoreCommands.accessibility(other, maeve),
         )
         assertEquals(
-            listOf("settings put secure enabled_accessibility_services '$mika'", "settings put secure accessibility_enabled 1"),
-            RestoreCommands.accessibility("null", mika),
+            listOf("settings put secure enabled_accessibility_services '$maeve'", "settings put secure accessibility_enabled 1"),
+            RestoreCommands.accessibility("null", maeve),
         )
         // 已经在列表里(哪种写法都算):不重写列表,只开总开关
-        assertEquals(listOf(RestoreCommands.ENABLE_ACCESSIBILITY), RestoreCommands.accessibility("$mika:$other", mika))
+        assertEquals(listOf(RestoreCommands.ENABLE_ACCESSIBILITY), RestoreCommands.accessibility("$maeve:$other", maeve))
         assertEquals(
             listOf(RestoreCommands.ENABLE_ACCESSIBILITY),
-            RestoreCommands.accessibility("com.daiyimo.maeve/com.daiyimo.maeve.a11y.MikaAccessibilityService", mika),
+            RestoreCommands.accessibility("com.daiyimo.maeve/com.daiyimo.maeve.a11y.MaeveAccessibilityService", maeve),
         )
     }
 

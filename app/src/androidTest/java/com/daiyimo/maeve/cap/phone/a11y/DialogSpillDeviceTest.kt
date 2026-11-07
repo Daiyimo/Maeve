@@ -17,7 +17,7 @@ import org.junit.runner.RunWith
 
 /**
  * 真机测试:后台进程在主屏上打开一个对话框样式的页面(登录验证、账号确认一类要用户在主屏点确认的弹窗)。
- * 这种弹窗要留在主屏给用户;Mika 的屏不该被它盖住,也不该把它挪到后台屏上。
+ * 这种弹窗要留在主屏给用户;Maeve 的屏不该被它盖住,也不该把它挪到后台屏上。
  */
 @RunWith(AndroidJUnit4::class)
 class DialogSpillDeviceTest {
@@ -55,7 +55,7 @@ class DialogSpillDeviceTest {
 
     @Test
     fun dialogOnTheMainScreenIsLeftForTheUser() = runBlocking<Unit> {
-        // 先单独看一眼这种对话框在主屏上的窗口(不经过 Mika 的动作)
+        // 先单独看一眼这种对话框在主屏上的窗口(不经过 Maeve 的动作)
         DeviceSupport.sh("am start -n ${DeviceSupport.TEST_PACKAGE}/${DialogSpillTestActivity::class.java.name}")
         DeviceSupport.pollUntil(5_000) {
             shell.topActivity(Display.DEFAULT_DISPLAY)?.takeIf { it.contains("DialogSpillTestActivity") }
@@ -89,7 +89,7 @@ class DialogSpillDeviceTest {
         assertNotNull("no arrival on the main screen was reported for the popup", dialogTask)
         dumpMainWindows("after action")
 
-        // 让 Mika 有机会处理这次冒到主屏上的任务(动作里没赶上的,读屏时会补)
+        // 让 Maeve 有机会处理这次冒到主屏上的任务(动作里没赶上的,读屏时会补)
         delay(1_500)
         val now = screen.snapshot()
         delay(500)
@@ -102,8 +102,8 @@ class DialogSpillDeviceTest {
         )
         // 弹窗还在主屏,用户能接着点确认
         assertTrue("the dialog was moved off the user's screen", stillThere)
-        // Mika 的屏还是原来那一页
-        assertEquals("Mika's screen changed", vdBefore, shell.topTaskId(vd))
+        // Maeve 的屏还是原来那一页
+        assertEquals("Maeve's screen changed", vdBefore, shell.topTaskId(vd))
         assertNotNull("the popup was not reported to the model", opened)
         assertEquals(DeviceSupport.TEST_PACKAGE, opened!!.packageName)
         assertTrue("the popup was reported as pulled back: $opened", !opened.pulledBack && opened.onUserScreen && opened.needsUser)

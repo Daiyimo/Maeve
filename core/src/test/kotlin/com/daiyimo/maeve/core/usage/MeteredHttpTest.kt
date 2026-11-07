@@ -144,11 +144,11 @@ class MeteredHttpTest {
         val base = server.url("/").toString().trimEnd('/')
         val endpoint = "$base/v1/messages"
         val history = listOf(
-            Message(Role.User, listOf(Part.Text("go")), Author.Mika),
+            Message(Role.User, listOf(Part.Text("go")), Author.Maeve),
             Message(Role.Assistant, listOf(
                 Part.Thinking("想", SignedThinking.signed(endpoint, "sig")), Part.ToolCall("t1", "phone_tap", "{}"),
-            ), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("t1", "done", false)), Author.Mika),
+            ), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("t1", "done", false)), Author.Maeve),
         )
         server.enqueue(MockResponse().setResponseCode(400).setBody("bound to a different conversation"))
         server.enqueue(MockResponse().setHeader("Content-Type", "application/json").setBody(

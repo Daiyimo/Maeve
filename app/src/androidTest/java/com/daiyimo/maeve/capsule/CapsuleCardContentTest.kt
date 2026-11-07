@@ -29,7 +29,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.daiyimo.maeve.confirm.ConfirmationCopy
 import com.daiyimo.maeve.core.agent.TaskState
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -50,7 +50,7 @@ class CapsuleCardContentTest {
         override fun answer(runKey: String, text: String) { calls += "answer $runKey $text" }
         override fun approve(runKey: String, requestKey: Int) { calls += "approve $runKey $requestKey" }
         override fun decline(runKey: String, requestKey: Int) { calls += "decline $runKey $requestKey" }
-        override fun openMika(conversationId: String) { calls += "open $conversationId" }
+        override fun openMaeve(conversationId: String) { calls += "open $conversationId" }
         override fun zoom(on: Boolean) { calls += "zoom $on" }
         override fun openInput() { calls += "openInput" }
         override fun draft(text: String) { calls += "draft $text" }
@@ -68,7 +68,7 @@ class CapsuleCardContentTest {
 
     private fun show(card: CardView, preview: Bitmap? = null, zoomed: Boolean = false, thread: ChatThread? = null, input: CardInputUi = CardInputUi()) {
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) {
+            MaeveTheme(dark = false, reduceMotion = true) {
                 androidx.compose.runtime.CompositionLocalProvider(com.daiyimo.maeve.ui.LocalScreenShots provides shots) {
                     CapsuleCard(card, preview, zoomed, actions, { if (it == null) null else "0:23" }, thread = thread, height = 420.dp, input = input)
                 }
@@ -223,7 +223,7 @@ class CapsuleCardContentTest {
         }
         val card = detail(run("a", TaskState.Running(1, "n"), CapsuleKind.Running, "在搜"))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleCard(card, null, false, typing, { null }, input = ui) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleCard(card, null, false, typing, { null }, input = ui) }
         }
         compose.onNodeWithTag("capsule-field").performTextInput("换成薄荷味")
         compose.onNodeWithContentDescription(CardCopy.SEND).performClick()
@@ -238,7 +238,7 @@ class CapsuleCardContentTest {
         }
         val card = detail(run("a", TaskState.Running(1, "n"), CapsuleKind.Running, "在搜"))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleCard(card, null, false, typing, { null }, input = ui) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleCard(card, null, false, typing, { null }, input = ui) }
         }
         compose.onNodeWithText("帮我把这段").assertIsDisplayed()
         ui = ui.copy(open = true)
@@ -283,7 +283,7 @@ class CapsuleCardContentTest {
         compose.onNodeWithText("牙膏下单了").assertIsDisplayed()
         compose.onAllNodesWithTag("capsule-screen").assertCountEquals(0)
         compose.onNodeWithText(CapsuleCards.HINT_CONTINUE).assertIsDisplayed()
-        compose.onNodeWithText(CardCopy.BACK_TO_MIKA).performClick()
+        compose.onNodeWithText(CardCopy.BACK_TO_MAEVE).performClick()
         assertEquals(listOf("open c-a"), calls)
     }
 
@@ -333,7 +333,7 @@ class CapsuleCardContentTest {
         var card by mutableStateOf<CardView>(chat(run("b", TaskState.Succeeded("好了"), CapsuleKind.Done)))
         var thread by mutableStateOf(history(1))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleCard(card, null, false, actions, { null }, thread = thread, height = 420.dp) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleCard(card, null, false, actions, { null }, thread = thread, height = 420.dp) }
         }
         compose.onNodeWithTag("capsule-card").assertHeightIsEqualTo(420.dp)
         // 来回再长也是这么高,在里面滚
@@ -352,7 +352,7 @@ class CapsuleCardContentTest {
         val r = run("a", TaskState.Running(3, "n", "tap"), CapsuleKind.Running, "在搜")
         var card by mutableStateOf<CardView>(CardView.Detail(r, CardContent.Working(listOf("打开购物", "搜索牙膏", "选第一个"))))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleCard(card, frame, false, actions, { null }, thread = history(1), height = 420.dp) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleCard(card, frame, false, actions, { null }, thread = history(1), height = 420.dp) }
         }
         val task = compose.onNodeWithTag("capsule-card").fetchSemanticsNode().size.height
         val screen = compose.onNodeWithTag("capsule-screen").fetchSemanticsNode().size.height
@@ -396,7 +396,7 @@ class CapsuleCardContentTest {
         val frame = Bitmap.createBitmap(36, 80, Bitmap.Config.ARGB_8888)
         var card by mutableStateOf<CardView>(working(30))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleCard(card, frame, false, actions, { null }, height = 420.dp) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleCard(card, frame, false, actions, { null }, height = 420.dp) }
         }
         val steps = compose.onNodeWithTag("capsule-steps").fetchSemanticsNode().size.height
         val screen = compose.onNodeWithTag("capsule-screen").fetchSemanticsNode().size.height
@@ -424,7 +424,7 @@ class CapsuleCardContentTest {
     @Test fun stepsWithoutPreviewAreCappedAndFewStaysCompact() {
         var card by mutableStateOf<CardView>(working(2))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) { CapsuleCard(card, null, false, actions, { null }, height = 420.dp) }
+            MaeveTheme(dark = false, reduceMotion = true) { CapsuleCard(card, null, false, actions, { null }, height = 420.dp) }
         }
         val few = compose.onNodeWithTag("capsule-card").fetchSemanticsNode().size.height
         compose.onNodeWithText("第 1 步").assertIsDisplayed()
@@ -460,7 +460,7 @@ class CapsuleCardContentTest {
         var handle: android.graphics.Rect? = null
         val card = detail(run("a", TaskState.Running(1, "n"), CapsuleKind.Running, "在搜"))
         compose.setContent {
-            MikaTheme(dark = false, reduceMotion = true) {
+            MaeveTheme(dark = false, reduceMotion = true) {
                 CapsuleCard(card, null, false, actions, { null }, height = 420.dp, onHandle = { handle = it })
             }
         }

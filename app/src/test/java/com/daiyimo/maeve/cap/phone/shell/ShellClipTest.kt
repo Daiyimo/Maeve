@@ -6,7 +6,7 @@ import com.daiyimo.maeve.cap.phone.shell.ShellClip.Restore
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** 粘贴输入换剪贴板、再还原:读不到绝不当成空的,剪贴板不是 Mika 的就不动。 */
+/** 粘贴输入换剪贴板、再还原:读不到绝不当成空的,剪贴板不是 Maeve 的就不动。 */
 class ShellClipTest {
     @Test fun readDistinguishesEmptyFromUnreadable() {
         assertEquals(Read.Has, ShellClip.read(clipPresent = true, hasPrimaryClip = true, descriptionPresent = true))
@@ -27,7 +27,7 @@ class ShellClipTest {
     }
 
     @Test fun clearedByOthersGetsUsersClipBack() {
-        // Mika 的内容被别人清掉了(比如系统定时清空):原来有内容就放回去,原来是空的就不用管
+        // Maeve 的内容被别人清掉了(比如系统定时清空):原来有内容就放回去,原来是空的就不用管
         assertEquals(Restore.PutBack, ShellClip.restore(priorEmpty = false, now = Now.Empty))
         assertEquals(Restore.Leave, ShellClip.restore(priorEmpty = true, now = Now.Empty))
     }

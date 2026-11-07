@@ -174,7 +174,7 @@ class ChecksTest {
     }
 
     @Test fun screenHasLooksUpByKey() {
-        val c = Check.ScreenHas("com.example.notes", "Mika评测-r1")
+        val c = Check.ScreenHas("com.example.notes", "Maeve评测-r1")
         assertTrue(Checks.passes(c, obs(screenHas = mapOf(Checks.screenKey(c) to true))))
         assertFalse(Checks.passes(c, obs(screenHas = mapOf(Checks.screenKey(c) to false))))
         assertFalse(Checks.passes(c, obs(screenHas = mapOf(Checks.screenKey(c.copy(text = "别的")) to true))))

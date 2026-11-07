@@ -22,13 +22,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 
 /**
  * 真机测试:内置助手经无线调试起来、交接 Binder、在自己的虚拟屏上注入点击,解绑后助手留着、再绑定直接可用。
  * 前提:安卓 12+,无线调试开着。配对二选一:
  * - 带 `-e pairingCode <6 位码>`(可加 `-e pairingPort <端口>`),此时系统的「使用配对码配对」窗口要开着;
- * - 已经用 Mika 的钥匙配对过:带 `-e assumePaired true`。
+ * - 已经用 Maeve 的钥匙配对过:带 `-e assumePaired true`。
  */
 @RunWith(AndroidJUnit4::class)
 class BuiltinHelperDeviceTest {
@@ -37,7 +37,7 @@ class BuiltinHelperDeviceTest {
     private val phone = PhoneServices.of(context)
     private val engine = phone.shellManager.engine
 
-    private fun helperUp(): IMikaShell = runBlocking {
+    private fun helperUp(): IMaeveShell = runBlocking {
         when {
             args.getString("pairingCode") != null && engine.status.value != BuiltinShellStatus.Running ->
                 engine.startPairing(args.getString("pairingCode")!!, args.getString("pairingPort")?.toIntOrNull())

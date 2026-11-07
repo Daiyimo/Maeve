@@ -2,7 +2,7 @@ package com.daiyimo.maeve.cap.phone.a11y
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.cap.phone.display.AgentDisplay
 import com.daiyimo.maeve.core.access.AppAccessDenied
 import kotlinx.coroutines.runBlocking
@@ -13,7 +13,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class AppAccessDeviceTest {
     @Test fun blockedLaunchIsDeniedWhileShellRemainsAvailable() = runBlocking {
-        val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as MikaApp
+        val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as MaeveApp
         val pkg = "com.android.settings"
         val original = app.appAccess.current()
         val script = "/sdcard/Android/data/${app.packageName}/files/usb-start.sh"
@@ -44,7 +44,7 @@ class AppAccessDeviceTest {
      * 再允许后又能读 —— 权限每次都读最新状态,不用重启任务;沿用核对结果时名单一变也不再沿用。
      */
     @Test fun blockingWhileRunningStopsTheNextRead() = runBlocking {
-        val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as MikaApp
+        val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as MaeveApp
         val pkg = "com.android.settings"
         val original = app.appAccess.current()
         DeviceSupport.sh("sh /sdcard/Android/data/${app.packageName}/files/usb-start.sh")

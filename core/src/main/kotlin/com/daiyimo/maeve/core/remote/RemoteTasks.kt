@@ -54,7 +54,7 @@ object RemoteStatus {
     const val CANCELLED = "cancelled"
 
     const val ON_PHONE_NOTE = "This step needs the user on the phone and cannot be answered remotely. " +
-        "Mika has shown its usual notification there; keep waiting or cancel the task."
+        "Maeve has shown its usual notification there; keep waiting or cancel the task."
 
     fun of(state: TaskState?): String = when (state) {
         null, TaskState.Idle -> STARTING
@@ -95,7 +95,7 @@ object RemoteStatus {
             is TaskState.WaitingInput -> {
                 put("question", s.prompt)
                 s.options?.takeIf { it.isNotEmpty() }?.let { o -> putJsonArray("options") { o.forEach { add(it) } } }
-                put("note", "Mika is asking a question. Answer this question remotely or on the phone.")
+                put("note", "Maeve is asking a question. Answer this question remotely or on the phone.")
             }
             is TaskState.WaitingConfirmation -> {
                 put("waiting_for", "confirmation")

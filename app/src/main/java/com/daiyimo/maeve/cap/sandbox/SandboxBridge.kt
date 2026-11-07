@@ -32,9 +32,9 @@ private const val WAKE_RETRY_MS = 50L
 private const val TAG = "SandboxBridge"
 
 /**
- * 沙箱命令回调 Mika 的桥:每次运行开一个抽象命名空间的 Unix 套接字(名字随机)和一次性令牌,经环境变量交给命令,
+ * 沙箱命令回调 Maeve 的桥:每次运行开一个抽象命名空间的 Unix 套接字(名字随机)和一次性令牌,经环境变量交给命令,
  * 命令结束(含超时、被杀、取消)即关闭。断网过滤只拦 AF_INET/AF_INET6,所以断网时桥照样能用。
- * 只接受与 Mika 同一身份(uid)的连接;协议见 [BridgeProtocol]。
+ * 只接受与 Maeve 同一身份(uid)的连接;协议见 [BridgeProtocol]。
  */
 class SandboxBridge(
     private val onProgress: (String) -> Unit,
@@ -44,7 +44,7 @@ class SandboxBridge(
 ) {
     fun open(): Session {
         val rnd = SecureRandom()
-        val name = "mika-bridge-" + String(CharArray(16) { NAME_CHARS[rnd.nextInt(NAME_CHARS.length)] })
+        val name = "maeve-bridge-" + String(CharArray(16) { NAME_CHARS[rnd.nextInt(NAME_CHARS.length)] })
         val token = Base64.getUrlEncoder().withoutPadding().encodeToString(ByteArray(32).also(rnd::nextBytes))
         return Session(name, token, LocalServerSocket(name), onProgress, onShare, info, onPhone)
     }
@@ -64,7 +64,7 @@ class SandboxBridge(
         private val work = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         /** 工具上下文属于同一个任务,来自多个 CLI 连接的手机请求顺序执行。 */
         private val phoneLock = Mutex()
-        private val acceptor = thread(isDaemon = true, name = "mika-bridge-accept") { acceptLoop() }
+        private val acceptor = thread(isDaemon = true, name = "maeve-bridge-accept") { acceptLoop() }
 
         private fun acceptLoop() {
             while (!closed) {
@@ -75,7 +75,7 @@ class SandboxBridge(
                 if (uid != Process.myUid() || clients.size >= MAX_CONNECTIONS) { runCatching { s.close() }; continue }
                 runCatching { s.soTimeout = CLIENT_TIMEOUT_MS }
                 clients += s
-                thread(isDaemon = true, name = "mika-bridge-conn") { serve(s) }
+                thread(isDaemon = true, name = "maeve-bridge-conn") { serve(s) }
             }
         }
 

@@ -19,7 +19,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.daiyimo.maeve.ChineseUi
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import com.daiyimo.maeve.voice.SpeechEngineSpec
 import com.daiyimo.maeve.voice.SpeechEvent
 import com.daiyimo.maeve.voice.SpeechSession
@@ -67,7 +67,7 @@ class VoiceHoldTest {
     }
 
     private fun composer(text: String = "") = compose.setContent {
-        MikaTheme {
+        MaeveTheme {
             var t by remember { mutableStateOf(text) }
             Box(Modifier.fillMaxSize()) {
                 Composer(

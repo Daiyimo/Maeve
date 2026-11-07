@@ -9,7 +9,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.task.TaskService
@@ -22,13 +22,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * 用 ChatGPT 登录期间的前台服务:Mika 退到后台、用户在浏览器里登录时撑住进程,系统不冻结它,
+ * 用 ChatGPT 登录期间的前台服务:Maeve 退到后台、用户在浏览器里登录时撑住进程,系统不冻结它,
  * 本机回调才有人接、换令牌不被耽误。只挂一条安静的通知,上面能「取消」这次登录。
  * 不自己做事:登录跑在 [ChatGptSignIns] 里,这里看着它的 running,登录一结束(成功、失败、取消、超时)就停。
  */
 class ChatGptSignInService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val signIns get() = (application as MikaApp).chatGptSignIn
+    private val signIns get() = (application as MaeveApp).chatGptSignIn
     private var watch: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -78,12 +78,12 @@ class ChatGptSignInService : Service() {
     }
 
     companion object {
-        private const val TAG = "MikaChatGpt"
+        private const val TAG = "MaeveChatGpt"
         private const val ACTION_CANCEL = "com.daiyimo.maeve.chatgpt.CANCEL_SIGN_IN"
         /** 和任务、电脑连接的通知错开。 */
         private const val NOTIFICATION_ID = 30_002
 
-        /** 登录开始时调(用户刚点了登录,Mika 在前台,可以开前台服务);开不了抛出,由调用方记下。 */
+        /** 登录开始时调(用户刚点了登录,Maeve 在前台,可以开前台服务);开不了抛出,由调用方记下。 */
         fun start(context: Context) {
             context.startForegroundService(Intent(context, ChatGptSignInService::class.java))
         }

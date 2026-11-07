@@ -164,11 +164,11 @@ class ToolDispatcherDiffTest {
         // 真实裁剪:裁剪线前的差异 d1、d2 被裁,线前最近的全量 c1 保留,差异链断了;下一次必须发全量
         val s = ListScreen(ten)
         val d = toolDispatcher(s, inlineScreen = true)
-        val h = mutableListOf(Message(Role.User, listOf(Part.Text("task")), Author.Mika))
+        val h = mutableListOf(Message(Role.User, listOf(Part.Text("task")), Author.Maeve))
         suspend fun step(id: String, name: String, args: String = "{}"): JsonObject {
             val c = Part.ToolCall(id, name, args)
             val r = d.execute(c).content
-            h += Message(Role.Assistant, listOf(c), Author.Mika); h += Message(Role.Tool, listOf(Part.ToolResult(id, r.toString(), false)), Author.Mika)
+            h += Message(Role.Assistant, listOf(c), Author.Maeve); h += Message(Role.Tool, listOf(Part.ToolResult(id, r.toString(), false)), Author.Maeve)
             return r
         }
         step("c1", "phone_observe")

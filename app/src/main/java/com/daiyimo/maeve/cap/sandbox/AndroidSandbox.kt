@@ -58,7 +58,7 @@ internal const val SHARE_MAX_FILES = 20
 internal const val SHARE_MAX_BYTES = 500L shl 20
 
 /**
- * 一个任务(一个 AndroidSandbox)的导出额度,share_file 与 `mika share` 共用。
+ * 一个任务(一个 AndroidSandbox)的导出额度,share_file 与 `maeve share` 共用。
  * 复制前按文件大小预留,复制完按实际字节结算;导出失败不占额度。
  */
 internal class ShareQuota(private val maxFiles: Int = SHARE_MAX_FILES, private val maxBytes: Long = SHARE_MAX_BYTES) {
@@ -83,10 +83,10 @@ internal class ShareQuota(private val maxFiles: Int = SHARE_MAX_FILES, private v
 
 /**
  * 启动沙箱进程的专用线程,进程存活期间一直在。启动器设了 PR_SET_PDEATHSIG,
- * 它跟的是 fork 出它的那个线程:线程池回收空闲线程时,那条线程起的命令会被当成「Mika 死了」而杀掉。
+ * 它跟的是 fork 出它的那个线程:线程池回收空闲线程时,那条线程起的命令会被当成「Maeve 死了」而杀掉。
  * 协程调度器把 start() 的异常交回调用方,线程本身不会因异常退出。
  */
-private val launcherThread = Executors.newSingleThreadExecutor { r -> Thread(r, "mika-sandbox-launcher").apply { isDaemon = true } }
+private val launcherThread = Executors.newSingleThreadExecutor { r -> Thread(r, "maeve-sandbox-launcher").apply { isDaemon = true } }
     .asCoroutineDispatcher()
 
 /** [SandboxPort] 的安卓实现:启动器 + PRoot 跑命令,文件类操作直接读写宿主目录。 */
@@ -97,7 +97,7 @@ class AndroidSandbox internal constructor(
     /** 每次运行开一个桥会话;JVM 测试里没有安卓套接字,传 false。 */
     private val bridges: Boolean = false,
     private val version: String = "",
-    /** 存到「下载/Mika」:(已过关口核实的文件, 保存名) → 导出的文件;为空时不能导出。 */
+    /** 存到「下载/Maeve」:(已过关口核实的文件, 保存名) → 导出的文件;为空时不能导出。 */
     private val exporter: (suspend (GatedFile, String) -> SharedFile)? = null,
     /** 导出成功后告诉任务(文件卡片)。 */
     private val onShared: (SharedFile) -> Unit = {},
@@ -123,7 +123,7 @@ class AndroidSandbox internal constructor(
         startPreparing = { RuntimePreparer.ensure(context, retryFailed = true) },
         allowNetwork = { state.networkAllowed },
         proxy = { NetProxyStore.get(context).get() },
-        clientScript = { context.assets.open("sandbox/mika").use { it.readBytes() } },
+        clientScript = { context.assets.open("sandbox/maeve").use { it.readBytes() } },
     )
 
     private val quota = ShareQuota()
@@ -182,7 +182,7 @@ class AndroidSandbox internal constructor(
         val text = String(o.output, Charsets.UTF_8)
         if (o.exitCode == EXIT_LAUNCHER_ERROR) {
             val reason = text.trimEnd().lineSequence().lastOrNull().orEmpty()
-            if (reason.startsWith("mikarun: network isolation unavailable")) {
+            if (reason.startsWith("maeverun: network isolation unavailable")) {
                 throw SandboxError("sandbox_network_isolation_unavailable",
                     "The sandbox cannot cut off the network on this device, so commands are refused while network access is off. ($reason)")
             }
@@ -280,7 +280,7 @@ class AndroidSandbox internal constructor(
 
     /**
      * [file] 已由 ShareRules 按工作区检查过;导出时经关口打开一次(根目录是它所在的那个工作区),额度按句柄上的大小算,
-     * 复制也从这个句柄读。意外的错误只记在 Mika 这边,交出去的只有错误码和一句话,不带 Mika 的私有路径。
+     * 复制也从这个句柄读。意外的错误只记在 Maeve 这边,交出去的只有错误码和一句话,不带 Maeve 的私有路径。
      */
     override suspend fun share(file: File, name: String): String {
         val export = exporter ?: throw SandboxError("share_unavailable", "Saving files to Downloads is not available in this version.")
@@ -331,15 +331,15 @@ class AndroidSandbox internal constructor(
         return bytes
     }
 
-    /** 经关口在 .mika/ 里新建(不覆盖已有的);.mika 被换成链接等时抛出,不写任何东西。 */
+    /** 经关口在 .maeve/ 里新建(不覆盖已有的);.maeve 被换成链接等时抛出,不写任何东西。 */
     @Synchronized
     override fun saveOutput(workspace: String, text: String): String {
         val root = dirs.workspace(workspace).apply { mkdirs() }
-        var next = (files.list(root, ".mika").mapNotNull { OUT_NAME.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.maxOrNull() ?: 0) + 1
+        var next = (files.list(root, ".maeve").mapNotNull { OUT_NAME.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }.maxOrNull() ?: 0) + 1
         repeat(100) {
-            val rel = ".mika/out-$next.txt"
+            val rel = ".maeve/out-$next.txt"
             try {
-                files.createNew(root, rel, under = ".mika").use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                files.createNew(root, rel, under = ".maeve").use { it.write(text.toByteArray(Charsets.UTF_8)) }
                 return "${SandboxPaths.WORKSPACE}/$rel"
             } catch (e: SandboxError) {
                 if (e.code != WorkspaceFileGate.FILE_EXISTS) throw IOException("cannot save output: ${e.code}")
@@ -364,7 +364,7 @@ class AndroidSandbox internal constructor(
     /** 已安装的根文件系统版本可能没变，但 APK 中的桥客户端已经更新。 */
     private fun syncClientScript() {
         val expected = bundledClient ?: return
-        val rel = "usr/local/bin/mika"
+        val rel = "usr/local/bin/maeve"
         val matches = runCatching {
             dirs.gate.openRead(dirs.rootfs, rel).use { it.size == expected.size.toLong() && it.read(0, expected.size).contentEquals(expected) }
         }.getOrDefault(false)
@@ -379,7 +379,7 @@ class AndroidSandbox internal constructor(
         return withContext(Dispatchers.IO) { SkillsSync.matches(dirs, rel, expected) }
     }
 
-    /** `mika share` 与 share_file 走同一套路径规则。 */
+    /** `maeve share` 与 share_file 走同一套路径规则。 */
     private fun bridgeFor(workspace: String, network: Boolean, onProgress: (String) -> Unit, phone: PhoneCommandHandler?): SandboxBridge {
         return SandboxBridge(
         onProgress = onProgress,
@@ -460,7 +460,7 @@ class AndroidSandbox internal constructor(
             val p = started!!
             // 读输出用普通线程:阻塞的 read 取消不了,放在协程里会让取消一直等下去
             val collector = OutputCollector()
-            val reader = thread(isDaemon = true, name = "mika-sandbox-output") { runCatching { p.inputStream.use(collector::drain) } }
+            val reader = thread(isDaemon = true, name = "maeve-sandbox-output") { runCatching { p.inputStream.use(collector::drain) } }
             try {
                 // 启动期间已被取消:在这里抛出,由下面的 catch 杀掉刚起的进程
                 currentCoroutineContext().ensureActive()
@@ -483,7 +483,7 @@ class AndroidSandbox internal constructor(
         /** 先 SIGTERM(启动器收到后清掉整个进程树),[DESTROY_GRACE_MS] 后还在就 SIGKILL。 */
         private fun abandon(p: Process) {
             p.destroy()
-            thread(isDaemon = true, name = "mika-sandbox-reaper") { if (!p.waitFor(DESTROY_GRACE_MS, TimeUnit.MILLISECONDS)) p.destroyForcibly() }
+            thread(isDaemon = true, name = "maeve-sandbox-reaper") { if (!p.waitFor(DESTROY_GRACE_MS, TimeUnit.MILLISECONDS)) p.destroyForcibly() }
         }
     }
 }
@@ -511,7 +511,7 @@ private class SandboxProcessHandle(
         runCatching { process.outputStream.close() }
         runCatching { process.destroy() }
         // 进程树退干净了才交还租约:还在写工作区的进程不该和重置撞上(重置会先收回、自己停进程,不等这里)
-        thread(isDaemon = true, name = "mika-sandbox-stdio-reaper") {
+        thread(isDaemon = true, name = "maeve-sandbox-stdio-reaper") {
             try {
                 if (!process.waitFor(DESTROY_GRACE_MS, TimeUnit.MILLISECONDS)) process.destroyForcibly()
             } finally {

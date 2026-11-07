@@ -216,7 +216,7 @@ class LoopScenarioTest {
         }
         val main = fakeModel("main") {
             call("web_navigate", "url" to "https://shop.example.com/")
-            call(WEB_SCRIPT_TOOL, "code" to "await mika.tap('@e1'); await mika.tap('@e2')")
+            call(WEB_SCRIPT_TOOL, "code" to "await maeve.tap('@e1'); await maeve.tap('@e2')")
             reportFailure("下单需要用户确认,脚本没有执行")
         }
         val end = loop(main, toolDispatcher(FakeScreen(), web = port)).run("搜一下再下单")
@@ -403,9 +403,9 @@ class LoopScenarioTest {
         assertTrue(hint, "latest message: \"$quoted\"" in hint)
     }
 
-    // 引了 Mika 之前的一段英文回答、再打一句短中文:按整句算会判成换了语言;引的那段不算用户的话,语言提示引打的字,中文回答不退回
+    // 引了 Maeve 之前的一段英文回答、再打一句短中文:按整句算会判成换了语言;引的那段不算用户的话,语言提示引打的字,中文回答不退回
     @Test fun quotedReplyFollowsTheUserWords() = runTest {
-        val goal = QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Mika, ENGLISH_REPLY), "那哪个更值")
+        val goal = QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Maeve, ENGLISH_REPLY), "那哪个更值")
         assertNotNull(ReplyLanguage.mismatch(goal, HEADPHONES_ANSWER))
         val main = fakeModel("main") { answer(HEADPHONES_ANSWER) }
         val end = loop(main, toolDispatcher(FakeScreen())).run(goal)
@@ -417,7 +417,7 @@ class LoopScenarioTest {
 
     // 插话里引了那段英文回答:一样只看插话里打的字
     @Test fun quotedSteerFollowsTheUserWords() = runTest {
-        val steer = QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Mika, ENGLISH_REPLY), "那哪个更值")
+        val steer = QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Maeve, ENGLISH_REPLY), "那哪个更值")
         assertNotNull(ReplyLanguage.mismatch(steer, HEADPHONES_ANSWER))
         val main = fakeModel("main") { answer(HEADPHONES_ANSWER) }
         val inbox = RunInbox().apply { send(RunInput.Steer("m1", steer)) }

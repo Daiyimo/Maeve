@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.daiyimo.maeve.settings.KeyCipher
 import com.daiyimo.maeve.settings.KeystoreKeyCipher
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import com.daiyimo.maeve.cap.phone.shell.AppAudioKey
 import com.daiyimo.maeve.cap.phone.shell.SharedShell
 import kotlinx.coroutines.Dispatchers
@@ -62,7 +62,7 @@ interface AudioPort {
     fun setMode(packageName: String, mode: String): Boolean
 }
 
-class ShellAudio(private val shell: IMikaShell) : AudioPort {
+class ShellAudio(private val shell: IMaeveShell) : AudioPort {
     override fun mode(packageName: String): String? = runCatching {
         val (pkg, user) = AppAudioKey.parse(packageName) ?: return null
         if (user == null) shell.getAudioMode(pkg) else shell.getAudioModeInUser(pkg, user)
@@ -81,7 +81,7 @@ class ShellAudio(private val shell: IMikaShell) : AudioPort {
 }
 
 /**
- * 任务期间关掉目标 App 的声音。静音前把原模式写进持久化记录:shell 服务随 Mika 进程一起结束,
+ * 任务期间关掉目标 App 的声音。静音前把原模式写进持久化记录:shell 服务随 Maeve 进程一起结束,
  * 它内存里的原值会丢,只有这份记录能让下次启动时恢复。
  */
 class AudioMute(private val port: AudioPort, private val store: MarkerStore) {
@@ -117,7 +117,7 @@ class AudioMute(private val port: AudioPort, private val store: MarkerStore) {
 }
 
 /**
- * Mika 借剪贴板粘贴期间用户原来的剪贴板文字(和 Mika 放进去的文字)的加密留底:外壳进程随 Mika 一起被杀时,
+ * Maeve 借剪贴板粘贴期间用户原来的剪贴板文字(和 Maeve 放进去的文字)的加密留底:外壳进程随 Maeve 一起被杀时,
  * 它内存里的原剪贴板就没了,下次启动只能靠这份把用户的内容还回去。用 [cipher] 加密后存成一段文字,还原后删掉。
  */
 class ClipBackup(private val read: () -> String?, private val write: (String?) -> Unit, private val cipher: KeyCipher) {
@@ -126,7 +126,7 @@ class ClipBackup(private val read: () -> String?, private val write: (String?) -
         write(Base64.getEncoder().encodeToString(cipher.encrypt(plain)))
     }
 
-    /** (原来的文字, Mika 放进去的文字);没有留底、或解不开(密钥已换)时为 null。 */
+    /** (原来的文字, Maeve 放进去的文字);没有留底、或解不开(密钥已换)时为 null。 */
     fun load(): Pair<String, String>? = runCatching {
         val data = read() ?: return null
         val o = Json.parseToJsonElement(String(cipher.decrypt(Base64.getDecoder().decode(data)))).jsonObject
@@ -137,7 +137,7 @@ class ClipBackup(private val read: () -> String?, private val write: (String?) -
 }
 
 /**
- * Mika 异常退出后留下的系统改动(App 静音、粘贴期间暂时换掉的剪贴板),在下次启动时恢复。
+ * Maeve 异常退出后留下的系统改动(App 静音、粘贴期间暂时换掉的剪贴板),在下次启动时恢复。
  * 静音记录每个任务一份(按 [TaskRun.key]),几个任务同时跑时各记各的包。
  * 任务期间的改动由任务自己收尾,恢复只处理没人收尾的那些:还在跑的任务([live])的记录不动,
  * 有任务在跑时也不还原剪贴板(那时它可能正借着剪贴板粘贴)。
@@ -153,7 +153,7 @@ class TaskRecovery(context: Context, private val sharedShell: SharedShell) {
     /** 还在跑的任务;进程被杀后为空,所有记录都归恢复处理。 */
     private val live = ConcurrentHashMap.newKeySet<String>()
 
-    fun audioMute(shell: IMikaShell, runKey: String) = AudioMute(ShellAudio(shell), marker(runKey))
+    fun audioMute(shell: IMaeveShell, runKey: String) = AudioMute(ShellAudio(shell), marker(runKey))
 
     private fun marker(runKey: String) = PrefsMarker(prefs(), "${MUTED}_$runKey")
 
@@ -167,7 +167,7 @@ class TaskRecovery(context: Context, private val sharedShell: SharedShell) {
         markerNames().any { it !in liveNames() } || (live.isEmpty() && prefs().getBoolean(CLIP_HELD, false))
 
     /** 任务开工:先恢复没人收尾的遗留,再登记为在跑。 */
-    suspend fun beginRun(shell: IMikaShell, runKey: String) = lock.withLock {
+    suspend fun beginRun(shell: IMaeveShell, runKey: String) = lock.withLock {
         withContext(Dispatchers.IO) { recoverWith(shell) }
         live += runKey
     }
@@ -177,7 +177,7 @@ class TaskRecovery(context: Context, private val sharedShell: SharedShell) {
         live -= runKey
     }
 
-    /** 粘贴期间剪贴板是 Mika 的;进程在这期间结束,下次启动让 shell 把用户原来的剪贴板还回去。 */
+    /** 粘贴期间剪贴板是 Maeve 的;进程在这期间结束,下次启动让 shell 把用户原来的剪贴板还回去。 */
     fun markClipHeld(held: Boolean) {
         prefs().edit().putBoolean(CLIP_HELD, held).apply { if (!held) remove(CLIP_BACKUP) }.commit()
     }
@@ -194,12 +194,12 @@ class TaskRecovery(context: Context, private val sharedShell: SharedShell) {
     }
 
     /** 已持有 [lock] 时调用。 */
-    fun recoverWith(shell: IMikaShell) {
+    fun recoverWith(shell: IMaeveShell) {
         val records = markerNames().associateWith { PrefsMarker(prefs(), it) }
         if (!restoreRuns(records, ShellAudio(shell), liveNames())) Log.w(TAG, "muted apps not restored yet")
         if (live.isNotEmpty()) return
         // shell 进程还在就还原它记着的原剪贴板(剪贴板已被用户换掉时它不会动);
-        // shell 也被杀过就按加密留底还原,两步都只在剪贴板仍是 Mika 的时才换
+        // shell 也被杀过就按加密留底还原,两步都只在剪贴板仍是 Maeve 的时才换
         val inShell = runCatching { shell.restoreClip() }.isSuccess
         val fromBackup = restoreClip(clipBackup()) { o, u -> shell.restoreClipText(o, u) }
         if (inShell && fromBackup) markClipHeld(false)
@@ -228,12 +228,12 @@ class TaskRecovery(context: Context, private val sharedShell: SharedShell) {
     }
 
     companion object {
-        private const val TAG = "MikaTask"
+        private const val TAG = "MaeveTask"
         private const val PREFS = "task_recovery"
         private const val SHELL_WAIT_MS = 60_000L
         private const val CLIP_HELD = "clip_held"
         private const val CLIP_BACKUP = "clip_backup"
-        private const val CLIP_KEY_ALIAS = "mika-clip-backup"
+        private const val CLIP_KEY_ALIAS = "maeve-clip-backup"
         /** 每个任务的静音记录名是 muted_<任务 key>;旧版只有一份,名为 muted,照样恢复。 */
         private const val MUTED = "muted"
 
@@ -244,7 +244,7 @@ class TaskRecovery(context: Context, private val sharedShell: SharedShell) {
         fun restoreRuns(records: Map<String, MarkerStore>, port: AudioPort, live: Set<String>): Boolean =
             records.filterKeys { it !in live }.values.map { AudioMute(port, it).restoreAll() }.all { it }
 
-        /** 按留底把用户原来的剪贴板还回去([restore] 只在剪贴板仍是 Mika 的时才换);还原了或没有留底返回 true,并删掉留底。 */
+        /** 按留底把用户原来的剪贴板还回去([restore] 只在剪贴板仍是 Maeve 的时才换);还原了或没有留底返回 true,并删掉留底。 */
         fun restoreClip(backup: ClipBackup, restore: (original: String, ours: String) -> Unit): Boolean {
             val (original, ours) = backup.load() ?: return true.also { backup.clear() }
             return runCatching { restore(original, ours) }.onSuccess { backup.clear() }.isSuccess

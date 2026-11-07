@@ -3,7 +3,7 @@ package com.daiyimo.maeve.intercept
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.cap.phone.a11y.ScreenAccessibility
 import com.daiyimo.maeve.core.remote.RemoteTaskService
 import com.daiyimo.maeve.settings.FeatureFlags
@@ -15,20 +15,20 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * 截获 amoo 聊天里发送的任务,在 Mika 里新建任务执行。
+ * 截获 amoo 聊天里发送的任务,在 Maeve 里新建任务执行。
  *
- * 背景:amoo(com.stepos.ailauncher)发出的消息走 AgentBus 云端优先,Mika 这台「本机操作手」
- * 会被绕过。没有 root 改不了 amoo/AgentBus 的路由,那就从 Mika 侧接:无障碍服务看着 amoo
+ * 背景:amoo(com.stepos.ailauncher)发出的消息走 AgentBus 云端优先,Maeve 这台「本机操作手」
+ * 会被绕过。没有 root 改不了 amoo/AgentBus 的路由,那就从 Maeve 侧接:无障碍服务看着 amoo
  * 聊天页,用户每发一条消息,就按 MCP mika_run_task 的同一条底层路径
- * ([RemoteTaskService.start])在 Mika 里建一个任务,胶囊照常执行,任务页可见、可取消。
- * amoo 发往云端的消息不受影响,照常发送——Mika 是在本机并行做一遍,不是拦路。
+ * ([RemoteTaskService.start])在 Maeve 里建一个任务,胶囊照常执行,任务页可见、可取消。
+ * amoo 发往云端的消息不受影响,照常发送——Maeve 是在本机并行做一遍,不是拦路。
  *
  * 判定见 [AmooSendDetector] 的三层闸门;这里的职责是 Android glue:读无障碍树、
  * 找输入框文本和气泡、命中后起任务。
  *
  * 线程:detector 的状态只在主线程读写(无障碍回调本来就在主线程),起任务才切到 IO。
  */
-class AmooIntercept(private val app: MikaApp) {
+class AmooIntercept(private val app: MaeveApp) {
 
     private val detector = AmooSendDetector()
 
@@ -86,7 +86,7 @@ class AmooIntercept(private val app: MikaApp) {
         }
     }
 
-    /** 由 MikaAccessibilityService 转进来;[service] 就是当前无障碍服务实例。 */
+    /** 由 MaeveAccessibilityService 转进来;[service] 就是当前无障碍服务实例。 */
     fun onAccessibilityEvent(event: AccessibilityEvent, service: ScreenAccessibility) {
         // 一键接入期间即使截获关着也要跑:填输入框要靠这些事件
         if (!enabled && !app.amooSetup.active) return
@@ -98,7 +98,7 @@ class AmooIntercept(private val app: MikaApp) {
                 val pkg = event.packageName?.toString()
                 if (cls != null && (cls.contains("InputMethod", true) || cls.contains("SoftInput", true))) return
                 if (pkg != null && pkg.contains("inputmethod", true)) return
-                // Mika 自己的浮层/胶囊窗口变化不是「前台换了 App」,不记(scan 里 root 包名兜底防误判)
+                // Maeve 自己的浮层/胶囊窗口变化不是「前台换了 App」,不记(scan 里 root 包名兜底防误判)
                 if (pkg == app.packageName) return
                 detector.onWindowStateChanged(pkg, cls)
                 Log.i(TAG, "win-state pkg=$pkg cls=$cls inAmooChat=${detector.inAmooChat}")

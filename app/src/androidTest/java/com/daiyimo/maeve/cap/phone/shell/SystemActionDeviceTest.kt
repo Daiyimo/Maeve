@@ -16,7 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 真机测试:系统动作的 intent 在这台手机上有没有 App 接(没有就跳过,不算失败),有的话打开闹钟列表落在 Mika 的屏上、
+ * 真机测试:系统动作的 intent 在这台手机上有没有 App 接(没有就跳过,不算失败),有的话打开闹钟列表落在 Maeve 的屏上、
  * 用户的主屏不动。不设真的闹钟、计时器,不建日程。
  */
 @RunWith(AndroidJUnit4::class)
@@ -42,7 +42,7 @@ class SystemActionDeviceTest {
     }
 
     @Test
-    fun alarmListOpensOnMikasScreenOnly() = runBlocking<Unit> {
+    fun alarmListOpensOnMaevesScreenOnly() = runBlocking<Unit> {
         val h = handlers(SystemAction.ShowAlarms)
         assumeTrue("no clock app takes SHOW_ALARMS", h.isNotEmpty())
         val shell = DeviceSupport.shell()

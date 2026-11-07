@@ -8,7 +8,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.task.TaskService
@@ -20,18 +20,18 @@ import com.daiyimo.maeve.task.TaskService
  *
  * 电脑经 USB 调试打开、关掉 USB 方式也是起这个服务:清单里它对外开放,但要求调用方持有
  * INTERACT_ACROSS_USERS_FULL。这个权限 shell 有,普通 App 拿不到(只给系统签名和安装器,adb 也授不了),
- * 所以只有 `adb shell am start-foreground-service` 这样以 shell 身份发起的才起得了;Mika 自己起不受限。
+ * 所以只有 `adb shell am start-foreground-service` 这样以 shell 身份发起的才起得了;Maeve 自己起不受限。
  * 以前台服务的方式起:安卓 12 起后台的 App 一般不能自己开前台服务,但由 shell 发起的启动不在此限。
  */
 class McpService : Service() {
-    private val runtime get() = (application as MikaApp).mcp
+    private val runtime get() = (application as MaeveApp).mcp
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         TaskService.ensureChannels(this)
         val applied = runCatching { McpModes.apply(intent?.action, runtime.settings, runtime.usb, runtime.relaySettings) }
-            .onFailure { Log.w("MikaMcp", "could not update computer access settings", it) }.isSuccess
+            .onFailure { Log.w("MaeveMcp", "could not update computer access settings", it) }.isSuccess
         // startForegroundService 之后必须尽快进前台,哪怕马上就要退出;系统不让进前台时就此退出,不让进程崩
         val foreground = runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -39,9 +39,9 @@ class McpService : Service() {
             } else {
                 startForeground(NOTIFICATION_ID, notification())
             }
-        }.onFailure { Log.w("MikaMcp", "computer access service could not enter the foreground", it) }.isSuccess
+        }.onFailure { Log.w("MaeveMcp", "computer access service could not enter the foreground", it) }.isSuccess
         val ready = foreground && applied && runCatching { runtime.sync() }
-            .onFailure { Log.w("MikaMcp", "could not start computer access", it) }.getOrDefault(false)
+            .onFailure { Log.w("MaeveMcp", "could not start computer access", it) }.getOrDefault(false)
         if (!ready) {
             runtime.stopServer()
             runtime.usb.unpublish()

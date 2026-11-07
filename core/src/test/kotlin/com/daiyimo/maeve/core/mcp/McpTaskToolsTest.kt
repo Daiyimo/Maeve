@@ -55,7 +55,7 @@ class McpTaskToolsTest {
 
     @Test fun toolListHasTheSevenHighLevelTools() {
         val names = tools.definitions().map { it.jsonObject.str("name") }
-        assertEquals(listOf("mika_run_task", "mika_task_status", "mika_wait_task", "mika_answer", "mika_steer_task", "mika_cancel_task", "mika_list_tasks"), names)
+        assertEquals(listOf("maeve_run_task", "maeve_task_status", "maeve_wait_task", "maeve_answer", "maeve_steer_task", "maeve_cancel_task", "maeve_list_tasks"), names)
         tools.definitions().forEach { t ->
             val schema = t.jsonObject["inputSchema"]!!.jsonObject
             assertEquals("object", schema.str("type"))
@@ -140,7 +140,7 @@ class McpTaskToolsTest {
         fake.set("t1", TaskState.WaitingConfirmation(ConfirmationRequest(IrrevAction.order, "Shop", "1 item", "¥25", "com.example.shop")))
         rejects(McpTaskTools.ANSWER, args("task_id" to "t1", "text" to "yes"), "cannot be answered over MCP")
         fake.set("t1", TaskState.WaitingTakeover("payment", "Please pay"))
-        rejects(McpTaskTools.ANSWER, args("task_id" to "t1", "text" to "yes"), "mika_wait_task")
+        rejects(McpTaskTools.ANSWER, args("task_id" to "t1", "text" to "yes"), "maeve_wait_task")
         fake.set("t1", TaskState.Running(1, "x"))
         rejects(McpTaskTools.ANSWER, args("task_id" to "t1", "text" to "yes"), "not waiting")
         assertTrue("nothing may reach the task", fake.answers.isEmpty())
@@ -163,7 +163,7 @@ class McpTaskToolsTest {
             closingTools.call(McpTaskTools.ANSWER, args("task_id" to "t1", "text" to "M"))
             fail("expected an error")
         } catch (e: McpTaskTools.ToolError) {
-            assertEquals("The question is no longer open; check mika_task_status.", e.message)
+            assertEquals("The question is no longer open; check maeve_task_status.", e.message)
         }
     }
 

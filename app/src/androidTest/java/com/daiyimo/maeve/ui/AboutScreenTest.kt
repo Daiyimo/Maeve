@@ -17,14 +17,14 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import android.content.ClipboardManager
 import com.daiyimo.maeve.about.CheckStatus
-import com.daiyimo.maeve.about.MikaLinks
+import com.daiyimo.maeve.about.MaeveLinks
 import com.daiyimo.maeve.about.ReleaseInfo
 import com.daiyimo.maeve.about.UpdateState
 import com.daiyimo.maeve.core.shell.BuiltinShellStatus
 import com.daiyimo.maeve.settings.AccessibilityState
 import com.daiyimo.maeve.settings.Prerequisites
 import com.daiyimo.maeve.settings.SystemStatus
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -38,7 +38,7 @@ class AboutScreenTest {
     @get:Rule val compose = createComposeRule()
 
     private val r020 = ReleaseInfo(
-        "0.2.0", "Mika 0.2.0", "### 新增\n- 附件面板", "2026-11-05",
+        "0.2.0", "Maeve 0.2.0", "### 新增\n- 附件面板", "2026-11-05",
         "https://github.com/Daiyimo/Maeve/releases/tag/v0.2.0", "https://github.com/x/maeve-0.2.0.apk",
     )
 
@@ -48,12 +48,12 @@ class AboutScreenTest {
         var licenses = 0
     }
 
-    private val sampleDiagnostics = "Mika 诊断信息 / Mika diagnostics\n\n[App]\nversion: 0.1.0 (build abc1234)\n"
+    private val sampleDiagnostics = "Maeve 诊断信息 / Maeve diagnostics\n\n[App]\nversion: 0.1.0 (build abc1234)\n"
 
     private fun about(update: UpdateState = UpdateState()): Calls {
         val calls = Calls()
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 AboutScreen(
                     versionName = "0.1.0", build = "abc1234", beta = true, update = update, issueUrl = "issue://prefilled",
                     onCheck = { calls.checks++ }, onOpenUrl = { calls.urls += it },
@@ -73,7 +73,7 @@ class AboutScreenTest {
     @Test
     fun showsHeroRowsNoteAndFooter() {
         about()
-        compose.onNodeWithText("Mika").assertIsDisplayed()
+        compose.onNodeWithText("Maeve").assertIsDisplayed()
         compose.onNodeWithText(AboutCopy.TAGLINE).assertIsDisplayed()
         compose.onNodeWithText("版本 0.1.0").assertIsDisplayed()
         compose.onNodeWithText("Beta").assertIsDisplayed()
@@ -93,7 +93,7 @@ class AboutScreenTest {
             scrollTo(t)
             compose.onNodeWithText(t).performClick()
         }
-        assertEquals(listOf(MikaLinks.REPO, MikaLinks.README), calls.urls)
+        assertEquals(listOf(MaeveLinks.REPO, MaeveLinks.README), calls.urls)
     }
 
     @Test
@@ -185,7 +185,7 @@ class AboutScreenTest {
         var installs = 0
         var deletes = 0
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 androidx.compose.foundation.layout.Column {
                     UpdateDownloadActions(com.daiyimo.maeve.about.ApkDownloadState(com.daiyimo.maeve.about.DownloadPhase.Ready),
                         false, null, {}, { installs++ }, { deletes++ })
@@ -202,7 +202,7 @@ class AboutScreenTest {
     fun downloadingShowsProgressAndCanBeCancelled() {
         var deletes = 0
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 androidx.compose.foundation.layout.Column {
                     UpdateDownloadActions(com.daiyimo.maeve.about.ApkDownloadState(com.daiyimo.maeve.about.DownloadPhase.Downloading, 50, 100),
                         false, null, {}, {}, { deletes++ })
@@ -218,7 +218,7 @@ class AboutScreenTest {
     fun failedDownloadCanBeRetried() {
         var retries = 0
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 androidx.compose.foundation.layout.Column {
                     UpdateDownloadActions(com.daiyimo.maeve.about.ApkDownloadState(com.daiyimo.maeve.about.DownloadPhase.Failed),
                         false, null, { retries++ }, {}, {})
@@ -237,15 +237,15 @@ class AboutScreenTest {
         compose.onNodeWithText("0.2.0 · 2026-11-05").assertExists()
         compose.onNodeWithText(AboutCopy.CHANGELOG_ALL).performClick()
         compose.waitForIdle()
-        assertEquals(listOf(MikaLinks.RELEASES), calls.urls)
+        assertEquals(listOf(MaeveLinks.RELEASES), calls.urls)
     }
 
-    /** 侧栏最底下一行两个:设置靠左、关于 Mika 靠右(红点在最右边);有新版时关于带红点。 */
+    /** 侧栏最底下一行两个:设置靠左、关于 Maeve 靠右(红点在最右边);有新版时关于带红点。 */
     @Test
     fun drawerFooterHasSettingsAndAbout() {
         val calls = mutableListOf<String>()
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 ChatDrawer(
                     Prerequisites.Check(emptyList()), DrawerSections(emptyList(), emptyList()), canSwitch = true,
                     onNew = {}, onPlans = {}, onMemory = {}, onBrowser = {},
@@ -255,12 +255,12 @@ class AboutScreenTest {
             }
         }
         compose.onNodeWithText("设置").assertIsDisplayed()
-        compose.onNodeWithText("关于 Mika").assertIsDisplayed()
+        compose.onNodeWithText("关于 Maeve").assertIsDisplayed()
         compose.onNodeWithTag("update-dot", useUnmergedTree = true).assertExists()
         val footer = compose.onNodeWithTag("drawer-footer").getUnclippedBoundsInRoot()
         // 量文字本身(未合并的树):合并后的可点行节点比文字宽,量它判断不了左右半边
         val settings = compose.onNodeWithText("设置", useUnmergedTree = true).getUnclippedBoundsInRoot()
-        val about = compose.onNodeWithText("关于 Mika", useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val about = compose.onNodeWithText("关于 Maeve", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val dot = compose.onNodeWithTag("update-dot", useUnmergedTree = true).getUnclippedBoundsInRoot()
         val mid = (footer.left + footer.right) / 2
         assertTrue(settings.right < mid)
@@ -268,29 +268,29 @@ class AboutScreenTest {
         // 关于那一项贴着右边:红点离行的右边只隔两层内边距(行 12dp + 项 12dp)
         assertTrue(footer.right - dot.right <= 25.dp)
         compose.onNodeWithText("设置").performClick()
-        compose.onNodeWithText("关于 Mika").performClick()
+        compose.onNodeWithText("关于 Maeve").performClick()
         assertEquals(listOf("settings", "about"), calls)
     }
 
     @Test
     fun drawerFooterNoDotWithoutUpdate() {
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 ChatDrawer(
                     Prerequisites.Check(emptyList()), DrawerSections(emptyList(), emptyList()), canSwitch = true,
                     onNew = {}, onPlans = {}, onMemory = {}, onBrowser = {}, onSettings = {}, onOpen = {},
                 )
             }
         }
-        compose.onNodeWithText("关于 Mika").assertIsDisplayed()
+        compose.onNodeWithText("关于 Maeve").assertIsDisplayed()
         compose.onAllNodesWithTag("update-dot", useUnmergedTree = true).assertCountEquals(0)
     }
 
-    /** 设置首页「关于 Mika」一行:有新版写「x 可更新」带红点。 */
+    /** 设置首页「关于 Maeve」一行:有新版写「x 可更新」带红点。 */
     @Test
     fun settingsAboutRowShowsUpdate() {
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 SettingsContent(
                     status = SystemStatus(34, BuiltinShellStatus.Running, AccessibilityState.On, notificationsAllowed = true),
                     androidRelease = "14", mainModel = "DeepSeek", onBack = {}, onProblem = {}, onOpenModels = {},

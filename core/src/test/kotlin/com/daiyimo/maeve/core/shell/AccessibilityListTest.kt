@@ -6,8 +6,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AccessibilityListTest {
-    private val mika = PermissionCommands.accessibilityService("com.daiyimo.maeve")
-    private val mikaLong = "com.daiyimo.maeve/com.daiyimo.maeve.a11y.MikaAccessibilityService"
+    private val maeve = PermissionCommands.accessibilityService("com.daiyimo.maeve")
+    private val maeveLong = "com.daiyimo.maeve/com.daiyimo.maeve.a11y.MaeveAccessibilityService"
     private val other = "com.example.reader/.ReaderService"
     private val other2 = "org.sample.keys/org.sample.keys.KeyService"
 
@@ -15,44 +15,44 @@ class AccessibilityListTest {
     fun emptyOrUnsetValues() {
         listOf(null, "", "   ", "null", "null\n", ":", " : ").forEach { raw ->
             assertEquals("raw=$raw", emptyList<String>(), AccessibilityList.entries(raw))
-            assertFalse(AccessibilityList.contains(raw, mika))
-            assertEquals(mika, AccessibilityList.with(raw, mika))
-            assertEquals("", AccessibilityList.without(raw, mika))
+            assertFalse(AccessibilityList.contains(raw, maeve))
+            assertEquals(maeve, AccessibilityList.with(raw, maeve))
+            assertEquals("", AccessibilityList.without(raw, maeve))
         }
     }
 
     @Test
     fun appendKeepsOtherServicesInOrder() {
-        assertEquals("$other:$mika", AccessibilityList.with(other, mika))
-        assertEquals("$other:$other2:$mika", AccessibilityList.with("$other:$other2\n", mika))
+        assertEquals("$other:$maeve", AccessibilityList.with(other, maeve))
+        assertEquals("$other:$other2:$maeve", AccessibilityList.with("$other:$other2\n", maeve))
     }
 
     @Test
     fun alreadyPresentIsNotDuplicated() {
-        assertEquals("$other:$mika", AccessibilityList.with("$other:$mika", mika))
+        assertEquals("$other:$maeve", AccessibilityList.with("$other:$maeve", maeve))
         // 系统里存的是完整类名写法,也算已经有了
-        assertEquals("$mikaLong:$other", AccessibilityList.with("$mikaLong:$other", mika))
-        assertTrue(AccessibilityList.contains(mikaLong, mika))
+        assertEquals("$maeveLong:$other", AccessibilityList.with("$maeveLong:$other", maeve))
+        assertTrue(AccessibilityList.contains(maeveLong, maeve))
     }
 
     @Test
     fun removeKeepsOthersAndHandlesBothSpellings() {
-        assertEquals("$other:$other2", AccessibilityList.without("$other:$mika:$other2", mika))
-        assertEquals(other, AccessibilityList.without("$mikaLong:$other", mika))
-        assertEquals(other, AccessibilityList.without(other, mika))
-        assertEquals("", AccessibilityList.without(mika, mika))
+        assertEquals("$other:$other2", AccessibilityList.without("$other:$maeve:$other2", maeve))
+        assertEquals(other, AccessibilityList.without("$maeveLong:$other", maeve))
+        assertEquals(other, AccessibilityList.without(other, maeve))
+        assertEquals("", AccessibilityList.without(maeve, maeve))
     }
 
     @Test
     fun strayColonsAndSpacesAreCleanedUp() {
-        assertEquals("$other:$other2:$mika", AccessibilityList.with(":$other:: $other2 :", mika))
-        assertEquals("$other:$other2", AccessibilityList.without("$other::$mika:$other2:", mika))
+        assertEquals("$other:$other2:$maeve", AccessibilityList.with(":$other:: $other2 :", maeve))
+        assertEquals("$other:$other2", AccessibilityList.without("$other::$maeve:$other2:", maeve))
     }
 
     @Test
     fun differentServiceOfSamePackageIsNotConfused() {
         val sibling = "com.daiyimo.maeve/.a11y.OtherService"
-        assertFalse(AccessibilityList.contains(sibling, mika))
-        assertEquals(sibling, AccessibilityList.without("$sibling:$mika", mika))
+        assertFalse(AccessibilityList.contains(sibling, maeve))
+        assertEquals(sibling, AccessibilityList.without("$sibling:$maeve", maeve))
     }
 }

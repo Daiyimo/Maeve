@@ -169,7 +169,7 @@ class ConversationStore(private val dir: File) {
     }
 
     /**
-     * 对话是从哪一页开始的(用户在浏览器页上对着一页问 Mika);不是、读不到为 null。
+     * 对话是从哪一页开始的(用户在浏览器页上对着一页问 Maeve);不是、读不到为 null。
      * 放在对话文件旁边的 `.page` 文件里(JSON:url、host、title),不动对话文件的格式;旧对话没有这个文件。
      */
     @Synchronized
@@ -385,7 +385,7 @@ class ConversationStore(private val dir: File) {
 
     companion object {
         /** App 进程里共用的那一份(读写都在它的锁里串行)。 */
-        fun shared(context: Context): ConversationStore = (context.applicationContext as com.daiyimo.maeve.MikaApp).conversations
+        fun shared(context: Context): ConversationStore = (context.applicationContext as com.daiyimo.maeve.MaeveApp).conversations
 
         /** `current` 文件里表示「新开还没说话的对话」的那个值(对话编号只会是字母数字、`-`、`_`,不会撞上)。 */
         private const val CURRENT_FRESH = "fresh"
@@ -416,7 +416,7 @@ data class ConversationSummary(
 data class BranchOrigin(val parentId: String, val parentTurn: Int, val afterTurn: Boolean, val at: Long)
 
 /**
- * 用户此刻在哪个对话:App 里新开、还没说过话的是 [Fresh],正在看的是 [Open];没有记录(没进过 Mika、旧版本)为 null。
+ * 用户此刻在哪个对话:App 里新开、还没说过话的是 [Fresh],正在看的是 [Open];没有记录(没进过 Maeve、旧版本)为 null。
  * 悬浮胶囊据此接着该接的那个,而不是按「哪个对话文件最后被写过」去猜——新开的对话还没有文件,猜出来的会是上一个。
  */
 sealed interface CurrentChat {

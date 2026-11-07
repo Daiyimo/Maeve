@@ -9,7 +9,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -29,7 +29,7 @@ class FileViewerScreenTest {
 
     private fun show(uri: Uri, name: String) {
         val kind = FileViewer.kindOf(context, uri, name)
-        compose.setContent { MikaTheme { FileViewerScreen(uri, name, kind, onBack = {}) } }
+        compose.setContent { MaeveTheme { FileViewerScreen(uri, name, kind, onBack = {}) } }
         compose.waitUntil(5_000) { compose.onAllNodesWithTag("viewer.loading").fetchSemanticsNodes().isEmpty() }
     }
 

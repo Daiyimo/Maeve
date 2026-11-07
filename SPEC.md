@@ -512,7 +512,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | §4(d) | **`NOTICE` 里 `Mika / Copyright 2026 wangzan101` 原样保留**，只能追加自己的 addendum；换 Logo/名字不能删原作者署名 |
 | §6 | 不授予产品名/商标使用权 ⇒ 不用 Mika 名称与 Logo |
 | 衍生关系 | 重构 + 换名 + 换仓库**仍是衍生作品**，§4 义务不因重写而消失；README 首屏坦率注明 fork 来源是加分项 |
-| GPL/LGPL | `libproot.so` / `libmikarun.so` / rootfs 作为独立子进程运行 = mere aggregation，不传染主体；但 APK 需附 GPL/LGPL 全文、NOTICE 逐字副本、≥3 年源码要约。当前 `assets/licenses/` 只有 `Apache-2.0.txt` 与 `Protocol-Buffers.txt` |
+| GPL/LGPL | `libproot.so` / `libmaeverun.so` / rootfs 作为独立子进程运行 = mere aggregation，不传染主体；但 APK 需附 GPL/LGPL 全文、NOTICE 逐字副本、≥3 年源码要约。当前 `assets/licenses/` 只有 `Apache-2.0.txt` 与 `Protocol-Buffers.txt` |
 | **ML Kit** | `com.google.mlkit:text-recognition:16.0.1` **完全未披露**（THIRD_PARTY_NOTICES / LicensesScreen / assets/licenses 均无），发布前必须核查条款并补齐 |
 | AGPL-3.0 参考 | 见 §0.2：只取设计决策，不复制代码与素材；`docs/reference/` 中不得放入 dsh-Go 源码 |
 | IP 免责 | README 与关于页写明 `Not affiliated with or endorsed by HBO, Warner Bros., or Westworld` |

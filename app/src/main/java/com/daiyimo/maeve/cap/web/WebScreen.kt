@@ -847,7 +847,7 @@ class WebScreen(
         }
     }
 
-    /** web_script:在当前标签真实页面的隔离世界里跑;动作经 [bridge] 回到 Mika 的动作路径。没有 DevTools 会话时报 devtools_unavailable。 */
+    /** web_script:在当前标签真实页面的隔离世界里跑;动作经 [bridge] 回到 Maeve 的动作路径。没有 DevTools 会话时报 devtools_unavailable。 */
     override suspend fun runScript(code: String, timeoutMs: Long, bridge: ScriptBridge): ScriptRun {
         crashedTab()?.takeIf { currentTab() == null }?.let { throw WebTabCrashed(it) }
         val tab = currentTab() ?: return ScriptRun.Failed(NO_TAB, "No web page is open.")
@@ -857,7 +857,7 @@ class WebScreen(
         val session = tab.devtools.session(tab)
             ?: return ScriptRun.Failed(DEVTOOLS_UNAVAILABLE, "This page has no DevTools connection, so page scripts cannot run here.")
         return try {
-            // 每个 mika 动作之前再查一次:脚本跑着时页面可能交给了用户或崩了
+            // 每个 maeve 动作之前再查一次:脚本跑着时页面可能交给了用户或崩了
             PageScriptRunner(session, preflight = {
                 when {
                     tab.crashed -> ScriptRun.Failed("tab_crashed", "The page's tab crashed.")
@@ -1399,7 +1399,7 @@ class WebScreen(
     private fun px(css: Int, scale: Double) = (css * scale).roundToInt()
 
     private companion object {
-        const val TAG = "MikaWebScreen"
+        const val TAG = "MaeveWebScreen"
         /** 每次 DevTools 输入调用的上限;后台页面卡住时不为它拖住动作。 */
         const val INPUT_TIMEOUT_MS = 3_000L
         const val MAX_LISTED_OPTIONS = 30

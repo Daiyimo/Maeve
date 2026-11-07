@@ -503,7 +503,7 @@ class WebTabPool(
     private fun checkMain() = check(Looper.myLooper() == Looper.getMainLooper()) { "WebTabPool must be used on the main thread" }
 
     private companion object {
-        const val TAG = "MikaWebTabPool"
+        const val TAG = "MaeveWebTabPool"
         const val LOGIN_PROBE_DELAY_MS = 1_500L
         const val LOGIN_PROBE_RETRIES = 3
     }

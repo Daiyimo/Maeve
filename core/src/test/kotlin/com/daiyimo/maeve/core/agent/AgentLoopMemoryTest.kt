@@ -132,7 +132,7 @@ class AgentLoopMemoryTest {
         return said.all
     }
 
-    // 引了 Mika 的回答:引的那段是 Mika 说的,记忆的引文不认,只收用户打的字
+    // 引了 Maeve 的回答:引的那段是 Maeve 说的,记忆的引文不认,只收用户打的字
     @Test fun quotedReplyIsNotTheUserWords() {
         val s = store()
         val said = UserUtterances()
@@ -141,7 +141,7 @@ class AgentLoopMemoryTest {
         val model = FakeModel(save, finishReply)
         runBlocking {
             AgentLoop(model, toolDispatcher(FakeScreen(), memory = s, utterances = said), "B", memory = s)
-                .run(QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Mika, MIKA_ADDRESS), "这个地址对不对"))
+                .run(QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Maeve, MAEVE_ADDRESS), "这个地址对不对"))
         }
         val result = model.requests[1].last { it.role == Role.Tool }.parts.filterIsInstance<Part.ToolResult>().single().content
         assertTrue(result, "quote_not_from_user" in result)
@@ -174,17 +174,17 @@ class AgentLoopMemoryTest {
         assertEquals(listOf("总结一下"), said.all)
     }
 
-    // 插话引了 Mika 的回答:只收插话里打的字
+    // 插话引了 Maeve 的回答:只收插话里打的字
     @Test fun quotedSteerAddsOnlyTheTypedWords() = runBlocking {
         val s = store()
         val said = UserUtterances()
-        val inbox = RunInbox().apply { send(RunInput.Steer("m1", QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Mika, MIKA_ADDRESS), "换成这个"))) }
+        val inbox = RunInbox().apply { send(RunInput.Steer("m1", QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Maeve, MAEVE_ADDRESS), "换成这个"))) }
         AgentLoop(FakeModel(finishReply), toolDispatcher(FakeScreen(), memory = s, utterances = said), "B", memory = s)
             .run(RunSpec(RunId("r1"), "帮我下单", "thread-1"), inbox)
         assertEquals(listOf("帮我下单", "换成这个"), said.all)
     }
 
-    // 回答追问时引了 Mika 的回答:也只收打的字
+    // 回答追问时引了 Maeve 的回答:也只收打的字
     @Test fun quotedAnswerAddsOnlyTheTypedWords() = runBlocking {
         val s = store()
         val said = UserUtterances()
@@ -192,7 +192,7 @@ class AgentLoopMemoryTest {
         val loop = AgentLoop(FakeModel(ask, finishReply, finishReply), toolDispatcher(FakeScreen(), memory = s, utterances = said), "B", memory = s)
         val run = async { loop.run("帮我下单") }
         withTimeout(5_000) { loop.state.first { it is TaskState.WaitingInput } }
-        assertTrue(loop.answerInput(QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Mika, MIKA_ADDRESS), "就这个")))
+        assertTrue(loop.answerInput(QuoteMessage.compose(QuoteMessage.Quote(QuoteMessage.From.Maeve, MAEVE_ADDRESS), "就这个")))
         run.await()
         assertEquals(listOf("帮我下单", "就这个"), said.all)
     }
@@ -208,18 +208,18 @@ class AgentLoopMemoryTest {
     }
 
     private companion object {
-        /** 用户引的 Mika 之前的一句回答。 */
-        const val MIKA_ADDRESS = "你常用的收货地址是幸福路 8 号"
+        /** 用户引的 Maeve 之前的一句回答。 */
+        const val MAEVE_ADDRESS = "你常用的收货地址是幸福路 8 号"
     }
 }
 
 class MemoryBlockCompressionTest {
     @Test fun memoryBlockSurvivesAggressiveCompression() {
-        val block = Message(Role.User, listOf(Part.Text("Memories about the user (things the user told you; may be out of date; when they conflict with what the user says now, follow what they say now):\n1. 用户点外卖不要香菜")), Author.Mika)
-        val history = mutableListOf(block, Message(Role.User, listOf(Part.Text("帮我点个外卖")), Author.Mika))
+        val block = Message(Role.User, listOf(Part.Text("Memories about the user (things the user told you; may be out of date; when they conflict with what the user says now, follow what they say now):\n1. 用户点外卖不要香菜")), Author.Maeve)
+        val history = mutableListOf(block, Message(Role.User, listOf(Part.Text("帮我点个外卖")), Author.Maeve))
         repeat(30) { i ->
-            history += Message(Role.Assistant, listOf(Part.ToolCall("c$i", "phone_observe", "{}")), Author.Mika)
-            history += Message(Role.Tool, listOf(Part.ToolResult("c$i", "{\"ok\":true,\"x\":\"" + "很".repeat(500) + "\"}", false)), Author.Mika)
+            history += Message(Role.Assistant, listOf(Part.ToolCall("c$i", "phone_observe", "{}")), Author.Maeve)
+            history += Message(Role.Tool, listOf(Part.ToolResult("c$i", "{\"ok\":true,\"x\":\"" + "很".repeat(500) + "\"}", false)), Author.Maeve)
         }
         val out = ContextCompressor(TOOLS).compress(history, contextTokens = 2_000, aggressive = true)
         assertTrue(out.foldedSteps > 0)

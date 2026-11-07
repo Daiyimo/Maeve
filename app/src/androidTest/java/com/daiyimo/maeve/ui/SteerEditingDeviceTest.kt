@@ -17,7 +17,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.daiyimo.maeve.ChineseUi
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.pollUntil
 import com.daiyimo.maeve.core.agent.QuoteMessage
 import com.daiyimo.maeve.core.model.ChatModel
@@ -49,7 +49,7 @@ class SteerEditingDeviceTest {
     @get:Rule(order = Int.MIN_VALUE) val chinese = ChineseUi()
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
-    private val app get() = context.applicationContext as MikaApp
+    private val app get() = context.applicationContext as MaeveApp
     private val vm get() = app.chat
     private val script = ScriptedModel()
     private val release = CompletableDeferred<Unit>()

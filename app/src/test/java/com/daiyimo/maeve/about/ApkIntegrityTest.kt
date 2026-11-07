@@ -10,18 +10,18 @@ class ApkIntegrityTest {
     @get:Rule val temp = TemporaryFolder()
 
     @Test fun acceptsOfficialApk() {
-        ApkIntegrity.requireOfficialUrl("${MikaLinks.RELEASES}/download/v0.2.0/Maeve.apk")
+        ApkIntegrity.requireOfficialUrl("${MaeveLinks.RELEASES}/download/v0.2.0/Maeve.apk")
     }
 
     @Test fun rejectsUntrustedDownloads() {
         for (url in listOf(
             "http://github.com/Daiyimo/Maeve/releases/download/v0.2.0/Maeve.apk",
             "https://github.com.evil.test/Daiyimo/Maeve/releases/download/v0.2.0/Maeve.apk",
-            "https://github.com/other/Mika/releases/download/v0.2.0/Maeve.apk",
+            "https://github.com/other/Maeve/releases/download/v0.2.0/Maeve.apk",
             "https://github.com/Daiyimo/Maeve/releases/download/../../other.apk",
             "https://github.com/Daiyimo/Maeve/releases/download/%2e%2e/%2E%2e/%2e%2e/%2e%2e/other/x.apk",
             "https://objects.githubusercontent.com/Daiyimo/Maeve/releases/download/v0.2.0/Maeve.apk",
-            "https://github.com/Daiyimo/Maeve/releases/download/v0.2.0/Mika.zip",
+            "https://github.com/Daiyimo/Maeve/releases/download/v0.2.0/Maeve.zip",
             "https://github.com/Daiyimo/Maeve/releases/tag/v0.2.0",
             "https://user:pass@github.com/Daiyimo/Maeve/releases/download/v0.2.0/Maeve.apk",
             "https://github.com:8443/Daiyimo/Maeve/releases/download/v0.2.0/Maeve.apk",

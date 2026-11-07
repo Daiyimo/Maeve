@@ -85,7 +85,7 @@ class FeatureFlags(private val prefs: SharedPreferences) {
     }
 
     /**
-     * 允许 Mika 改自己的设置(见 core 的 SelfConfig):模型与 Key、删数据不在允许之列。
+     * 允许 Maeve 改自己的设置(见 core 的 SelfConfig):模型与 Key、删数据不在允许之列。
      * 默认关;开着的时候任务里才有 settings_list、settings_set 这两件工具。
      */
     fun selfConfig(): Boolean = prefs.getBoolean(SELF_CONFIG, false)
@@ -95,7 +95,7 @@ class FeatureFlags(private val prefs: SharedPreferences) {
     }
 
     /**
-     * 截获 amoo 聊天任务:开着时,amoo 聊天里每发一条消息,Mika 就新建一个任务并行执行
+     * 截获 amoo 聊天任务:开着时,amoo 聊天里每发一条消息,Maeve 就新建一个任务并行执行
      * (见 com.daiyimo.maeve.intercept.AmooIntercept)。默认关。
      */
     fun interceptAmoo(): Boolean = prefs.getBoolean(INTERCEPT_AMOO, false)
@@ -115,7 +115,7 @@ class FeatureFlags(private val prefs: SharedPreferences) {
     }.distinctUntilChanged()
 
     /**
-     * amoo 文件桥:开着时 Mika 轮询 /sdcard/Android/media/<包名>/amoo/in,Mika 做完把结果写进 out
+     * amoo 文件桥:开着时 Maeve 轮询 /sdcard/Android/media/<包名>/amoo/in,Maeve 做完把结果写进 out
      * (见 com.daiyimo.maeve.intercept.AmooBridge)。默认关。
      */
     fun bridgeAmoo(): Boolean = prefs.getBoolean(BRIDGE_AMOO, false)

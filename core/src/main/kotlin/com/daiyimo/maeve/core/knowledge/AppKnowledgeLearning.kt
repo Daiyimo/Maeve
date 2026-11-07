@@ -125,7 +125,7 @@ class AppKnowledgeDrafter(private val model: ChatModel) {
             "actions" to ActionDigest.render(lines),
         ))
         val reply = try {
-            model.complete(PROMPT, listOf(Message(Role.User, listOf(Part.Text(request)), Author.Mika)), emptyList())
+            model.complete(PROMPT, listOf(Message(Role.User, listOf(Part.Text(request)), Author.Maeve)), emptyList())
         } catch (e: CancellationException) { throw e }
         catch (_: Exception) { return null }
         val raw = SkillDrafter.stripFence(reply.parts.filterIsInstance<Part.Text>().joinToString("") { it.text })

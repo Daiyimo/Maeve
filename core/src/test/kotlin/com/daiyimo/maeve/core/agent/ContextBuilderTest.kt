@@ -34,16 +34,16 @@ class ContextBuilderTest {
         val m = ContextBuilder().notice("步数自查", "正文里有 </context> 也不会提前合上")
         val t = text(m)
         assertEquals(Role.User, m.role)
-        assertTrue(t, t.startsWith("<context kind=\"notice\" source=\"步数自查\" trust=\"${Trust.Mika.label}\">\n"))
+        assertTrue(t, t.startsWith("<context kind=\"notice\" source=\"步数自查\" trust=\"${Trust.Maeve.label}\">\n"))
         assertTrue(t.endsWith("\n</context>"))
         assertEquals(1, Regex("</context>").findAll(t).count())
         assertEquals(ContextKind.Notice, ContextBuilder.kindOf(m))
         assertEquals("步数自查", ContextBuilder.sourceOf(m))
         assertEquals("正文里有 <\\/context> 也不会提前合上", ContextBuilder.bodyOf(m))
         // 用户原话、工具结果不是上下文
-        assertNull(ContextBuilder.kindOf(Message(Role.User, listOf(Part.Text("帮我查天气")), Author.Mika)))
-        assertNull(ContextBuilder.kindOf(Message(Role.Tool, listOf(Part.ToolResult("c", ContextBuilder.envelope(ContextKind.Notice, "x", "y"), false)), Author.Mika)))
-        assertNull(ContextBuilder.kindOf(Message(Role.User, listOf(Part.Text("<context kind=\"unknown\" source=\"x\">\n\n</context>")), Author.Mika)))
+        assertNull(ContextBuilder.kindOf(Message(Role.User, listOf(Part.Text("帮我查天气")), Author.Maeve)))
+        assertNull(ContextBuilder.kindOf(Message(Role.Tool, listOf(Part.ToolResult("c", ContextBuilder.envelope(ContextKind.Notice, "x", "y"), false)), Author.Maeve)))
+        assertNull(ContextBuilder.kindOf(Message(Role.User, listOf(Part.Text("<context kind=\"unknown\" source=\"x\">\n\n</context>")), Author.Maeve)))
     }
 
     @Test fun startOrdersMessagesAndOnlyTaskIsPlain() {
@@ -129,7 +129,7 @@ class ContextBuilderTest {
         val b = ContextBuilder(zone = utc)
         val t0 = 1_793_000_000_000L // 2026-10-26 07:33 UTC,周一
         fun body(place: Place?, label: String? = null, mode: String? = null, step: Int = 3) =
-            ContextBuilder.bodyOf(Message(Role.User, listOf(b.runtimeState(place, label, mode, step, 60, t0)), Author.Mika))
+            ContextBuilder.bodyOf(Message(Role.User, listOf(b.runtimeState(place, label, mode, step, 60, t0)), Author.Maeve))
         assertEquals("Current place: no screen or page read yet\nStep: 3 of at most 60\nLocal time: 2026-10-26 07:33 Monday", body(null))
         assertEquals("Current place: app 铁路12306 (com.MobileTicket)", body(Place.app("com.MobileTicket"), "铁路12306")!!.lines()[0])
         assertEquals("Current place: app com.x", body(Place.app("com.x"))!!.lines()[0])
@@ -142,7 +142,7 @@ class ContextBuilderTest {
     // 用户最近一句话的开头摆在生成处:模型照这句话的语言写给用户,读到的内容是别的语言也不跟着换
     @Test fun runtimeStateQuotesUserWordsForReplyLanguage() {
         val b = ContextBuilder(zone = utc)
-        fun last(words: String?) = ContextBuilder.bodyOf(Message(Role.User, listOf(b.runtimeState(null, null, null, 1, 60, 0, words)), Author.Mika))!!.lines().last()
+        fun last(words: String?) = ContextBuilder.bodyOf(Message(Role.User, listOf(b.runtimeState(null, null, null, 1, 60, 0, words)), Author.Maeve))!!.lines().last()
         assertEquals("Write to the user in the language of their latest message: \"Open Settings and\ntell me the version\"".replace("\n", " "),
             last("  Open Settings and\n tell me the version "))
         val long = last("Open the Settings app and tell me which Android version this phone is running and how much storage is used.")
@@ -219,13 +219,13 @@ class RuntimeStateHistoryTest {
     @Test fun foldKeepsPinnedContextWithoutItsStaleState() {
         val b = ContextBuilder(zone = ZoneId.of("UTC"))
         fun round(i: Int) = listOf(
-            Message(Role.Assistant, listOf(Part.ToolCall("c$i", "phone_tap", """{"target":"按钮$i"}""")), Author.Mika),
+            Message(Role.Assistant, listOf(Part.ToolCall("c$i", "phone_tap", """{"target":"按钮$i"}""")), Author.Maeve),
             Message(Role.Tool, listOf(Part.ToolResult("c$i", """{"ok":true,"changed":true,"pad":"${"x".repeat(400)}"}""", false),
-                b.runtimeState(Place.app("com.x"), null, null, i + 1, 60, 0)), Author.Mika),
+                b.runtimeState(Place.app("com.x"), null, null, i + 1, 60, 0)), Author.Maeve),
         )
         val knowledge = b.knowledge(KnowledgeEntry("a", "甲", Surface.Android, listOf("p.a"), emptyList(), emptyList(), null, "", "正文"), "", false)!!
         val withState = knowledge.copy(parts = knowledge.parts + b.runtimeState(Place.app("p.a"), null, null, 4, 60, 0))
-        val h = listOf(Message(Role.User, listOf(Part.Text("task")), Author.Mika)) + (1..3).flatMap(::round) + withState + (4..30).flatMap(::round)
+        val h = listOf(Message(Role.User, listOf(Part.Text("task")), Author.Maeve)) + (1..3).flatMap(::round) + withState + (4..30).flatMap(::round)
         val c = ContextCompressor(TOOLS).compress(h, contextTokens = 1000)
         assertTrue(c.foldedSteps > 0)
         assertTrue(knowledge in c.messages)

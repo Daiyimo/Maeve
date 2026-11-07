@@ -27,7 +27,7 @@ class GeminiModelTest {
         server.url("/").toString().trimEnd('/'), "gk", "gemini-x",
         Capabilities(true, vision, 1000000, false), OkHttpClient(), reasoningEffort = reasoningEffort,
     )
-    private val user = listOf(Message(Role.User, listOf(Part.Text("hi")), Author.Mika))
+    private val user = listOf(Message(Role.User, listOf(Part.Text("hi")), Author.Maeve))
     private fun ok(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
     private fun JsonObject.arr(k: String) = this[k]!!.jsonArray
     private fun JsonObject.obj(k: String) = this[k]!!.jsonObject
@@ -100,10 +100,10 @@ class GeminiModelTest {
     @Test fun toolResultAsFunctionResponse() = runTest {
         server.enqueue(ok(cand("""[]""")))
         val history = listOf(
-            Message(Role.User, listOf(Part.Text("go")), Author.Mika),
-            Message(Role.Assistant, listOf(Part.Thinking("t"), Part.Text("a"), Part.ToolCall("gemini-0-phone_tap", "phone_tap", """{"ref":"x"}""")), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("gemini-0-phone_tap", "done", false)), Author.Mika),
-            Message(Role.User, listOf(Part.Text("next")), Author.Mika),
+            Message(Role.User, listOf(Part.Text("go")), Author.Maeve),
+            Message(Role.Assistant, listOf(Part.Thinking("t"), Part.Text("a"), Part.ToolCall("gemini-0-phone_tap", "phone_tap", """{"ref":"x"}""")), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("gemini-0-phone_tap", "done", false)), Author.Maeve),
+            Message(Role.User, listOf(Part.Text("next")), Author.Maeve),
         )
         model().complete("s", history, emptyList())
         val c = sentBody().arr("contents")
@@ -123,8 +123,8 @@ class GeminiModelTest {
     @Test fun errorToolResultFlagged() = runTest {
         server.enqueue(ok(cand("""[]""")))
         val history = listOf(
-            Message(Role.Assistant, listOf(Part.ToolCall("c", "phone_tap", "{}")), Author.Mika),
-            Message(Role.Tool, listOf(Part.ToolResult("c", "boom", true)), Author.Mika),
+            Message(Role.Assistant, listOf(Part.ToolCall("c", "phone_tap", "{}")), Author.Maeve),
+            Message(Role.Tool, listOf(Part.ToolResult("c", "boom", true)), Author.Maeve),
         )
         model().complete("s", history, emptyList())
         val fr = sentBody().arr("contents")[1].jsonObject.arr("parts")[0].jsonObject.obj("functionResponse")
@@ -132,7 +132,7 @@ class GeminiModelTest {
     }
 
     @Test fun imagesOnlyWhenVision() = runTest {
-        val msgs = listOf(Message(Role.User, listOf(Part.Image("B64")), Author.Mika))
+        val msgs = listOf(Message(Role.User, listOf(Part.Image("B64")), Author.Maeve))
         server.enqueue(ok(cand("""[]""")))
         model(vision = true).complete("s", msgs, emptyList())
         val inline = sentBody().arr("contents")[0].jsonObject.arr("parts")[0].jsonObject.obj("inlineData")
@@ -144,7 +144,7 @@ class GeminiModelTest {
     }
 
     @Test fun sendsJpegMime() = runTest {
-        val msgs = listOf(Message(Role.User, listOf(Part.Image("B64", mime = "image/jpeg")), Author.Mika))
+        val msgs = listOf(Message(Role.User, listOf(Part.Image("B64", mime = "image/jpeg")), Author.Maeve))
         server.enqueue(ok(cand("""[]""")))
         model(vision = true).complete("s", msgs, emptyList())
         val inline = sentBody().arr("contents")[0].jsonObject.arr("parts")[0].jsonObject.obj("inlineData")
@@ -202,7 +202,7 @@ class GeminiModelTest {
         assertEquals("SIG==", calls[0].opaque); assertEquals(null, calls[1].opaque)
         server.takeRequest()
         server.enqueue(ok(cand("""[]""")))
-        model().complete("s", user + Message(Role.Assistant, r.parts, Author.Mika), emptyList())
+        model().complete("s", user + Message(Role.Assistant, r.parts, Author.Maeve), emptyList())
         val mp = sentBody().arr("contents")[1].jsonObject.arr("parts")
         assertEquals("SIG==", mp[0].jsonObject.str("thoughtSignature"))
         assertFalse(mp[1].jsonObject.containsKey("thoughtSignature"))
@@ -211,7 +211,7 @@ class GeminiModelTest {
     // 别的模型产生的调用(没有签名):一轮里第一个调用发跳过校验的占位签名,其余照旧不带
     @Test fun foreignCallGetsSkipSignature() = runTest {
         server.enqueue(ok(cand("""[]""")))
-        val foreign = Message(Role.Assistant, listOf(Part.Text("看看"), Part.ToolCall("c1", "phone_tap", "{}"), Part.ToolCall("c2", "phone_back", "{}")), Author.Mika)
+        val foreign = Message(Role.Assistant, listOf(Part.Text("看看"), Part.ToolCall("c1", "phone_tap", "{}"), Part.ToolCall("c2", "phone_back", "{}")), Author.Maeve)
         model().complete("s", user + foreign, emptyList())
         val mp = sentBody().arr("contents")[1].jsonObject.arr("parts")
         assertEquals("skip_thought_signature_validator", mp[1].jsonObject.str("thoughtSignature"))

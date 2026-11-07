@@ -12,7 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.settings.AppAccessStore
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
@@ -29,7 +29,7 @@ internal suspend fun requestScreenShare(service: ScreenAccessibility, store: App
             continuation.resume(allowed)
         }
         window = service.overlays().open(OverlayPlacement(Gravity.CENTER), onOutside = { finish(0) }) {
-            MikaTheme {
+            MaeveTheme {
                 Surface { Column(Modifier.widthIn(max = 340.dp).padding(20.dp)) {
                     Text(stringResource(R.string.appaccess_share_title, label))
                     Text(stringResource(R.string.appaccess_share_body))

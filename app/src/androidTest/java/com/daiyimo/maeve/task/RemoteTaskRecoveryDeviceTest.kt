@@ -4,7 +4,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.agent.FailKind
 import com.daiyimo.maeve.core.agent.TaskState
 import com.daiyimo.maeve.core.mcp.McpTaskTools
@@ -30,7 +30,7 @@ import java.util.concurrent.Executors
 @RunWith(AndroidJUnit4::class)
 class RemoteTaskRecoveryDeviceTest {
     @get:Rule val ui = createAndroidComposeRule<MainActivity>()
-    private val app get() = ApplicationProvider.getApplicationContext<MikaApp>()
+    private val app get() = ApplicationProvider.getApplicationContext<MaeveApp>()
 
     @Test fun retainedIdsAndTerminalResultsSurviveReopening() {
         val db = "receipts-test-" + UUID.randomUUID()

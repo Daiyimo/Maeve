@@ -48,7 +48,7 @@ class MemoryExtractor(private val model: ChatModel) {
         if (utterances.none { it.isNotBlank() }) return emptyList()
         val labels = related.take(MAX_RELATED).mapIndexed { i, m -> "#${i + 1}" to m }.toMap()
         val ops = try {
-            ModelJson.completeParsed(model, PROMPT, listOf(Message(Role.User, listOf(Part.Text(request(utterances, labels))), Author.Mika)), ::parse)
+            ModelJson.completeParsed(model, PROMPT, listOf(Message(Role.User, listOf(Part.Text(request(utterances, labels))), Author.Maeve)), ::parse)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

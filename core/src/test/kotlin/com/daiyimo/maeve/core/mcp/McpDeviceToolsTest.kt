@@ -31,17 +31,17 @@ class McpDeviceToolsTest {
 
     @Test fun productionToolSetAddsOnlyThreeCredentialFreeDeviceTools() = runTest {
         assertEquals(McpTaskTools(FakeRemoteTasks()).tools.size + 3, tools.tools.size)
-        assertTrue(tools.has("mika_device_state"))
-        assertTrue(tools.has("mika_wake_device"))
-        assertTrue(tools.has("mika_unlock_device"))
-        val result = tools.call("mika_unlock_device", JsonObject(emptyMap()))
+        assertTrue(tools.has("maeve_device_state"))
+        assertTrue(tools.has("maeve_wake_device"))
+        assertTrue(tools.has("maeve_unlock_device"))
+        val result = tools.call("maeve_unlock_device", JsonObject(emptyMap()))
         assertEquals(JsonPrimitive("unlocked"), result["status"])
         assertEquals(0, writes)
         assertFalse(result.toString().contains("password"))
     }
 
     @Test fun credentialsAndUnknownArgumentsAreRejectedBeforeExecution() = runTest {
-        for (name in listOf("mika_device_state", "mika_wake_device", "mika_unlock_device")) {
+        for (name in listOf("maeve_device_state", "maeve_wake_device", "maeve_unlock_device")) {
             try {
                 tools.call(name, JsonObject(mapOf("pin" to JsonPrimitive("123456"))))
                 fail("unexpected argument accepted")
@@ -52,7 +52,7 @@ class McpDeviceToolsTest {
 
     @Test fun deviceToolsUseTheExistingTokenAndBrowserGuards() {
         val host = RemoteHost(FakeRemoteTasks(), { "test-token" }, 0, false, "test", device = DeviceAccess(port, store))
-        val body = """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"mika_unlock_device","arguments":{}}}""".toByteArray()
+        val body = """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"maeve_unlock_device","arguments":{}}}""".toByteArray()
         fun call(token: String?, origin: String? = null): HttpResponse {
             val headers = mutableMapOf("content-type" to "application/json")
             token?.let { headers["authorization"] = "Bearer $it" }
@@ -74,11 +74,11 @@ class McpDeviceToolsTest {
         fun get(path: String, deviceAccess: Boolean) = endpoints.handle(HttpRequest("GET", path, emptyMap(), ByteArray(0),
             java.net.InetAddress.getByAddress(byteArrayOf(0, 0, 0, 0))), deviceAccess)
         val list = """{"jsonrpc":"2.0","id":1,"method":"tools/list"}"""
-        val unlock = """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mika_unlock_device","arguments":{}}}"""
-        assertTrue(post(list, true).contains("mika_unlock_device"))
+        val unlock = """{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"maeve_unlock_device","arguments":{}}}"""
+        assertTrue(post(list, true).contains("maeve_unlock_device"))
         val hidden = post(list, false)
-        assertTrue(hidden.contains("mika_run_task"))
-        for (name in listOf("mika_device_state", "mika_wake_device", "mika_unlock_device")) assertFalse(hidden.contains(name))
+        assertTrue(hidden.contains("maeve_run_task"))
+        for (name in listOf("maeve_device_state", "maeve_wake_device", "maeve_unlock_device")) assertFalse(hidden.contains(name))
         assertFalse(post(unlock, false).contains("\"unlocked\""))
         assertFalse(get("/api/v1", false).body.toString(Charsets.UTF_8).contains("device_state"))
         assertEquals(503, get("/api/v1/device", false).status)

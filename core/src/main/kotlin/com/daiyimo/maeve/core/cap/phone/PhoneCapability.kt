@@ -71,7 +71,7 @@ internal class PhoneCapability(
 
     override fun onTaskStart(ctx: ToolContext) {
         ctx[KEY] = this
-        dwell.onIdleScroll = { ctx.sessions[id]?.movedByMika() }
+        dwell.onIdleScroll = { ctx.sessions[id]?.movedByMaeve() }
     }
 
     /** 用户答过话:限制浏览快慢的 App 的屏数重新算(用户答应了接着看)。 */

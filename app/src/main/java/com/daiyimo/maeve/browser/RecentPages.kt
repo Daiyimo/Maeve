@@ -17,7 +17,7 @@ import java.io.File
 data class RecentPage(val url: String, val title: String, val openedAtMs: Long)
 
 /**
- * 浏览器页「最近打开」:用户在 Mika 的浏览器页里打开过的网页,最近的在前,至多 [limit] 条。
+ * 浏览器页「最近打开」:用户在 Maeve 的浏览器页里打开过的网页,最近的在前,至多 [limit] 条。
  * 同一网址(不计 # 后面的部分)只留一条,再打开时挪到最前、标题换成新的。
  * 存在 App 私有目录的一个 JSON 文件里;文件坏了就从空表重新开始。
  */

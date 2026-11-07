@@ -71,7 +71,7 @@ import com.daiyimo.maeve.task.TriggerRuntime
  * App 容器:进程里共用的服务都在这里建一份,经各自的 Owner 接口交给安卓入口(界面、服务、广播、provider),
  * 其余代码经构造参数拿到。助手进程(HelperMain、ShellService)没有这个对象,不用这里的任何服务。
  */
-class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, PhoneServices.Owner,
+class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, PhoneServices.Owner,
     MemoryRuntime.Owner, ProviderStore.Owner, FileRouteStore.Owner, TaskRecovery.Owner {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -87,10 +87,10 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
 
     val remoteTasks by lazy { RemoteTaskHub(this) }
 
-    /** 截获 amoo 聊天任务:无障碍服务看到 amoo 里发出消息时,在 Mika 里新建同样的任务。 */
+    /** 截获 amoo 聊天任务:无障碍服务看到 amoo 里发出消息时,在 Maeve 里新建同样的任务。 */
     val amooIntercept by lazy { com.daiyimo.maeve.intercept.AmooIntercept(this) }
 
-    /** amoo 文件桥:amoo 在 /sdcard/Android/media/<包名>/amoo 里留请求,Mika 领任务、写结果。 */
+    /** amoo 文件桥:amoo 在 /sdcard/Android/media/<包名>/amoo 里留请求,Maeve 领任务、写结果。 */
     val amooBridge by lazy { com.daiyimo.maeve.intercept.AmooBridge(this) }
     val amooSetup by lazy { com.daiyimo.maeve.intercept.AmooSetup(this) }
 
@@ -98,7 +98,7 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
     val wechat by lazy {
         com.daiyimo.maeve.wechat.WechatRuntime(this,
             com.daiyimo.maeve.wechat.WechatStore(java.io.File(filesDir, "wechat"),
-                com.daiyimo.maeve.settings.KeystoreKeyCipher("mika-wechat-account")))
+                com.daiyimo.maeve.settings.KeystoreKeyCipher("maeve-wechat-account")))
     }
 
     /** 本机授权的主屏唤醒/解锁；电脑连接和无人值守定时任务共用同一条确定性流程。 */
@@ -111,12 +111,12 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
     val mcp by lazy {
         val settingsDir = java.io.File(filesDir, "settings")
         com.daiyimo.maeve.mcp.McpRuntime(this,
-            com.daiyimo.maeve.settings.McpSettings(settingsDir, com.daiyimo.maeve.settings.KeystoreKeyCipher("mika-mcp-token")),
+            com.daiyimo.maeve.settings.McpSettings(settingsDir, com.daiyimo.maeve.settings.KeystoreKeyCipher("maeve-mcp-token")),
             com.daiyimo.maeve.settings.McpUsbSettings(settingsDir,
                 bootId = { android.provider.Settings.Global.getString(contentResolver, android.provider.Settings.Global.BOOT_COUNT) ?: "null" },
                 infoFile = { getExternalFilesDir(null)?.let { java.io.File(it, com.daiyimo.maeve.core.mcp.McpUsb.INFO_FILE) } }),
             remoteTasks, deviceAccess,
-            com.daiyimo.maeve.settings.RelaySettings(settingsDir, com.daiyimo.maeve.settings.KeystoreKeyCipher("mika-remote-relay")))
+            com.daiyimo.maeve.settings.RelaySettings(settingsDir, com.daiyimo.maeve.settings.KeystoreKeyCipher("maeve-remote-relay")))
     }
     val childRuns by lazy { FileChildRunStore(java.io.File(filesDir, "children-v3.json")) }
 
@@ -124,7 +124,7 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
     val mcpServers by lazy {
         com.daiyimo.maeve.settings.McpServerStore(
             java.io.File(filesDir, "settings"),
-            com.daiyimo.maeve.settings.KeystoreKeyCipher("mika-mcp-servers"),
+            com.daiyimo.maeve.settings.KeystoreKeyCipher("maeve-mcp-servers"),
             stdio = com.daiyimo.maeve.core.cap.mcp.McpStdioLauncher { workspace, argv ->
                 val process = AndroidSandbox(this, SandboxState.get(this)).openProcess(workspace, argv, null)
                 object : com.daiyimo.maeve.core.cap.mcp.McpStdioProcess {
@@ -145,7 +145,7 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
                 p.runId?.let { runId ->
                     scope.launch(Dispatchers.IO) {
                         runCatching { conversations.updateTurn(p.conversationId, runId) { it.copy(keptPageClosed = reason.wire) } }
-                            .onFailure { android.util.Log.w("MikaApp", "could not note the kept page closing", it) }
+                            .onFailure { android.util.Log.w("MaeveApp", "could not note the kept page closing", it) }
                     }
                 }
             }
@@ -159,7 +159,7 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
     val usage: UsageLedger by lazy { UsageLedger(java.io.File(filesDir, "usage-v1.json")) }
 
     /** 模型配置与 Key;建出的模型都套上计量,记到 [usage]。 */
-    override val providers: ProviderStore by lazy { ProviderStore.create(this, usage, "Mika/${BuildConfig.VERSION_NAME}") }
+    override val providers: ProviderStore by lazy { ProviderStore.create(this, usage, "Maeve/${BuildConfig.VERSION_NAME}") }
 
     /** 语音转文字的选择:整个进程一份,设置页改了输入框立刻看得到(两份实例互相看不到对方的 set)。 */
     val speech: com.daiyimo.maeve.voice.SpeechSettings by lazy { com.daiyimo.maeve.voice.SpeechSettings.get(this) }
@@ -171,7 +171,7 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
     val chatGptSignIn by lazy {
         com.daiyimo.maeve.settings.ChatGptSignIns(scope,
             keepAlive = { com.daiyimo.maeve.settings.ChatGptSignInService.start(this) },
-            log = { msg, e -> Log.w("MikaChatGpt", msg, e) })
+            log = { msg, e -> Log.w("MaeveChatGpt", msg, e) })
     }
 
     /** 经验路线。 */
@@ -247,7 +247,7 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
     /** 各 Run 的队列与展示状态跟 App 进程走，Service 重建时继续使用同一份。 */
     val taskState = TaskCenterState()
 
-    /** Mika 自己的界面此刻看不看得见。 */
+    /** Maeve 自己的界面此刻看不看得见。 */
     val foreground = AppForeground()
 
     /** 检查更新:查到的新版本跟进程走,侧栏、设置首页、关于页的红点看同一份。 */
@@ -341,47 +341,52 @@ class MikaApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, Ph
         AppLanguage.applyDefaultLocale(this)
         UiText.source = ResourceTexts { AppLanguage.resources(this) }
         // 桌面图标:manifest 默认开着雾紫,偏好里可能是别的;对齐一次(先启新的再关旧的)
-        com.daiyimo.maeve.ui.LauncherIconController.sync(this)
+        // 图标同步是锦上添花,任何失败(ROM 限制组件启停等)都不能拖垮应用启动
+        try {
+            com.daiyimo.maeve.ui.LauncherIconController.sync(this)
+        } catch (e: Exception) {
+            Log.w("MaeveApp", "launcher icon sync failed", e)
+        }
         registerActivityLifecycleCallbacks(foreground)
-        // 设置 › 网络代理:Mika 自己的连接从第一个请求起就按它走;SOCKS 代理的账号密码经全进程的认证器给
+        // 设置 › 网络代理:Maeve 自己的连接从第一个请求起就按它走;SOCKS 代理的账号密码经全进程的认证器给
         com.daiyimo.maeve.settings.NetProxyStore.get(this)
         com.daiyimo.maeve.core.net.NetProxy.shared.installSocksAuth()
         // 内置浏览器:设了代理才给 WebView 设上(读设置要解密,放到后台;没设代理不为此加载 WebView)
-        scope.launch(Dispatchers.IO) { runCatching { com.daiyimo.maeve.cap.web.WebProxy.apply(this@MikaApp) } }
+        scope.launch(Dispatchers.IO) { runCatching { com.daiyimo.maeve.cap.web.WebProxy.apply(this@MaeveApp) } }
         capsule.start()
         // amoo 文件桥:两个 App 之间唯一都读得到的地方是 Android/media,开关关着时它不轮询
         amooBridge
-        // 内置助手的真实现,并开始看着助手(Mika 进程起来后,还活着的助手会自己交接 Binder)
+        // 内置助手的真实现,并开始看着助手(Maeve 进程起来后,还活着的助手会自己交接 Binder)
         phone.shellManager.start()
         // 连接一可用就补上默认打开的几项能力
         phone.recovery.start()
-        // 告诉内置助手:Mika 被杀后要不要把它拉起来(胶囊一直显示或有任务在跑时才要)
+        // 告诉内置助手:Maeve 被杀后要不要把它拉起来(胶囊一直显示或有任务在跑时才要)
         com.daiyimo.maeve.cap.phone.setup.RestoreWishSync(
             phone.hub, FeatureFlags.get(this).capsuleModeChanges(), taskState.busy, phone.recoverySettings.consent, phone.recovery.accessibility,
         ).start()
         // 上次异常退出时留下的改动(App 被静音)在这里恢复
         scope.launch { taskRecovery.recover() }
         // 上次进程被杀时没结束的运行:现在就标为中断并告知,不等任务服务起来
-        runRecovery.recover().let { if (it.isNotEmpty()) Log.w("MikaTask", "${it.size} runs interrupted by process restart") }
+        runRecovery.recover().let { if (it.isNotEmpty()) Log.w("MaeveTask", "${it.size} runs interrupted by process restart") }
         // 用户已绑定并打开微信渠道时恢复监听；服务没任务也会继续收件
         wechat.ensureRunning()
         // 先对一下设备时区:没记过就记下当前的(升级上来的用户也有基线),和记下的不同就重算当地时间计划(关着时改了时区也补上)
-        scope.launch(Dispatchers.IO) { runCatching { TriggerRuntime.syncTimeZone(this@MikaApp); TriggerRuntime.rearm(this@MikaApp) } }
+        scope.launch(Dispatchers.IO) { runCatching { TriggerRuntime.syncTimeZone(this@MaeveApp); TriggerRuntime.rearm(this@MaeveApp) } }
         // 给电脑跑的「经 USB 连接」脚本;顺带清掉上次开机留下的 USB 连接信息
-        scope.launch(Dispatchers.IO) { runCatching { mcp.writeUsbScript() }.onFailure { Log.w("MikaMcp", "cannot write USB script", it) } }
+        scope.launch(Dispatchers.IO) { runCatching { mcp.writeUsbScript() }.onFailure { Log.w("MaeveMcp", "cannot write USB script", it) } }
         // 上次导出写到一半被杀留下的空壳条目
-        scope.launch { runCatching { ShareExporter(this@MikaApp).cleanPending() } }
+        scope.launch { runCatching { ShareExporter(this@MaeveApp).cleanPending() } }
         // 上次进程留下的网页上传副本
-        scope.launch { runCatching { WebFiles.clearStale(this@MikaApp, SandboxDirs(this@MikaApp).gate) } }
+        scope.launch { runCatching { WebFiles.clearStale(this@MaeveApp, SandboxDirs(this@MaeveApp).gate) } }
         // 更新已经装上后,关于页下好的安装包
-        scope.launch(Dispatchers.IO) { runCatching { com.daiyimo.maeve.about.ApkUpdater(this@MikaApp).dropInstalled() } }
-        // 运行环境没准备好(首次启动、Mika 升级后)就在后台准备,不联网、对用户不可见
+        scope.launch(Dispatchers.IO) { runCatching { com.daiyimo.maeve.about.ApkUpdater(this@MaeveApp).dropInstalled() } }
+        // 运行环境没准备好(首次启动、Maeve 升级后)就在后台准备,不联网、对用户不可见
         RuntimePreparer.ensure(this)
         // 沙箱就绪(启动时已就绪,或刚装好)就把技能目录核对一次:App 更新带来的脚本马上能用
         scope.launch {
-            SandboxState.get(this@MikaApp).status.first { it is SandboxStatus.Ready }
-            val state = SandboxState.get(this@MikaApp)
-            runCatching { SkillsSync.sync(SandboxDirs(this@MikaApp)) { state.status.value is SandboxStatus.Ready } }
+            SandboxState.get(this@MaeveApp).status.first { it is SandboxStatus.Ready }
+            val state = SandboxState.get(this@MaeveApp)
+            runCatching { SkillsSync.sync(SandboxDirs(this@MaeveApp)) { state.status.value is SandboxStatus.Ready } }
         }
     }
 }

@@ -43,7 +43,7 @@ class FileOutboxStore(private val file: File) : OutboxStore {
                 records[id] = DeliveryRecord(peer, delivery, DeliveryState.valueOf(o.getValue("state").jsonPrimitive.content))
             }
         }.onFailure {
-            Log.e("MikaOutbox", "outbox could not be read; preserving damaged file", it)
+            Log.e("MaeveOutbox", "outbox could not be read; preserving damaged file", it)
             file.copyTo(File(file.parentFile, file.name + ".corrupt"), overwrite = true)
             records.clear()
         }

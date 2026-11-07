@@ -67,16 +67,16 @@ class FakeSandbox(var status: SandboxStatus = SandboxStatus.Ready(network = fals
         else -> skillsDir to normalized.removePrefix(SandboxPaths.SKILLS).trimStart('/')
     }
 
-    override suspend fun share(file: File, name: String): String { shared += file to name; return "Download/Mika/$name" }
+    override suspend fun share(file: File, name: String): String { shared += file to name; return "Download/Maeve/$name" }
     override fun freeBytes() = free
     override fun workspaceBytes(workspace: String) = used
 
     override fun saveOutput(workspace: String, text: String): String {
-        val rel = ".mika/out-${++outputs}.txt"
+        val rel = ".maeve/out-${++outputs}.txt"
         val f = SandboxPaths.resolveHost(workspaceDir(workspace), rel) ?: throw java.io.IOException("$rel escapes the workspace")
         f.parentFile.mkdirs()
         f.writeText(text)
-        return "${SandboxPaths.WORKSPACE}/.mika/out-$outputs.txt"
+        return "${SandboxPaths.WORKSPACE}/.maeve/out-$outputs.txt"
     }
 
     override fun scriptManifest(skillPath: String): List<ScriptEntry> = manifests[skillPath].orEmpty()

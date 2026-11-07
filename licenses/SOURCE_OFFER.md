@@ -1,7 +1,7 @@
 # Written offer for complete corresponding source
 
 This offer accompanies the GPL / LGPL / MPL components that are bundled inside the Maeve
-APK as **independent child processes** (`libproot.so`, `libmikarun.so` and the
+APK as **independent child processes** (`libproot.so`, `libmaeverun.so` and the
 Alpine-derived `rootfs.tar.xz`). It is provided under GPL-2.0 §3(b), GPL-3.0 §6(b) and
 LGPL-3.0 §6 / §4.
 
@@ -41,7 +41,7 @@ charge beyond the actual cost of distribution.
 | Component | Licence | Full text |
 |---|---|---|
 | PRoot (`libproot.so`) | GPL-2.0-or-later | `licenses/GPL-2.0.txt` |
-| talloc / helper libraries (`libmikarun.so`) | LGPL-3.0 | `licenses/LGPL-3.0.txt` |
+| talloc / helper libraries (`libmaeverun.so`) | LGPL-3.0 | `licenses/LGPL-3.0.txt` |
 | Alpine-derived root filesystem packages | GPL / LGPL / MPL (per package) | `licenses/GPL-2.0.txt`, `licenses/GPL-3.0.txt`, `licenses/LGPL-3.0.txt` |
 
 The licence texts, this offer and a verbatim copy of `NOTICE` are also mirrored into

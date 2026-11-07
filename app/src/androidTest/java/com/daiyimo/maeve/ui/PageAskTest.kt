@@ -25,15 +25,15 @@ import com.daiyimo.maeve.capsule.ChatThread
 import com.daiyimo.maeve.capsule.ThreadItem
 import com.daiyimo.maeve.core.agent.TaskState
 import com.daiyimo.maeve.task.TaskGate
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 浏览器页上「问 Mika」那一块的几种样子:平时的输入条 → 干活中的半屏面板(光边、步骤、停止)→ 你在页面上动手后收成小卡片、
- * 顶上一条「继续」;Mika 问你时面板自己打开。不跑任务,直接给状态。
+ * 浏览器页上「问 Maeve」那一块的几种样子:平时的输入条 → 干活中的半屏面板(光边、步骤、停止)→ 你在页面上动手后收成小卡片、
+ * 顶上一条「继续」;Maeve 问你时面板自己打开。不跑任务,直接给状态。
  */
 @RunWith(AndroidJUnit4::class)
 class PageAskTest {
@@ -50,7 +50,7 @@ class PageAskTest {
 
     private fun start() {
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 val scope = rememberCoroutineScope()
                 chat = remember { PageChat(ctx, UserBrowser.of(ctx), scope) }
                 Column(Modifier.fillMaxSize()) {
@@ -67,7 +67,7 @@ class PageAskTest {
         compose.onNodeWithTag("page-ask-bar").assertIsDisplayed()
         compose.onNodeWithText(PageAskCopy.HINT).assertIsDisplayed()
 
-        // 用户问了:面板打开,Mika 在干活,四周亮光边,输入框右边是停止键
+        // 用户问了:面板打开,Maeve 在干活,四周亮光边,输入框右边是停止键
         compose.runOnIdle {
             chat.show("conv-1", card(TaskState.Running(2, "", reason = "正在点「加入购物车」")), thread)
             chat.open = true
@@ -115,7 +115,7 @@ class PageAskTest {
     @Test
     fun drawerRowShowsTheWebTagAndSite() {
         compose.setContent {
-            MikaTheme {
+            MaeveTheme {
                 Column {
                     ConversationRowContent(DrawerConversation("a", "挑一个降噪耳机", "", false, false, true, site = "shop.example.com"))
                     ConversationRowContent(DrawerConversation("b", "明早的闹钟", "", false, false, true))

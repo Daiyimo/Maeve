@@ -45,7 +45,7 @@ import com.daiyimo.maeve.core.uistate.ScreenSnapshot
 import com.daiyimo.maeve.core.uistate.UiElement
 import com.daiyimo.maeve.settings.AccessibilityState
 import com.daiyimo.maeve.settings.SystemStatus
-import com.daiyimo.maeve.shell.IMikaShell
+import com.daiyimo.maeve.shell.IMaeveShell
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -58,7 +58,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * 兼容性自检的安卓实现。手机这几项走任务用的同一套:进程里共用的那条助手连接([PhoneServices.sharedShell])、
  * [AgentDisplay] 建屏、[AndroidScreen] 打开页面、读屏、点按、打字、滚动、返回;网页走内置浏览器的 [WebScreen];
- * 沙箱走 [AndroidSandbox]。只碰 Mika 自己的自检页和系统设置(只打开、不点),不改设置、不联网。
+ * 沙箱走 [AndroidSandbox]。只碰 Maeve 自己的自检页和系统设置(只打开、不点),不改设置、不联网。
  * 报告里的事实只写状态和数字,不写别的 App 的包名、账号和用户的内容。
  * [status] 是界面那边此刻的系统状态(无障碍、通知、内置助手)。
  */
@@ -67,7 +67,7 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
     private val phone = PhoneServices.of(app)
 
     @Volatile private var connection: ShellBinding? = null
-    @Volatile private var shell: IMikaShell? = null
+    @Volatile private var shell: IMaeveShell? = null
     @Volatile private var display: AgentDisplay? = null
     @Volatile private var screen: AndroidScreen? = null
     @Volatile private var web: Web? = null
@@ -195,7 +195,7 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
         val s = screen ?: AndroidScreen(a11y, sh, LazyAgentDisplay(d.width, d.height) { d }.also { it.get() }).also { screen = it }
         val own = s.openOwnPage(SelfCheckTargetActivity.intent(app))
         if (own !is ActionResult.Ok || topPackage(sh, d.displayId) != app.packageName) {
-            return CheckOutcome.fail("Mika's test page did not open on Mika's display (${reason(own)})", Advice.LaunchFailed)
+            return CheckOutcome.fail("Maeve's test page did not open on Maeve's display (${reason(own)})", Advice.LaunchFailed)
         }
         sampleMain(sh, "test page")
         // 先关掉自检页再开系统设置:之后从头开一页,不靠把旧的那一页翻回前面
@@ -204,14 +204,14 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
         val settingsNote = if (settings == null) "no system Settings app found" else when (val r = s.openApp(settings, cold = false)) {
             is ActionResult.Failed -> if (r.reason == "app_in_use_by_user") SETTINGS_IN_USE else "Settings did not open (${r.reason})"
             is ActionResult.Ok -> {
-                val onMika = withContext(Dispatchers.IO) { topPackage(sh, d.displayId) } == settings
+                val onMaeve = withContext(Dispatchers.IO) { topPackage(sh, d.displayId) } == settings
                 val onMain = withContext(Dispatchers.IO) { mainTop(sh)?.let { runCatching { sh.packageOfTask(it) }.getOrNull() } } == settings
                 sampleMain(sh, "Settings")
                 // 只看不点:返回一次离开它
                 s.back()
                 when {
                     onMain -> SETTINGS_ON_MAIN
-                    !onMika -> "Settings did not come to the front of Mika's display"
+                    !onMaeve -> "Settings did not come to the front of Maeve's display"
                     else -> null
                 }
             }
@@ -219,10 +219,10 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
         // 后面几项在自检页上做:重新打开一次,从头来
         val again = s.openOwnPage(SelfCheckTargetActivity.intent(app))
         if (again !is ActionResult.Ok || !poll { withContext(Dispatchers.IO) { isTestPageOnTop(sh, d.displayId) } }) {
-            return CheckOutcome.fail("Mika's test page did not reopen after Settings (${reason(again)})", Advice.LaunchFailed)
+            return CheckOutcome.fail("Maeve's test page did not reopen after Settings (${reason(again)})", Advice.LaunchFailed)
         }
         return when (settingsNote) {
-            null -> CheckOutcome.pass("Mika's test page and Settings opened on Mika's display")
+            null -> CheckOutcome.pass("Maeve's test page and Settings opened on Maeve's display")
             SETTINGS_ON_MAIN -> CheckOutcome.fail("test page ok; $settingsNote", Advice.OpenedOnMainScreen)
             SETTINGS_IN_USE -> CheckOutcome.partial("test page ok; $settingsNote", Advice.SettingsInUse)
             else -> CheckOutcome.partial("test page ok; $settingsNote", Advice.LaunchFailed)
@@ -235,7 +235,7 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
         val s = screen ?: return CheckOutcome.fail("no screen", Advice.LaunchFailed)
         val d = display ?: return CheckOutcome.fail("no display", Advice.DisplayFailed)
         s.waitStable(SETTLE_MS)
-        // 页面刚开出来时树可能还没齐:等到最上面是 Mika、要的控件都在,最多等一会儿
+        // 页面刚开出来时树可能还没齐:等到最上面是 Maeve、要的控件都在,最多等一会儿
         var snap = s.snapshot()
         poll(PAGE_WAIT_MS) {
             snap = s.snapshot()
@@ -290,7 +290,7 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
             mark("scroll", poll { s.peek().rows().let { it.isNotEmpty() && it.first() != rowsBefore.first() } })
         } else mark("scroll", false)
 
-        // 返回:自检页离开 Mika 屏的最上面。刚打完字输入法多半还弹着,那几下是收起输入法(安卓本来如此),不算在次数里
+        // 返回:自检页离开 Maeve 屏的最上面。刚打完字输入法多半还弹着,那几下是收起输入法(安卓本来如此),不算在次数里
         val gone = BackPresses.until(
             tries = BACK_TRIES,
             maxPresses = BACK_MAX_PRESSES,
@@ -323,7 +323,7 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
         val s = screen ?: return CheckOutcome.fail("no screen", Advice.LaunchFailed)
         val d = display ?: return CheckOutcome.fail("no display", Advice.DisplayFailed)
         if (s.openOwnPage(SelfCheckTargetActivity.intent(app)) !is ActionResult.Ok) {
-            return CheckOutcome.fail("Mika's test page did not reopen", Advice.LaunchFailed)
+            return CheckOutcome.fail("Maeve's test page did not reopen", Advice.LaunchFailed)
         }
         val start = SystemClock.uptimeMillis()
         var lastChange = start
@@ -357,7 +357,7 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
         val sh = shell ?: return CheckOutcome.fail("no helper", Advice.SetUpPhoneControl)
         val before = mainBefore ?: return CheckOutcome.fail("main screen was not readable at the start", Advice.Error)
         sampleMain(sh, "end")
-        val who = if (withContext(Dispatchers.IO) { runCatching { sh.packageOfTask(before) }.getOrNull() } == app.packageName) "Mika" else "another app"
+        val who = if (withContext(Dispatchers.IO) { runCatching { sh.packageOfTask(before) }.getOrNull() } == app.packageName) "Maeve" else "another app"
         return if (mainChanged.isEmpty()) CheckOutcome.pass("top task unchanged ($who stayed on top)")
         else CheckOutcome.fail("top task changed during: ${mainChanged.joinToString()}", Advice.MainScreenChanged)
     }
@@ -471,19 +471,19 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
     }
 
     /** 主屏最上面的任务;读不到为 null。 */
-    private fun mainTop(sh: IMikaShell): Int? = runCatching { sh.topTaskId(Display.DEFAULT_DISPLAY) }.getOrNull()?.takeIf { it >= 0 }
+    private fun mainTop(sh: IMaeveShell): Int? = runCatching { sh.topTaskId(Display.DEFAULT_DISPLAY) }.getOrNull()?.takeIf { it >= 0 }
 
-    private suspend fun sampleMain(sh: IMikaShell, stage: String) {
+    private suspend fun sampleMain(sh: IMaeveShell, stage: String) {
         val before = mainBefore ?: return
         val now = withContext(Dispatchers.IO) { mainTop(sh) }
         if (now != before && stage !in mainChanged) mainChanged += stage
     }
 
-    private fun topPackage(sh: IMikaShell, displayId: Int): String? = runCatching {
+    private fun topPackage(sh: IMaeveShell, displayId: Int): String? = runCatching {
         sh.topTaskId(displayId).takeIf { it >= 0 }?.let(sh::packageOfTask)
     }.getOrNull()
 
-    private fun isTestPageOnTop(sh: IMikaShell, displayId: Int): Boolean =
+    private fun isTestPageOnTop(sh: IMaeveShell, displayId: Int): Boolean =
         runCatching { sh.topActivity(displayId) }.getOrNull()?.contains(SelfCheckTargetActivity::class.java.simpleName) == true
 
     private suspend fun awaitFrame(d: AgentDisplay): Bitmap? {
@@ -544,7 +544,7 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
         val n = snap.elements.size
         val first = snap.elements.take(SEEN_ELEMENTS)
         return when {
-            pkg == app.packageName -> "saw Mika, $n elements: " + first.joinToString { (it.resourceId ?: it.name).take(SEEN_CHARS) }
+            pkg == app.packageName -> "saw Maeve, $n elements: " + first.joinToString { (it.resourceId ?: it.name).take(SEEN_CHARS) }
             pkg == null -> "saw no readable window, $n elements"
             systemPackage(pkg) -> "saw $pkg, $n elements: " + first.joinToString { (it.resourceId ?: it.role).take(SEEN_CHARS) }
             else -> "saw another app, $n elements"
@@ -599,7 +599,7 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
         const val LIST = "selfcheck_list"
         const val TITLE = "selfcheck_title"
         val EXPECTED = listOf(TITLE, COUNT, BUTTON, INPUT, TICK, LIST)
-        const val ASCII = "Mika 123"
+        const val ASCII = "Maeve 123"
         const val CHINESE = "你好米卡"
         const val SENTINEL = 987_654_321
         /** 读屏一项等自检页出现最多这么久。 */

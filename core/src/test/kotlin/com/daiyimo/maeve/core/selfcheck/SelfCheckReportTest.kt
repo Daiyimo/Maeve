@@ -24,7 +24,7 @@ class SelfCheckReportTest {
             CheckResult(SelfCheck.STAYS_ALIVE, CheckStatus.Fail, "frames stopped after 6 s", Advice.FramesStopped),
         ))
         val lines = text.lines()
-        assertEquals("Mika self-check 0.1.21 (build abc1234)", lines[0])
+        assertEquals("Maeve self-check 0.1.21 (build abc1234)", lines[0])
         assertEquals("Device: Acme Phone 7, Android 14 (SDK 34), arm64-v8a, RAM 12.0 GB, 1224x2700", lines[1])
         assertEquals("Wireless debugging: present", lines[2])
         assertEquals("Result: 10 pass, 1 partial, 1 fail, 0 skipped in 62 s", lines[3])
@@ -70,7 +70,7 @@ class SelfCheckReportTest {
     @Test
     fun onlyKnownLinesAppear() {
         val text = SelfCheckReport.render(done())
-        val allowed = listOf("Mika self-check ", "Device: ", "Wireless debugging: ", "Developer options page: ", "Phone control: ", "Result: ") +
+        val allowed = listOf("Maeve self-check ", "Device: ", "Wireless debugging: ", "Developer options page: ", "Phone control: ", "Result: ") +
             SelfCheck.entries.map { "${it.number} ${it.key}: " }
         for (l in text.lines().filter { it.isNotEmpty() }) assertTrue(l, allowed.any { l.startsWith(it) })
     }
@@ -86,9 +86,9 @@ class SelfCheckReportTest {
     @Test
     fun issueLinkPrefillsOnlyTheTitle() {
         assertEquals("[兼容性] Android 14 Acme Phone 7", SelfCheckReport.issueTitle(facts))
-        val url = SelfCheckReport.issueUrl("https://github.com/wangzan101/Mika/issues/new", facts)
+        val url = SelfCheckReport.issueUrl("https://github.com/wangzan101/Maeve/issues/new", facts)
         assertEquals(
-            "https://github.com/wangzan101/Mika/issues/new?template=device-report.yml&title=%5B%E5%85%BC%E5%AE%B9%E6%80%A7%5D%20Android%2014%20Acme%20Phone%207",
+            "https://github.com/wangzan101/Maeve/issues/new?template=device-report.yml&title=%5B%E5%85%BC%E5%AE%B9%E6%80%A7%5D%20Android%2014%20Acme%20Phone%207",
             url,
         )
         assertFalse(url.contains("body="))

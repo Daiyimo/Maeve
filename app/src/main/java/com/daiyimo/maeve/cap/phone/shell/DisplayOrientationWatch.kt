@@ -10,7 +10,7 @@ import android.util.Log
 
 /**
  * 只在有虚拟屏时监听任务方向、窗口大小变化;不读应用内容,不改变任务焦点。
- * 注册不上任务监听时退回每 [POLL_MS] 扫一次,只在 [active](还有 Mika 的屏)为真时扫;
+ * 注册不上任务监听时退回每 [POLL_MS] 扫一次,只在 [active](还有 Maeve 的屏)为真时扫;
  * 屏放完后由 [close] 停下,[active] 变假时轮询也自己停。
  */
 @SuppressLint("PrivateApi")
@@ -21,13 +21,13 @@ internal class DisplayOrientationWatch(
     private val onTaskRemoved: (taskId: Int) -> Unit = {},
     private val sync: () -> Unit,
 ) {
-    private val thread = HandlerThread("mika-display-orientation").apply { start() }
+    private val thread = HandlerThread("maeve-display-orientation").apply { start() }
     private val handler = Handler(thread.looper)
     @Volatile private var closed = false
     private val scan = CoalescedScan(
         schedule = { handler.postDelayed(it, 50) },
         cancel = { handler.removeCallbacks(it) },
-        scan = { runCatching(sync).onFailure { Log.w("MikaShell", "display orientation scan failed", it) } },
+        scan = { runCatching(sync).onFailure { Log.w("MaeveShell", "display orientation scan failed", it) } },
     )
     private val requestedOrientationTransactions = setOfNotNull(
         transactionCode("onActivityRequestedOrientationChanged"),
@@ -41,7 +41,7 @@ internal class DisplayOrientationWatch(
                 runCatching {
                     data.enforceInterface(TASK_LISTENER)
                     onRequestedOrientation(data.readInt(), data.readInt())
-                }.onFailure { Log.w("MikaShell", "display orientation callback rejected", it) }
+                }.onFailure { Log.w("MaeveShell", "display orientation callback rejected", it) }
                 scan.request()
                 return true
             }
@@ -49,7 +49,7 @@ internal class DisplayOrientationWatch(
                 runCatching {
                     data.enforceInterface(TASK_LISTENER)
                     onTaskRemoved(data.readInt())
-                }.onFailure { Log.w("MikaShell", "task removal callback rejected", it) }
+                }.onFailure { Log.w("MaeveShell", "task removal callback rejected", it) }
                 scan.request()
                 return true
             }

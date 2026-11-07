@@ -63,7 +63,7 @@ private val KNOWN_TYPES = IMAGE_TYPES + mapOf(
 
 private const val NOTE_NETWORK_ON = "Network access for the sandbox was turned on since your last sandbox call."
 private const val NOTE_NETWORK_OFF = "Network access for the sandbox was turned off since your last sandbox call; commands can no longer reach the internet."
-private const val OUTSIDE = "Paths must stay inside /workspace (or /opt/mika/skills for reading); links that lead outside are refused."
+private const val OUTSIDE = "Paths must stay inside /workspace (or /opt/maeve/skills for reading); links that lead outside are refused."
 private const val HINT_TRUNCATED = "The output was clipped to its head and tail. The full output is in fullOutputPath; read it with read_file (offset/limit)."
 private const val HINT_DROPPED = "Only the first 1 MB of output was kept. Write large output to a file instead of printing it."
 private const val HINT_TIMED_OUT = "The command hit its time limit and was stopped. Use a larger timeoutSec (up to 600) or do less per command."
@@ -175,8 +175,8 @@ internal class SandboxTools(
         if (!runnable) return unavailable("$rel is not runnable now: $why.")
         if (sandbox.hostPath(ws, path, forWrite = false)?.isFile != true) return unavailable("$rel is missing from the source directory.")
         storageLow()?.let { return it }
-        // /opt/mika/skills 在沙箱里写得动(PRoot 的绑定可写),所以跑之前逐字节核对打包的那份
-        if (!sandbox.verifyScript(skillRel, rel)) return unavailable("$rel differs from the copy that comes with Mika and could not be restored, so it was not run.")
+        // /opt/maeve/skills 在沙箱里写得动(PRoot 的绑定可写),所以跑之前逐字节核对打包的那份
+        if (!sandbox.verifyScript(skillRel, rel)) return unavailable("$rel differs from the copy that comes with Maeve and could not be restored, so it was not run.")
         (onScript ?: onCommand)((listOf("$skillRel/$rel") + args).joinToString(" "))
         return commandResult(sandbox.runWithPhone(ws, listOf(interpreter, path) + args, null, timeout * 1000L, onProgress,
             phoneHandler(callId, sub, tools)), ws)

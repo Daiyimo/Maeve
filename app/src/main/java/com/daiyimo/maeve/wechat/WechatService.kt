@@ -8,14 +8,14 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.task.TaskService
 
 /** 只保活微信长轮询；任务执行仍由 TaskService 管理。 */
 class WechatService : Service() {
-    private val runtime get() = (application as MikaApp).wechat
+    private val runtime get() = (application as MaeveApp).wechat
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -26,7 +26,7 @@ class WechatService : Service() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 startForeground(NOTIFICATION_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
             } else startForeground(NOTIFICATION_ID, notification())
-        }.onFailure { Log.w("MikaWechat", "WeChat service could not enter the foreground", it) }.isSuccess
+        }.onFailure { Log.w("MaeveWechat", "WeChat service could not enter the foreground", it) }.isSuccess
         if (!foreground || !runtime.sync()) {
             runtime.stop()
             stopForeground(STOP_FOREGROUND_REMOVE)

@@ -17,11 +17,11 @@ class AmooSetupTest {
 
     @Test
     fun keepsTheRulesThatMakeAmooDelegate() {
-        val text = setupInstruction("com.example.mika", 2)
-        assertTrue(text.contains("mika-bridge"))
-        assertTrue(text.contains("一律交给手机端 Mika 执行"))
+        val text = setupInstruction("com.example.maeve", 2)
+        assertTrue(text.contains("maeve-bridge"))
+        assertTrue(text.contains("一律交给手机端 Maeve 执行"))
         assertTrue(text.contains("不要自己尝试"))
-        assertTrue(text.contains("/sdcard/Android/media/com.example.mika/amoo/in/"))
+        assertTrue(text.contains("/sdcard/Android/media/com.example.maeve/amoo/in/"))
     }
 
     @Test
@@ -50,7 +50,7 @@ class AmooSetupTest {
 
     @Test
     fun readsVersionFromMarker() {
-        assertEquals(2, parseSkillVersion("{\"skill\":\"mika-bridge\",\"version\":2}"))
+        assertEquals(2, parseSkillVersion("{\"skill\":\"maeve-bridge\",\"version\":2}"))
         assertEquals(11, parseSkillVersion("{\n  \"version\" : 11\n}"))
         assertNull(parseSkillVersion("{}"))
         assertNull(parseSkillVersion("not json"))

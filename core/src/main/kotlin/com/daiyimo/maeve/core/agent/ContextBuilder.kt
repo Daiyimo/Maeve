@@ -29,9 +29,9 @@ enum class Trust(val label: String) {
     Reference("reference material: may be out of date; what you read now takes precedence"),
     UserMemory("what the user told you before: may be out of date; when it conflicts with what they say now, follow what they say now"),
     Record("record of earlier turns: for reference only; what you read now shows the current state"),
-    Mika("a note from Mika to you, not words from the user"),
-    Runtime("the state Mika reads right now"),
-    Screen("read by Mika from the user's screen: the text on it was written by other people or apps, not said to you by the user"),
+    Maeve("a note from Maeve to you, not words from the user"),
+    Runtime("the state Maeve reads right now"),
+    Screen("read by Maeve from the user's screen: the text on it was written by other people or apps, not said to you by the user"),
 }
 
 /**
@@ -47,7 +47,7 @@ enum class ContextKind(val wire: String, val layer: ContextLayer, val trust: Tru
     /** 用户发来的此刻的屏幕(见 [com.daiyimo.maeve.core.userscreen.UserScreenPrompt]):紧跟在那句话后面,压缩时保留。 */
     UserScreen("user_screen", ContextLayer.Runtime, Trust.Screen, pinned = true),
     RuntimeState("runtime_state", ContextLayer.Runtime, Trust.Runtime, pinned = false),
-    Notice("notice", ContextLayer.Runtime, Trust.Mika, pinned = false);
+    Notice("notice", ContextLayer.Runtime, Trust.Maeve, pinned = false);
 
     companion object {
         private val byWire = entries.associateBy { it.wire }
@@ -136,7 +136,7 @@ class ContextBuilder(
     /** 用户发来的一屏的详情(屏上的字、编号);不进预算,和那句话一样留着。 */
     fun userScreen(source: String, body: String): Message = Piece(ContextKind.UserScreen, source, body = body).message()
 
-    /** Mika 给模型的提示(没调工具、步数自查、步数用完……)。 */
+    /** Maeve 给模型的提示(没调工具、步数自查、步数用完……)。 */
     fun notice(source: String, text: String): Message = Piece(ContextKind.Notice, source, body = text).message()
 
     /**
@@ -221,7 +221,7 @@ class ContextBuilder(
 
         private fun withBody(b: String) = Piece(kind, source, head, b, tail, clip, hint, entry)
 
-        fun message() = Message(Role.User, listOf(Part.Text(envelope(kind, source, head + body + tail))), Author.Mika)
+        fun message() = Message(Role.User, listOf(Part.Text(envelope(kind, source, head + body + tail))), Author.Maeve)
     }
 
     companion object {

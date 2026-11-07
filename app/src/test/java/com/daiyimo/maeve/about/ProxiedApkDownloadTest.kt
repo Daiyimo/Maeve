@@ -15,7 +15,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 
-/** 设了网络代理时更新包由 Mika 自己经代理下:请求确实发给代理,下完整才留下文件,出错不留半截。 */
+/** 设了网络代理时更新包由 Maeve 自己经代理下:请求确实发给代理,下完整才留下文件,出错不留半截。 */
 class ProxiedApkDownloadTest {
     private lateinit var proxy: MockWebServer
     private val dir: File = Files.createTempDirectory("apk").toFile()
@@ -30,9 +30,9 @@ class ProxiedApkDownloadTest {
         proxy.enqueue(MockResponse().setBody(okio.Buffer().write(body)))
         val target = File(dir, "update.apk")
         val seen = mutableListOf<Pair<Long, Long>>()
-        ProxiedApkDownload.fetch(client(), "http://releases.example.test/mika.apk", target) { done, total -> seen += done to total }
+        ProxiedApkDownload.fetch(client(), "http://releases.example.test/maeve.apk", target) { done, total -> seen += done to total }
         assertTrue(target.readBytes().contentEquals(body))
-        assertEquals("GET http://releases.example.test/mika.apk HTTP/1.1", proxy.takeRequest().requestLine)
+        assertEquals("GET http://releases.example.test/maeve.apk HTTP/1.1", proxy.takeRequest().requestLine)
         assertEquals(body.size.toLong() to body.size.toLong(), seen.last())
         assertFalse(File(dir, "update.apk.part").exists())
     }
@@ -41,7 +41,7 @@ class ProxiedApkDownloadTest {
         proxy.enqueue(MockResponse().setResponseCode(404))
         val target = File(dir, "update.apk")
         try {
-            ProxiedApkDownload.fetch(client(), "http://releases.example.test/mika.apk", target) { _, _ -> }
+            ProxiedApkDownload.fetch(client(), "http://releases.example.test/maeve.apk", target) { _, _ -> }
             fail("expected an error")
         } catch (e: IOException) {
             assertFalse(target.exists())

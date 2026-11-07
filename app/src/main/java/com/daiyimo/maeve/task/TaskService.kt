@@ -66,7 +66,7 @@ import com.daiyimo.maeve.core.cap.web.KeptPageClose
 
 /**
  * 这条通知照发、照进通知栏,但不响、不振、不弹横幅:用系统的分组提醒规则(只让组摘要提醒,这条是组里的普通通知,
- * 组里没有摘要),和系统自己的「静音通知」是同一个做法;不换频道、不新建频道。安卓 8 起都有,Mika 支持的系统都能用。
+ * 组里没有摘要),和系统自己的「静音通知」是同一个做法;不换频道、不新建频道。安卓 8 起都有,Maeve 支持的系统都能用。
  */
 internal fun Notification.Builder.alertQuietly(): Notification.Builder =
     setGroup(QUIET_GROUP).setGroupAlertBehavior(Notification.GROUP_ALERT_SUMMARY)
@@ -87,17 +87,17 @@ private const val QUIET_GROUP = "com.daiyimo.maeve.quiet"
  * specialUse 没有运行时限制,只需在清单里写明子类型。
  */
 class TaskService : Service() {
-    internal val taskState: TaskCenterState get() = (application as com.daiyimo.maeve.MikaApp).taskState
+    internal val taskState: TaskCenterState get() = (application as com.daiyimo.maeve.MaeveApp).taskState
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     /** 最近一次 start 时读到的开关;关着时登记处上限恒为 1。 */
     @Volatile private var parallel = false
     private val center by lazy {
-        TaskCenter<TaskRun>(::limit, { it.conversationId }, { it.key }, (application as com.daiyimo.maeve.MikaApp).runStore,
-            (application as com.daiyimo.maeve.MikaApp).resources) { c, g ->
+        TaskCenter<TaskRun>(::limit, { it.conversationId }, { it.key }, (application as com.daiyimo.maeve.MaeveApp).runStore,
+            (application as com.daiyimo.maeve.MaeveApp).resources) { c, g ->
             TaskRun(c, g, this, scope, freeSlot(), parallel)
         }
     }
-    private val outbox get() = (application as com.daiyimo.maeve.MikaApp).outbox
+    private val outbox get() = (application as com.daiyimo.maeve.MaeveApp).outbox
     private val localChannel by lazy { LocalChannel { _, delivery ->
         if (delivery is Delivery.Ask) {
             center.byConversation(delivery.threadId)?.let(::refreshNotifications)
@@ -143,7 +143,7 @@ class TaskService : Service() {
 
     private fun channelFor(peer: ChannelPeer): Channel = when (peer.channelId) {
         LocalChannel.ID -> localChannel
-        else -> checkNotNull((application as com.daiyimo.maeve.MikaApp).wechat.channelFor(peer.channelId)) {
+        else -> checkNotNull((application as com.daiyimo.maeve.MaeveApp).wechat.channelFor(peer.channelId)) {
             "unknown channel ${peer.channelId}"
         }
     }
@@ -170,7 +170,7 @@ class TaskService : Service() {
     }
 
     /** 任务结束后留在后台的那一页(见 [com.daiyimo.maeve.cap.web.PageKeeper]):留着时服务不退,前台通知换成它的。 */
-    private val keeper get() = (application as com.daiyimo.maeve.MikaApp).pageKeeper
+    private val keeper get() = (application as com.daiyimo.maeve.MaeveApp).pageKeeper
 
     internal fun otherRunHasDisplay(run: TaskRun) = center.running().any { it !== run && it.displayId.value >= 0 }
     internal fun hasActiveRuns() = center.running().isNotEmpty()
@@ -200,7 +200,7 @@ class TaskService : Service() {
             }
         }
         // 没结束的运行在 App 启动时就处理过了;这里只补一道(进程里只做一次),并把此刻在跑的运行排除在外
-        (application as com.daiyimo.maeve.MikaApp).runRecovery.recover(center.runs().map { RunId(it.key) }.toSet())
+        (application as com.daiyimo.maeve.MaeveApp).runRecovery.recover(center.runs().map { RunId(it.key) }.toSet())
     }
 
     private fun waitKeyOf(intent: Intent) = intent.getIntExtra(EXTRA_WAIT_KEY, -1).takeIf { it >= 0 }
@@ -218,7 +218,7 @@ class TaskService : Service() {
                 triggerActionGoal = intent.getStringExtra(EXTRA_TRIGGER_ACTION),
                 triggerThreadId = intent.getStringExtra(EXTRA_TRIGGER_THREAD))
             ACTION_START_MCP -> intent.getStringExtra(EXTRA_MCP_ID)?.let { id ->
-                if ((application as com.daiyimo.maeve.MikaApp).remoteTasks.claimStart(id)) {
+                if ((application as com.daiyimo.maeve.MaeveApp).remoteTasks.claimStart(id)) {
                     begin(intent.getStringExtra(EXTRA_GOAL).orEmpty(), intent.getStringExtra(EXTRA_CONVERSATION),
                         provenance = RunProvenance(RunOrigin.Mcp,
                             Attendance.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_ATTENDANCE) } ?: Attendance.Unattended),
@@ -396,7 +396,7 @@ class TaskService : Service() {
             val draft = if (end == TaskState.Cancelled) run.draftText() else null
             val stopRunId = run.runId.value?.takeIf { end == TaskState.Cancelled && !run.conditionCheck && run.hasStopMaterial(draft) }
             stopRunId?.let { id -> taskState._summarizing.update { it + id } }
-            run.mcpExternalId?.let { (application as com.daiyimo.maeve.MikaApp).remoteTasks.ended(it, end, run.steers.value) }
+            run.mcpExternalId?.let { (application as com.daiyimo.maeve.MaeveApp).remoteTasks.ended(it, end, run.steers.value) }
             run.end(end)
             if (!run.conditionCheck) recordTurn(store, run.conversationId, run.goal, end, run.runId.value, run.sharedFiles.value, run.joinedSteers(), run.usedGroups, run.joinedInterrupted(), run.joinedFinished())
             stopRunId?.let { summarizeStop(run, it, draft, store) }
@@ -525,7 +525,7 @@ class TaskService : Service() {
     /** 排队中的任务被取消(已移出队伍):没开跑,直接记为已取消。 */
     private fun cancelQueued(run: TaskRun) {
         run.handoffUnconsumed(cancelled = true)
-        run.mcpExternalId?.let { (application as com.daiyimo.maeve.MikaApp).remoteTasks.ended(it, TaskState.Cancelled, run.steers.value) }
+        run.mcpExternalId?.let { (application as com.daiyimo.maeve.MaeveApp).remoteTasks.ended(it, TaskState.Cancelled, run.steers.value) }
         run.end(TaskState.Cancelled)
         recordTurn(ConversationStore.shared(this), run.conversationId, run.goal, TaskState.Cancelled, null)
         publishRuns()
@@ -572,7 +572,7 @@ class TaskService : Service() {
     }
 
     /**
-     * 给模型的上文里,留页那一轮的页面此刻是不是还开着:记着「留着」却已经不在了(Mika 中途退出过)的,按已关算。
+     * 给模型的上文里,留页那一轮的页面此刻是不是还开着:记着「留着」却已经不在了(Maeve 中途退出过)的,按已关算。
      */
     private fun withKeptState(t: Turn): Turn =
         if (t.keptPage != null && t.keptPageClosed == null && keeper.page.value?.runId != t.runId) t.copy(keptPageClosed = KeptPageClose.AppExit.wire) else t
@@ -675,7 +675,7 @@ class TaskService : Service() {
      */
     private fun attentionNotification(run: TaskRun, state: TaskState): Notification? {
         if (!awaitingUser(run, state)) return null
-        val quiet = (application as com.daiyimo.maeve.MikaApp).capsule.showing.value
+        val quiet = (application as com.daiyimo.maeve.MaeveApp).capsule.showing.value
         if (state is TaskState.WaitingConfirmation) {
             return ConfirmationNotifier.build(
                 this, CHANNEL_ATTENTION, state, TaskService::class.java, ACTION_APPROVE, ACTION_DECLINE, openApp(),
@@ -808,9 +808,9 @@ class TaskService : Service() {
         if (center.runs().isNotEmpty()) {
             // 标中断后当场善后(定时窗口、补送、告知、写进对话):进程还在,不等下次启动;用 App 级作用域,服务没了也做完
             center.store.interruptUnfinished()
-            val app = application as com.daiyimo.maeve.MikaApp
+            val app = application as com.daiyimo.maeve.MaeveApp
             center.runs().forEach { r -> r.mcpExternalId?.let { app.remoteTasks.ended(it, TaskState.Failed(tr(R.string.task_interrupted), FailKind.Interrupted), r.steers.value) } }
-            (application as com.daiyimo.maeve.MikaApp).runRecovery.settleInterrupted()
+            (application as com.daiyimo.maeve.MaeveApp).runRecovery.settleInterrupted()
             taskState._state.value = TaskState.Failed(tr(R.string.task_interrupted), FailKind.Interrupted)
             taskState._runs.value = emptyList()
             taskState._activeConversations.value = emptyList()
@@ -835,7 +835,7 @@ class TaskService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-        /** 打开 Mika;给了 [threadId] 时直接到那个对话。通知和悬浮胶囊共用。 */
+        /** 打开 Maeve;给了 [threadId] 时直接到那个对话。通知和悬浮胶囊共用。 */
         internal fun openAppIntent(context: Context, threadId: String? = null): Intent = Intent(context, MainActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             .apply { if (threadId != null) putExtra(MainActivity.EXTRA_OPEN_CONVERSATION, threadId) }
@@ -926,7 +926,7 @@ class TaskService : Service() {
         private const val RESULT_IDS = 1_000
         private val resultCount = AtomicInteger()
         private val TAKEOVER_QUEUED: String get() = tr(R.string.task_takeover_queued)
-        private const val TAG = "MikaTask"
+        private const val TAG = "MaeveTask"
         val TOO_OLD: String get() = tr(R.string.task_too_old)
         internal val PREPARING: String get() = tr(R.string.runtime_preparing)
         val SHELL_DIED: String get() = tr(R.string.task_shell_died)
@@ -969,7 +969,7 @@ class TaskService : Service() {
         }
 
         fun cancelMcp(context: Context, externalId: String) {
-            val state = (context.applicationContext as com.daiyimo.maeve.MikaApp).taskState
+            val state = (context.applicationContext as com.daiyimo.maeve.MaeveApp).taskState
             if (state.runs.value.none { it.mcpExternalId == externalId }) return
             context.startService(Intent(context, TaskService::class.java).setAction(ACTION_CANCEL_MCP)
                 .putExtra(EXTRA_MCP_ID, externalId))
@@ -978,7 +978,7 @@ class TaskService : Service() {
         /** [runKey] 见 [send];应用内的按钮带着屏上那个对话的任务编号,不会落到别的任务上。 */
         fun cancel(context: Context, runKey: String? = null) = send(context, ACTION_CANCEL, runKey = runKey)
 
-        /** 用户点了「继续」:被挪走的 App 会被挪回 Mika 的屏幕。 */
+        /** 用户点了「继续」:被挪走的 App 会被挪回 Maeve 的屏幕。 */
         fun resume(context: Context, runKey: String? = null) = send(context, ACTION_RESUME, runKey = runKey)
 
         /** 「我来处理」:把 App 挪到主屏并恢复它的声音。 */
@@ -1021,7 +1021,7 @@ class TaskService : Service() {
 
         /** 该任务此刻的状态;任务已不在时为 Idle(动作作废)。[runKey] 为空时是显示中的任务。 */
         private fun stateFor(context: Context, runKey: String?): TaskState {
-            val state = (context.applicationContext as com.daiyimo.maeve.MikaApp).taskState
+            val state = (context.applicationContext as com.daiyimo.maeve.MaeveApp).taskState
             return if (runKey == null) state.state.value else state.runs.value.firstOrNull { it.key == runKey }?.state?.value ?: TaskState.Idle
         }
 

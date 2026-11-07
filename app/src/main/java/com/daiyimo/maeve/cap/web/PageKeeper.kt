@@ -144,7 +144,7 @@ class PageKeeper(
     }
 
     private companion object {
-        const val TAG = "MikaPageKeeper"
+        const val TAG = "MaevePageKeeper"
         /** 多久按墙上时钟核一次到没到点。 */
         const val CHECK_MS = 60_000L
         const val FRAME_MS = 500L

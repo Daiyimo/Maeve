@@ -11,7 +11,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * 在后台准备运行环境:App 启动时、Mika 升级后、重置后、任务要用而还没准备好时。
+ * 在后台准备运行环境:App 启动时、Maeve 升级后、重置后、任务要用而还没准备好时。
  * 对用户不可见,只在准备期间有一条低优先级的中性通知([SandboxForeground])。不联网。
  */
 object RuntimePreparer {
@@ -52,7 +52,7 @@ object RuntimePreparer {
         return j
     }
 
-    /** 要不要准备:没装、装了旧版本(Mika 升级了)、出过错(除非 [skipBroken])。不支持或正在进行的不动。 */
+    /** 要不要准备:没装、装了旧版本(Maeve 升级了)、出过错(除非 [skipBroken])。不支持或正在进行的不动。 */
     internal fun needsWork(status: SandboxStatus, installed: String?, bundled: String, skipBroken: Boolean): Boolean = when (status) {
         is SandboxStatus.Unsupported, is SandboxStatus.Installing -> false
         is SandboxStatus.Ready -> installed != bundled
