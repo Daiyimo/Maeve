@@ -88,11 +88,13 @@ import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.GlassBackdrop
 import com.daiyimo.maeve.ui.components.GlassBar
 import com.daiyimo.maeve.ui.components.GlassBlurSupported
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.cardSurface
 import com.daiyimo.maeve.ui.components.floatShadow
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import com.daiyimo.maeve.voice.HoldToTalk
 import com.daiyimo.maeve.voice.SpeechEngineSpec
 import com.daiyimo.maeve.voice.SpeechFailure
@@ -261,7 +263,7 @@ internal fun rememberVoiceHold(voice: VoiceSource?, onText: (String) -> Unit): V
     val scope = rememberCoroutineScope()
     val vh = remember(voice, off) { if (off || voice == null) null else VoiceHold(voice, scope) } ?: return null
     val context = LocalContext.current
-    val haptics = MikaTheme.haptics
+    val haptics = MaeveTheme.haptics
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         MicPermission.record(context, granted)
     }
@@ -378,7 +380,7 @@ internal fun Modifier.holdToTalk(vh: VoiceHold, onTap: () -> Unit): Modifier {
 internal fun VoiceBarCover(vh: VoiceHold, state: HoldToTalk.State, reduceMotion: Boolean, modifier: Modifier = Modifier) {
     val s = state as? HoldToTalk.State.Listening
     if (!vh.holding || s == null) return
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val label = when {
         s.cancelArmed -> stringResource(R.string.voice_release_cancel)
         s.live -> stringResource(R.string.voice_release_fill)
@@ -453,16 +455,20 @@ internal fun VoiceFloat(vh: VoiceHold, state: HoldToTalk.State, title: String, b
 /** 「上滑取消」的小胶囊;滑到了变红写「松开 取消」。 */
 @Composable
 private fun CancelHint(armed: Boolean, modifier: Modifier = Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val shape = RoundedCornerShape(16.dp)
     Row(
-        modifier.floatShadow(c, shape).background(if (armed) c.bad else c.surface, shape)
+        modifier
+            .then(
+                if (armed) Modifier.floatShadow(c, shape).background(c.bad, shape)
+                else Modifier.cardSurface(c, shape, tier = GlassTier.Pill),
+            )
             .padding(horizontal = 14.dp, vertical = 7.dp).testTag("voice-cancel-hint"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         val fg = if (armed) c.onAccent else c.ink2
-        Icon(MikaIcons.Up, null, Modifier.size(15.dp), tint = fg)
+        Icon(MaeveIcons.Up, null, Modifier.size(15.dp), tint = fg)
         Text(stringResource(if (armed) R.string.voice_release_cancel else R.string.voice_slide_cancel), style = HintText, color = fg)
     }
 }
@@ -473,7 +479,7 @@ private fun CancelHint(armed: Boolean, modifier: Modifier = Modifier) {
  */
 @Composable
 private fun ListenCard(s: HoldToTalk.State.Listening, title: String, engine: String, backdrop: GlassBackdrop?) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val shape = RoundedCornerShape(22.dp)
     GlassBar(
         Modifier.fillMaxWidth().testTag("voice-listen")
@@ -486,7 +492,7 @@ private fun ListenCard(s: HoldToTalk.State.Listening, title: String, engine: Str
                 Text(title, Modifier.weight(1f, fill = false), style = HeadText, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (engine.isNotEmpty()) {
                     Text(
-                        engine, Modifier.background(c.fill, RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
+                        engine, Modifier.cardSurface(c, RoundedCornerShape(7.dp), tier = GlassTier.Pill).padding(horizontal = 8.dp, vertical = 2.dp),
                         style = ChipText, color = c.ink2, maxLines = 1,
                     )
                 }
@@ -526,8 +532,8 @@ private fun ListenCard(s: HoldToTalk.State.Listening, title: String, engine: Str
 /** 卡片顶上那个点:在录时蓝色一圈一圈往外;要取消时变红、不动。 */
 @Composable
 private fun RecDot(armed: Boolean) {
-    val c = MikaTheme.colors
-    val reduce = MikaTheme.reduceMotion
+    val c = MaeveTheme.colors
+    val reduce = MaeveTheme.reduceMotion
     val halo = if (armed || reduce) 0f else rememberInfiniteTransition(label = "rec").animateFloat(
         0f, 1f, infiniteRepeatable(tween(600), RepeatMode.Reverse), label = "rec-halo",
     ).value
@@ -544,7 +550,7 @@ private fun RecDot(armed: Boolean) {
 /** 输入栏上方的一句轻提示(没听清、识别服务忙……),一会儿自己消失。 */
 @Composable
 private fun VoiceToast(text: String) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Text(
         text,
         Modifier.background(c.ink.copy(alpha = 0.88f), RoundedCornerShape(18.dp)).padding(horizontal = 16.dp, vertical = 9.dp).testTag("voice-toast"),
@@ -555,19 +561,19 @@ private fun VoiceToast(text: String) {
 /** 服务商松开后在转:输入框里转圈加「转文字…」。 */
 @Composable
 internal fun VoiceConverting(modifier: Modifier = Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(modifier.testTag("voice-converting"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Spinner(Modifier.size(13.dp), spinning = !MikaTheme.reduceMotion, track = c.accentSoft, head = c.accent)
-        Text(stringResource(R.string.voice_converting), style = MikaType.Body, color = c.ink2, maxLines = 1)
+        Spinner(Modifier.size(13.dp), spinning = !MaeveTheme.reduceMotion, track = c.accentSoft, head = c.accent)
+        Text(stringResource(R.string.voice_converting), style = MaeveType.Body, color = c.ink2, maxLines = 1)
     }
 }
 
 /** 能按住说话时的灰字：在可用输入区域里居中，不额外放话筒图标。 */
 @Composable
 internal fun VoicePlaceholder(mode: ComposerMode, modifier: Modifier = Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-        Text(ChatCopy.voicePlaceholder(mode), style = MikaType.Body, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(ChatCopy.voicePlaceholder(mode), style = MaeveType.Body, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -576,21 +582,17 @@ internal fun VoicePlaceholder(mode: ComposerMode, modifier: Modifier = Modifier)
 internal fun Modifier.voiceDim(on: Boolean, reduceMotion: Boolean): Modifier {
     val p by animateFloatAsState(if (on) 1f else 0f, if (reduceMotion) snap() else tween(250), label = "voice-dim")
     if (p == 0f) return this
-    return graphicsLayer {
-        alpha = 1f - 0.55f * p
-        if (GlassBlurSupported) {
-            val r = 1.5.dp.toPx() * p
-            renderEffect = if (r >= 0.5f) BlurEffect(r, r, TileMode.Clamp) else null
-        }
-    }
+    // 只降透明度。原来这里还挂了一个 1.5dp 的 BlurEffect，
+    // 和 behindMenu 一样是往内容层塞 renderEffect，会把 DirtyStack 撑爆。
+    return graphicsLayer { alpha = 1f - 0.55f * p }
 }
 
-/** 「还不能语音输入」(「去选」到设置里选转文字)和录音权限的说明(「去设置」到系统里 Mika 的权限页)。 */
+/** 「还不能语音输入」(「去选」到设置里选转文字)和录音权限的说明(「去设置」到系统里 Maeve 的权限页)。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun VoiceSheetHost(vh: VoiceHold, onPickSpeech: () -> Unit) {
     val sheet = vh.sheet ?: return
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val context = LocalContext.current
     val title: String
     val body: String
@@ -623,11 +625,11 @@ internal fun VoiceSheetHost(vh: VoiceHold, onPickSpeech: () -> Unit) {
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 20.dp, end = 20.dp, bottom = 18.dp).testTag("voice-sheet")) {
-            Text(title, style = MikaType.Title, color = c.ink)
+            Text(title, style = MaeveType.Title, color = c.ink)
             Text(body, Modifier.padding(top = 8.dp), style = SheetBody, color = c.ink2)
             Row(Modifier.fillMaxWidth().padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MikaButton(stringResource(R.string.ok_got_it), { vh.sheet = null }, Modifier.weight(1f), kind = ButtonKind.Tonal, size = ButtonSize.Medium)
-                MikaButton(action, { vh.sheet = null; go() }, Modifier.weight(1f), size = ButtonSize.Medium)
+                MaeveButton(stringResource(R.string.ok_got_it), { vh.sheet = null }, Modifier.weight(1f), kind = ButtonKind.Tonal, size = ButtonSize.Medium)
+                MaeveButton(action, { vh.sheet = null; go() }, Modifier.weight(1f), size = ButtonSize.Medium)
             }
         }
     }

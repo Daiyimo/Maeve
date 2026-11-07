@@ -5,7 +5,9 @@
     <string name="chat_greeting_afternoon">下午好</string>
     <string name="chat_greeting_evening">晚上好</string>
     <string name="chat_greeting_night">夜深了</string>
-    <string name="chat_empty_prompt">想讓 Maeve 做什麼？</string>
+    <string name="chat_eyebrow_waiting">我在聽</string>
+    <string name="chat_eyebrow_round">第 %1$s 輪</string>
+    <string name="chat_empty_prompt">說事。剩下的我來。</string>
     <string name="chat_example_group_summary">幫我總結微信群聊，Maeve內測體驗群今天都聊了些啥</string>
     <string name="chat_example_jobs">在Boss直聘上幫我投遞AI產品經理崗位，150個投滿</string>
     <string name="chat_example_alarms">幫我訂明天早上9:40、9:50、10:00 的鬧鐘</string>
@@ -141,7 +143,7 @@
     <string name="chat_branch_attachments_readd">附件需要重新加入</string>
     <string name="chat_select_hint">長按文字就能選取</string>
     <string name="chat_quote_remove">移除引用</string>
-    <string name="chat_quoting_mika">引用 Maeve:%1$s</string>
+    <string name="chat_quoting_maeve">引用 Maeve:%1$s</string>
     <string name="chat_quoting_you">引用你的話:%1$s</string>
     <string name="chat_edit_message">編輯訊息</string>
     <string name="chat_withdraw_message">收回訊息</string>

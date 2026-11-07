@@ -45,12 +45,14 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.ui.components.GlassBlurSupported
+import com.daiyimo.maeve.ui.components.cardSurface
 import com.daiyimo.maeve.ui.components.floatShadow
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaSize
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -85,13 +87,13 @@ internal fun ConversationMenu(
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     LongPressMenu(
         bounds, progress, pane = stringResource(R.string.drawer_actions), tag = "drawer-menu",
         entries = listOf(
-            MenuEntry(stringResource(if (item.pinned) R.string.unpin else R.string.pin), MikaIcons.Pin, "drawer-menu-pin", onClick = onPin),
-            MenuEntry(stringResource(R.string.drawer_rename), MikaIcons.Edit, "drawer-menu-rename", onClick = onRename),
-            MenuEntry(stringResource(R.string.confirm_delete), MikaIcons.Trash, "drawer-menu-delete", c.bad, onDelete),
+            MenuEntry(stringResource(if (item.pinned) R.string.unpin else R.string.pin), MaeveIcons.Pin, "drawer-menu-pin", onClick = onPin),
+            MenuEntry(stringResource(R.string.drawer_rename), MaeveIcons.Edit, "drawer-menu-rename", onClick = onRename),
+            MenuEntry(stringResource(R.string.confirm_delete), MaeveIcons.Trash, "drawer-menu-delete", c.bad, onDelete),
         ),
         onDismiss = onDismiss,
     ) { LiftedRow(item) }
@@ -118,7 +120,7 @@ internal fun LongPressMenu(
     alignEnd: Boolean = false,
     lifted: @Composable () -> Unit,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val insets = WindowInsets.safeDrawing
     val view = LocalView.current
     val close = stringResource(R.string.collapse)
@@ -174,14 +176,13 @@ internal fun LongPressMenu(
     }
 }
 
-/** 抬起的那一行:和侧栏里那一行一样的内容,换成白底圆角、带阴影。 */
+/** 抬起的那一行:和侧栏里那一行一样的内容,换成玻璃圆角、带阴影。 */
 @Composable
 private fun LiftedRow(item: DrawerConversation) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Box(
         Modifier
-            .floatShadow(c, NavShape)
-            .background(c.surface, NavShape)
+            .cardSurface(c, NavShape)
             .clip(NavShape)
             .padding(horizontal = 12.dp, vertical = 9.dp),
     ) {
@@ -191,11 +192,9 @@ private fun LiftedRow(item: DrawerConversation) {
 
 @Composable
 private fun MenuCard(content: @Composable () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Column(
-        Modifier.floatShadow(c, MikaShapes.Card).clip(MikaShapes.Card)
-            .background(c.surface)
-            .border(0.5.dp, c.edge, MikaShapes.Card)
+        Modifier.cardSurface(c, MaeveShapes.Card)
             .semantics { popup() },
     ) { content() }
 }
@@ -209,8 +208,8 @@ private fun MenuItem(text: String, icon: ImageVector, tag: String, color: Color,
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, Modifier.weight(1f), style = MikaType.Body, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Icon(icon, null, Modifier.padding(start = 12.dp).size(MikaSize.Icon), tint = color)
+        Text(text, Modifier.weight(1f), style = MaeveType.Body, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(icon, null, Modifier.padding(start = 12.dp).size(MaeveSize.Icon), tint = color)
     }
 }
 

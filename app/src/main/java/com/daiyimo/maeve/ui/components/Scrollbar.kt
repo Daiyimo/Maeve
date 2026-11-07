@@ -17,7 +17,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import kotlinx.coroutines.delay
 
 /**
@@ -28,7 +28,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun Modifier.lazyListScrollbar(
     state: LazyListState,
-    color: Color = MikaTheme.colors.ink3,
+    color: Color = MaeveTheme.colors.ink3,
     width: Dp = 3.dp,
     edge: Dp = 2.dp,
 ): Modifier {

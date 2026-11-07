@@ -5,7 +5,9 @@
     <string name="chat_greeting_afternoon">مساء الخير</string>
     <string name="chat_greeting_evening">مساء الخير</string>
     <string name="chat_greeting_night">ما زلت مستيقظًا؟</string>
-    <string name="chat_empty_prompt">ما الذي تريد من Maeve أن تفعله؟</string>
+    <string name="chat_eyebrow_waiting">أنا أسمع</string>
+    <string name="chat_eyebrow_round">الجولة %1$s</string>
+    <string name="chat_empty_prompt">قل ما تريد. والباقي عليّ.</string>
     <string name="chat_example_group_summary">افتح WhatsApp ولخّص رسائل اليوم غير المقروءة، مع إبراز كل ما يحتاج إلى ردي.</string>
     <string name="chat_example_jobs">افتح LinkedIn واعثر على خمس وظائف عن بُعد لمدير منتجات ذكاء اصطناعي، ثم قارن متطلباتها.</string>
     <string name="chat_example_alarms">اضبط المنبهات للساعة 9:40 و9:50 و10:00 صباح الغد.</string>
@@ -168,7 +170,7 @@
     <string name="chat_conversation_tokens_partial">هذه المحادثة: %1$s على الأقل</string>
     <string name="chat_select_hint">اضغط مطولًا على النص لتحديده</string>
     <string name="chat_quote_remove">إزالة الاقتباس</string>
-    <string name="chat_quoting_mika">اقتباس من Maeve: %1$s</string>
+    <string name="chat_quoting_maeve">اقتباس من Maeve: %1$s</string>
     <string name="chat_quoting_you">اقتباس منك: %1$s</string>
     <string name="chat_edit_message">تعديل الرسالة</string>
     <string name="chat_withdraw_message">سحب الرسالة</string>

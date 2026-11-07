@@ -1,6 +1,7 @@
 package com.daiyimo.maeve.ui
 
 import android.content.Context
+import com.daiyimo.maeve.BuildConfig
 
 /** 首次上手的三步。 */
 enum class OnboardingStep { Welcome, Model, Phone }
@@ -41,7 +42,13 @@ object Onboarding {
 class OnboardingState(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    fun modelSetupDone(): Boolean = prefs.getBoolean(MODEL_DONE, false)
+    /**
+     * 上手流程里「配置模型」做完没有。
+     *
+     * debug 包(装机验收用的 Maeve Dev)默认视为做完:引导要填真 API Key 还得真机逐屏点,
+     * 验收 UI 时不该被它挡住;release 照旧按偏好判断。
+     */
+    fun modelSetupDone(): Boolean = prefs.getBoolean(MODEL_DONE, false) || BuildConfig.DEBUG
 
     fun markModelSetupDone() {
         prefs.edit().putBoolean(MODEL_DONE, true).apply()

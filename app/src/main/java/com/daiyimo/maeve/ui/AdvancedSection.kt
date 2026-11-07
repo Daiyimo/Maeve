@@ -5,7 +5,7 @@ import com.daiyimo.maeve.i18n.tr
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import com.daiyimo.maeve.ui.haptic.HoldToConfirm
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -30,15 +30,15 @@ import com.daiyimo.maeve.cap.sandbox.SandboxState
 import kotlinx.coroutines.launch
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.ui.components.TileTone
-import com.daiyimo.maeve.ui.components.MikaSwitch
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.components.MaeveSwitch
+import com.daiyimo.maeve.ui.theme.MaeveType
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.GroupLabel
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.cap.sandbox.SandboxDirs
 import com.daiyimo.maeve.cap.sandbox.SandboxUsage
 import com.daiyimo.maeve.cap.sandbox.SandboxUsageReader
@@ -106,7 +106,7 @@ fun AdvancedSettings() {
     val state = remember { SandboxState.get(context) }
     val status by state.status.collectAsState()
     var network by remember { mutableStateOf(state.networkAllowed) }
-    val app = context.applicationContext as MikaApp
+    val app = context.applicationContext as MaeveApp
     val usageReader = remember {
         SandboxUsageReader(SandboxDirs(context), { app.conversations.list() }, { app.taskState.activeConversations.value })
     }
@@ -157,28 +157,28 @@ fun AdvancedSection(
     var clearingAll by remember { mutableStateOf(false) }
 
     GroupCard {
-        ListRow(MikaIcons.Link, SandboxCopy.NETWORK_TITLE, SandboxCopy.NETWORK_SUBTITLE, first = true) {
-            MikaSwitch(networkAllowed, onNetworkChange, Modifier.testTag("sandbox-network"))
+        ListRow(MaeveIcons.Link, SandboxCopy.NETWORK_TITLE, SandboxCopy.NETWORK_SUBTITLE, first = true) {
+            MaeveSwitch(networkAllowed, onNetworkChange, Modifier.testTag("sandbox-network"))
         }
-        Note(SandboxCopy.NETWORK_EXPLAIN, if (networkAllowed) MikaTheme.colors.warn else MikaTheme.colors.ink3)
-        if (isolationIssue) Note(SandboxCopy.ISOLATION_UNAVAILABLE, MikaTheme.colors.bad)
-        ListRow(MikaIcons.Close, tr(R.string.sandbox_reset), SandboxCopy.resetSubtitle(status), titleColor = MikaTheme.colors.bad, tone = TileTone.Bad,
+        Note(SandboxCopy.NETWORK_EXPLAIN, if (networkAllowed) MaeveTheme.colors.warn else MaeveTheme.colors.ink3)
+        if (isolationIssue) Note(SandboxCopy.ISOLATION_UNAVAILABLE, MaeveTheme.colors.bad)
+        ListRow(MaeveIcons.Close, tr(R.string.sandbox_reset), SandboxCopy.resetSubtitle(status), titleColor = MaeveTheme.colors.bad, tone = TileTone.Bad,
             onClick = if (status is SandboxStatus.Installing) null else ({ confirming = true }))
     }
 
     usage?.let { u -> UsageGroup(u, onClear = { clearing = it }, onClearAll = { clearingAll = true }) }
 
     clearing?.let { w ->
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { clearing = null },
             title = { Text(SandboxCopy.CLEAR_TITLE) },
             text = { Text(SandboxCopy.clearBody(w)) },
-            confirmButton = { TextButton({ clearing = null; onClearWorkspace(w) }) { Text(SandboxCopy.CLEAR, color = MikaTheme.colors.bad) } },
+            confirmButton = { TextButton({ clearing = null; onClearWorkspace(w) }) { Text(SandboxCopy.CLEAR, color = MaeveTheme.colors.bad) } },
             dismissButton = { TextButton({ clearing = null }) { Text(tr(R.string.cancel)) } },
         )
     }
     if (clearingAll) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { clearingAll = false },
             title = { Text(SandboxCopy.CLEAR_ALL_TITLE) },
             text = { Text(SandboxCopy.CLEAR_ALL_BODY) },
@@ -193,11 +193,11 @@ fun AdvancedSection(
     }
 
     if (confirming) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { confirming = false },
             title = { Text(SandboxCopy.RESET_TITLE) },
             text = { Text(SandboxCopy.RESET_BODY) },
-            confirmButton = { TextButton({ confirming = false; onReset() }) { Text(tr(R.string.reset), color = MikaTheme.colors.bad) } },
+            confirmButton = { TextButton({ confirming = false; onReset() }) { Text(tr(R.string.reset), color = MaeveTheme.colors.bad) } },
             dismissButton = { TextButton({ confirming = false }) { Text(tr(R.string.cancel)) } },
         )
     }
@@ -205,7 +205,7 @@ fun AdvancedSection(
 
 @Composable
 private fun Note(text: String, color: Color) {
-    Text(text, Modifier.fillMaxWidth().padding(start = 60.dp, end = 16.dp, bottom = 10.dp), style = MikaType.Hint, color = color)
+    Text(text, Modifier.fillMaxWidth().padding(start = 60.dp, end = 16.dp, bottom = 10.dp), style = MaeveType.Hint, color = color)
 }
 
 /**
@@ -214,7 +214,7 @@ private fun Note(text: String, color: Color) {
  */
 @Composable
 private fun UsageGroup(u: SandboxUsage, onClear: (WorkspaceUsage) -> Unit, onClearAll: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     GroupLabel(SandboxCopy.USAGE_TITLE)
     GroupCard {
         SandboxCopy.usageRows(u).forEachIndexed { i, (name, bytes) ->
@@ -234,5 +234,5 @@ private fun UsageGroup(u: SandboxUsage, onClear: (WorkspaceUsage) -> Unit, onCle
             }
         }
     }
-    Text(SandboxCopy.USAGE_NOTE, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp), style = MikaType.Hint, color = c.ink3)
+    Text(SandboxCopy.USAGE_NOTE, Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp), style = MaeveType.Hint, color = c.ink3)
 }

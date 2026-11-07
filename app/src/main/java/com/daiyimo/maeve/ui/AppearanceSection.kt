@@ -44,7 +44,7 @@ import com.daiyimo.maeve.ui.theme.MaeveAccentStore
 import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.ui.theme.MaeveMark
 import com.daiyimo.maeve.ui.theme.MaeveTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /**
  * 外观 › 配色:六套预设 + 跟随壁纸。
@@ -63,15 +63,15 @@ fun AccentPickerCard(modifier: Modifier = Modifier) {
     GroupCard(modifier) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.accent_title), style = MikaType.BodyStrong, color = c.ink)
+                Text(stringResource(R.string.accent_title), style = MaeveType.BodyStrong, color = c.ink)
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
-                    Text(accentName(spec), style = MikaType.Caption, color = c.ink3)
+                    Text(accentName(spec), style = MaeveType.Caption, color = c.ink3)
                 }
             }
             Text(
                 stringResource(R.string.accent_sub),
                 Modifier.padding(top = 3.dp),
-                style = MikaType.Caption, color = c.ink3,
+                style = MaeveType.Caption, color = c.ink3,
             )
             Row(
                 Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp),
@@ -166,11 +166,11 @@ fun LauncherIconCard(modifier: Modifier = Modifier) {
     val c = MaeveTheme.colors
     GroupCard(modifier) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Text(stringResource(R.string.icon_title), style = MikaType.BodyStrong, color = c.ink)
+            Text(stringResource(R.string.icon_title), style = MaeveType.BodyStrong, color = c.ink)
             Text(
                 stringResource(R.string.icon_sub),
                 Modifier.padding(top = 3.dp),
-                style = MikaType.Caption, color = c.ink3,
+                style = MaeveType.Caption, color = c.ink3,
             )
             Row(
                 Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp),
@@ -210,13 +210,11 @@ private fun LauncherIconOption(icon: LauncherIcon, selected: Boolean, onClick: (
                 .clickable(role = Role.RadioButton, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            // 和 MaeveMarkTile 里同一套 24 网格几何:预览和真图标不会漂移
+            // 与启动图标同一套几何(暗盘 0.735 / 日冕 0.168 / 最厚朝右上)
             MaeveMark(
                 size = 34.dp,
-                ringColor = Color.White.copy(alpha = 0.95f),
-                dotColor = Color.White,
-                glowColor = Color.Transparent,
-                strokeWidth = 1.7.dp,
+                coronaColor = Color.White,
+                darkColor = Color(icon.bgBottom),
             )
         }
         Text(

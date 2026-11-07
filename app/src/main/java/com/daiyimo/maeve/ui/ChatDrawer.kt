@@ -1,18 +1,22 @@
 package com.daiyimo.maeve.ui
 
+import com.daiyimo.maeve.ui.components.glassFill
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.ui.components.DirectionalIcon
 import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.mutableStateOf
 import com.daiyimo.maeve.chat.DeleteImpact
@@ -31,6 +35,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -73,6 +79,10 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.graphicsLayer
@@ -81,7 +91,9 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.toSize
 import com.daiyimo.maeve.ui.theme.MaeveMotion
-import com.daiyimo.maeve.ui.components.MikaLogo
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.components.MaeveLogo
 import com.daiyimo.maeve.ui.components.keepsKeyboard
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -93,10 +105,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import com.daiyimo.maeve.ui.components.cardSurface
 import com.daiyimo.maeve.ui.components.lazyListScrollbar
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaSize
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -184,7 +196,7 @@ fun conversationTime(at: Long, now: Long, zone: ZoneId = ZoneId.systemDefault())
     }
 }
 
-/** 侧栏顶上 Mika 名字下面那行状态,和它是不是好的(绿点)还是要处理(橙点)。 */
+/** 侧栏顶上 Maeve 名字下面那行状态,和它是不是好的(绿点)还是要处理(橙点)。 */
 fun readiness(check: Prerequisites.Check): Pair<String, Boolean> = when {
     !check.canStartTask -> tr(R.string.chat_cannot_start) to false
     !check.phoneReady -> tr(R.string.drawer_phone_not_ready) to false
@@ -210,39 +222,63 @@ fun ChatDrawer(
     onSettings: () -> Unit,
     onOpen: (DrawerConversation) -> Unit,
     onAbout: () -> Unit = {},
-    /** 有新版本:「关于 Mika」带小红点。 */
+    /** 有新版本:「关于 Maeve」带小红点。 */
     aboutDot: Boolean = false,
     /** 长按一条存过的对话:在它原地弹出操作菜单(置顶、改名、删除);带上那一行在窗口里的位置和大小。 */
     onActions: (DrawerConversation, Rect) -> Unit = { _, _ -> },
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
+    // 自适应宽度：取「244dp」与「屏宽 62%」里较小的那个。
+    // 用 LocalConfiguration 而不是 fillMaxWidth —— fillMaxWidth 会把 widthIn 的封顶覆盖掉。
+    val screen = LocalConfiguration.current.screenWidthDp.dp
+    val width = minOf(DrawerWidth, screen * DRAWER_MAX_FRACTION)
     Column(
-        Modifier.fillMaxHeight().widthIn(max = DrawerWidth).fillMaxWidth()
-            .clip(DrawerShape).background(c.bg, DrawerShape)
+        // ★ 不要在这里再写 fillMaxWidth()。
+        //   旧版是 `widthIn(max = DrawerWidth).fillMaxWidth()`——后面的 fillMaxWidth
+        //   会把宽度重新拉成父级的最大值，widthIn 的封顶直接失效，侧栏铺满整屏。
+        Modifier.fillMaxHeight().width(width)
+            .cardSurface(c, DrawerShape, tier = GlassTier.Sheet)
             .windowInsetsPadding(WindowInsets.statusBars.union(WindowInsets.navigationBars))
             .testTag("drawer"),
     ) {
         val (state, ok) = readiness(check)
+        // 顶部：品牌 + 状态，右边一个实色胶囊的「新对话」。
+        // 整个抽屉只留这一个实色元素——它是唯一的主操作，其余全是线条和文字。
         Row(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 10.dp),
+            Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            MikaLogo(36.dp, corner = 10.dp)
-            Column {
-                Text("Maeve", style = MikaType.Title, color = c.ink)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Box(Modifier.size(6.dp).background(if (ok) c.ok else c.warnSolid, CircleShape))
-                    Text(state, style = MikaType.Hint, fontWeight = FontWeight.Medium, color = c.ink3)
+            MaeveLogo(34.dp, corner = 10.dp)
+            Column(Modifier.weight(1f)) {
+                Text("Maeve", style = MaeveType.Title, color = c.ink)
+                // 状态是读数,不是句子:等宽、小、宽字距
+                Row(
+                    Modifier.padding(top = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                ) {
+                    Box(Modifier.size(5.dp).background(if (ok) c.ok else c.signal, CircleShape))
+                    Text(
+                        state, style = MaeveType.EyebrowSmall.copy(letterSpacing = 1.1.sp),
+                        color = c.ink3, maxLines = 1,
+                    )
                 }
             }
+            NewChatPill(enabled = canSwitch, onClick = onNew)
         }
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
-            NavEntry(MikaIcons.New, stringResource(R.string.chat_new), enabled = canSwitch, onClick = onNew)
-            NavEntry(MikaIcons.Clock, stringResource(R.string.drawer_plans), onClick = onPlans)
-            NavEntry(MikaIcons.Heart, stringResource(R.string.memory_and_skills), onClick = onMemory)
-            NavEntry(MikaIcons.Globe, stringResource(R.string.drawer_browser), onClick = onBrowser)
+        // 入口：裸线条图标，没有底色方块。侧栏是目录，方块底会让四个入口看起来像四个按钮。
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 2.dp)) {
+            NavEntry(MaeveIcons.Clock, stringResource(R.string.drawer_plans), onClick = onPlans)
+            NavEntry(MaeveIcons.Heart, stringResource(R.string.memory_and_skills), onClick = onMemory)
+            NavEntry(MaeveIcons.Globe, stringResource(R.string.drawer_browser), onClick = onBrowser)
         }
+        // 入口区与对话列表之间一道发丝线。dsh-Go 靠分组和留白分区，
+        // 这里没有分组能力，一条极细的线是最省的分界——它让"工具"和"对话"读作两块东西。
+        Box(
+            Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 4.dp)
+                .height(0.5.dp).background(c.hair),
+        )
         // 侧栏关着时列表只剩末尾那一项;打开时对话插在它前面,列表会按原来那一项停在最底下。最上面一项变了就回到顶上
         val list = rememberLazyListState()
         val first = when {
@@ -252,6 +288,10 @@ fun ChatDrawer(
             else -> "end"
         }
         LaunchedEffect(first) { list.scrollToItem(0) }
+        // 列表不套 Box、不做渐隐遮罩。
+        // 旧版用一层「白色玻璃色」渐变贴在上下边缘，侧栏本身是暖纸色，盖上去变成
+        // 一整块冷白（#F4F5F6 vs #F0ECF0）——这就是你看到的历史记录「一块白色」。
+        // 想做渐隐只能改 ShaderMask(DstIn)，不能盖实色。
         LazyColumn(Modifier.fillMaxWidth().weight(1f).lazyListScrollbar(list), state = list) {
             if (sections.running.isNotEmpty()) {
                 // 「进行中」这一段的右边进「后台屏」页:看每个在跑的任务正在用哪个 App、实时画面
@@ -264,7 +304,7 @@ fun ChatDrawer(
                     item("busy") {
                         Text(
                             stringResource(R.string.drawer_busy), Modifier.padding(start = 24.dp, end = 24.dp, bottom = 6.dp),
-                            style = MikaType.Hint, color = c.ink3,
+                            style = MaeveType.Hint, color = c.ink3,
                         )
                     }
                 }
@@ -287,8 +327,8 @@ fun ChatDrawer(
                 .padding(horizontal = 12.dp, vertical = 6.dp).testTag("drawer-footer"),
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            NavEntry(MikaIcons.Gear, stringResource(R.string.settings_title), Modifier, onClick = onSettings)
-            NavEntry(MikaIcons.Info, AboutCopy.TITLE, Modifier, dot = aboutDot, onClick = onAbout)
+            NavEntry(MaeveIcons.Gear, stringResource(R.string.settings_title), Modifier, onClick = onSettings)
+            NavEntry(MaeveIcons.Info, AboutCopy.TITLE, Modifier, dot = aboutDot, onClick = onAbout)
         }
     }
 }
@@ -298,27 +338,60 @@ private fun NavEntry(
     icon: ImageVector, text: String, modifier: Modifier = Modifier.fillMaxWidth(),
     enabled: Boolean = true, dot: Boolean = false, onClick: () -> Unit,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(
-        modifier.height(46.dp).clip(NavShape)
+        modifier.height(44.dp).clip(NavShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .alpha(if (enabled) 1f else 0.4f)
-            .padding(horizontal = 12.dp),
+            .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(icon, null, Modifier.size(MikaSize.Icon), tint = c.ink2)
+        // 裸图标，没有底色方块。灰色方块会让每一行都变成一个「按钮」，
+        // 四个入口并排看像工具栏；裸线条更安静，也更像目录。
+        Icon(icon, null, Modifier.size(19.dp), tint = c.ink2)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(text, style = MikaType.Body, color = c.ink, maxLines = 1, softWrap = false)
+            Text(text, style = MaeveType.Body, color = c.ink, maxLines = 1, softWrap = false)
             if (dot) UpdateDot()
         }
+    }
+}
+
+/**
+ * 「新对话」：抽屉里唯一的实色元素。
+ *
+ * 学 dsh-Go 的一个原则——一个容器里只能有一个主操作。侧栏其余部分全是线条、
+ * 文字和留白，这个胶囊才有分量；如果每个入口都给底色方块，它就淹没在一片按钮里了。
+ */
+@Composable
+private fun NewChatPill(enabled: Boolean, onClick: () -> Unit) {
+    val c = MaeveTheme.colors
+    val shape = CircleShape
+    Row(
+        // wrapContentWidth：Row 在 Row 父级里会吃满剩余宽度，胶囊就变成一条横贯的色带
+        Modifier.wrapContentWidth().height(32.dp).clip(shape)
+            .background(if (enabled) c.accent else c.neutralSoft)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(start = 10.dp, end = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Icon(
+            MaeveIcons.New, null, Modifier.size(16.dp),
+            tint = if (enabled) c.onAccent else c.ink3,
+        )
+        Text(
+            stringResource(R.string.chat_new),
+            style = TextStyle(fontSize = 12.5.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.2.sp),
+            color = if (enabled) c.onAccent else c.ink3, maxLines = 1, softWrap = false,
+        )
     }
 }
 
 /** 「进行中」的段标题,右边一个「后台屏 ›」进后台屏页(只有有任务在跑时才有这一段)。 */
 @Composable
 private fun RunningLabel(onScreens: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.Bottom) {
         Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.drawer_running)) }
         Row(
@@ -327,18 +400,21 @@ private fun RunningLabel(onScreens: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Icon(MikaIcons.Screens, null, Modifier.size(14.dp), tint = c.ink3)
-            Text(stringResource(R.string.drawer_screens), style = MikaType.Hint, color = c.ink2)
-            DirectionalIcon(MikaIcons.Chevron, null, Modifier.size(10.dp), tint = c.ink3)
+            Icon(MaeveIcons.Screens, null, Modifier.size(14.dp), tint = c.ink3)
+            Text(stringResource(R.string.drawer_screens), style = MaeveType.Hint, color = c.ink2)
+            DirectionalIcon(MaeveIcons.Chevron, null, Modifier.size(10.dp), tint = c.ink3)
         }
     }
 }
 
+/** 段标题:等宽大写 + 宽字距,和设置页的分组标题同一套口音。 */
 @Composable
 private fun SectionLabel(text: String) {
     Text(
-        text, Modifier.padding(start = 24.dp, end = 24.dp, top = 14.dp, bottom = 6.dp),
-        style = SectionText, color = MikaTheme.colors.ink3,
+        text,
+        Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 6.dp),
+        style = MaeveType.Label.copy(fontSize = 12.5.sp),
+        color = MaeveTheme.colors.ink3,
     )
 }
 
@@ -349,16 +425,32 @@ private fun SectionLabel(text: String) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationEntry(item: DrawerConversation, onOpen: (DrawerConversation) -> Unit, onActions: (DrawerConversation, Rect) -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val deletable = item.id != null
-    val haptics = MikaTheme.haptics
+    val haptics = MaeveTheme.haptics
     // 这一行在窗口里的位置和大小(不裁掉滚出列表的部分),菜单照它摆出抬起的那一行;只在回调里读,不引起重组
     val bounds = remember { mutableStateOf(Rect.Zero) }
+    // 选中态用柔和的强调色块，不是左侧一根竖条。
+    // 竖条是"提醒你去注意"，色块是"这块就是当前的地方"——后者更安静，也更像列表本身的一部分。
+    // 0→1 的过渡靠 animateFloatAsState：切换对话时填充淡入淡出，不是瞬间跳。
+    val fill = animateFloatAsState(
+        targetValue = if (item.current) 1f else 0f,
+        animationSpec = tween(MENU_IN_MS, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+        label = "conversation-fill",
+    )
     Column(
-        Modifier.padding(horizontal = 12.dp).fillMaxWidth()
+        Modifier.padding(horizontal = 8.dp).fillMaxWidth()
             .onGloballyPositioned { bounds.value = Rect(it.positionInWindow(), it.size.toSize()) }
-            .then(if (item.current) Modifier.cardSurface(c, NavShape) else Modifier)
             .clip(NavShape)
+            .drawBehind {
+                if (fill.value > 0.001f) {
+                    drawRoundRect(
+                        color = c.accent.copy(alpha = 0.10f * fill.value),
+                        size = size,
+                        cornerRadius = CornerRadius(11.dp.toPx()),
+                    )
+                }
+            }
             .then(
                 if (deletable) Modifier.combinedClickable(
                     onClickLabel = null,
@@ -370,7 +462,7 @@ private fun ConversationEntry(item: DrawerConversation, onOpen: (DrawerConversat
             )
             .testTag("conversation-row")
             .alpha(if (item.enabled) 1f else 0.45f)
-            .padding(horizontal = 12.dp, vertical = 9.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
     ) {
         ConversationRowContent(item)
     }
@@ -379,12 +471,12 @@ private fun ConversationEntry(item: DrawerConversation, onOpen: (DrawerConversat
 /** 一条对话里面的东西:进行中的小圆点、图钉、标题、时间,有副标题时下面一行。侧栏里那一行和长按抬起的那一张都用它。 */
 @Composable
 internal fun ConversationRowContent(item: DrawerConversation) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Column {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             if (item.running) Box(Modifier.size(7.dp).background(c.accent, CircleShape))
-            if (item.pinned) Icon(MikaIcons.Pin, stringResource(R.string.drawer_pinned_mark), Modifier.size(14.dp).testTag("conversation-pin"), tint = c.ink3)
-            if (item.branch) Icon(MikaIcons.Route, stringResource(R.string.chat_branch_origin), Modifier.size(14.dp).testTag("conversation-branch"), tint = c.ink3)
+            if (item.pinned) Icon(MaeveIcons.Pin, stringResource(R.string.drawer_pinned_mark), Modifier.size(14.dp).testTag("conversation-pin"), tint = c.ink3)
+            if (item.branch) Icon(MaeveIcons.Route, stringResource(R.string.chat_branch_origin), Modifier.size(14.dp).testTag("conversation-branch"), tint = c.ink3)
             Text(item.title, Modifier.weight(1f, fill = item.site == null), style = ConversationTitle, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (item.site != null) {
                 Text(
@@ -411,7 +503,7 @@ internal fun RenameConversationDialog(title: String, onSave: (String) -> Unit, o
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
     val ok = value.text.isNotBlank()
-    MikaDialog(
+    MaeveDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.drawer_rename_title)) },
         text = {
@@ -444,13 +536,13 @@ internal fun DeleteConversationDialog(title: String, impact: DeleteImpact, onCon
         if (impact.runningTask) stringResource(R.string.drawer_delete_running) else null,
         if (impact.schedules > 0) trPlural(R.plurals.drawer_delete_schedules, impact.schedules) else null,
     ).joinToString("\n")
-    MikaDialog(
+    MaeveDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.drawer_delete_title)) },
         text = { Text(body, Modifier.testTag("delete-conversation-body")) },
         confirmButton = {
             TextButton(onClick = onConfirm, Modifier.testTag("confirm-delete-conversation")) {
-                Text(stringResource(R.string.confirm_delete), color = MikaTheme.colors.bad)
+                Text(stringResource(R.string.confirm_delete), color = MaeveTheme.colors.bad)
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
@@ -459,12 +551,20 @@ internal fun DeleteConversationDialog(title: String, impact: DeleteImpact, onCon
 
 internal const val MENU_IN_MS = 200
 internal const val MENU_OUT_MS = 140
-private val DrawerWidth = 304.dp
+// 侧栏宽度：原来固定 304dp，在 412dp 宽的屏上占 74%，把主界面全挡住了。
+//
+// 现在两段式：
+//   - 窄屏（< 400dp）取 80%，保证列表里「时间 + 一句话」还放得下；
+//   - 其余取 244dp，约 59%，右边一定留出主界面。
+// 上限 260dp：再宽就变成"换了一页"，抽屉的意义就没了。
+private val DrawerWidth = 244.dp
+/** 侧栏最多占屏宽的这个比例，防止平板/大屏上一条 244dp 的缝。 */
+private const val DRAWER_MAX_FRACTION = 0.62f
 private val DrawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
 internal val NavShape = RoundedCornerShape(12.dp)
-private val SectionText = TextStyle(fontSize = 12.5.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium)
+
 private val ConversationTitle = TextStyle(fontSize = 14.5.sp, lineHeight = 20.sp, fontWeight = FontWeight.Medium)
-private val ConversationTime = TextStyle(fontSize = 12.5.sp, lineHeight = 17.sp)
+private val ConversationTime = TextStyle(fontSize = 10.5.sp, lineHeight = 15.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontFeatureSettings = "tnum")
 private val ConversationTag = TextStyle(fontSize = 10.5.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium)
 
 /**
@@ -487,7 +587,7 @@ fun ChatWithDrawer(
     onScreens: () -> Unit = {},
     onSettings: () -> Unit,
     onAbout: () -> Unit = {},
-    /** 有新版本:侧栏「关于 Mika」带小红点。 */
+    /** 有新版本:侧栏「关于 Maeve」带小红点。 */
     updateAvailable: Boolean = false,
     /** 从侧栏进去的页面刚退回来:当场打开侧栏,回到进去之前的样子。 */
     reopen: Boolean = false,
@@ -550,15 +650,12 @@ fun ChatWithDrawer(
     val menuOpen = acting != null
     Box(Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
-            // 菜单开着时后面整屏(对话页和侧栏)模糊(安卓 12 起;更早的只变暗),无障碍也只读菜单
-            modifier = if (!menuOpen) Modifier else Modifier
-                .then(
-                    if (GlassBlurSupported) Modifier.graphicsLayer {
-                        val r = MenuBlur.toPx() * lift.value
-                        renderEffect = if (r >= 0.5f) BlurEffect(r, r, TileMode.Clamp) else null
-                    } else Modifier,
-                )
-                .clearAndSetSemantics {},
+            // ★ 菜单开着时**不要**给整棵容器套 `graphicsLayer { renderEffect = BlurEffect }`。
+            //   这层会把「抽屉 + 主界面」整棵树包进一个 renderNode，再在它内部绘制
+            //   已经带 layer 的玻璃件，hwui 的 DirtyStack 只增不减，512 帧后
+            //   `computeTransformImpl` 栈溢出 → RenderThread SIGSEGV。
+            //   变暗由 ModalNavigationDrawer 自带的 scrim 承担；模糊一律不做。
+            modifier = if (!menuOpen) Modifier else Modifier.clearAndSetSemantics {},
             drawerContent = {
                 // 只在打开时读盘;每次打开、开着时存储里有对话改过都重读一次
                 val all = remember(open, revision) { if (open) conversations() else emptyList() }
@@ -602,7 +699,7 @@ fun ChatWithDrawer(
             // 对话页上从左往右划拉出侧栏(拖着跟手);能左右滚的内容(宽表格、代码块等)先自己滚。
             // 从左边缘往里滑是系统的返回手势,上面的返回处理同样是打开侧栏
             gesturesEnabled = true,
-            scrimColor = MikaTheme.colors.floatShadow.copy(alpha = 0.28f),
+            scrimColor = MaeveTheme.colors.floatShadow.copy(alpha = 0.28f),
         ) {
             content { scope.launch { if (reduceMotion) drawer.snapTo(DrawerValue.Open) else drawer.open() } }
         }

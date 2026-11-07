@@ -5,7 +5,9 @@
     <string name="chat_greeting_afternoon">Selamat sore</string>
     <string name="chat_greeting_evening">Selamat malam</string>
     <string name="chat_greeting_night">Belum tidur?</string>
-    <string name="chat_empty_prompt">Apa yang harus dikerjakan Maeve?</string>
+    <string name="chat_eyebrow_waiting">Aku mendengar</string>
+    <string name="chat_eyebrow_round">Putaran %1$s</string>
+    <string name="chat_empty_prompt">Bilang saja. Sisanya aku yang urus.</string>
     <string name="chat_example_group_summary">Buka WhatsApp dan rangkum pesan yang belum dibaca hari ini, dengan menandai semua yang perlu saya balas.</string>
     <string name="chat_example_jobs">Buka LinkedIn, temukan lima lowongan manajer produk AI jarak jauh, lalu bandingkan persyaratannya.</string>
     <string name="chat_example_alarms">Pasang alarm pukul 9.40, 9.50, dan 10.00 besok pagi.</string>
@@ -141,7 +143,7 @@
     <string name="chat_branch_attachments_readd">Tambahkan ulang lampiran yang ingin disertakan</string>
     <string name="chat_select_hint">Tekan lama teks untuk memilihnya</string>
     <string name="chat_quote_remove">Hapus kutipan</string>
-    <string name="chat_quoting_mika">Mengutip Maeve: %1$s</string>
+    <string name="chat_quoting_maeve">Mengutip Maeve: %1$s</string>
     <string name="chat_quoting_you">Mengutip Anda: %1$s</string>
     <string name="chat_edit_message">Ubah pesan</string>
     <string name="chat_withdraw_message">Tarik pesan</string>

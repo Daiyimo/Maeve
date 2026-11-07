@@ -5,7 +5,9 @@
     <string name="chat_greeting_afternoon">こんにちは</string>
     <string name="chat_greeting_evening">こんばんは</string>
     <string name="chat_greeting_night">夜更かしですね</string>
-    <string name="chat_empty_prompt">Maeve に何をお願いしますか？</string>
+    <string name="chat_eyebrow_waiting">聞いている</string>
+    <string name="chat_eyebrow_round">第 %1$s ラウンド</string>
+    <string name="chat_empty_prompt">用件を言って。あとは私がやる。</string>
     <string name="chat_example_group_summary">WhatsApp を開いて今日の未読メッセージをまとめ、返信が必要なものを拾って</string>
     <string name="chat_example_jobs">LinkedIn でリモートの AI プロダクトマネージャーの求人を5件探し、応募条件を比較して</string>
     <string name="chat_example_alarms">明日の朝 9:40、9:50、10:00 にアラームをセットして</string>
@@ -141,7 +143,7 @@
     <string name="chat_branch_attachments_readd">添付ファイルは追加し直してください</string>
     <string name="chat_select_hint">テキストを長押しして選択します</string>
     <string name="chat_quote_remove">引用を削除</string>
-    <string name="chat_quoting_mika">Maeve を引用: %1$s</string>
+    <string name="chat_quoting_maeve">Maeve を引用: %1$s</string>
     <string name="chat_quoting_you">自分を引用: %1$s</string>
     <string name="chat_edit_message">メッセージを編集</string>
     <string name="chat_withdraw_message">メッセージを取り消す</string>

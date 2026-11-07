@@ -22,10 +22,10 @@ import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaCard
+import com.daiyimo.maeve.ui.components.MaeveCard
 import com.daiyimo.maeve.ui.components.SubPage
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /** 许可证页上第三方组件的数据;与仓库 licenses/THIRD_PARTY_NOTICES.md 的条目一一对应(LicensesTest 核对)。 */
 object Licenses {
@@ -49,7 +49,7 @@ object Licenses {
         }
 
     val ENTRIES = listOf(
-        Entry("Mika", "Apache-2.0", "Mika 本身,包括运行环境的启动器、其中的 mika 命令与技能脚本。许可证全文见本页顶上。"),
+        Entry("Maeve", "Apache-2.0", "Maeve 本身,包括运行环境的启动器、其中的 maeve 命令与技能脚本。许可证全文见本页顶上。"),
         Entry("PRoot", "GPL-2.0-or-later", "运行 Python、Node 等程序用的环境,版本 5.4.0,打了一个补丁(PRoot 退出时结束所有子进程)。$GPL_SOURCE_OFFER"),
         Entry("talloc", "LGPL-3.0-or-later", "版本 2.4.3,未修改,静态链接进 PRoot 程序。可用 tools/sandbox/ 的源码与脚本重新链接。"),
         Entry("Apache Commons Compress", "Apache-2.0", "首次启动时解包自带的运行环境。Copyright 2002-2025 The Apache Software Foundation."),
@@ -78,7 +78,7 @@ object Licenses {
 
 /**
  * 许可证页(关于页底部「Apache-2.0 开源许可」进来):先是许可证原文(assets/licenses/Apache-2.0.txt),
- * 下面列出随 Mika 发布的第三方组件,一个组件一行(名称、许可证),说明在行下面;页脚指向完整文本。
+ * 下面列出随 Maeve 发布的第三方组件,一个组件一行(名称、许可证),说明在行下面;页脚指向完整文本。
  */
 @Composable
 fun LicensesScreen(onBack: () -> Unit) {
@@ -91,14 +91,14 @@ fun LicensesScreen(onBack: () -> Unit) {
         runCatching { context.assets.open("runtime/packages.json").use { Licenses.runtimePackages(it.readBytes().decodeToString()) } }
             .getOrDefault(emptyList())
     }
-    val thirdParty = Licenses.ENTRIES.filter { it.name != "Mika" } + runtime
+    val thirdParty = Licenses.ENTRIES.filter { it.name != "Maeve" } + runtime
     SubPage(AboutCopy.LICENSE_TITLE, onBack) {
         if (licenseText.isNotEmpty()) {
-            MikaCard(Modifier.padding(bottom = 12.dp).testTag("license-text")) {
+            MaeveCard(Modifier.padding(bottom = 12.dp).testTag("license-text")) {
                 Text(
                     licenseText.trimEnd(), Modifier.padding(16.dp),
-                    style = MikaType.Hint.copy(fontFamily = FontFamily.Monospace, fontSize = 11.5.sp, lineHeight = 19.sp),
-                    color = MikaTheme.colors.ink2,
+                    style = MaeveType.Hint.copy(fontFamily = FontFamily.Monospace, fontSize = 11.5.sp, lineHeight = 19.sp),
+                    color = MaeveTheme.colors.ink2,
                 )
             }
         }
@@ -107,7 +107,7 @@ fun LicensesScreen(onBack: () -> Unit) {
             thirdParty.forEachIndexed { i, e ->
                 Column {
                     ListRow(null, e.name, e.license, first = i == 0)
-                    Text(e.note, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp), style = MikaType.Hint, color = MikaTheme.colors.ink2)
+                    Text(e.note, Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp), style = MaeveType.Hint, color = MaeveTheme.colors.ink2)
                 }
             }
         }

@@ -21,14 +21,14 @@ import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaDialog
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.TileTone
 import com.daiyimo.maeve.ui.components.ValueTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 
 /** 设置 › 高级与其他 › Root。只有高级页检测到 su 才能进入;打开时再刷新一次能力。 */
 @Composable
@@ -37,7 +37,7 @@ fun RootScreen(helperRow: Boolean, onBack: () -> Unit) {
     val root = remember { PhoneServices.of(context).shellManager.root }
     LaunchedEffect(Unit) { root.refresh() }
     val state by root.state.collectAsState()
-    PageScaffold(PhoneSetupCopy.ROOT_GROUP, onBack) {
+    PageScaffold(PhoneSetupCopy.ROOT_GROUP, onBack, eyebrow = "ROOT") {
         if (state.suPresent) RootSection(state, helperRow, root::requestStart, root::setCommands)
     }
 }
@@ -54,7 +54,7 @@ fun RootSection(
     val commandsTo = { on: Boolean -> if (on) warn = true else onCommands(false) }
     GroupCard {
         ListRow(
-            MikaIcons.Key, PhoneSetupCopy.ROOT_STATUS_TITLE, PhoneSetupCopy.rootStatusLine(state.startGrant), first = true,
+            MaeveIcons.Key, PhoneSetupCopy.ROOT_STATUS_TITLE, PhoneSetupCopy.rootStatusLine(state.startGrant), first = true,
         ) { RowValue(PhoneSetupCopy.ROOT_AVAILABLE, if (state.startGrant == RootGrant.Granted) ValueTone.Ok else ValueTone.Plain) }
     }
     if (helperRow) {
@@ -62,7 +62,7 @@ fun RootSection(
         GroupCard {
             val request = state.startGrant != RootGrant.Granted && state.startGrant != RootGrant.Pending
             ListRow(
-                MikaIcons.Refresh, PhoneSetupCopy.ROOT_START, PhoneSetupCopy.rootStartLine(state.startGrant), first = true,
+                MaeveIcons.Refresh, PhoneSetupCopy.ROOT_START, PhoneSetupCopy.rootStartLine(state.startGrant), first = true,
                 tone = if (state.startGrant == RootGrant.Denied || state.startGrant == RootGrant.NoAnswer) TileTone.Warn else TileTone.Neutral,
                 onClick = if (request) onRequestStart else null,
             ) { RowValue(PhoneSetupCopy.ROOT_AUTO, if (state.startGrant == RootGrant.Granted) ValueTone.Ok else ValueTone.Plain) }
@@ -72,11 +72,11 @@ fun RootSection(
     GroupLabel(PhoneSetupCopy.ROOT_COMMANDS_GROUP)
     GroupCard {
         ListRow(
-            MikaIcons.Terminal, PhoneSetupCopy.ROOT_COMMANDS, PhoneSetupCopy.rootCommandsLine(state.commands, state.commandsGrant), first = true,
+            MaeveIcons.Terminal, PhoneSetupCopy.ROOT_COMMANDS, PhoneSetupCopy.rootCommandsLine(state.commands, state.commandsGrant), first = true,
             tone = if (state.commands) TileTone.Warn else TileTone.Neutral,
             onClick = if (state.commandsGrant == RootGrant.Pending) null else ({ commandsTo(!state.commands) }),
         ) {
-            MikaSwitch(
+            MaeveSwitch(
                 state.commands,
                 if (state.commandsGrant == RootGrant.Pending) ({ _ -> }) else commandsTo,
                 Modifier.testTag("root-commands"),
@@ -85,12 +85,12 @@ fun RootSection(
     }
     FooterNote(PhoneSetupCopy.ROOT_COMMANDS_NOTE)
     if (warn) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { warn = false },
             title = { Text(PhoneSetupCopy.ROOT_COMMANDS_TITLE) },
             text = { Text(PhoneSetupCopy.ROOT_COMMANDS_WARNING) },
             confirmButton = {
-                TextButton({ warn = false; onCommands(true) }) { Text(PhoneSetupCopy.ROOT_COMMANDS_CONFIRM, color = MikaTheme.colors.bad) }
+                TextButton({ warn = false; onCommands(true) }) { Text(PhoneSetupCopy.ROOT_COMMANDS_CONFIRM, color = MaeveTheme.colors.bad) }
             },
             dismissButton = { TextButton({ warn = false }) { Text(stringResource(R.string.cancel)) } },
         )

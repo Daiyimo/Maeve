@@ -62,8 +62,10 @@ import com.daiyimo.maeve.ui.ChatCopy
 import com.daiyimo.maeve.ui.Spinner
 import com.daiyimo.maeve.ui.VoiceCopy
 import com.daiyimo.maeve.ui.VoiceWave
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.components.cardSurface
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import com.daiyimo.maeve.voice.HoldToTalk
 import com.daiyimo.maeve.voice.SpeechEngineSpec
 import com.daiyimo.maeve.voice.VoiceSource
@@ -291,10 +293,10 @@ private const val DIM = 0.28f
 @Composable
 internal fun CapsuleVoicePanel(talk: CapsuleTalk, anchorTop: Int, anchorBottom: Int, insetTop: Int, insetBottom: Int) {
     if (!talk.active) return
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val state by talk.hold.state.collectAsState()
     val view = LocalView.current
-    val dim by animateFloatAsState(DIM, if (MikaTheme.reduceMotion) snap() else tween(200), label = "voice-dim")
+    val dim by animateFloatAsState(DIM, if (MaeveTheme.reduceMotion) snap() else tween(200), label = "voice-dim")
     var below by remember { mutableStateOf(false) }
     // 圆在屏幕上的位置:窗口内坐标加上窗口在屏幕上的位置
     fun Rect.onScreen(): Rect {
@@ -345,11 +347,11 @@ private fun Targets(talk: CapsuleTalk, show: Boolean, onPlaced: (Rect, Rect) -> 
         Modifier.alpha(if (show) 1f else 0f),
         horizontalArrangement = Arrangement.spacedBy(56.dp),
     ) {
-        Target(MikaIcons.Close, stringResource(R.string.capsule_voice_cancel), hot = show && talk.aim == CapsuleVoice.Drop.Cancel, bad = true) {
+        Target(MaeveIcons.Close, stringResource(R.string.capsule_voice_cancel), hot = show && talk.aim == CapsuleVoice.Drop.Cancel, bad = true) {
             at[0] = it
             if (!at[1].isEmpty) onPlaced(at[0], at[1])
         }
-        Target(MikaIcons.Edit, stringResource(R.string.capsule_voice_edit), hot = show && talk.aim == CapsuleVoice.Drop.Edit, bad = false) {
+        Target(MaeveIcons.Edit, stringResource(R.string.capsule_voice_edit), hot = show && talk.aim == CapsuleVoice.Drop.Edit, bad = false) {
             at[1] = it
             if (!at[0].isEmpty) onPlaced(at[0], at[1])
         }
@@ -358,8 +360,8 @@ private fun Targets(talk: CapsuleTalk, show: Boolean, onPlaced: (Rect, Rect) -> 
 
 @Composable
 private fun Target(icon: ImageVector, label: String, hot: Boolean, bad: Boolean, onPlaced: (Rect) -> Unit) {
-    val c = MikaTheme.colors
-    val scale by animateFloatAsState(if (hot) 1.18f else 1f, if (MikaTheme.reduceMotion) snap() else tween(150), label = "target")
+    val c = MaeveTheme.colors
+    val scale by animateFloatAsState(if (hot) 1.18f else 1f, if (MaeveTheme.reduceMotion) snap() else tween(150), label = "target")
     val fill = when {
         !hot -> c.surface.copy(alpha = 0.95f)
         bad -> c.bad
@@ -384,7 +386,7 @@ private fun Target(icon: ImageVector, label: String, hot: Boolean, bad: Boolean,
 /** 面板:顶上在录的点、说给谁、用的哪个转文字、用时;中间实时的字;波形;底下松开会怎样。 */
 @Composable
 private fun Panel(talk: CapsuleTalk, state: HoldToTalk.State, below: Boolean) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val listening = state as? HoldToTalk.State.Listening
     val converting = talk.released || state is HoldToTalk.State.Converting
     val aim = if (converting) CapsuleVoice.Drop.Send else talk.aim
@@ -407,7 +409,7 @@ private fun Panel(talk: CapsuleTalk, state: HoldToTalk.State, below: Boolean) {
             Text(talk.title, Modifier.weight(1f, fill = false), style = HeadText, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (talk.engine.isNotEmpty()) {
                 Text(
-                    talk.engine, Modifier.background(c.fill, RoundedCornerShape(7.dp)).padding(horizontal = 8.dp, vertical = 2.dp),
+                    talk.engine, Modifier.cardSurface(c, RoundedCornerShape(7.dp), tier = GlassTier.Pill).padding(horizontal = 8.dp, vertical = 2.dp),
                     style = ChipText, color = c.ink2, maxLines = 1,
                 )
             }
@@ -433,7 +435,7 @@ private fun Panel(talk: CapsuleTalk, state: HoldToTalk.State, below: Boolean) {
                 Modifier.fillMaxWidth().padding(top = 10.dp).heightIn(min = 52.dp).testTag("capsule-voice-converting"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             ) {
-                Spinner(Modifier.size(15.dp), spinning = !MikaTheme.reduceMotion, track = c.accentSoft, head = c.accent)
+                Spinner(Modifier.size(15.dp), spinning = !MaeveTheme.reduceMotion, track = c.accentSoft, head = c.accent)
                 Text(stringResource(R.string.voice_converting), style = SaidText, color = c.ink2, maxLines = 1)
             }
         } else {
@@ -446,7 +448,7 @@ private fun Panel(talk: CapsuleTalk, state: HoldToTalk.State, below: Boolean) {
         }
         if (!converting) {
             Box(Modifier.fillMaxWidth().padding(top = 8.dp), contentAlignment = Alignment.Center) {
-                VoiceWave(listening?.level ?: 0f, flat = cancel, reduceMotion = MikaTheme.reduceMotion, color = if (cancel || edit) c.ink3 else c.accent)
+                VoiceWave(listening?.level ?: 0f, flat = cancel, reduceMotion = MaeveTheme.reduceMotion, color = if (cancel || edit) c.ink3 else c.accent)
             }
         }
         // 在转时中间已经写着「转文字…」,底下不再重复

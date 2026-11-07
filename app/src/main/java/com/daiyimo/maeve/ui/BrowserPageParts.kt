@@ -46,6 +46,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
@@ -71,12 +72,14 @@ import com.daiyimo.maeve.browser.SiteFace
 import com.daiyimo.maeve.ui.components.BarIconButton
 import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaSize
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.components.cardSurface
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -92,7 +95,7 @@ internal val InitialSmall = TextStyle(fontSize = 13.sp, lineHeight = 16.sp, font
  */
 @Composable
 fun SiteTile(face: SiteFace, size: Dp, shape: Shape, initialStyle: TextStyle) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val icon = rememberSiteIcon(face)
     if (icon != null) {
         Box(Modifier.size(size).background(Color.White, shape).border(0.5.dp, c.edge, shape).clip(shape), contentAlignment = Alignment.Center) {
@@ -134,12 +137,12 @@ fun BrowserPageBar(
     onReload: () -> Unit,
     onStop: () -> Unit,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val focus = LocalFocusManager.current
     var editing by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().background(c.bg).windowInsetsPadding(WindowInsets.statusBars)) {
+    Column(Modifier.fillMaxWidth().cardSurface(c, RectangleShape, tier = GlassTier.Chrome).windowInsetsPadding(WindowInsets.statusBars)) {
         Row(
-            Modifier.fillMaxWidth().height(MikaSize.TopBar).padding(horizontal = 8.dp),
+            Modifier.fillMaxWidth().height(MaeveSize.TopBar).padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -150,15 +153,15 @@ fun BrowserPageBar(
                     onSubmit(input)
                 }
                 Text(
-                    tr(R.string.cancel), Modifier.clip(MikaShapes.Pill).clickable(role = Role.Button) { editing = false; focus.clearFocus() }
+                    tr(R.string.cancel), Modifier.clip(MaeveShapes.Pill).clickable(role = Role.Button) { editing = false; focus.clearFocus() }
                         .padding(horizontal = 10.dp, vertical = 8.dp),
-                    style = MikaType.Body, color = c.accent,
+                    style = MaeveType.Body, color = c.accent,
                 )
             } else {
-                BarIconButton(MikaIcons.Close, tr(R.string.browser_close_page), onClose)
+                BarIconButton(MaeveIcons.Close, tr(R.string.browser_close_page), onClose)
                 AddressPill(page, face, Modifier.weight(1f)) { editing = true }
-                if (page.loading) BarIconButton(MikaIcons.Stop, tr(R.string.chat_stop), onStop)
-                else BarIconButton(MikaIcons.Refresh, tr(R.string.refresh), onReload)
+                if (page.loading) BarIconButton(MaeveIcons.Stop, tr(R.string.chat_stop), onStop)
+                else BarIconButton(MaeveIcons.Refresh, tr(R.string.refresh), onReload)
             }
         }
         val progress = page.takeIf { it.loading }?.progress
@@ -172,21 +175,21 @@ fun BrowserPageBar(
 
 @Composable
 private fun AddressPill(page: BrowserPage, face: SiteFace?, modifier: Modifier, onClick: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val query = AddressInput.searchQuery(page.url)
     val shown = query ?: face?.name ?: page.url
     Row(
-        modifier.height(40.dp).clip(MikaShapes.Pill).background(c.fill)
+        modifier.height(40.dp).cardSurface(c, MaeveShapes.Pill, tier = GlassTier.Pill)
             .clickable(onClickLabel = tr(R.string.browser_edit_url), role = Role.Button, onClick = onClick)
             .padding(horizontal = 14.dp).testTag("browser-address-pill"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
     ) {
         when {
-            query != null -> Icon(MikaIcons.Search, null, Modifier.size(14.dp), tint = c.ink3)
-            page.url.startsWith("https://") -> Icon(MikaIcons.Lock, tr(R.string.browser_secure), Modifier.size(14.dp), tint = c.ink3)
+            query != null -> Icon(MaeveIcons.Search, null, Modifier.size(14.dp), tint = c.ink3)
+            page.url.startsWith("https://") -> Icon(MaeveIcons.Lock, tr(R.string.browser_secure), Modifier.size(14.dp), tint = c.ink3)
         }
-        Text(shown, Modifier.weight(1f, fill = false), style = MikaType.Body, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(shown, Modifier.weight(1f, fill = false), style = MaeveType.Body, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (page.desktop) {
             Text(
                 BROWSER_DESKTOP_TAG, Modifier.background(c.warnSoft, RoundedCornerShape(6.dp)).padding(horizontal = 6.dp, vertical = 1.dp),
@@ -201,21 +204,21 @@ private val TagText = TextStyle(fontSize = 11.sp, lineHeight = 15.sp, fontWeight
 /** 展开的地址栏:完整网址全选着,键盘上是「前往」。 */
 @Composable
 private fun AddressEditor(url: String, modifier: Modifier, onGo: (String) -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val focus = remember { FocusRequester() }
     var text by remember { mutableStateOf(TextFieldValue(url, TextRange(0, url.length))) }
     LaunchedEffect(Unit) { focus.requestFocus() }
     Row(
-        modifier.height(40.dp).background(c.surface, MikaShapes.Pill).border(1.5.dp, c.accent, MikaShapes.Pill).padding(horizontal = 14.dp),
+        modifier.height(40.dp).cardSurface(c, MaeveShapes.Pill, tier = GlassTier.Pill).border(1.5.dp, c.accent, MaeveShapes.Pill).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Icon(MikaIcons.Lock, null, Modifier.size(14.dp), tint = c.ink3)
+        Icon(MaeveIcons.Lock, null, Modifier.size(14.dp), tint = c.ink3)
         BasicTextField(
             text, { text = it },
             Modifier.weight(1f).focusRequester(focus).testTag("browser-address"),
             singleLine = true,
-            textStyle = MikaType.Body.copy(fontSize = 14.5.sp, color = c.ink),
+            textStyle = MaeveType.Body.copy(fontSize = 14.5.sp, color = c.ink),
             cursorBrush = SolidColor(c.accent),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go, autoCorrectEnabled = false),
             keyboardActions = KeyboardActions(onGo = { onGo(text.text) }),
@@ -233,40 +236,42 @@ fun BrowserToolbar(
     onShare: () -> Unit,
     onMore: () -> Unit,
 ) {
-    val c = MikaTheme.colors
-    Column(Modifier.fillMaxWidth().background(c.bg).windowInsetsPadding(WindowInsets.navigationBars)) {
+    val c = MaeveTheme.colors
+    Column(Modifier.fillMaxWidth().cardSurface(c, RectangleShape, tier = GlassTier.Chrome).windowInsetsPadding(WindowInsets.navigationBars)) {
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(c.hair))
         Row(
             Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            BarIconButton(MikaIcons.Back, tr(R.string.back), onBackPage, enabled = page.canBack)
-            BarIconButton(MikaIcons.Forward, tr(R.string.browser_forward), onForward, enabled = page.canForward)
-            BarIconButton(MikaIcons.Home, tr(R.string.browser_home), onHome)
-            BarIconButton(MikaIcons.Share, tr(R.string.share), onShare)
-            BarIconButton(MikaIcons.More, tr(R.string.more), onMore)
+            BarIconButton(MaeveIcons.Back, tr(R.string.back), onBackPage, enabled = page.canBack)
+            BarIconButton(MaeveIcons.Forward, tr(R.string.browser_forward), onForward, enabled = page.canForward)
+            BarIconButton(MaeveIcons.Home, tr(R.string.browser_home), onHome)
+            BarIconButton(MaeveIcons.Share, tr(R.string.share), onShare)
+            BarIconButton(MaeveIcons.More, tr(R.string.more), onMore)
         }
     }
 }
 
-/** 「给 Mika 登录」的横幅:说明这次用的是 Mika 办事时的那一版,登录完点「登录好了」。 */
+/** 「给 Maeve 登录」的横幅:说明这次用的是 Maeve 办事时的那一版,登录完点「登录好了」。 */
 @Composable
 fun LoginBanner(desktop: Boolean, onDone: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val text = buildAnnotatedString {
-        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(tr(R.string.browser_login_for_mika)) }
-        append(tr(R.string.browser_login_for_mika_sub, if (desktop) tr(R.string.browser_desktop) else tr(R.string.browser_mobile)))
+        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(tr(R.string.browser_login_for_maeve)) }
+        append(tr(R.string.browser_login_for_maeve_sub, if (desktop) tr(R.string.browser_desktop) else tr(R.string.browser_mobile)))
     }
     Row(
         Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 8.dp)
-            .background(c.accentSoft, RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 10.dp)
+            .cardSurface(c, RoundedCornerShape(14.dp))
+            .border(1.dp, c.accent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
             .testTag("browser-login-banner"),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(text, Modifier.weight(1f), style = MikaType.Caption, color = c.ink)
-        MikaButton(BROWSER_LOGIN_DONE, onDone, size = ButtonSize.Small)
+        Text(text, Modifier.weight(1f), style = MaeveType.Caption, color = c.ink)
+        MaeveButton(BROWSER_LOGIN_DONE, onDone, size = ButtonSize.Small)
     }
 }
 
@@ -288,7 +293,7 @@ fun BrowserMoreSheet(
     onToggleFavorite: () -> Unit,
     onToggleDesktop: () -> Unit,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.surface, shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 8.dp).testTag("browser-more")) {
             if (face != null && host != null) {
@@ -299,19 +304,19 @@ fun BrowserMoreSheet(
                 ) {
                     SiteTile(face, 28.dp, MiniShape, InitialSmall)
                     Column(Modifier.weight(1f)) {
-                        Text(face.name, style = MikaType.BodyStrong, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(host, style = MikaType.Caption, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(face.name, style = MaeveType.BodyStrong, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(host, style = MaeveType.Caption, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
             fun act(f: () -> Unit): () -> Unit = { onDismiss(); f() }
-            ListRow(MikaIcons.Refresh, tr(R.string.refresh), first = true, onClick = act(onReload))
-            ListRow(MikaIcons.Copy, tr(R.string.browser_copy_link), onClick = act(onCopy))
-            ListRow(MikaIcons.External, tr(R.string.browser_open_outside), onClick = act(onOpenOutside))
+            ListRow(MaeveIcons.Refresh, tr(R.string.refresh), first = true, onClick = act(onReload))
+            ListRow(MaeveIcons.Copy, tr(R.string.browser_copy_link), onClick = act(onCopy))
+            ListRow(MaeveIcons.External, tr(R.string.browser_open_outside), onClick = act(onOpenOutside))
             if (host != null) {
-                ListRow(MikaIcons.Star, if (favorite) tr(R.string.browser_unfavorite) else tr(R.string.browser_favorite), onClick = act(onToggleFavorite))
+                ListRow(MaeveIcons.Star, if (favorite) tr(R.string.browser_unfavorite) else tr(R.string.browser_favorite), onClick = act(onToggleFavorite))
                 ListRow(
-                    if (desktop) MikaIcons.Phone else MikaIcons.Desktop,
+                    if (desktop) MaeveIcons.Phone else MaeveIcons.Desktop,
                     if (desktop) tr(R.string.browser_to_mobile) else tr(R.string.browser_to_desktop),
                     subtitle = if (desktop) tr(R.string.browser_keep_mobile) else tr(R.string.browser_keep_desktop),
                     onClick = act(onToggleDesktop),

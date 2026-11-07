@@ -5,7 +5,9 @@
     <string name="chat_greeting_afternoon">Добрый день</string>
     <string name="chat_greeting_evening">Добрый вечер</string>
     <string name="chat_greeting_night">Не спится?</string>
-    <string name="chat_empty_prompt">Что поручить Maeve?</string>
+    <string name="chat_eyebrow_waiting">Я слушаю</string>
+    <string name="chat_eyebrow_round">Круг %1$s</string>
+    <string name="chat_empty_prompt">Говори, что нужно. Остальное я сделаю сама.</string>
     <string name="chat_example_group_summary">Открой WhatsApp и кратко перескажи сегодняшние непрочитанные сообщения, отметив те, на которые нужно ответить.</string>
     <string name="chat_example_jobs">Открой LinkedIn, найди пять удалённых вакансий AI-продакт-менеджера и сравни требования.</string>
     <string name="chat_example_alarms">Поставь будильники на завтра на 9:40, 9:50 и 10:00 утра.</string>
@@ -156,7 +158,7 @@
     <string name="chat_branch_attachments_readd">Добавьте нужные вложения заново</string>
     <string name="chat_select_hint">Нажмите на текст и удерживайте, чтобы выделить его</string>
     <string name="chat_quote_remove">Убрать цитату</string>
-    <string name="chat_quoting_mika">Цитата Maeve: %1$s</string>
+    <string name="chat_quoting_maeve">Цитата Maeve: %1$s</string>
     <string name="chat_quoting_you">Ваша цитата: %1$s</string>
     <string name="chat_edit_message">Изменить сообщение</string>
     <string name="chat_withdraw_message">Отозвать сообщение</string>

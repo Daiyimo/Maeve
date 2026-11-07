@@ -32,10 +32,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.about.Diagnostics
-import com.daiyimo.maeve.about.MikaLinks
+import com.daiyimo.maeve.about.MaeveLinks
 import com.daiyimo.maeve.core.selfcheck.Advice
 import com.daiyimo.maeve.core.selfcheck.CheckResult
 import com.daiyimo.maeve.core.selfcheck.CheckStatus
@@ -51,13 +51,14 @@ import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.TileTone
 import com.daiyimo.maeve.ui.components.ValueTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.components.cardSurface
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -147,7 +148,7 @@ object SelfCheckCopy {
 @Composable
 fun SelfCheckScreen(status: SystemStatus, onBack: () -> Unit) {
     val context = LocalContext.current
-    val app = context.applicationContext as MikaApp
+    val app = context.applicationContext as MaeveApp
     val current = rememberUpdatedState(status)
     val taskBusy by app.taskState.busy.collectAsState()
     val scope = rememberCoroutineScope()
@@ -168,7 +169,7 @@ fun SelfCheckScreen(status: SystemStatus, onBack: () -> Unit) {
         onCopy = { copyReport(context, render(state), tr(R.string.selfcheck_copied)) },
         onGithub = {
             copyReport(context, render(state), tr(R.string.selfcheck_github_copied))
-            openInBrowser(context, SelfCheckReport.issueUrl(MikaLinks.NEW_ISSUE, state.facts))
+            openInBrowser(context, SelfCheckReport.issueUrl(MaeveLinks.NEW_ISSUE, state.facts))
         },
         onBack = onBack,
     )
@@ -193,16 +194,16 @@ fun SelfCheckContent(
     onBack: () -> Unit,
 ) {
     val running = state.phase == SelfCheckState.Phase.Running
-    PageScaffold(stringResource(R.string.selfcheck_title), onBack) {
+    PageScaffold(stringResource(R.string.selfcheck_title), onBack, eyebrow = "DIAGNOSTIC") {
         FooterNote(stringResource(R.string.selfcheck_intro))
         if (running) {
-            MikaButton(stringResource(R.string.selfcheck_cancel), onCancel, Modifier.fillMaxWidth().testTag("selfcheck-cancel"), kind = ButtonKind.Tonal)
+            MaeveButton(stringResource(R.string.selfcheck_cancel), onCancel, Modifier.fillMaxWidth().testTag("selfcheck-cancel"), kind = ButtonKind.Tonal)
         } else {
-            MikaButton(
+            MaeveButton(
                 stringResource(if (state.ended) R.string.selfcheck_again else R.string.selfcheck_start), onStart,
                 Modifier.fillMaxWidth().testTag("selfcheck-start"), enabled = !taskBusy,
             )
-            if (taskBusy) FooterNote(stringResource(R.string.selfcheck_task_running), Modifier.padding(top = 8.dp), color = MikaTheme.colors.warn)
+            if (taskBusy) FooterNote(stringResource(R.string.selfcheck_task_running), Modifier.padding(top = 8.dp), color = MaeveTheme.colors.warn)
         }
 
         GroupLabel(stringResource(R.string.selfcheck_checks), Modifier.padding(top = 12.dp))
@@ -218,17 +219,17 @@ fun SelfCheckContent(
         if (state.ended) {
             val text = remember(state) { render(state) }
             GroupLabel(stringResource(R.string.selfcheck_report))
-            val c = MikaTheme.colors
+            val c = MaeveTheme.colors
             Box(
                 Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 360.dp).testTag("selfcheck-report")
-                    .background(c.fill, RoundedCornerShape(12.dp)).verticalScroll(rememberScrollState())
+                    .cardSurface(c, RoundedCornerShape(12.dp)).verticalScroll(rememberScrollState())
                     .horizontalScroll(rememberScrollState()).padding(12.dp),
             ) {
                 Text(text, fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp, color = c.ink2)
             }
             Row(Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                MikaButton(stringResource(R.string.selfcheck_copy), onCopy, Modifier.weight(1f).testTag("selfcheck-copy"))
-                MikaButton(stringResource(R.string.selfcheck_github), onGithub, Modifier.weight(1f).testTag("selfcheck-github"), kind = ButtonKind.Tonal)
+                MaeveButton(stringResource(R.string.selfcheck_copy), onCopy, Modifier.weight(1f).testTag("selfcheck-copy"))
+                MaeveButton(stringResource(R.string.selfcheck_github), onGithub, Modifier.weight(1f).testTag("selfcheck-github"), kind = ButtonKind.Tonal)
             }
             FooterNote(stringResource(R.string.selfcheck_report_note))
         }
@@ -236,12 +237,12 @@ fun SelfCheckContent(
 }
 
 private fun look(s: CheckStatus): Pair<ImageVector, TileTone> = when (s) {
-    CheckStatus.Pending -> MikaIcons.Clock to TileTone.Neutral
-    CheckStatus.Running -> MikaIcons.Refresh to TileTone.Accent
-    CheckStatus.Pass -> MikaIcons.Check to TileTone.Ok
-    CheckStatus.Partial -> MikaIcons.Exclaim to TileTone.Warn
-    CheckStatus.Fail -> MikaIcons.Close to TileTone.Bad
-    CheckStatus.Skipped -> MikaIcons.More to TileTone.Neutral
+    CheckStatus.Pending -> MaeveIcons.Clock to TileTone.Neutral
+    CheckStatus.Running -> MaeveIcons.Refresh to TileTone.Accent
+    CheckStatus.Pass -> MaeveIcons.Check to TileTone.Ok
+    CheckStatus.Partial -> MaeveIcons.Exclaim to TileTone.Warn
+    CheckStatus.Fail -> MaeveIcons.Close to TileTone.Bad
+    CheckStatus.Skipped -> MaeveIcons.More to TileTone.Neutral
 }
 
 private fun valueTone(s: CheckStatus): ValueTone = when (s) {

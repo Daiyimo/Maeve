@@ -14,23 +14,24 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.daiyimo.maeve.ui.theme.MikaColors
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveColors
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 
 /** 竖线步骤上一个点的状态:完成是灰点,当前是带光圈的蓝点,暂停是橙点,出错是红点。 */
 enum class StepState { Done, Current, Paused, Failed }
 
-private fun StepState.color(c: MikaColors) = when (this) {
-    StepState.Done -> c.ink3
-    StepState.Current -> c.accent
-    StepState.Paused -> c.warnSolid
+private fun StepState.color(c: MaeveColors) = when (this) {
+    // 已完成的步骤属于机器记忆,用诊断轨的冷色,不用正文墨色
+    StepState.Done -> c.machineDim
+    StepState.Current -> c.signal
+    StepState.Paused -> c.signal
     StepState.Failed -> c.bad
 }
 
-private fun StepState.halo(c: MikaColors) = when (this) {
+private fun StepState.halo(c: MaeveColors) = when (this) {
     StepState.Done -> null
-    StepState.Current -> c.accentSoft
-    StepState.Paused -> c.warnSoft
+    StepState.Current -> c.signalSoft
+    StepState.Paused -> c.signalSoft
     StepState.Failed -> c.badSoft
 }
 
@@ -47,7 +48,7 @@ fun StepItem(
     dotY: Dp = 14.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(modifier.height(IntrinsicSize.Min)) {
         Box(
             Modifier.width(GutterWidth).fillMaxHeight().drawBehind {
@@ -57,7 +58,14 @@ fun StepItem(
                 val bottom = if (last) y else size.height
                 drawLine(c.hair, Offset(x, top), Offset(x, bottom), strokeWidth = 1.5.dp.toPx())
                 state.halo(c)?.let { drawCircle(it, 7.dp.toPx(), Offset(x, y)) }
-                drawCircle(state.color(c), 4.dp.toPx(), Offset(x, y))
+                // 方块:一个格子被填上了。步骤是机器的记录,不是「未读消息」。
+                val half = 2.2.dp.toPx()
+                drawRoundRect(
+                    color = state.color(c),
+                    topLeft = Offset(x - half, y - half),
+                    size = androidx.compose.ui.geometry.Size(half * 2f, half * 2f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(0.9.dp.toPx()),
+                )
             },
         )
         Column(Modifier.weight(1f), content = content)

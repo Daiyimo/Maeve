@@ -3,6 +3,7 @@ package com.daiyimo.maeve.ui
 import androidx.compose.ui.res.stringResource
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,29 +46,32 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.daiyimo.maeve.ui.theme.MaeveMark
+import com.daiyimo.maeve.ui.theme.MaeveType
+import com.daiyimo.maeve.ui.theme.MazeRing
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.about.CheckStatus
-import com.daiyimo.maeve.about.MikaLinks
+import com.daiyimo.maeve.about.MaeveLinks
 import com.daiyimo.maeve.about.ReleaseInfo
 import com.daiyimo.maeve.about.UpdateState
 import com.daiyimo.maeve.ui.components.ButtonKind
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.ValueTone
+import com.daiyimo.maeve.ui.components.cardSurface
 import com.daiyimo.maeve.ui.theme.MaeveMarkTile
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 
 /** 关于页上点开的底部面板。 */
 private enum class AboutSheet { Update, Changelog, Feedback, Diagnostics }
 
 /**
- * 关于 Mika:顶上图标、名字、一句话介绍、版本(Beta 标记、构建编号);下面是检查更新与更新记录、
+ * 关于 Maeve:顶上图标、名字、一句话介绍、版本(Beta 标记、构建编号);下面是检查更新与更新记录、
  * 反馈问题、开源仓库与使用说明;一段数据说明;最底下许可证与作者。
  * 外部链接都交给 [onOpenUrl](系统浏览器);手动检查的结果到了([UpdateState.manualRounds] 变了)才提示。
  * [diagnostics] 写出诊断信息(反馈面板里「复制诊断信息」点开预览时在后台线程调)。
@@ -85,7 +89,7 @@ fun AboutScreen(
     onBack: () -> Unit,
     diagnostics: () -> String = { "" },
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val context = LocalContext.current
     var sheet by rememberSaveable { mutableStateOf<AboutSheet?>(null) }
     // 点了「检查更新」后等这一轮结果:有新版直接弹出说明,没有就提示一句
@@ -101,13 +105,13 @@ fun AboutScreen(
             }
         }
     }
-    PageScaffold(AboutCopy.TITLE, onBack) {
+    PageScaffold(AboutCopy.TITLE, onBack, eyebrow = "ABOUT") {
         Hero(versionName, build, beta)
 
         GroupCard {
             val v = AboutCopy.checkValue(update)
             ListRow(
-                MikaIcons.Refresh, AboutCopy.CHECK, if (update.hasUpdate) AboutCopy.CHECK_SUB_NEW else AboutCopy.CHECK_SUB, first = true,
+                MaeveIcons.Refresh, AboutCopy.CHECK, if (update.hasUpdate) AboutCopy.CHECK_SUB_NEW else AboutCopy.CHECK_SUB, first = true,
                 onClick = {
                     if (update.hasUpdate) sheet = AboutSheet.Update
                     else if (update.status != CheckStatus.Checking) {
@@ -119,22 +123,25 @@ fun AboutScreen(
                 TrailingValue(v)
                 RowChevron()
             }
-            ListRow(MikaIcons.Lines, AboutCopy.CHANGELOG, AboutCopy.CHANGELOG_SUB, onClick = { sheet = AboutSheet.Changelog }) { RowChevron() }
+            ListRow(MaeveIcons.Lines, AboutCopy.CHANGELOG, AboutCopy.CHANGELOG_SUB, onClick = { sheet = AboutSheet.Changelog }) { RowChevron() }
         }
         GroupCard {
-            ListRow(MikaIcons.Bug, AboutCopy.FEEDBACK, AboutCopy.FEEDBACK_SUB, first = true, onClick = { sheet = AboutSheet.Feedback }) { RowChevron() }
+            ListRow(MaeveIcons.Bug, AboutCopy.FEEDBACK, AboutCopy.FEEDBACK_SUB, first = true, onClick = { sheet = AboutSheet.Feedback }) { RowChevron() }
         }
         GroupCard {
-            ListRow(MikaIcons.Code, AboutCopy.REPO, AboutCopy.REPO_SUB, first = true, onClick = { onOpenUrl(MikaLinks.REPO) }) { ExternalMark() }
-            ListRow(MikaIcons.Book, AboutCopy.GUIDE, AboutCopy.GUIDE_SUB, onClick = { onOpenUrl(MikaLinks.README) }) { ExternalMark() }
+            ListRow(MaeveIcons.Code, AboutCopy.REPO, AboutCopy.REPO_SUB, first = true, onClick = { onOpenUrl(MaeveLinks.REPO) }) { ExternalMark() }
+            ListRow(MaeveIcons.Book, AboutCopy.GUIDE, AboutCopy.GUIDE_SUB, onClick = { onOpenUrl(MaeveLinks.README) }) { ExternalMark() }
         }
 
         Row(
-            Modifier.fillMaxWidth().padding(top = 2.dp).background(c.okSoft, RoundedCornerShape(14.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(top = 2.dp)
+                .cardSurface(c, RoundedCornerShape(14.dp))
+                .border(1.dp, c.ok.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(MikaIcons.Shield, null, Modifier.padding(top = 1.dp).size(18.dp), tint = c.ok)
-            Text(AboutCopy.DATA_NOTE, style = MikaType.Caption, color = c.ink2)
+            Icon(MaeveIcons.Shield, null, Modifier.padding(top = 1.dp).size(18.dp), tint = c.ok)
+            Text(AboutCopy.DATA_NOTE, style = MaeveType.Caption, color = c.ink2)
         }
 
         Column(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -147,9 +154,9 @@ fun AboutScreen(
                 },
                 Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onOpenLicense).padding(horizontal = 6.dp, vertical = 2.dp)
                     .testTag("about-license"),
-                style = MikaType.Hint, color = c.ink3, textAlign = TextAlign.Center,
+                style = MaeveType.Hint, color = c.ink3, textAlign = TextAlign.Center,
             )
-            Text(AboutCopy.AUTHOR, Modifier.padding(top = 2.dp), style = MikaType.Hint, color = c.ink3)
+            Text(AboutCopy.AUTHOR, Modifier.padding(top = 2.dp), style = MaeveType.Hint, color = c.ink3)
         }
     }
 
@@ -158,7 +165,7 @@ fun AboutScreen(
         AboutSheet.Update -> update.update?.let { r ->
             UpdateSheet(r, versionName, beta, onOpenUrl = { close(); onOpenUrl(it) }, onDismiss = close)
         }
-        AboutSheet.Changelog -> ChangelogSheet(update.latest, onOpenAll = { close(); onOpenUrl(MikaLinks.RELEASES) }, onDismiss = close)
+        AboutSheet.Changelog -> ChangelogSheet(update.latest, onOpenAll = { close(); onOpenUrl(MaeveLinks.RELEASES) }, onDismiss = close)
         AboutSheet.Feedback -> FeedbackSheet(
             onGitHub = { close(); onOpenUrl(issueUrl) },
             onDiagnostics = { sheet = AboutSheet.Diagnostics },
@@ -171,23 +178,33 @@ fun AboutScreen(
 
 @Composable
 private fun Hero(versionName: String, build: String, beta: Boolean) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Column(
-        Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 18.dp),
+        Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        MaeveMarkTile(72.dp, Modifier.testTag("about-mark"), corner = 20.dp, breathing = true)
-        Text("Maeve", Modifier.padding(top = 12.dp), style = MikaType.Title, fontWeight = FontWeight.Bold, color = c.ink, letterSpacing = 1.5.sp)
-        Text(AboutCopy.TAGLINE, Modifier.padding(top = 4.dp), style = MikaType.Caption, color = c.ink2, textAlign = TextAlign.Center)
-        Row(Modifier.padding(top = 10.dp).testTag("about-version"), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(AboutCopy.version(versionName), style = MikaType.Hint, color = c.ink3)
+        // 迷宫不套方块:这一页是「关于她是谁」,标志应该裸露在纸面上
+        MaeveMark(84.dp, Modifier.testTag("about-mark"), breathing = true, coronaColor = c.accent, darkColor = c.surfaceHigh)
+        Text(
+            "Maeve", Modifier.padding(top = 16.dp),
+            style = MaeveType.LargeTitle, color = c.ink, letterSpacing = 2.sp,
+        )
+        Text(AboutCopy.TAGLINE, Modifier.padding(top = 6.dp, start = 12.dp, end = 12.dp), style = MaeveType.Caption, color = c.ink2, textAlign = TextAlign.Center)
+        // 版本号是读数:等宽、小、零碎但不吵
+        Row(
+            Modifier.padding(top = 12.dp).testTag("about-version"),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(AboutCopy.version(versionName), style = MaeveType.MonoSmall, color = c.ink3)
             if (beta) {
                 Text(
-                    AboutCopy.BETA, Modifier.background(c.accentSoft, RoundedCornerShape(7.dp)).padding(horizontal = 7.dp, vertical = 1.dp),
-                    style = MikaType.Hint, fontWeight = FontWeight.SemiBold, color = c.accent,
+                    AboutCopy.BETA,
+                    Modifier.clip(RoundedCornerShape(3.dp)).background(c.accentSoft).padding(horizontal = 5.dp, vertical = 1.dp),
+                    style = MaeveType.EyebrowSmall.copy(letterSpacing = 0.8.sp), color = c.accent,
                 )
             }
-            Text("· ${AboutCopy.buildLabel(build)}", style = MikaType.Hint, color = c.ink3)
+            Text("· ${AboutCopy.buildLabel(build)}", style = MaeveType.MonoSmall, color = c.ink3)
         }
     }
 }
@@ -196,7 +213,7 @@ private fun Hero(versionName: String, build: String, beta: Boolean) {
 @Composable
 internal fun TrailingValue(v: AboutCopy.CheckValue) {
     if (v.spinner) {
-        CircularProgressIndicator(Modifier.size(16.dp).testTag("update-spinner"), color = MikaTheme.colors.accent, strokeWidth = 2.dp)
+        MazeRing(progress = null, modifier = Modifier.testTag("update-spinner"), size = 15.dp, head = MaeveTheme.colors.machine, indeterminate = true)
         return
     }
     if (v.dot) UpdateDot()
@@ -206,12 +223,12 @@ internal fun TrailingValue(v: AboutCopy.CheckValue) {
 /** 有新版本时的小红点。 */
 @Composable
 internal fun UpdateDot(modifier: Modifier = Modifier) {
-    Box(modifier.size(8.dp).background(MikaTheme.colors.bad, CircleShape).testTag("update-dot"))
+    Box(modifier.size(8.dp).background(MaeveTheme.colors.bad, CircleShape).testTag("update-dot"))
 }
 
 @Composable
 private fun ExternalMark() {
-    Icon(MikaIcons.External, null, Modifier.size(15.dp), tint = MikaTheme.colors.ink3)
+    Icon(MaeveIcons.External, null, Modifier.size(15.dp), tint = MaeveTheme.colors.ink3)
 }
 
 // ---------- 底部面板 ----------
@@ -219,7 +236,7 @@ private fun ExternalMark() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AboutSheetFrame(title: String, sub: String?, tag: String, onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -231,8 +248,8 @@ private fun AboutSheetFrame(title: String, sub: String?, tag: String, onDismiss:
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, bottom = 16.dp).testTag(tag),
         ) {
-            Text(title, style = MikaType.Title, color = c.ink)
-            sub?.let { Text(it, Modifier.padding(top = 2.dp), style = MikaType.Caption, color = c.ink3) }
+            Text(title, style = MaeveType.Title, color = c.ink)
+            sub?.let { Text(it, Modifier.padding(top = 2.dp), style = MaeveType.Caption, color = c.ink3) }
             content()
         }
     }
@@ -241,12 +258,12 @@ private fun AboutSheetFrame(title: String, sub: String?, tag: String, onDismiss:
 /** 更新说明(Markdown),浅底、太长时在框里滚。 */
 @Composable
 private fun NotesBox(notes: String) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Box(
         Modifier.padding(top = 12.dp).fillMaxWidth().heightIn(max = 280.dp)
-            .background(c.fill, RoundedCornerShape(12.dp)).verticalScroll(rememberScrollState()).padding(12.dp),
+            .cardSurface(c, RoundedCornerShape(12.dp)).verticalScroll(rememberScrollState()).padding(12.dp),
     ) {
-        MarkdownText(notes, MikaType.Caption.copy(color = c.ink2))
+        MarkdownText(notes, MaeveType.Caption.copy(color = c.ink2))
     }
 }
 
@@ -255,29 +272,29 @@ private fun UpdateSheet(r: ReleaseInfo, current: String, beta: Boolean, onOpenUr
     AboutSheetFrame(AboutCopy.updateTitle(r.version), AboutCopy.updateSub(current, beta, r.date), "update-sheet", onDismiss) {
         if (r.notes.isNotBlank()) NotesBox(r.notes)
         if (r.apkUrl != null) UpdateDownloadControls(r)
-        else MikaButton(AboutCopy.UPDATE_DOWNLOAD, { onOpenUrl(r.pageUrl) }, Modifier.fillMaxWidth().padding(top = 14.dp))
+        else MaeveButton(AboutCopy.UPDATE_DOWNLOAD, { onOpenUrl(r.pageUrl) }, Modifier.fillMaxWidth().padding(top = 14.dp))
         Text(
             AboutCopy.UPDATE_LATER,
             Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onDismiss).padding(vertical = 10.dp),
-            style = MikaType.Caption, color = MikaTheme.colors.ink3, textAlign = TextAlign.Center,
+            style = MaeveType.Caption, color = MaeveTheme.colors.ink3, textAlign = TextAlign.Center,
         )
     }
 }
 
 @Composable
 private fun ChangelogSheet(latest: ReleaseInfo?, onOpenAll: () -> Unit, onDismiss: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     AboutSheetFrame(AboutCopy.CHANGELOG, null, "changelog-sheet", onDismiss) {
         if (latest == null) {
-            Text(AboutCopy.CHANGELOG_EMPTY, Modifier.padding(top = 10.dp), style = MikaType.Caption, color = c.ink3)
+            Text(AboutCopy.CHANGELOG_EMPTY, Modifier.padding(top = 10.dp), style = MaeveType.Caption, color = c.ink3)
         } else {
             Text(
                 latest.version + (latest.date?.let { " · $it" } ?: ""), Modifier.padding(top = 10.dp),
-                style = MikaType.Label, color = c.ink,
+                style = MaeveType.Label, color = c.ink,
             )
             if (latest.notes.isNotBlank()) NotesBox(latest.notes)
         }
-        MikaButton(AboutCopy.CHANGELOG_ALL, onOpenAll, Modifier.fillMaxWidth().padding(top = 14.dp), kind = ButtonKind.Tonal)
+        MaeveButton(AboutCopy.CHANGELOG_ALL, onOpenAll, Modifier.fillMaxWidth().padding(top = 14.dp), kind = ButtonKind.Tonal)
     }
 }
 
@@ -285,8 +302,8 @@ private fun ChangelogSheet(latest: ReleaseInfo?, onOpenAll: () -> Unit, onDismis
 private fun FeedbackSheet(onGitHub: () -> Unit, onDiagnostics: () -> Unit, onDismiss: () -> Unit) {
     AboutSheetFrame(AboutCopy.FEEDBACK, AboutCopy.FEEDBACK_SHEET_SUB, "feedback-sheet", onDismiss) {
         Column(Modifier.padding(top = 6.dp)) {
-            FeedbackOption(MikaIcons.Code, AboutCopy.FEEDBACK_GITHUB, AboutCopy.FEEDBACK_GITHUB_SUB, first = true, onGitHub)
-            FeedbackOption(MikaIcons.Copy, AboutCopy.DIAGNOSTICS, AboutCopy.DIAGNOSTICS_SUB, first = false, onDiagnostics)
+            FeedbackOption(MaeveIcons.Code, AboutCopy.FEEDBACK_GITHUB, AboutCopy.FEEDBACK_GITHUB_SUB, first = true, onGitHub)
+            FeedbackOption(MaeveIcons.Copy, AboutCopy.DIAGNOSTICS, AboutCopy.DIAGNOSTICS_SUB, first = false, onDiagnostics)
         }
     }
 }

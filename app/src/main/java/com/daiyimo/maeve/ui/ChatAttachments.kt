@@ -74,12 +74,12 @@ import androidx.core.app.ActivityCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.daiyimo.maeve.ui.components.ButtonKind
 import com.daiyimo.maeve.ui.components.ButtonSize
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.cardSurface
-import com.daiyimo.maeve.ui.theme.MikaColors
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveColors
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /** 对话页附件的说法。 */
 object AttachCopy {
@@ -200,12 +200,12 @@ internal fun AttachPanel(
     onGrant: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Column(modifier.fillMaxSize().testTag("attach-panel").padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Tile(MikaIcons.PhotoCamera, AttachCopy.CAMERA, onCamera)
-            Tile(MikaIcons.Photo, AttachCopy.ALBUM, onAlbum)
-            Tile(MikaIcons.Paperclip, AttachCopy.FILES, onFiles)
+            Tile(MaeveIcons.PhotoCamera, AttachCopy.CAMERA, onCamera)
+            Tile(MaeveIcons.Photo, AttachCopy.ALBUM, onAlbum)
+            Tile(MaeveIcons.Paperclip, AttachCopy.FILES, onFiles)
         }
         if (access == PhotoAccess.None) {
             Column(
@@ -214,15 +214,15 @@ internal fun AttachPanel(
                 verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
             ) {
                 Text(AttachCopy.NEED_ACCESS, style = PanelText, color = c.ink2, textAlign = TextAlign.Center)
-                MikaButton(AttachCopy.GRANT, onGrant, kind = ButtonKind.Primary, size = ButtonSize.Medium)
-                Text(AttachCopy.GRANT_HINT, style = MikaType.Hint, color = c.ink3, textAlign = TextAlign.Center)
+                MaeveButton(AttachCopy.GRANT, onGrant, kind = ButtonKind.Primary, size = ButtonSize.Medium)
+                Text(AttachCopy.GRANT_HINT, style = MaeveType.Hint, color = c.ink3, textAlign = TextAlign.Center)
             }
             return@Column
         }
         Row(Modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, top = 14.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (access == PhotoAccess.Partial) AttachCopy.RECENT_PARTIAL else AttachCopy.RECENT,
-                Modifier.weight(1f), style = MikaType.Hint, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                Modifier.weight(1f), style = MaeveType.Hint, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
             if (access == PhotoAccess.Partial) PanelLink(AttachCopy.CHANGE, onGrant)
             PanelLink(AttachCopy.ALL, onAlbum)
@@ -247,7 +247,7 @@ internal fun AttachPanel(
 
 @Composable
 private fun RowScope.Tile(icon: ImageVector, label: String, onClick: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Column(
         Modifier.weight(1f).height(76.dp).cardSurface(c, TileShape).clip(TileShape).clickable(role = Role.Button, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -262,14 +262,14 @@ private fun RowScope.Tile(icon: ImageVector, label: String, onClick: () -> Unit)
 private fun PanelLink(text: String, onClick: () -> Unit) {
     Text(
         text, Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 6.dp, vertical = 4.dp),
-        style = LinkText, color = MikaTheme.colors.accent,
+        style = LinkText, color = MaeveTheme.colors.accent,
     )
 }
 
 /** 最近的一张照片:方块缩略图;选中时蓝框、淡蓝罩、右上角蓝底序号,没选时右上角一个空心圈。 */
 @Composable
 private fun RecentCell(photo: PendingAttachment, order: Int?, onClick: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val thumb = rememberAttachImage(AttachImage.Picked(photo.uri), RECENT_PX)
     Box(
         Modifier.testTag("recent-photo").aspectRatio(1f).clip(CellShape).background(c.fill)
@@ -294,7 +294,7 @@ private fun RecentCell(photo: PendingAttachment, order: Int?, onClick: () -> Uni
 /** 输入框上方一排待发的附件:照片是方块缩略图,文件是小卡片(类型、名字、大小),右上角 × 去掉。 */
 @Composable
 internal fun PendingTray(items: List<PendingAttachment>, onRemove: (String) -> Unit, modifier: Modifier = Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(
         modifier.fillMaxWidth().testTag("attach-tray").horizontalScroll(rememberScrollState()).padding(start = 4.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -326,7 +326,7 @@ internal fun PendingTray(items: List<PendingAttachment>, onRemove: (String) -> U
                         .semantics { contentDescription = AttachCopy.remove(a.name) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(MikaIcons.Close, null, Modifier.size(12.dp), tint = Color.White)
+                    Icon(MaeveIcons.Close, null, Modifier.size(12.dp), tint = Color.White)
                 }
             }
         }
@@ -349,7 +349,7 @@ internal fun SentAttachments(parsed: AttachmentMessage.Parsed, conversationId: S
 
 @Composable
 private fun SentPhotos(photos: List<AttachmentMessage.Item>, conversationId: String?, maxWidth: Dp, onOpen: (AttachmentMessage.Item) -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val cols = PhotoGrid.columns(photos.size)
     if (cols == 1) {
         val p = photos.single()
@@ -385,7 +385,7 @@ private fun SentPhotos(photos: List<AttachmentMessage.Item>, conversationId: Str
 
 @Composable
 private fun SentFileCard(f: AttachmentMessage.Item, maxWidth: Dp, onClick: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(
         Modifier.testTag("sent-file").widthIn(min = minOf(220.dp, maxWidth), max = maxWidth).cardSurface(c, FileCardShape).clip(FileCardShape)
             .clickable(onClickLabel = stringResource(R.string.chat_open), role = Role.Button, onClick = onClick)
@@ -405,12 +405,12 @@ private fun SentFileCard(f: AttachmentMessage.Item, maxWidth: Dp, onClick: () ->
 @Composable
 private fun TypeBadge(name: String, modifier: Modifier, small: Boolean) {
     val shape = RoundedCornerShape(if (small) 5.dp else 7.dp)
-    Box(modifier.background(badgeColor(FileBadge.kind(name), MikaTheme.colors), shape), contentAlignment = Alignment.Center) {
+    Box(modifier.background(badgeColor(FileBadge.kind(name), MaeveTheme.colors), shape), contentAlignment = Alignment.Center) {
         Text(FileBadge.text(name), style = if (small) BadgeSmall else BadgeLarge, color = Color.White, maxLines = 1)
     }
 }
 
-private fun badgeColor(kind: FileBadge.Kind, c: MikaColors): Color = when (kind) {
+private fun badgeColor(kind: FileBadge.Kind, c: MaeveColors): Color = when (kind) {
     FileBadge.Kind.Pdf -> c.bad
     FileBadge.Kind.Sheet -> c.ok
     FileBadge.Kind.Doc -> c.accent

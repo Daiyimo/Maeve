@@ -49,7 +49,7 @@ interface HapticEngine {
     fun emit(level: HapticLevel)
     val enabled: StateFlow<Boolean>
 
-    /** 便捷入口:页面只认 `MikaTheme.haptics`,不必再认识五级语义或新增 import。 */
+    /** 便捷入口:页面只认 `MaeveTheme.haptics`,不必再认识五级语义或新增 import。 */
     fun tick() = emit(HapticLevel.Tick)
     fun light() = emit(HapticLevel.Light)
     fun medium() = emit(HapticLevel.Medium)

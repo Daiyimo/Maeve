@@ -8,12 +8,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import com.daiyimo.maeve.settings.FeatureFlags
 import com.daiyimo.maeve.settings.ThemeMode
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -45,9 +45,9 @@ import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.TileTone
 import com.daiyimo.maeve.ui.components.ValueTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import com.daiyimo.maeve.core.cap.phone.OperatingPace
 
 // ---------- 手机操作 ----------
@@ -64,12 +64,12 @@ fun PhoneOpsScreen(
 ) {
     val check = Prerequisites.check(status, hasMainModel = true)
     var confirmUnpair by remember { mutableStateOf(false) }
-    PageScaffold(stringResource(R.string.settings_phone_ops), onBack) {
+    PageScaffold(stringResource(R.string.settings_phone_ops), onBack, eyebrow = "PHONE") {
         GroupLabel(stringResource(R.string.settings_status))
         GroupCard {
             val (a11yText, a11yTone) = StatusCopy.accessibilityValue(status.accessibility)
             ListRow(
-                MikaIcons.Hand, stringResource(R.string.settings_a11y), stringResource(R.string.settings_a11y_sub), first = true,
+                MaeveIcons.Hand, stringResource(R.string.settings_a11y), stringResource(R.string.settings_a11y_sub), first = true,
                 onClick = check.problems.firstOrNull { it is Problem.Accessibility }?.let { { onProblem(it) } },
             ) { RowValue(a11yText, a11yTone) }
             // 安卓 12 以下手机功能不可用,不列这一行(系统版本那一行已说明)
@@ -78,7 +78,7 @@ fun PhoneOpsScreen(
                 val (hText, hTone) = PhoneSetupCopy.statusValue(helper)
                 val reconnect = PhoneSetupCopy.canReconnect(helper)
                 ListRow(
-                    MikaIcons.Link, PhoneSetupCopy.ROW_TITLE,
+                    MaeveIcons.Link, PhoneSetupCopy.ROW_TITLE,
                     if (reconnect && helper is BuiltinShellStatus.Failed) PhoneSetupCopy.failure(helper.reason).title
                     else PhoneSetupCopy.statusLine(helper, status.usbDebugging, status.rootStart),
                     onClick = { onProblem(Problem.PhoneHelper(helper)) },
@@ -87,7 +87,7 @@ fun PhoneOpsScreen(
             val tooOld = status.sdkInt < Prerequisites.MIN_SDK
             val focusWarning = Problem.FocusMayLeak in check.problems
             ListRow(
-                MikaIcons.Phone, stringResource(R.string.settings_system_version),
+                MaeveIcons.Phone, stringResource(R.string.settings_system_version),
                 if (focusWarning) stringResource(R.string.settings_android_focus, androidRelease) else stringResource(R.string.settings_android, androidRelease),
                 onClick = when {
                     tooOld -> ({ onProblem(Problem.SystemTooOld) })
@@ -105,13 +105,13 @@ fun PhoneOpsScreen(
         if (status.sdkInt >= Prerequisites.MIN_SDK) {
             GroupLabel(stringResource(R.string.phone_channel))
             GroupCard {
-                ListRow(MikaIcons.Link, PhoneSetupCopy.REPAIR, PhoneSetupCopy.REPAIR_SUBTITLE, first = true, onClick = onRepair) {
+                ListRow(MaeveIcons.Link, PhoneSetupCopy.REPAIR, PhoneSetupCopy.REPAIR_SUBTITLE, first = true, onClick = onRepair) {
                     RowChevron()
                 }
                 val paired = status.builtinShell != BuiltinShellStatus.NotPaired
                 ListRow(
-                    MikaIcons.Close, PhoneSetupCopy.UNPAIR, PhoneSetupCopy.UNPAIR_SUBTITLE,
-                    titleColor = if (paired) MikaTheme.colors.bad else MikaTheme.colors.ink3,
+                    MaeveIcons.Close, PhoneSetupCopy.UNPAIR, PhoneSetupCopy.UNPAIR_SUBTITLE,
+                    titleColor = if (paired) MaeveTheme.colors.bad else MaeveTheme.colors.ink3,
                     tone = if (paired) TileTone.Bad else TileTone.Neutral,
                     onClick = if (paired) ({ confirmUnpair = true }) else null,
                 )
@@ -120,12 +120,12 @@ fun PhoneOpsScreen(
         }
     }
     if (confirmUnpair) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { confirmUnpair = false },
             title = { Text(PhoneSetupCopy.UNPAIR_TITLE) },
             text = { Text(PhoneSetupCopy.UNPAIR_BODY) },
             confirmButton = {
-                TextButton({ confirmUnpair = false; onUnpair() }) { Text(PhoneSetupCopy.UNPAIR_CONFIRM, color = MikaTheme.colors.bad) }
+                TextButton({ confirmUnpair = false; onUnpair() }) { Text(PhoneSetupCopy.UNPAIR_CONFIRM, color = MaeveTheme.colors.bad) }
             },
             dismissButton = { TextButton({ confirmUnpair = false }) { Text(stringResource(R.string.cancel)) } },
         )
@@ -141,10 +141,10 @@ fun PhoneOpsScreen(
 @Composable
 fun NotificationsScreen(status: SystemStatus, onFix: (Fix) -> Unit, onBack: () -> Unit) {
     val o = status.notificationOverview()
-    PageScaffold(StatusCopy.NOTIFICATIONS, onBack) {
+    PageScaffold(StatusCopy.NOTIFICATIONS, onBack, eyebrow = "SIGNALS") {
         GroupCard {
             ListRow(
-                MikaIcons.Bell, stringResource(R.string.settings_notif_master),
+                MaeveIcons.Bell, stringResource(R.string.settings_notif_master),
                 if (o.appAllowed) StatusCopy.NOTIF_APP_SUBTITLE_ON else StatusCopy.NOTIF_APP_SUBTITLE_OFF,
                 first = true, tone = if (o.appAllowed) TileTone.Neutral else TileTone.Bad,
                 onClick = if (o.appAllowed) null else ({ onFix(Fix.AllowNotifications) }),
@@ -166,7 +166,7 @@ fun NotificationsScreen(status: SystemStatus, onFix: (Fix) -> Unit, onBack: () -
 private fun ChannelRowItem(title: String, whenText: String, row: ChannelRow, fix: Fix, onFix: (Fix) -> Unit, first: Boolean = false) {
     val (text, tone) = StatusCopy.channelLevelValue(row)
     ListRow(
-        MikaIcons.Bell, title, whenText, first = first,
+        MaeveIcons.Bell, title, whenText, first = first,
         tone = if (row.warn) TileTone.Warn else TileTone.Neutral,
         onClick = { onFix(fix) },
     ) {
@@ -196,22 +196,22 @@ fun DuringWorkScreen(
 ) {
     var editingLimit by remember { mutableStateOf(false) }
     var customLimit by remember { mutableStateOf("") }
-    PageScaffold(stringResource(R.string.settings_during_work), onBack) {
+    PageScaffold(stringResource(R.string.settings_during_work), onBack, eyebrow = "WHILE WORKING") {
         GroupLabel(AutonomyCopy.GROUP)
         GroupCard {
             ListRow(null, AutonomyCopy.TITLE, AutonomyCopy.SUBTITLE, first = true, onClick = { onAutonomous(!autonomous) }) {
-                MikaSwitch(autonomous, onAutonomous, Modifier.testTag("work-autonomous"))
+                MaeveSwitch(autonomous, onAutonomous, Modifier.testTag("work-autonomous"))
             }
         }
         GroupCard {
-            ListRow(MikaIcons.Sun, stringResource(R.string.settings_keep_on), stringResource(R.string.settings_keep_on_sub), first = true, onClick = { onKeepScreenOn(!keepScreenOn) }) {
-                MikaSwitch(keepScreenOn, onKeepScreenOn, Modifier.testTag("work-keep-screen-on"))
+            ListRow(MaeveIcons.Sun, stringResource(R.string.settings_keep_on), stringResource(R.string.settings_keep_on_sub), first = true, onClick = { onKeepScreenOn(!keepScreenOn) }) {
+                MaeveSwitch(keepScreenOn, onKeepScreenOn, Modifier.testTag("work-keep-screen-on"))
             }
-            ListRow(MikaIcons.Mute, stringResource(R.string.settings_mute), stringResource(R.string.settings_mute_sub), onClick = { onMuteTarget(!muteTarget) }) {
-                MikaSwitch(muteTarget, onMuteTarget, Modifier.testTag("work-mute-target"))
+            ListRow(MaeveIcons.Mute, stringResource(R.string.settings_mute), stringResource(R.string.settings_mute_sub), onClick = { onMuteTarget(!muteTarget) }) {
+                MaeveSwitch(muteTarget, onMuteTarget, Modifier.testTag("work-mute-target"))
             }
             ListRow(
-                MikaIcons.Clock, stringResource(R.string.settings_step_limit),
+                MaeveIcons.Clock, stringResource(R.string.settings_step_limit),
                 stepLimit?.let { trPlural(R.plurals.chat_steps_n, it) }
                     ?: stringResource(R.string.settings_step_limit_off),
                 // 当前是自己填的数时,输入框里带着它
@@ -226,15 +226,15 @@ fun DuringWorkScreen(
             onPick = { onStepLimit(it); editingLimit = false },
             onDismiss = { editingLimit = false },
         )
-        // 允许 Mika 改自己的设置:默认关,打开后任务里才有 settings_list、settings_set
+        // 允许 Maeve 改自己的设置:默认关,打开后任务里才有 settings_list、settings_set
         GroupCard {
             ListRow(
-                MikaIcons.Spark, stringResource(R.string.settings_self_config),
+                MaeveIcons.Spark, stringResource(R.string.settings_self_config),
                 stringResource(R.string.settings_self_config_sub),
                 first = true,
                 onClick = { onSelfConfig(!selfConfig) },
             ) {
-                MikaSwitch(selfConfig, onSelfConfig, Modifier.testTag("work-self-config"))
+                MaeveSwitch(selfConfig, onSelfConfig, Modifier.testTag("work-self-config"))
             }
         }
         GroupLabel(stringResource(R.string.settings_pace))
@@ -259,7 +259,7 @@ private fun StepLimitDialog(
     onDismiss: () -> Unit,
 ) {
     val customValue = custom.toIntOrNull()?.takeIf { it in 1..FeatureFlags.MAX_TASK_STEP_LIMIT }
-    MikaDialog(
+    MaeveDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.settings_step_limit)) },
         text = {
@@ -312,9 +312,9 @@ private fun paceDetail(p: OperatingPace): String = stringResource(
 private fun ParallelRow(p: ParallelSetting, onMax: (Int) -> Unit) {
     val supported = p.limit.reason == null
     ListRow(
-        MikaIcons.Phone, stringResource(R.string.settings_parallel),
+        MaeveIcons.Phone, stringResource(R.string.settings_parallel),
         subtitle = p.limit.reason ?: stringResource(R.string.settings_parallel_sub),
-        titleColor = if (supported) MikaTheme.colors.ink else MikaTheme.colors.ink3,
+        titleColor = if (supported) MaeveTheme.colors.ink else MaeveTheme.colors.ink3,
     ) {
         if (!supported) {
             RowValue(trPlural(R.plurals.settings_count_tasks, 1))
@@ -322,12 +322,12 @@ private fun ParallelRow(p: ParallelSetting, onMax: (Int) -> Unit) {
         }
         Text(
             "−", Modifier.clickable(enabled = p.max > 1) { onMax(p.max - 1) }.padding(horizontal = 10.dp, vertical = 4.dp),
-            fontSize = 18.sp, color = if (p.max > 1) MikaTheme.colors.accent else MikaTheme.colors.ink3,
+            fontSize = 18.sp, color = if (p.max > 1) MaeveTheme.colors.accent else MaeveTheme.colors.ink3,
         )
         RowValue(trPlural(R.plurals.settings_count_tasks, p.max))
         Text(
             "+", Modifier.clickable(enabled = p.max < 3) { onMax(p.max + 1) }.padding(horizontal = 10.dp, vertical = 4.dp),
-            fontSize = 18.sp, color = if (p.max < 3) MikaTheme.colors.accent else MikaTheme.colors.ink3,
+            fontSize = 18.sp, color = if (p.max < 3) MaeveTheme.colors.accent else MaeveTheme.colors.ink3,
         )
     }
 }
@@ -358,7 +358,7 @@ object CapsuleSettingsCopy {
 /** 设置 › 悬浮胶囊:关闭 / 有任务时显示(默认) / 一直显示,选了当场生效。 */
 @Composable
 fun CapsuleScreen(mode: CapsuleMode, onMode: (CapsuleMode) -> Unit, onBack: () -> Unit) {
-    PageScaffold(CapsuleSettingsCopy.TITLE, onBack) {
+    PageScaffold(CapsuleSettingsCopy.TITLE, onBack, eyebrow = "CAPSULE") {
         GroupCard {
             CapsuleMode.entries.forEachIndexed { i, m ->
                 RadioRow(
@@ -379,7 +379,7 @@ fun LanguageScreen(language: AppLanguage, onLanguage: (AppLanguage) -> Unit, onB
     val flags = remember { FeatureFlags.get(context) }
     // 跟着设置走:任务里改了外观,这页也对得上
     val themeMode by remember(flags) { flags.themeModeChanges() }.collectAsState(flags.themeMode())
-    PageScaffold(stringResource(R.string.appearance_title), onBack) {
+    PageScaffold(stringResource(R.string.appearance_title), onBack, eyebrow = "APPEARANCE") {
         // 语言和外观放在同一页:都是「界面长什么样」
         GroupLabel(stringResource(R.string.appearance_group))
         GroupCard {
@@ -436,7 +436,7 @@ fun languageLabel(l: AppLanguage): String = stringResource(
 /** 设置 › 网站登录。 */
 @Composable
 fun WebSitesScreen(state: WebSitesState, onBack: () -> Unit) {
-    PageScaffold(stringResource(R.string.settings_web_logins), onBack) { WebSitesSection(state, labeled = false) }
+    PageScaffold(stringResource(R.string.settings_web_logins), onBack, eyebrow = "LOGINS") { WebSitesSection(state, labeled = false) }
 }
 
 // ---------- 高级 ----------
@@ -444,28 +444,28 @@ fun WebSitesScreen(state: WebSitesState, onBack: () -> Unit) {
 /** 设置 › 文件与计算环境:允许脚本联网、网络代理、已用空间(按对话清理工作区)、重置运行环境。 */
 @Composable
 fun SandboxScreen(onBack: () -> Unit) {
-    PageScaffold(stringResource(R.string.settings_sandbox), onBack) { AdvancedSettings() }
+    PageScaffold(stringResource(R.string.settings_sandbox), onBack, eyebrow = "SANDBOX") { AdvancedSettings() }
 }
 
 /** 设置 › 记住的操作路线:[count] 条,可以全部清除(先确认);[count] 为空表示还没读出来。 */
 @Composable
 fun RoutesScreen(count: Int?, onClear: () -> Unit, onBack: () -> Unit) {
     var confirmClear by remember { mutableStateOf(false) }
-    PageScaffold(stringResource(R.string.settings_routes), onBack) {
+    PageScaffold(stringResource(R.string.settings_routes), onBack, eyebrow = "ROUTES") {
         GroupCard {
             ListRow(
-                MikaIcons.Route, stringResource(R.string.routes_saved),
+                MaeveIcons.Route, stringResource(R.string.routes_saved),
                 if (count == null) stringResource(R.string.loading) else trPlural(R.plurals.routes_count, count), first = true,
             ) {
                 if (count != null && count > 0) Text(
                     stringResource(R.string.routes_clear_all), Modifier.clickable { confirmClear = true }.padding(4.dp),
-                    style = MikaType.Value, color = MikaTheme.colors.bad,
+                    style = MaeveType.Value, color = MaeveTheme.colors.bad,
                 )
             }
         }
     }
     if (confirmClear) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { confirmClear = false },
             title = { Text(stringResource(R.string.routes_clear_title)) },
             text = { Text(stringResource(R.string.routes_clear_body)) },
@@ -478,11 +478,11 @@ fun RoutesScreen(count: Int?, onClear: () -> Unit, onBack: () -> Unit) {
 /** 设置 › 恢复与修复:手机操作的几个授权开关,下面是兼容性自检的入口。 */
 @Composable
 fun RecoveryScreen(onBack: () -> Unit, onOpenSelfCheck: () -> Unit = {}) {
-    PageScaffold(stringResource(R.string.settings_recovery), onBack) {
+    PageScaffold(stringResource(R.string.settings_recovery), onBack, eyebrow = "RECOVERY") {
         RecoverySwitches()
         GroupCard {
             ListRow(
-                MikaIcons.Bug, stringResource(R.string.selfcheck_title), stringResource(R.string.selfcheck_row_sub), first = true,
+                MaeveIcons.Bug, stringResource(R.string.selfcheck_title), stringResource(R.string.selfcheck_row_sub), first = true,
                 onClick = onOpenSelfCheck,
             ) { RowChevron() }
         }

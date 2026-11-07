@@ -8,7 +8,7 @@ import android.widget.Toast
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.core.chatgpt.ChatGptAuth
 import com.daiyimo.maeve.core.oauth.OpenRouterAuth
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.voice.SystemSpeech
 import com.daiyimo.maeve.settings.ChatGptSignIns
 import com.daiyimo.maeve.i18n.tr
@@ -17,6 +17,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -31,12 +32,14 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.glassSource
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -78,16 +81,18 @@ import com.daiyimo.maeve.ui.components.Hairline
 import com.daiyimo.maeve.ui.components.InputRow
 import com.daiyimo.maeve.ui.components.ListRow
 import com.daiyimo.maeve.ui.components.RowChevron
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.PageBackground
 import com.daiyimo.maeve.ui.components.ProgressDots
 import com.daiyimo.maeve.ui.components.SelectChip
 import com.daiyimo.maeve.ui.components.TagTone
 import com.daiyimo.maeve.ui.components.TileTone
 import com.daiyimo.maeve.ui.components.TopBar
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.LocalGlassBackdrop
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /**
  * 配置模型:用途(主模型、看图模型、轻量模型)和服务商两块。首次上手时 [onboarding] 为真
@@ -105,12 +110,12 @@ fun ModelSetupScreen(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val vm = remember {
-        val signIns = (context.applicationContext as? MikaApp)?.chatGptSignIn ?: ChatGptSignIns(scope)
+        val signIns = (context.applicationContext as? MaeveApp)?.chatGptSignIn ?: ChatGptSignIns(scope)
         ModelSetupViewModel(
             store, scope, browser = AndroidSignInBrowser(context.applicationContext), signIns = signIns,
-            speech = (context.applicationContext as? MikaApp)?.speech,
+            speech = (context.applicationContext as? MaeveApp)?.speech,
             systemSpeech = {
-                val silent = (context.applicationContext as? MikaApp)?.speech?.systemSilent?.value ?: false
+                val silent = (context.applicationContext as? MaeveApp)?.speech?.systemSilent?.value ?: false
                 SystemSpeech.capability(context.applicationContext, silent)
             },
         )
@@ -269,15 +274,24 @@ class ModelSetupActions(
  */
 @Composable
 fun ModelSetupContent(ui: ModelSetupUi, onboarding: Boolean, actions: ModelSetupActions, onBack: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     // 表单收起(测试通过存好了,或取消)后页面上没有要打字的地方,顺手收起键盘
     val focus = LocalFocusManager.current
     LaunchedEffect(ui.showForm) { if (!ui.showForm) focus.clearFocus() }
     val onPick: (ModelRole) -> Unit = { role -> if (ui.providers.isEmpty()) actions.openForm() else actions.pickRole(role) }
     PageBackground {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars).windowInsetsPadding(WindowInsets.ime)) {
-            TopBar(if (onboarding) ModelSetupCopy.TITLE else ModelsCopy.TITLE, MikaIcons.Back, onBack, stringResource(R.string.back))
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+        val backdrop = LocalGlassBackdrop.current
+        val statusBar = WindowInsets.statusBars.asPaddingValues()
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.fillMaxSize()
+                    .glassSource(backdrop)
+                    .verticalScroll(rememberScrollState())
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .windowInsetsPadding(WindowInsets.ime)
+                    .padding(horizontal = 16.dp)
+                    .padding(top = statusBar.calculateTopPadding() + MaeveSize.TopBar + 4.dp),
+            ) {
                 if (onboarding) {
                     Text(
                         ModelSetupCopy.LEAD, Modifier.padding(top = 4.dp, bottom = 12.dp),
@@ -294,7 +308,7 @@ fun ModelSetupContent(ui: ModelSetupUi, onboarding: Boolean, actions: ModelSetup
                     ProvidersSection(ui, actions)
                     actions.openUsage?.let { openUsage ->
                         GroupCard {
-                            ListRow(MikaIcons.Chart, UsageCopy.TITLE, first = true, onClick = openUsage) { RowChevron() }
+                            ListRow(MaeveIcons.Chart, UsageCopy.TITLE, first = true, onClick = openUsage) { RowChevron() }
                         }
                     }
                 }
@@ -304,9 +318,10 @@ fun ModelSetupContent(ui: ModelSetupUi, onboarding: Boolean, actions: ModelSetup
             if (onboarding && WindowInsets.ime.getBottom(LocalDensity.current) == 0) {
                 Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)) {
                     ProgressDots(Onboarding.DOTS, Onboarding.dot(OnboardingStep.Model), Modifier.padding(bottom = 14.dp))
-                    MikaButton(ModelSetupCopy.NEXT, actions.next, Modifier.fillMaxWidth().testTag("setup-next"), enabled = ui.canNext)
+                    MaeveButton(ModelSetupCopy.NEXT, actions.next, Modifier.fillMaxWidth().testTag("setup-next"), enabled = ui.canNext)
                 }
             }
+            TopBar(if (onboarding) ModelSetupCopy.TITLE else ModelsCopy.TITLE, MaeveIcons.Back, onBack, stringResource(R.string.back), eyebrow = "SETUP")
         }
     }
 }
@@ -314,7 +329,7 @@ fun ModelSetupContent(ui: ModelSetupUi, onboarding: Boolean, actions: ModelSetup
 /** 服务商:每家一行(写明在给哪些用途干活),加「添加服务商」;没有服务商或点了添加时,表单就摊在这里。 */
 @Composable
 private fun ProvidersSection(ui: ModelSetupUi, actions: ModelSetupActions) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     if (ui.providers.isNotEmpty()) {
         GroupLabel(ModelsCopy.PROVIDERS)
         GroupCard {
@@ -328,7 +343,7 @@ private fun ProvidersSection(ui: ModelSetupUi, actions: ModelSetupActions) {
             }
             if (!ui.showForm) {
                 ListRow(
-                    MikaIcons.Plus, ModelsCopy.ADD_PROVIDER, titleColor = c.accent, tone = TileTone.Accent,
+                    MaeveIcons.Plus, ModelsCopy.ADD_PROVIDER, titleColor = c.accent, tone = TileTone.Accent,
                     onClick = actions.openForm,
                 )
             }
@@ -351,7 +366,7 @@ private fun ProvidersSection(ui: ModelSetupUi, actions: ModelSetupActions) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AddProviderForm(ui: ModelSetupUi, actions: ModelSetupActions) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val f = ui.form
     var showKey by remember { mutableStateOf(false) }
     var confirmUntested by remember { mutableStateOf(false) }
@@ -381,7 +396,7 @@ private fun AddProviderForm(ui: ModelSetupUi, actions: ModelSetupActions) {
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(ModelSetupCopy.KIND, Modifier.padding(end = 12.dp), style = MikaType.Body, color = c.ink)
+                Text(ModelSetupCopy.KIND, Modifier.padding(end = 12.dp), style = MaeveType.Body, color = c.ink)
                 // 四种接口一行放不下时折到下一行
                 FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     ProviderConfig.Kind.withApiKey.forEach { k -> SelectChip(ModelsCopy.kindLabel(k), f.kind == k, { actions.setKind(k) }, small = true) }
@@ -430,7 +445,7 @@ private fun AddProviderForm(ui: ModelSetupUi, actions: ModelSetupActions) {
     if (f.noList) FooterNote(if (f.isCustom) ModelSetupCopy.NO_LIST_CUSTOM else ModelSetupCopy.NO_LIST_PRESET, Modifier.testTag("setup-no-list"))
     if (f.isSelfHosted) FooterNote(ModelSetupCopy.SELF_HOSTED_NOTE, Modifier.testTag("setup-self-hosted"))
     f.unencryptedWarning?.let { FooterNote(it, Modifier.testTag("setup-url-unencrypted"), color = c.warn) }
-    MikaButton(
+    MaeveButton(
         if (f.test == ListState.Running) ModelSetupCopy.TESTING else ModelSetupCopy.TEST_AND_SAVE,
         actions.testAndSave, Modifier.fillMaxWidth().padding(top = 2.dp).testTag("setup-test"),
         kind = ButtonKind.Secondary, size = ButtonSize.Medium, enabled = f.canTest,
@@ -442,12 +457,12 @@ private fun AddProviderForm(ui: ModelSetupUi, actions: ModelSetupActions) {
         )
     }
     // 试不成又想先存下的:做成按钮,不要藏成一行小字——它是个真实的动作,不是说明
-    MikaButton(
+    MaeveButton(
         ModelSetupCopy.SAVE_UNTESTED, { confirmUntested = true },
         Modifier.fillMaxWidth().padding(top = 6.dp).testTag("setup-save-untested"),
         kind = ButtonKind.Tonal, size = ButtonSize.Small, enabled = f.canSaveUntested,
     )
-    if (confirmUntested) MikaDialog(
+    if (confirmUntested) MaeveDialog(
         onDismissRequest = { confirmUntested = false },
         title = { Text(ModelSetupCopy.SAVE_UNTESTED_TITLE) },
         text = { Text(ModelSetupCopy.SAVE_UNTESTED_BODY) },
@@ -467,7 +482,7 @@ private fun AddProviderForm(ui: ModelSetupUi, actions: ModelSetupActions) {
 /** 自定义填的是某家的官方地址:建议改用那家的预设(不拦着),接口类型对不上时一并说;点一下就换过去,Key 留着。 */
 @Composable
 private fun PresetSuggestion(f: AddForm, label: String, onUse: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     FooterNote(ModelSetupCopy.presetSuggestion(f), Modifier.padding(top = 2.dp).testTag("setup-preset-hint"), color = c.warn)
     Text(
         ModelSetupCopy.usePreset(label),
@@ -476,10 +491,10 @@ private fun PresetSuggestion(f: AddForm, label: String, onUse: () -> Unit) {
     )
 }
 
-/** 第一次用 ChatGPT 登录成功后说明一次:Mika 里的用量走你的 ChatGPT 套餐。 */
+/** 第一次用 ChatGPT 登录成功后说明一次:Maeve 里的用量走你的 ChatGPT 套餐。 */
 @Composable
 private fun ChatGptWelcome(onDismiss: () -> Unit) {
-    MikaDialog(
+    MaeveDialog(
         onDismissRequest = onDismiss,
         title = { Text(ModelsCopy.CHATGPT_WELCOME_TITLE) },
         text = { Text(ModelsCopy.CHATGPT_WELCOME_BODY) },
@@ -488,8 +503,8 @@ private fun ChatGptWelcome(onDismiss: () -> Unit) {
 }
 
 /**
- * 登录要用的系统能力:授权页用系统浏览器打开;回调页(换完令牌之后才给出)写成功或失败的原因,再放一个回到 Mika 的链接(intent 链接,点了由浏览器打开 Mika);
- * 登录完(成功或失败)把 Mika 带回前台。安卓限制后台打开界面,带不回来时用户点回调页的链接或从最近任务回来。
+ * 登录要用的系统能力:授权页用系统浏览器打开;回调页(换完令牌之后才给出)写成功或失败的原因,再放一个回到 Maeve 的链接(intent 链接,点了由浏览器打开 Maeve);
+ * 登录完(成功或失败)把 Maeve 带回前台。安卓限制后台打开界面,带不回来时用户点回调页的链接或从最近任务回来。
  */
 private class AndroidSignInBrowser(private val context: Context) : SignInBrowser {
     override fun open(url: String) {
@@ -549,7 +564,7 @@ private fun RolesSection(ui: ModelSetupUi, onPick: (ModelRole) -> Unit, onReason
                         Hairline(start = 0.dp)
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             if (reasoning) ReasoningControl(ui, role, Modifier.weight(1f)) { onReasoning(role, it) }
-                            if (reasoning && context) Box(Modifier.width(0.5.dp).height(14.dp).background(MikaTheme.colors.hair))
+                            if (reasoning && context) Box(Modifier.width(0.5.dp).height(14.dp).background(MaeveTheme.colors.hair))
                             if (onContext != null && context) ModelContextControl(ui, role, onContext, Modifier.weight(1f))
                         }
                     }
@@ -586,7 +601,7 @@ private fun ModelContextControl(ui: ModelSetupUi, role: ModelRole,
     val badWindow = window.isNotBlank() && settings.windowTokens == null
     val badTrigger = trigger.isNotBlank() && (settings.triggerTokens == null || (!badWindow && settings.triggerTokens != limits.trigger))
     val keyboard = KeyboardOptions(keyboardType = KeyboardType.Number)
-    MikaDialog(
+    MaeveDialog(
         onDismissRequest = { open = false },
         modifier = Modifier.imePadding(),
         title = { Text(stringResource(R.string.model_context_title)) },
@@ -612,7 +627,7 @@ private fun ModelContextControl(ui: ModelSetupUi, role: ModelRole,
                 if (!badWindow && (trigger.isBlank() || settings.triggerTokens != null)) Text(stringResource(R.string.model_context_effective, limits.window, limits.trigger),
                     modifier = Modifier.testTag("context-effective"))
                 TextButton(onClick = { window = ""; trigger = ""; saveFailed = false }) { Text(stringResource(R.string.reset)) }
-                if (saveFailed) Text(stringResource(R.string.model_context_save_failed), color = MikaTheme.colors.bad)
+                if (saveFailed) Text(stringResource(R.string.model_context_save_failed), color = MaeveTheme.colors.bad)
             }
         },
         confirmButton = { TextButton(onClick = {
@@ -631,7 +646,7 @@ internal fun Tags(o: ModelOption, forVision: Boolean = false, accent: Boolean = 
     }
 }
 
-internal val ModelIdStyle = MikaType.Body.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
+internal val ModelIdStyle = MaeveType.Body.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
 
 /** 配置模型页(上手时)和添加服务商表单的文字(纯函数,便于测试)。用途的说法在 [ModelsCopy]。 */
 object ModelSetupCopy {

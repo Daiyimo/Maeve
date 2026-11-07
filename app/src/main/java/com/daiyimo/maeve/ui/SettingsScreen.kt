@@ -1,12 +1,29 @@
 package com.daiyimo.maeve.ui
 
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
+import com.daiyimo.maeve.ui.theme.MazeRing
+import com.daiyimo.maeve.ui.theme.calibrationCorners
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import androidx.compose.ui.res.stringResource
 import com.daiyimo.maeve.settings.ProviderConnection
 import android.app.ActivityManager
 import androidx.activity.compose.BackHandler
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import com.daiyimo.maeve.ui.haptic.MaeveHaptics
 import androidx.compose.material3.Text
 import androidx.compose.material3.Switch
@@ -47,7 +64,7 @@ import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.PillTone
 import com.daiyimo.maeve.ui.components.RowChevron
@@ -56,7 +73,7 @@ import com.daiyimo.maeve.ui.components.StateCard
 import com.daiyimo.maeve.ui.components.StatusPill
 import com.daiyimo.maeve.ui.components.TileTone
 import com.daiyimo.maeve.ui.components.ValueTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.i18n.AppLanguage
 import com.daiyimo.maeve.wechat.WechatConnectionState
 import kotlinx.coroutines.Dispatchers
@@ -83,7 +100,7 @@ fun SettingsScreen(
     /** 任务运行里的「自主模式」:当前值和换它的办法。 */
     autonomous: Boolean = false,
     onAutonomous: (Boolean) -> Unit = {},
-    /** 查到的新版本号;有它时「关于 Mika」一行写「x 可更新」带红点。 */
+    /** 查到的新版本号;有它时「关于 Maeve」一行写「x 可更新」带红点。 */
     updateVersion: String? = null,
     onOpenAbout: () -> Unit = {},
     /** 外部 MCP server 设置(outbound);为空时不显示入口。 */
@@ -104,7 +121,7 @@ fun SettingsScreen(
     val root = remember { com.daiyimo.maeve.cap.phone.PhoneServices.of(context).shellManager.root }
     val rootState by root.state.collectAsState()
     LaunchedEffect(Unit) { root.refresh() }
-    val wechat = remember { (context.applicationContext as com.daiyimo.maeve.MikaApp).wechat }
+    val wechat = remember { (context.applicationContext as com.daiyimo.maeve.MaeveApp).wechat }
     val wechatState by wechat.state.collectAsState()
     val flags = remember { FeatureFlags.get(context) }
     var parallelMax by remember { mutableIntStateOf(flags.parallelMax()) }
@@ -116,7 +133,7 @@ fun SettingsScreen(
     var capsuleMode by remember { mutableStateOf(flags.capsuleMode()) }
     // 换语言时界面会重建,这里每次进来读一次即可
     val language = remember { AppLanguage.current(context) }
-    val runtimeLimit by (context.applicationContext as com.daiyimo.maeve.MikaApp).taskState.parallelLimit.collectAsState()
+    val runtimeLimit by (context.applicationContext as com.daiyimo.maeve.MaeveApp).taskState.parallelLimit.collectAsState()
     var speed by remember { mutableStateOf(flags.speedFlags()) }
     val scope = rememberCoroutineScope()
     val sandboxStatus by remember { SandboxState.get(context) }.status.collectAsState()
@@ -129,7 +146,7 @@ fun SettingsScreen(
         if (proxy == null) proxy = withContext(Dispatchers.IO) { proxies.get() }
         browserProxy = withContext(Dispatchers.IO) { WebProxy.mode() }
     }
-    val mcp = remember { (context.applicationContext as com.daiyimo.maeve.MikaApp).mcp }
+    val mcp = remember { (context.applicationContext as com.daiyimo.maeve.MaeveApp).mcp }
     val mcpNetworkOn by mcp.settings.enabled.collectAsState()
     val mcpUsbOn by mcp.usb.enabled.collectAsState()
     val mcpOn = mcpNetworkOn || mcpUsbOn
@@ -240,7 +257,7 @@ fun SettingsScreen(
 
     explaining?.let { p ->
         val e = StatusCopy.explain(p, androidRelease)
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { explaining = null },
             title = { Text(e.title) },
             text = { Text(e.body) },
@@ -289,40 +306,40 @@ fun SettingsContent(
     onOpenAbout: () -> Unit = {},
 ) {
     val check = Prerequisites.check(status, hasMainModel = mainModel != null)
-    PageScaffold(stringResource(R.string.settings_title), onBack) {
+    PageScaffold(stringResource(R.string.settings_title), onBack, eyebrow = "SETTINGS") {
         StatusSummary(check, onProblem)
 
         GroupLabel(stringResource(R.string.settings_basic))
         GroupCard {
-            ListRow(MikaIcons.Spark, stringResource(R.string.settings_model), stringResource(R.string.settings_model_sub), first = true, onClick = onOpenModels) {
+            ListRow(MaeveIcons.Spark, stringResource(R.string.settings_model), stringResource(R.string.settings_model_sub), first = true, onClick = onOpenModels) {
                 RowValue(mainModel ?: stringResource(R.string.settings_not_set))
                 RowChevron()
             }
-            ListRow(MikaIcons.Phone, stringResource(R.string.settings_phone_ops), onClick = onOpenPhoneOps) {
+            ListRow(MaeveIcons.Phone, stringResource(R.string.settings_phone_ops), onClick = onOpenPhoneOps) {
                 PhoneOpsPill(status)
                 RowChevron()
             }
-            ListRow(MikaIcons.Message, stringResource(R.string.amoo_page_title), stringResource(R.string.amoo_page_sub), onClick = onOpenAmoo) {
+            ListRow(MaeveIcons.Message, stringResource(R.string.amoo_page_title), stringResource(R.string.amoo_page_sub), onClick = onOpenAmoo) {
                 RowValue(stringResource(if (amooOn) R.string.state_on else R.string.state_off), if (amooOn) ValueTone.Ok else ValueTone.Plain)
                 RowChevron()
             }
-            ListRow(MikaIcons.Chats, stringResource(R.string.wechat_title), stringResource(R.string.wechat_settings_sub), onClick = onOpenWechat) {
+            ListRow(MaeveIcons.Chats, stringResource(R.string.wechat_title), stringResource(R.string.wechat_settings_sub), onClick = onOpenWechat) {
                 WechatEntryStatus(wechatState, wechatBound)
                 RowChevron()
             }
-            ListRow(MikaIcons.Moon, stringResource(R.string.settings_during_work), stringResource(R.string.settings_during_work_sub), onClick = onOpenDuringWork) { RowChevron() }
-            ListRow(MikaIcons.Message, CapsuleSettingsCopy.TITLE, CapsuleSettingsCopy.SUBTITLE, onClick = onOpenCapsule) {
+            ListRow(MaeveIcons.Moon, stringResource(R.string.settings_during_work), stringResource(R.string.settings_during_work_sub), onClick = onOpenDuringWork) { RowChevron() }
+            ListRow(MaeveIcons.Message, CapsuleSettingsCopy.TITLE, CapsuleSettingsCopy.SUBTITLE, onClick = onOpenCapsule) {
                 RowValue(CapsuleSettingsCopy.label(capsuleMode))
                 RowChevron()
             }
-            ListRow(MikaIcons.Globe, stringResource(R.string.settings_language_appearance), onClick = onOpenLanguage) {
+            ListRow(MaeveIcons.Globe, stringResource(R.string.settings_language_appearance), onClick = onOpenLanguage) {
                 RowValue(languageLabel(language))
                 RowChevron()
             }
             val hapticContext = LocalContext.current
             var hapticOn by remember { mutableStateOf(MaeveHaptics.appEnabled(hapticContext)) }
             ListRow(
-                MikaIcons.Spark,
+                MaeveIcons.Spark,
                 stringResource(R.string.settings_haptic),
                 stringResource(R.string.settings_haptic_sub),
             ) {
@@ -336,7 +353,7 @@ fun SettingsContent(
                 )
             }
             val (notifText, notifTone) = StatusCopy.notificationSummary(status.notificationOverview().summary)
-            ListRow(MikaIcons.Bell, StatusCopy.NOTIFICATIONS, stringResource(R.string.settings_notif_sub), onClick = onOpenNotifications) {
+            ListRow(MaeveIcons.Bell, StatusCopy.NOTIFICATIONS, stringResource(R.string.settings_notif_sub), onClick = onOpenNotifications) {
                 RowValue(notifText, notifTone)
                 RowChevron()
             }
@@ -345,17 +362,17 @@ fun SettingsContent(
         GroupLabel(stringResource(R.string.settings_privacy))
         GroupCard {
             onOpenMemory?.let {
-                ListRow(MikaIcons.Heart, stringResource(R.string.settings_memory_data), stringResource(R.string.settings_memory_sub), first = true, onClick = it) { RowChevron() }
+                ListRow(MaeveIcons.Heart, stringResource(R.string.settings_memory_data), stringResource(R.string.settings_memory_sub), first = true, onClick = it) { RowChevron() }
             }
-            ListRow(MikaIcons.Shield, stringResource(R.string.appaccess_title), stringResource(R.string.appaccess_row_sub), first = onOpenMemory == null, onClick = onOpenAppAccess) { RowChevron() }
+            ListRow(MaeveIcons.Shield, stringResource(R.string.appaccess_title), stringResource(R.string.appaccess_row_sub), first = onOpenMemory == null, onClick = onOpenAppAccess) { RowChevron() }
         }
 
         GroupLabel(stringResource(R.string.settings_other))
         GroupCard {
-            ListRow(MikaIcons.Wrench, stringResource(R.string.settings_advanced), stringResource(R.string.settings_advanced_sub), first = true, onClick = onOpenAdvanced) { RowChevron() }
+            ListRow(MaeveIcons.Wrench, stringResource(R.string.settings_advanced), stringResource(R.string.settings_advanced_sub), first = true, onClick = onOpenAdvanced) { RowChevron() }
         }
         GroupCard {
-            ListRow(MikaIcons.Info, stringResource(R.string.settings_about), first = true, onClick = onOpenAbout) {
+            ListRow(MaeveIcons.Info, stringResource(R.string.settings_about), first = true, onClick = onOpenAbout) {
                 TrailingValue(AboutCopy.settingsValue(updateVersion, versionName))
                 RowChevron()
             }
@@ -384,7 +401,7 @@ fun AdvancedSettingsContent(
     showDeveloper: Boolean = false,
     onOpenDeveloper: () -> Unit = {},
 ) {
-    PageScaffold(stringResource(R.string.settings_advanced), onBack) {
+    PageScaffold(stringResource(R.string.settings_advanced), onBack, eyebrow = "SETTINGS · ADVANCED") {
         val sandboxRow = sandbox?.takeIf { it !is SandboxStatus.Unsupported }
         if (proxy != null || sandboxRow != null || computerAccess != null || mcpServersCount != null || showRoot) {
             GroupLabel(stringResource(R.string.settings_connections))
@@ -392,28 +409,28 @@ fun AdvancedSettingsContent(
                 var first = true
                 fun take(): Boolean = first.also { first = false }
                 proxy?.let {
-                    ListRow(MikaIcons.Link, NetProxyCopy.TITLE, proxyNote, first = take(), onClick = onOpenProxy) {
+                    ListRow(MaeveIcons.Link, NetProxyCopy.TITLE, proxyNote, first = take(), onClick = onOpenProxy) {
                         RowValue(NetProxyCopy.value(it))
                         RowChevron()
                     }
                 }
                 if (sandboxRow != null) {
-                    ListRow(MikaIcons.Terminal, stringResource(R.string.settings_sandbox), first = take(), onClick = onOpenSandbox) {
+                    ListRow(MaeveIcons.Terminal, stringResource(R.string.settings_sandbox), first = take(), onClick = onOpenSandbox) {
                         RowValue(sandboxValue(sandboxRow)); RowChevron()
                     }
                 }
                 computerAccess?.let { on ->
-                    ListRow(MikaIcons.Desktop, stringResource(R.string.mcp_title), first = take(), onClick = onOpenComputerAccess) {
+                    ListRow(MaeveIcons.Desktop, stringResource(R.string.mcp_title), first = take(), onClick = onOpenComputerAccess) {
                         RowValue(stringResource(if (on) R.string.state_on else R.string.state_off)); RowChevron()
                     }
                 }
                 mcpServersCount?.let { count ->
-                    ListRow(MikaIcons.Link, stringResource(R.string.mcp_servers_title), first = take(), onClick = onOpenMcpServers) {
+                    ListRow(MaeveIcons.Link, stringResource(R.string.mcp_servers_title), first = take(), onClick = onOpenMcpServers) {
                         RowValue(stringResource(R.string.mcp_servers_count, count)); RowChevron()
                     }
                 }
                 if (showRoot) {
-                    ListRow(MikaIcons.Key, PhoneSetupCopy.ROOT_GROUP, PhoneSetupCopy.rootEntryLine(rootCommands), first = take(), onClick = onOpenRoot) {
+                    ListRow(MaeveIcons.Key, PhoneSetupCopy.ROOT_GROUP, PhoneSetupCopy.rootEntryLine(rootCommands), first = take(), onClick = onOpenRoot) {
                         RowChevron()
                     }
                 }
@@ -422,13 +439,13 @@ fun AdvancedSettingsContent(
         if (showRecovery) {
             GroupLabel(stringResource(R.string.settings_maintenance))
             GroupCard {
-                ListRow(MikaIcons.Wrench, stringResource(R.string.settings_recovery), first = true, onClick = onOpenRecovery) { RowChevron() }
+                ListRow(MaeveIcons.Wrench, stringResource(R.string.settings_recovery), first = true, onClick = onOpenRecovery) { RowChevron() }
             }
         }
         if (showDeveloper) {
             GroupLabel(stringResource(R.string.settings_developer_group))
             GroupCard {
-                ListRow(MikaIcons.Code, stringResource(R.string.settings_developer), first = true, onClick = onOpenDeveloper) { RowChevron() }
+                ListRow(MaeveIcons.Code, stringResource(R.string.settings_developer), first = true, onClick = onOpenDeveloper) { RowChevron() }
             }
         }
     }
@@ -457,17 +474,54 @@ private fun sandboxValue(s: SandboxStatus): String = when (s) {
  */
 @Composable
 private fun StatusSummary(check: Prerequisites.Check, onProblem: (Problem) -> Unit) {
+    val c = MaeveTheme.colors
     val problem = check.problems.firstOrNull { it != Problem.FocusMayLeak }
-    if (problem == null) {
-        StateCard(MikaIcons.Check, stringResource(R.string.all_ready), stringResource(R.string.settings_all_ready_detail), TileTone.Ok, Modifier.testTag("settings-status"))
-    } else {
-        val copy = StatusCopy.banner(problem)
-        StateCard(
-            MikaIcons.Exclaim, copy.title, copy.detail,
-            if (problem in check.blockers) TileTone.Bad else TileTone.Warn,
-            Modifier.testTag("settings-status"),
-        ) {
-            MikaButton(copy.link, { onProblem(problem) }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
+    val tone = when {
+        problem == null -> c.machine
+        problem in check.blockers -> c.bad
+        else -> c.signal
+    }
+    // 这一块是整页唯一「机器在自检」的地方:极淡的冷底 + 四角校准刻度 + 等宽读数。
+    // 用方块而不是圆角很大的卡:仪表是方的。
+    Column(
+        Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp)
+            .clip(StatusShape)
+            .background(if (problem == null) c.machineSoft else c.surface)
+            .border(0.5.dp, if (problem == null) c.machineEdge else c.edge, StatusShape)
+            .calibrationCorners(tone.copy(alpha = 0.45f), arm = 6.dp, inset = 7.dp)
+            .padding(start = 15.dp, end = 15.dp, top = 13.dp, bottom = 14.dp)
+            .testTag("settings-status"),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            MazeRing(
+                progress = null, size = 12.dp,
+                track = tone.copy(alpha = 0.25f), head = tone, strokeWidth = 1.1.dp,
+                indeterminate = false,
+            )
+            Spacer(Modifier.width(7.dp))
+            Text("SYSTEM", Modifier.weight(1f), style = MaeveType.EyebrowSmall.copy(letterSpacing = 1.6.sp), color = tone)
+            Text(
+                if (problem == null) "READY" else "ATTENTION",
+                style = MaeveType.EyebrowSmall.copy(letterSpacing = 1.6.sp),
+                color = tone,
+            )
+        }
+        if (problem == null) {
+            Text(
+                stringResource(R.string.all_ready), Modifier.padding(top = 9.dp),
+                style = MaeveType.BodyStrong, color = c.ink,
+            )
+            Text(
+                stringResource(R.string.settings_all_ready_detail), Modifier.padding(top = 3.dp),
+                style = MaeveType.Caption, color = c.ink2,
+            )
+        } else {
+            val copy = StatusCopy.banner(problem)
+            Text(copy.title, Modifier.padding(top = 9.dp), style = MaeveType.BodyStrong, color = c.ink)
+            Text(copy.detail, Modifier.padding(top = 3.dp), style = MaeveType.Caption, color = c.ink2)
+            MaeveButton(copy.link, { onProblem(problem) }, Modifier.padding(top = 12.dp), kind = ButtonKind.Secondary, size = ButtonSize.Small)
         }
     }
 }
+
+private val StatusShape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)

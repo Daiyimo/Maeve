@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maeve · 视觉规范</title>
+<style>
+  :root{
+    --bg:#F6EFEA; --bgTop:#FAF4EF; --bgBottom:#F2E9E4; --surface:#FEFBF9;
+    --ink:#271E18; --ink2:#605650; --ink3:#8C847F;
+    --hair:rgba(39,30,24,.075); --rule:rgba(39,30,24,.155); --edge:rgba(39,30,24,.085);
+    --accent:#6B3D57; --machine:#1D555A; --machineSoft:#E1F0F1; --machineDim:#60898C;
+    --signal:#9E5C10; --signalSoft:#F7E4D4;
+    --mono:ui-monospace,SFMono-Regular,"Cascadia Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#fff;color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1080px;margin:0 auto;padding:56px 32px 96px;}
+  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:1.9px;text-transform:uppercase;color:var(--ink3);font-weight:500;}
+  h1{font-size:34px;font-weight:400;letter-spacing:-.3px;margin:14px 0 10px;line-height:1.25;}
+  .lead{font-size:15.5px;line-height:1.7;color:var(--ink2);max-width:660px;}
+  h2{font-size:15px;font-weight:500;margin:0;letter-spacing:.2px;}
+  section{margin-top:56px;}
+  .sechead{display:flex;align-items:baseline;gap:12px;border-bottom:.5px solid var(--rule);padding-bottom:10px;margin-bottom:22px;}
+  .sechead .n{font-family:var(--mono);font-size:10px;color:var(--ink3);letter-spacing:1.5px;}
+  .note{font-size:13px;line-height:1.75;color:var(--ink2);max-width:640px;}
+  .row{display:flex;gap:18px;flex-wrap:wrap;}
+  .sw{flex:1 1 118px;min-width:110px;}
+  .chip{height:62px;border-radius:8px;border:.5px solid var(--edge);display:flex;align-items:flex-end;padding:7px;}
+  .chip span{font-family:var(--mono);font-size:9.5px;letter-spacing:.4px;opacity:.85;}
+  .sw .nm{font-size:11.5px;margin-top:7px;color:var(--ink);}
+  .sw .cr{font-family:var(--mono);font-size:9.5px;color:var(--ink3);margin-top:2px;}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;}
+  th,td{text-align:left;padding:8px 10px;border-bottom:.5px solid var(--hair);vertical-align:top;}
+  th{font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink3);font-weight:500;}
+  td code{font-family:var(--mono);font-size:11px;background:rgba(39,30,24,.045);padding:1px 4px;border-radius:3px;}
+  .phones{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start;}
+  .phone{width:300px;height:600px;border-radius:26px;padding:15px 14px 13px;display:flex;flex-direction:column;border:.5px solid var(--edge);}
+  .l{background:linear-gradient(180deg,var(--bgTop) 0%,var(--bg) 62%,var(--bgBottom) 100%);}
+  .d{background:linear-gradient(180deg,#110D0A 0%,#0D0A08 62%,#0A0705 100%);
+     --surface:#16120F;--ink:#EFE9E5;--ink2:#A9A39E;--ink3:#79736F;
+     --hair:rgba(239,233,229,.085);--rule:rgba(239,233,229,.175);--edge:rgba(239,233,229,.095);
+     --accent:#B98CA8;--machine:#81BDC3;--machineSoft:#122022;--machineDim:#638F93;
+     --signal:#E9A95F;--signalSoft:#432D1A;border-color:rgba(239,233,229,.13);}
+  .cap{font-family:var(--mono);font-size:9.5px;letter-spacing:1.5px;color:var(--ink3);text-align:center;margin-top:10px;text-transform:uppercase;}
+  .top{display:flex;align-items:center;justify-content:space-between;}
+  .burger{width:20px;}
+  .burger i{display:block;height:1.5px;background:var(--ink);border-radius:1px;margin-bottom:3px;}
+  .burger i:nth-child(2){width:14px;}
+  .brand{text-align:center;}
+  .brand .eb{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--ink3);}
+  .brand .tt{font-size:15px;font-weight:500;margin-top:2px;}
+  .body{flex:1;padding-top:16px;overflow:hidden;}
+  .ubub{display:flex;justify-content:flex-end;margin-bottom:11px;}
+  .ubub div{background:var(--accent);color:#FEFBF9;font-size:12.5px;line-height:1.55;padding:9px 12px;border-radius:14px 14px 4px 14px;max-width:205px;}
+  .diag{border:.5px solid var(--machineDim);background:var(--machineSoft);border-radius:10px;padding:9px 11px;margin-bottom:13px;}
+  .diag .hd{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;letter-spacing:1.4px;color:var(--machine);}
+  .roll{display:flex;align-items:flex-end;gap:2px;height:16px;margin:8px 0;}
+  .roll i{flex:1;border-radius:1px;background:var(--machineDim);}
+  .roll i.a{background:var(--signal);}
+  .roll i.p{background:var(--hair);}
+  .diag .st{font-size:11.5px;line-height:1.5;color:var(--ink);}
+  .ans{display:flex;gap:11px;}
+  .rail{width:1px;background:var(--rule);flex-shrink:0;}
+  .ans p{font-size:12.5px;line-height:1.68;margin:0;color:var(--ink);}
+  .ans p b{font-weight:400;color:var(--ink2);}
+  .comp{margin-top:auto;border:.5px solid var(--edge);background:var(--surface);border-radius:16px;padding:10px 12px;display:flex;align-items:center;gap:10px;}
+  .comp .ph{flex:1;font-size:12px;color:var(--ink3);}
+  .comp .plus{font-size:16px;color:var(--ink2);line-height:1;}
+  .comp .send{width:27px;height:27px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;}
+  .comp .send i{width:1.5px;height:10px;background:#FEFBF9;position:relative;display:block;}
+  .comp .send i:before{content:"";position:absolute;top:-3px;left:-3px;width:7px;height:7px;border-top:1.5px solid #FEFBF9;border-left:1.5px solid #FEFBF9;transform:rotate(45deg);}
+  .motifs{display:flex;gap:34px;flex-wrap:wrap;align-items:flex-end;}
+  .motif{text-align:center;}
+  .motif .t{font-family:var(--mono);font-size:9.5px;letter-spacing:1.2px;color:var(--ink3);margin-top:9px;text-transform:uppercase;}
+  .motif .d{font-size:11.5px;color:var(--ink2);margin-top:3px;max-width:150px;line-height:1.6;}
+  .scale div{display:flex;align-items:baseline;gap:16px;padding:9px 0;border-bottom:.5px solid var(--hair);}
+  .scale .lbl{width:112px;font-family:var(--mono);font-size:9.5px;letter-spacing:1.1px;color:var(--ink3);text-transform:uppercase;flex-shrink:0;}
+  .cal{position:relative;padding:16px 18px;border:.5px solid var(--machineDim);border-radius:2px;background:var(--machineSoft);}
+  .cal:before,.cal:after{content:"";position:absolute;width:7px;height:7px;}
+  .cal:before{top:7px;left:7px;border-top:1px solid var(--machine);border-left:1px solid var(--machine);}
+  .cal:after{bottom:7px;right:7px;border-bottom:1px solid var(--machine);border-right:1px solid var(--machine);}
+  .two{display:flex;gap:22px;flex-wrap:wrap;}
+  .two>div{flex:1 1 320px;}
+  .kbd{font-family:var(--mono);font-size:10.5px;background:rgba(39,30,24,.05);padding:1px 5px;border-radius:3px;}
+  @media(max-width:760px){.wrap{padding:36px 18px 60px}h1{font-size:27px}.phone{width:100%;max-width:320px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">MAEVE · VISUAL SYSTEM · v0.2</div>
+  <h1>纸与机器</h1>
+  <p class="lead">
+    整套界面只有两种材质:<b>纸</b>和<b>仪表</b>。你跟 Maeve 说话的地方是温热的纸面——暖白、墨字、一道梅子色;
+    她在那块你看不见的屏上干活的地方是冷青的诊断台——发丝线、等宽读数、四角校准刻度。
+    两个世界色相差 140°,所以「谁在说话」一眼可辨,不需要读文字。
+  </p>
+
+  <section>
+    <div class="sechead"><span class="n">01</span><h2>两条语义轨</h2></div>
+    <p class="note" style="margin-bottom:22px;">
+      这不是「深色一套浅色一套」,是两套各自有含义的颜色。强调色可换(六套预设),但诊断轨的冷青永远不变——
+      换成什么主色,机器还是冷的。
+    </p>
+    <div class="row" style="margin-bottom:26px;">
+      <div class="sw"><div class="chip" style="background:var(--bg)"><span style="color:var(--ink)">#F6EFEA</span></div><div class="nm">纸 · bg</div><div class="cr">ink 14.36:1</div></div>
+      <div class="sw"><div class="chip" style="background:var(--surface)"><span style="color:var(--ink)">#FEFBF9</span></div><div class="nm">纸卡 · surface</div><div class="cr">比页面亮一档</div></div>
+      <div class="sw"><div class="chip" style="background:var(--ink)"><span style="color:#F6EFEA">#271E18</span></div><div class="nm">墨 · ink</div><div class="cr">暖近黑</div></div>
+      <div class="sw"><div class="chip" style="background:var(--ink2)"><span style="color:#F6EFEA">#605650</span></div><div class="nm">墨二 · ink2</div><div class="cr">6.27:1</div></div>
+      <div class="sw"><div class="chip" style="background:var(--ink3)"><span style="color:#F6EFEA">#8C847F</span></div><div class="nm">墨三 · ink3</div><div class="cr">3.22:1</div></div>
+      <div class="sw"><div class="chip" style="background:var(--accent)"><span style="color:#fff">#6B3D57</span></div><div class="nm">梅子 · accent</div><div class="cr">默认预设</div></div>
+    </div>
+    <div class="row">
+      <div class="sw"><div class="chip" style="background:var(--machineSoft)"><span style="color:var(--machine)">#E1F0F1</span></div><div class="nm">诊断底 · machineSoft</div><div class="cr">machine 7.18:1</div></div>
+      <div class="sw"><div class="chip" style="background:var(--machine)"><span style="color:#E1F0F1">#1D555A</span></div><div class="nm">机器 · machine</div><div class="cr">色相 203°</div></div>
+      <div class="sw"><div class="chip" style="background:var(--machineDim)"><span style="color:#fff">#60898C</span></div><div class="nm">已弹过 · machineDim</div><div class="cr">3.29:1</div></div>
+      <div class="sw"><div class="chip" style="background:var(--signal)"><span style="color:#fff">#9E5C10</span></div><div class="nm">需要你 · signal</div><div class="cr">4.62:1</div></div>
+      <div class="sw"><div class="chip" style="background:var(--signalSoft)"><span style="color:var(--signal)">#F7E4D4</span></div><div class="nm">琥珀底 · signalSoft</div><div class="cr">只给这一件事</div></div>
+      <div class="sw"><div class="chip" style="background:#0D0A08"><span style="color:#EFE9E5">#0D0A08</span></div><div class="nm">烛夜 · dark bg</div><div class="cr">ink 16.41:1</div></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="n">02</span><h2>字体:两种字,三种声部</h2></div>
+    <div class="two">
+      <div class="scale">
+        <div><div class="lbl">Eyebrow</div><div style="font-family:var(--mono);font-size:10.5px;letter-spacing:1.7px;color:var(--ink3)">LOOP 03 · 12 STEPS</div></div>
+        <div><div class="lbl">Eyebrow / 中文</div><div style="font-family:var(--mono);font-size:11.5px;letter-spacing:1.4px;color:var(--ink3)">语言与外观</div></div>
+        <div><div class="lbl">Display</div><div style="font-size:30px;line-height:1.26;letter-spacing:-.2px">晚上好</div></div>
+        <div><div class="lbl">Body</div><div style="font-size:15.5px;line-height:1.5">帮我订明天下午三点去上海的高铁</div></div>
+        <div><div class="lbl">Mono / 读数</div><div style="font-family:var(--mono);font-size:12px;color:var(--ink2)">00:42 · 12,438 tk · v0.1.0-dolores</div></div>
+        <div><div class="lbl">Turn</div><div style="font-family:var(--mono);font-size:10px;color:var(--ink3)">01 &nbsp; 02 &nbsp; 03</div></div>
+      </div>
+      <div class="note">
+        <p style="margin-top:0">界面只装两种字体:<b>系统无衬线</b>说人话,<b>等宽</b>说机器话。字重只用 400 / 500 / 600——AOSP 只带 Noto Sans CJK Regular,w500 会被映射回 Regular、w600+ 走合成加粗,加粗的汉字笔画会糊。</p>
+        <p>等宽大写微标签是整套设计最省力的记忆点:同一行文案,套上「等宽 + 宽字距 + 小字号」就从正文变成读数,不花一分钱字体授权,不增加一个字节包体。</p>
+        <p>含中文的微标签自动从 10.5sp 升到 11.5sp——汉字靠笔画密度辨识,10.5sp 时笔锋会糊成一团。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="n">03</span><h2>四个母题</h2></div>
+    <div class="motifs">
+      <div class="motif">
+        <svg width="78" height="78" viewBox="0 0 78 78" aria-label="迷宫环">
+          <path d="M39,6 A33,33 0 0,1 72,39 A33,33 0 0,1 39,72 A33,33 0 0,1 12.6,55.4 A33,33 0 0,1 22.4,16.4 A33,33 0 0,1 57.6,21.7 A33,33 0 0,1 62.7,50.7 A33,33 0 0,1 43.9,64.1 A33,33 0 0,1 26.5,52.8 A33,33 0 0,1 33.9,35.2 A33,33 0 0,1 48.6,39.6"
+                fill="none" stroke="#271E18" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="39" cy="6" r="2.6" fill="#6B3D57"/>
+          <circle cx="39" cy="39" r="2.4" fill="#6B3D57"/>
+        </svg>
+        <div class="t">迷宫环 · Maze</div>
+        <div class="d">替代全站所有转圈。转圈只说明「在忙」,螺线说明「在往中心走」。</div>
+      </div>
+      <div class="motif">
+        <div class="cal" style="width:150px">
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:1.4px;color:#1D555A;display:flex;justify-content:space-between">
+            <span>CRADLE</span><span>00:42</span>
+          </div>
+          <div class="roll" style="margin:7px 0 0">
+            <i style="height:7px"></i><i style="height:12px"></i><i style="height:5px"></i><i style="height:14px"></i>
+            <i style="height:9px"></i><i style="height:13px"></i><i style="height:6px"></i><i style="height:11px"></i><i class="a" style="height:15px"></i><i class="p" style="height:4px"></i>
+          </div>
+        </div>
+        <div class="t">钢琴卷 · Piano roll</div>
+        <div class="d">每根条的高度由步号推出、固定不变,像谱子;读起来是进度。</div>
+      </div>
+      <div class="motif">
+        <div class="cal" style="width:130px;padding:14px 16px">
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:1.4px;color:#1D555A">SYSTEM · READY</div>
+          <div style="font-size:12px;margin-top:6px;color:#271E18">一切就绪</div>
+        </div>
+        <div class="t">校准角 · Calibration</div>
+        <div class="d">四角两笔直角。只在「这块是仪表」的地方出现。</div>
+      </div>
+      <div class="motif">
+        <div style="text-align:left;display:flex;gap:10px;width:150px">
+          <div style="width:1px;background:rgba(39,30,24,.155)"></div>
+          <div style="font-size:12px;line-height:1.68;color:#271E18">她的话不套气泡,贴着一条发丝轨站好,像剧本的一栏。</div>
+        </div>
+        <div class="t">台词轨 · Script rail</div>
+        <div class="d">用户的话在右边实色气泡里,她的话在左边细轨上。</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="n">04</span><h2>核心页:她在干活的那一幕</h2></div>
+    <div class="phones">
+      <div>
+        <div class="phone l">
+          <div class="top">
+            <div class="burger"><i></i><i></i><i></i></div>
+            <div class="brand"><div class="eb">LOOP 03</div><div class="tt">Maeve</div></div>
+            <svg width="17" height="17" viewBox="0 0 17 17"><circle cx="8.5" cy="8.5" r="7" fill="none" stroke="#605650" stroke-width="1.4"/><line x1="8.5" y1="4.6" x2="12.2" y2="9.6" stroke="#605650" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </div>
+          <div class="body">
+            <div class="ubub"><div>订明天下午三点去上海的高铁，二等座靠窗</div></div>
+            <div class="diag">
+              <div class="hd"><span>CRADLE · RUNNING</span><span>00:42</span></div>
+              <div class="roll"><i style="height:7px"></i><i style="height:12px"></i><i style="height:5px"></i><i style="height:15px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:6px"></i><i style="height:11px"></i><i style="height:16px"></i><i style="height:8px"></i><i class="a" style="height:14px"></i><i class="p" style="height:4px"></i><i class="p" style="height:4px"></i><i class="p" style="height:4px"></i><i class="p" style="height:4px"></i></div>
+              <div class="st">正在 12306 上筛选 15:00 后的车次</div>
+            </div>
+            <div class="ans"><div class="rail"></div><p>找到 3 趟符合的车次，最近的一趟 15:07 发车，余票充足。<br><b>要现在下单吗？付完把取票号发你。</b></p></div>
+          </div>
+          <div class="comp"><div class="plus">＋</div><div class="ph">按住说话，点一下打字</div><div class="send"><i></i></div></div>
+        </div>
+        <div class="cap">LIGHT · THE PARK</div>
+      </div>
+      <div>
+        <div class="phone d">
+          <div class="top">
+            <div class="burger"><i></i><i></i><i></i></div>
+            <div class="brand"><div class="eb">LOOP 03</div><div class="tt">Maeve</div></div>
+            <svg width="17" height="17" viewBox="0 0 17 17"><circle cx="8.5" cy="8.5" r="7" fill="none" stroke="#A9A39E" stroke-width="1.4"/><line x1="8.5" y1="4.6" x2="12.2" y2="9.6" stroke="#A9A39E" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </div>
+          <div class="body">
+            <div class="ubub"><div>订明天下午三点去上海的高铁，二等座靠窗</div></div>
+            <div class="diag">
+              <div class="hd"><span>CRADLE · RUNNING</span><span>00:42</span></div>
+              <div class="roll"><i style="height:7px"></i><i style="height:12px"></i><i style="height:5px"></i><i style="height:15px"></i><i style="height:9px"></i><i style="height:13px"></i><i style="height:6px"></i><i style="height:11px"></i><i style="height:16px"></i><i style="height:8px"></i><i class="a" style="height:14px"></i><i class="p" style="height:4px"></i><i class="p" style="height:4px"></i><i class="p" style="height:4px"></i><i class="p" style="height:4px"></i></div>
+              <div class="st">正在 12306 上筛选 15:00 后的车次</div>
+            </div>
+            <div class="ans"><div class="rail"></div><p>找到 3 趟符合的车次，最近的一趟 15:07 发车，余票充足。<br><b>要现在下单吗？付完把取票号发你。</b></p></div>
+          </div>
+          <div class="comp"><div class="plus">＋</div><div class="ph">按住说话，点一下打字</div><div class="send"><i></i></div></div>
+        </div>
+        <div class="cap">DARK · CANDLELIT</div>
+      </div>
+      <div style="flex:1 1 300px;min-width:280px" class="note">
+        <p style="margin-top:0"><b>用户的话</b>是梅子色实底气泡,右下角一个 4dp 的尾角——「说出口了」。</p>
+        <p><b>她的话</b>不套气泡:左边一条 1dp 发丝轨,文字直接排在纸面上,行高 1.58。气泡是「消息」的语法,她说的是一段念白。</p>
+        <p><b>她干活的过程</b>既不是气泡也不是卡片,是一块<b>诊断条</b>:冷青的底、等宽标签、钢琴卷、当前步。这块是全 App 最该有特点的地方——她正在你看不见的屏上动手,所以它必须长得像仪表而不像聊天。</p>
+        <p><b>输入栏</b>是全站唯一的玻璃:它是唯一一直浮在滚动内容上的东西,模糊在这里才有理由。形状是圆角 16 的纸条,不是胶囊——胶囊读作「聊天软件」。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="n">05</span><h2>改到哪里了</h2></div>
+    <table>
+      <tr><th>层</th><th>文件</th><th>做了什么</th></tr>
+      <tr><td>配色</td><td><code>MaeveColors.kt</code></td><td>暖纸/烛夜双基底;新增 machine / machineSoft / machineEdge / machineDim / signal 五个色位;去掉极光背景</td></tr>
+      <tr><td>配色预设</td><td><code>MaeveAccent.kt</code></td><td>六套全部移到暖侧,默认换成梅子;新增 display 名</td></tr>
+      <tr><td>字体</td><td><code>MaeveType.kt</code></td><td>新增 Display / Script / Eyebrow / EyebrowSmall / Mono / MonoSmall / Numeral / Turn,以及 eyebrowFor() 按中英文自动调字号</td></tr>
+      <tr><td>表面</td><td><code>MaeveSurfaces.kt</code></td><td>四档从「全玻璃」改成「纸 + 一档玻璃」;Card/Pill/Sheet 不再模糊</td></tr>
+      <tr><td>母题</td><td><code>MaeveMotifs.kt</code>（新）</td><td>MazeRing / PianoRoll / calibrationCorners / hairlineLattice</td></tr>
+      <tr><td>标志</td><td><code>MaeveMark.kt</code></td><td>双错位环 → 圆形迷宫;圈数随尺寸自适应(小图标退化成简笔螺线)</td></tr>
+      <tr><td>组件</td><td><code>Controls.kt</code> <code>Rows.kt</code></td><td>顶栏加等宽眉标;分组标题改等宽大写;行尾值自动识别读数并切等宽;图标块回中性色</td></tr>
+      <tr><td>对话页</td><td><code>ChatScreen.kt</code></td><td>空状态改迷宫扉页 + 分场表;进行中改诊断条 + 钢琴卷;回答改台词轨;步骤点改方块;转圈改迷宫环</td></tr>
+      <tr><td>侧栏</td><td><code>ChatDrawer.kt</code></td><td>段标题等宽大写;入口图标中性;当前对话左侧梅子短竖线;时间等宽</td></tr>
+      <tr><td>欢迎页</td><td><code>WelcomeScreen.kt</code></td><td>书籍扉页版式:108dp 迷宫 hero + 编号清单</td></tr>
+      <tr><td>设置</td><td><code>SettingsScreen.kt</code> 等</td><td>总状态改诊断面板(校准角 + SYSTEM/READY 读数);全部子页加眉标</td></tr>
+      <tr><td>桌面图标</td><td><code>maeve_launcher_foreground.xml</code></td><td>双环 → 108 网格迷宫螺线,与 App 内同一套几何</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <div class="sechead"><span class="n">06</span><h2>怎么验</h2></div>
+    <p class="note" style="margin-bottom:14px">不靠眼睛:六套预设 × 浅深两色,所有关键色对都用计算对比度断言。</p>
+    <table>
+      <tr><th>断言</th><th>门槛</th><th>浅色实测</th><th>深色实测</th></tr>
+      <tr><td>ink / bg</td><td>≥ 4.5</td><td>14.36</td><td>16.41</td></tr>
+      <tr><td>ink2 / bg</td><td>≥ 4.5</td><td>6.27</td><td>7.91</td></tr>
+      <tr><td>ink3 / bg</td><td>≥ 3.0</td><td>3.22</td><td>4.22</td></tr>
+      <tr><td>machine / machineSoft</td><td>≥ 4.5</td><td>7.18</td><td>7.97</td></tr>
+      <tr><td>signal / bg</td><td>≥ 4.5</td><td>4.62</td><td>9.68</td></tr>
+    </table>
+    <p class="note" style="margin-top:14px">
+      跑 <span class="kbd">gradle :app:testDebugUnitTest --tests "com.daiyimo.maeve.ui.theme.*"</span>。
+      全量单测 60 个失败,与重构前逐条一致(进程派生 / 沙箱文件系统在本机跑不了),零新增。
+    </p>
+  </section>
+
+</div>
+</body>
+</html>

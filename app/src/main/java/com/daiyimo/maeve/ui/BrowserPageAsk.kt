@@ -51,6 +51,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
@@ -63,7 +64,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.assembly.knownTools
 import com.daiyimo.maeve.browser.PageAskMode
 import com.daiyimo.maeve.browser.PageAskModel
@@ -94,12 +95,14 @@ import com.daiyimo.maeve.task.TaskService
 import com.daiyimo.maeve.task.TaskService.Companion.isActive
 import com.daiyimo.maeve.ui.components.ButtonKind
 import com.daiyimo.maeve.ui.components.ButtonSize
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.cardSurface
 import com.daiyimo.maeve.ui.components.floatShadow
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -112,7 +115,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-/** 浏览器页上「问 Mika」那一块的固定说法。 */
+/** 浏览器页上「问 Maeve」那一块的固定说法。 */
 object PageAskCopy {
     val HINT: String get() = tr(R.string.browser_ask_hint)
     val FROM_PAGE: String get() = tr(R.string.browser_ask_from_page)
@@ -131,7 +134,7 @@ object PageAskCopy {
 }
 
 /**
- * 浏览器页上对着这一页问 Mika 的状态:这一页接着哪个对话([conversationId],同一页或同一网站最近问过的,见 [PageConversations];
+ * 浏览器页上对着这一页问 Maeve 的状态:这一页接着哪个对话([conversationId],同一页或同一网站最近问过的,见 [PageConversations];
  * 选了「新对话」时 [fresh])、底部那一块开着没有([open])、输入框里的字和带上的选中文字;那个对话里此刻的任务([run]、[card])
  * 和对话的来回([thread],和悬浮胶囊的对话卡片同一套排法)。
  * 发出去的第一句带上这一页的说明([AttachedPage]),页面借给那个任务([UserBrowser.lend]);任务在跑时说的话是插话(回答提问时是回答),
@@ -139,7 +142,7 @@ object PageAskCopy {
  */
 @Stable
 class PageChat(private val context: Context, private val browser: UserBrowser, private val scope: CoroutineScope) {
-    private val app = context.applicationContext as MikaApp
+    private val app = context.applicationContext as MaeveApp
     private val store = ConversationStore.shared(context)
     private val model = CapsuleModel()
     private val toolLabels by lazy { ToolLabels(knownTools()) }
@@ -157,7 +160,7 @@ class PageChat(private val context: Context, private val browser: UserBrowser, p
     var open by mutableStateOf(false)
     var draft by mutableStateOf("")
     var selection by mutableStateOf<String?>(null)
-    /** 点了文字选择菜单里的「问 Mika」:输入框要拿焦点(每次加一)。 */
+    /** 点了文字选择菜单里的「问 Maeve」:输入框要拿焦点(每次加一)。 */
     var focusAsk by mutableIntStateOf(0)
         private set
 
@@ -203,7 +206,7 @@ class PageChat(private val context: Context, private val browser: UserBrowser, p
         follow(null, null)
     }
 
-    /** 选中的文字要问 Mika:带上它,输入框拿焦点。 */
+    /** 选中的文字要问 Maeve:带上它,输入框拿焦点。 */
     fun askAbout(text: String) {
         selection = AttachedPage.clip(text)
         focusAsk++
@@ -345,7 +348,7 @@ class PageChat(private val context: Context, private val browser: UserBrowser, p
         override fun answer(runKey: String, text: String) = TaskService.answer(context, text, runKey)
         override fun approve(runKey: String, requestKey: Int) = TaskService.approve(context, requestKey, runKey)
         override fun decline(runKey: String, requestKey: Int) = TaskService.decline(context, requestKey, runKey)
-        override fun openMika(conversationId: String) {
+        override fun openMaeve(conversationId: String) {
             runCatching { context.startActivity(TaskService.openAppIntent(context, conversationId)) }
                 .onFailure { Log.w(TAG, "could not open the conversation", it) }
         }
@@ -386,16 +389,16 @@ class PageChat(private val context: Context, private val browser: UserBrowser, p
     fun touched() = browser.userTouched()
 
     private companion object {
-        const val TAG = "MikaPageChat"
+        const val TAG = "MaevePageChat"
         /** 运行记录里网页那一屏的对象写成「网站 <域名>」。 */
         const val SITE_PREFIX = "网站 "
     }
 }
 
 /**
- * 网页视图的容器:手指一按下就告诉 [onTouch]。只有经窗口送来的真实触摸会经过这里;Mika 自己的输入(DevTools 的鼠标键盘直接进页面,
+ * 网页视图的容器:手指一按下就告诉 [onTouch]。只有经窗口送来的真实触摸会经过这里;Maeve 自己的输入(DevTools 的鼠标键盘直接进页面,
  * 原生触摸直接发给网页视图)不经过它,所以不会把自己的动作当成用户在操作。
- * 网页的文字选择菜单里加一项「问 Mika」([onAsk]),点了先读出选中的字,读完调它给的 done 收起菜单。
+ * 网页的文字选择菜单里加一项「问 Maeve」([onAsk]),点了先读出选中的字,读完调它给的 done 收起菜单。
  */
 class PageFrame(context: Context, private val onTouch: () -> Unit, private val onAsk: (done: () -> Unit) -> Unit) : FrameLayout(context) {
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
@@ -436,7 +439,7 @@ class PageFrame(context: Context, private val onTouch: () -> Unit, private val o
 }
 
 /**
- * 盖在网页上的那几样(放在网页区域的 Box 里):干活时四周的光边;你在页面上动手、Mika 暂停时顶上一条「继续」;
+ * 盖在网页上的那几样(放在网页区域的 Box 里):干活时四周的光边;你在页面上动手、Maeve 暂停时顶上一条「继续」;
  * 面板开着时下半截的对话面板([PagePanel]),收着、那件事还没结束时底部的小卡片([PageCard])。平时的输入条不在这里(在网页下面)。
  */
 @Composable
@@ -453,10 +456,10 @@ fun BoxScope.PageAskOverlay(chat: PageChat, site: String, pageTitle: String) {
     }
 }
 
-/** 对话面板占网页区域的高度比例:上面露出来的网页就是 Mika 在操作的那一页。 */
+/** 对话面板占网页区域的高度比例:上面露出来的网页就是 Maeve 在操作的那一页。 */
 private const val PANEL_SHARE = 0.58f
 
-/** 页面四周的一圈淡紫光边:Mika 正在这一页上干活。不挡触摸。 */
+/** 页面四周的一圈淡紫光边:Maeve 正在这一页上干活。不挡触摸。 */
 @Composable
 fun PageGlow(modifier: Modifier = Modifier) {
     Box(
@@ -475,30 +478,30 @@ fun PageGlow(modifier: Modifier = Modifier) {
 }
 
 private const val GLOW_LAYERS = 4
-/** Mika 在页面上干活时光边的颜色(淡紫,和页面本身的颜色分得开)。 */
+/** Maeve 在页面上干活时光边的颜色(淡紫,和页面本身的颜色分得开)。 */
 private val GlowColor = Color(0xFF7B5CFF)
 
 /**
- * 平时浏览器页底部那一条:「✦ 问问 Mika…」输入框;这一页有接着的对话时上面一行「接着「…」 · 新对话」;
+ * 平时浏览器页底部那一条:「✦ 问问 Maeve…」输入框;这一页有接着的对话时上面一行「接着「…」 · 新对话」;
  * 选中文字问的时候上面一条「选中的文字」和 ×。
  */
 @Composable
 fun PageAskBar(chat: PageChat, modifier: Modifier = Modifier) {
-    val c = MikaTheme.colors
-    Column(modifier.fillMaxWidth().background(c.bg).padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp).testTag("page-ask-bar")) {
+    val c = MaeveTheme.colors
+    Column(modifier.fillMaxWidth().cardSurface(c, RectangleShape, tier = GlassTier.Chrome).padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp).testTag("page-ask-bar")) {
         val continuing = chat.conversationId
         if (continuing != null && !chat.started) {
             Row(Modifier.fillMaxWidth().padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (chat.fresh) CardCopyText.NEW_CHAT else PageAskCopy.continuing(ChatCopy.plainTitle(AttachedPage.words(chat.title.orEmpty())).take(TITLE_MAX)),
-                    Modifier.weight(1f, fill = false), style = MikaType.Hint, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    Modifier.weight(1f, fill = false), style = MaeveType.Hint, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Text(" · ", style = MikaType.Hint, color = c.ink3)
+                Text(" · ", style = MaeveType.Hint, color = c.ink3)
                 Text(
                     if (chat.fresh) CardCopyText.CONTINUE_LAST else CardCopyText.NEW_CHAT,
-                    Modifier.clip(MikaShapes.Pill).clickable(role = Role.Button) { chat.fresh = !chat.fresh }.padding(horizontal = 4.dp, vertical = 2.dp)
+                    Modifier.clip(MaeveShapes.Pill).clickable(role = Role.Button) { chat.fresh = !chat.fresh }.padding(horizontal = 4.dp, vertical = 2.dp)
                         .testTag("page-ask-fresh"),
-                    style = MikaType.Hint, color = c.accent,
+                    style = MaeveType.Hint, color = c.accent,
                 )
             }
         }
@@ -518,43 +521,43 @@ private object CardCopyText {
 /** 输入框上面带着的选中文字:淡色一条,右边 × 不带它。 */
 @Composable
 private fun SelectionChip(text: String, onRemove: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(
         Modifier.padding(bottom = 6.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.ink.copy(alpha = 0.05f))
             .padding(start = 10.dp, top = 6.dp, bottom = 6.dp, end = 4.dp).testTag("page-ask-selection"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(PageAskCopy.SELECTION, style = MikaType.Hint, color = c.ink3)
-            Text(text, style = MikaType.Caption, color = c.ink2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(PageAskCopy.SELECTION, style = MaeveType.Hint, color = c.ink3)
+            Text(text, style = MaeveType.Caption, color = c.ink2, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Box(
-            Modifier.size(28.dp).clip(MikaShapes.Pill).clickable(role = Role.Button, onClick = onRemove)
+            Modifier.size(28.dp).clip(MaeveShapes.Pill).clickable(role = Role.Button, onClick = onRemove)
                 .semantics { contentDescription = PageAskCopy.DROP_SELECTION },
             contentAlignment = Alignment.Center,
-        ) { Icon(MikaIcons.Close, null, Modifier.size(15.dp), tint = c.ink3) }
+        ) { Icon(MaeveIcons.Close, null, Modifier.size(15.dp), tint = c.ink3) }
     }
 }
 
 /** 输入框:左边 ✦,写了字(或带着选中的字)右边是发送;有 [stop] 时右边一直有停止键。 */
 @Composable
 private fun AskField(chat: PageChat, hint: String, stop: (() -> Unit)?) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val shape = RoundedCornerShape(16.dp)
     val focus = remember { FocusRequester() }
     LaunchedEffect(chat.focusAsk) { if (chat.focusAsk > 0) runCatching { focus.requestFocus() } }
     val canSend = chat.draft.isNotBlank() || chat.selection != null
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(shape).background(c.fill).padding(start = 12.dp, end = 5.dp),
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).cardSurface(c, shape).padding(start = 12.dp, end = 5.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(MikaIcons.Spark, null, Modifier.size(17.dp), tint = GlowColor)
+        Icon(MaeveIcons.Spark, null, Modifier.size(17.dp), tint = GlowColor)
         Box(Modifier.weight(1f).padding(vertical = 11.dp)) {
-            if (chat.draft.isEmpty()) Text(hint, style = MikaType.Body.copy(fontSize = 14.5.sp), color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (chat.draft.isEmpty()) Text(hint, style = MaeveType.Body.copy(fontSize = 14.5.sp), color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
             BasicTextField(
                 chat.draft, { chat.draft = it },
                 Modifier.fillMaxWidth().focusRequester(focus).testTag("page-ask-field").semantics { contentDescription = hint },
-                textStyle = MikaType.Body.copy(fontSize = 14.5.sp, color = c.ink), maxLines = 4, cursorBrush = SolidColor(c.accent),
+                textStyle = MaeveType.Body.copy(fontSize = 14.5.sp, color = c.ink), maxLines = 4, cursorBrush = SolidColor(c.accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                 keyboardActions = KeyboardActions(onSend = { if (canSend) chat.send() }),
             )
@@ -562,11 +565,11 @@ private fun AskField(chat: PageChat, hint: String, stop: (() -> Unit)?) {
         stop?.let { StopKey(it) }
         if (stop == null || canSend) {
             Box(
-                Modifier.testTag("page-ask-send").size(32.dp).clip(MikaShapes.Pill).background(if (canSend) c.ink else c.ink3.copy(alpha = 0.3f))
+                Modifier.testTag("page-ask-send").size(32.dp).clip(MaeveShapes.Pill).background(if (canSend) c.ink else c.ink3.copy(alpha = 0.3f))
                     .clickable(enabled = canSend, role = Role.Button, onClick = chat::send)
                     .semantics { contentDescription = tr(R.string.chat_send) },
                 contentAlignment = Alignment.Center,
-            ) { Icon(MikaIcons.Up, null, Modifier.size(16.dp), tint = c.bg) }
+            ) { Icon(MaeveIcons.Up, null, Modifier.size(16.dp), tint = c.bg) }
         }
     }
 }
@@ -575,48 +578,48 @@ private val PanelShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
 private val CardShape = RoundedCornerShape(16.dp)
 
 /**
- * 半屏对话面板:盖在网页下半截,上面露出来的网页就是 Mika 正在操作的那一页。顶上是网站名、「从这一页开始 · 页面标题」、
+ * 半屏对话面板:盖在网页下半截,上面露出来的网页就是 Maeve 正在操作的那一页。顶上是网站名、「从这一页开始 · 页面标题」、
  * 「在聊天中打开」和收起;中间是这个对话的来回(和悬浮胶囊的对话卡片同一套排法);干活中下面是步骤,标出那一步在网页还是 App 上;
- * 要你点的按钮(回答的选项、同意、接手、继续)固定在下面;最下面是输入框:在跑时说的话是插话(右边停止键),Mika 问你时是回答,
+ * 要你点的按钮(回答的选项、同意、接手、继续)固定在下面;最下面是输入框:在跑时说的话是插话(右边停止键),Maeve 问你时是回答,
  * 结束后是在这一页上接着问。页面在你手上(接手中)时是「处理好了」。
  */
 @Composable
 fun PagePanel(chat: PageChat, site: String, pageTitle: String, modifier: Modifier = Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val card = chat.card
     val content = card?.let(CapsuleCards::content)
     val live = card?.run?.state?.isActive() == true
     Column(
-        modifier.fillMaxWidth().clip(PanelShape).background(c.bg).border(0.5.dp, c.hair, PanelShape)
+        modifier.fillMaxWidth().cardSurface(c, PanelShape, tier = GlassTier.Sheet)
             .padding(horizontal = 14.dp).testTag("page-panel"),
     ) {
         Box(
             Modifier.fillMaxWidth().clickable(role = Role.Button, onClickLabel = tr(R.string.collapse)) { chat.open = false }.padding(vertical = 8.dp),
             contentAlignment = Alignment.Center,
-        ) { Box(Modifier.width(36.dp).height(4.dp).clip(MikaShapes.Pill).background(c.hair)) }
+        ) { Box(Modifier.width(36.dp).height(4.dp).clip(MaeveShapes.Pill).background(c.hair)) }
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f)) {
-                Text(site, style = MikaType.Label.copy(fontWeight = FontWeight.SemiBold), color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(site, style = MaeveType.Label.copy(fontWeight = FontWeight.SemiBold), color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     listOf(PageAskCopy.FROM_PAGE, pageTitle).filter(String::isNotBlank).joinToString(" · "),
-                    style = MikaType.Hint, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = MaeveType.Hint, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
             chat.conversationId?.let { id ->
                 Row(
-                    Modifier.clip(MikaShapes.Pill).clickable(role = Role.Button) { chat.actions.openMika(id) }.padding(horizontal = 6.dp, vertical = 6.dp)
+                    Modifier.clip(MaeveShapes.Pill).clickable(role = Role.Button) { chat.actions.openMaeve(id) }.padding(horizontal = 6.dp, vertical = 6.dp)
                         .testTag("page-panel-open-chat"),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    Text(PageAskCopy.OPEN_CHAT, style = MikaType.Hint.copy(fontSize = 12.5.sp), color = c.accent)
-                    Icon(MikaIcons.External, null, Modifier.size(13.dp), tint = c.accent)
+                    Text(PageAskCopy.OPEN_CHAT, style = MaeveType.Hint.copy(fontSize = 12.5.sp), color = c.accent)
+                    Icon(MaeveIcons.External, null, Modifier.size(13.dp), tint = c.accent)
                 }
             }
             Box(
-                Modifier.size(30.dp).clip(MikaShapes.Pill).clickable(role = Role.Button, onClick = chat.actions::collapse)
+                Modifier.size(30.dp).clip(MaeveShapes.Pill).clickable(role = Role.Button, onClick = chat.actions::collapse)
                     .semantics { contentDescription = tr(R.string.collapse) }.testTag("page-panel-collapse"),
                 contentAlignment = Alignment.Center,
-            ) { Icon(MikaIcons.Close, null, Modifier.size(17.dp), tint = c.ink3) }
+            ) { Icon(MaeveIcons.Close, null, Modifier.size(17.dp), tint = c.ink3) }
         }
         Box(Modifier.fillMaxWidth().height(0.5.dp).background(c.hair))
         // 步骤紧接在对话来回的最后一条(「网站 · 在干活」那一行)下面,和对话页一样跟着往下长,不压到面板底部
@@ -628,8 +631,8 @@ fun PagePanel(chat: PageChat, site: String, pageTitle: String, modifier: Modifie
         }
         if (card != null && card.run.stage == Takeover.Stage.HandedOver) {
             Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(PageAskCopy.HANDLING, style = MikaType.Caption, color = c.ink2)
-                MikaButton(tr(R.string.action_hand_back), chat::handBack, Modifier.fillMaxWidth().testTag("page-panel-hand-back"), kind = ButtonKind.Primary, size = ButtonSize.Medium)
+                Text(PageAskCopy.HANDLING, style = MaeveType.Caption, color = c.ink2)
+                MaeveButton(tr(R.string.action_hand_back), chat::handBack, Modifier.fillMaxWidth().testTag("page-panel-hand-back"), kind = ButtonKind.Primary, size = ButtonSize.Medium)
             }
         } else if (card != null && content != null && live) {
             Box(Modifier.padding(top = 4.dp)) { Pinned(content, card.run.key, chat.actions) }
@@ -655,30 +658,30 @@ private val StepsMax = 132.dp
  */
 @Composable
 fun PageCard(chat: PageChat, modifier: Modifier = Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val card = chat.card ?: return
     val paused = PageAskModel.pausedForUser(card.run.state)
     val warn = paused || card.kind.needsYou
     Row(
-        modifier.fillMaxWidth().floatShadow(c, CardShape).clip(CardShape).background(c.bg).border(0.5.dp, c.hair, CardShape)
+        modifier.fillMaxWidth().cardSurface(c, CardShape)
             .clickable(role = Role.Button, onClickLabel = PageAskCopy.EXPAND) { chat.open = true }
             .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp).testTag("page-card"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.size(8.dp).clip(MikaShapes.Pill).background(if (warn) c.warnSolid else GlowColor))
+        Box(Modifier.size(8.dp).clip(MaeveShapes.Pill).background(if (warn) c.warnSolid else GlowColor))
         Column(Modifier.weight(1f)) {
             Text(
                 if (paused) PageAskCopy.PAUSED_CARD else card.line.ifBlank { CapsuleCards.status(card.kind) },
-                style = MikaType.Label, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = MaeveType.Label, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
-            if (paused) Text(PageAskCopy.PAUSED_HINT, style = MikaType.Hint, color = c.ink3, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (paused) Text(PageAskCopy.PAUSED_HINT, style = MaeveType.Hint, color = c.ink3, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        if (paused) MikaButton(tr(R.string.chat_continue), { chat.actions.resume(card.run.key) }, Modifier.testTag("page-card-resume"), kind = ButtonKind.Primary, size = ButtonSize.Small)
-        Icon(MikaIcons.Up, PageAskCopy.EXPAND, Modifier.size(18.dp), tint = c.ink3)
+        if (paused) MaeveButton(tr(R.string.chat_continue), { chat.actions.resume(card.run.key) }, Modifier.testTag("page-card-resume"), kind = ButtonKind.Primary, size = ButtonSize.Small)
+        Icon(MaeveIcons.Up, PageAskCopy.EXPAND, Modifier.size(18.dp), tint = c.ink3)
     }
 }
 
-/** 你在页面上动手、Mika 停下时顶上那一条:「你在操作，Mika 已暂停 · 继续」。 */
+/** 你在页面上动手、Maeve 停下时顶上那一条:「你在操作，Maeve 已暂停 · 继续」。 */
 @Composable
 fun PausedBanner(onResume: () -> Unit, modifier: Modifier = Modifier) {
     Row(
@@ -686,13 +689,13 @@ fun PausedBanner(onResume: () -> Unit, modifier: Modifier = Modifier) {
             .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp).testTag("page-paused-banner"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(MikaIcons.Hand, null, Modifier.size(16.dp), tint = Color.White)
-        Text(PageAskCopy.PAUSED, Modifier.weight(1f), style = MikaType.Caption, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Icon(MaeveIcons.Hand, null, Modifier.size(16.dp), tint = Color.White)
+        Text(PageAskCopy.PAUSED, Modifier.weight(1f), style = MaeveType.Caption, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(
             tr(R.string.chat_continue),
             Modifier.clip(RoundedCornerShape(8.dp)).background(Color.White).clickable(role = Role.Button, onClick = onResume)
                 .padding(horizontal = 12.dp, vertical = 5.dp).testTag("page-paused-resume"),
-            style = MikaType.Label.copy(fontWeight = FontWeight.SemiBold), color = Color(0xFF111111),
+            style = MaeveType.Label.copy(fontWeight = FontWeight.SemiBold), color = Color(0xFF111111),
         )
     }
 }
@@ -700,7 +703,7 @@ fun PausedBanner(onResume: () -> Unit, modifier: Modifier = Modifier) {
 /** 对话页上那句话是在浏览器页上对着一页问的:气泡上面一小块「网页 · 网站」,带着选中的字时下面是那段字。 */
 @Composable
 internal fun SentPage(page: AttachedPage.Page, maxWidth: androidx.compose.ui.unit.Dp) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val host = com.daiyimo.maeve.core.cap.web.WebUrlPolicy.host(page.url) ?: page.url
     Column(
         Modifier.padding(bottom = 4.dp).widthIn(max = maxWidth).background(c.ink.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
@@ -708,9 +711,9 @@ internal fun SentPage(page: AttachedPage.Page, maxWidth: androidx.compose.ui.uni
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Icon(MikaIcons.Globe, null, Modifier.size(13.dp), tint = c.ink3)
-            Text("${PageAskCopy.WEB} · $host", style = MikaType.Hint, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Icon(MaeveIcons.Globe, null, Modifier.size(13.dp), tint = c.ink3)
+            Text("${PageAskCopy.WEB} · $host", style = MaeveType.Hint, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        page.selection?.let { Text(it, style = MikaType.Caption, color = c.ink2, maxLines = 3, overflow = TextOverflow.Ellipsis) }
+        page.selection?.let { Text(it, style = MaeveType.Caption, color = c.ink2, maxLines = 3, overflow = TextOverflow.Ellipsis) }
     }
 }

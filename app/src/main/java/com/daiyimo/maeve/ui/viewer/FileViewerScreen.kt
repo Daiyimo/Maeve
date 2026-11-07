@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.ui.viewer
 
+import com.daiyimo.maeve.ui.theme.MazeRing
 import com.daiyimo.maeve.R
 import androidx.compose.ui.res.stringResource
 import android.annotation.SuppressLint
@@ -24,8 +25,10 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -72,13 +75,16 @@ import com.daiyimo.maeve.ui.MarkdownText
 import com.daiyimo.maeve.ui.components.BarIconButton
 import com.daiyimo.maeve.ui.components.ButtonKind
 import com.daiyimo.maeve.ui.components.ButtonSize
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.PageBackground
 import com.daiyimo.maeve.ui.components.TopBar
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.components.glassSource
+import com.daiyimo.maeve.ui.theme.LocalGlassBackdrop
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
@@ -115,18 +121,23 @@ fun FileViewerScreen(uri: Uri, name: String, kind: ViewerKind?, onBack: () -> Un
     val context = LocalContext.current
     val openElsewhere = { FileViewer.openElsewhere(context, uri, name) }
     PageBackground {
-        Column(Modifier.fillMaxSize()) {
-            TopBar(name, MikaIcons.Back, onBack, stringResource(R.string.back), right = {
-                BarIconButton(MikaIcons.Share, stringResource(R.string.share), { FileViewer.share(context, uri, name) })
-                BarIconButton(MikaIcons.External, stringResource(R.string.viewer_open_elsewhere), openElsewhere)
-            })
-            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+        val backdrop = LocalGlassBackdrop.current
+        val statusBar = WindowInsets.statusBars.asPaddingValues()
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier.fillMaxSize().glassSource(backdrop)
+                    .padding(top = statusBar.calculateTopPadding() + MaeveSize.TopBar).clipToBounds(),
+            ) {
                 when (kind) {
                     null -> Failure(stringResource(R.string.viewer_unsupported), openElsewhere, Modifier.testTag("viewer.unsupported"))
                     ViewerKind.Pdf -> PdfView(uri, openElsewhere)
                     else -> LoadedView(uri, kind, openElsewhere)
                 }
             }
+            TopBar(name, MaeveIcons.Back, onBack, stringResource(R.string.back), eyebrow = "FILE", right = {
+                BarIconButton(MaeveIcons.Share, stringResource(R.string.share), { FileViewer.share(context, uri, name) })
+                BarIconButton(MaeveIcons.External, stringResource(R.string.viewer_open_elsewhere), openElsewhere)
+            })
         }
     }
 }
@@ -192,14 +203,14 @@ private fun MarkdownView(l: Loaded.Text) {
             .testTag("viewer.markdown"),
     ) {
         if (l.truncated) TruncatedNote(Modifier.padding(bottom = 12.dp))
-        MarkdownText(l.text, MikaType.Body)
+        MarkdownText(l.text, MaeveType.Body)
     }
 }
 
 /** 等宽、可选中;按行分段放进懒加载列表,长文件也只排看得见的部分。长行自动折行。 */
 @Composable
 private fun PlainTextView(l: Loaded.Text) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val chunks = remember(l.text) { l.text.lines().chunked(LINES_PER_CHUNK).map { it.joinToString("\n") } }
     SelectionContainer {
         LazyColumn(
@@ -301,7 +312,7 @@ private fun PdfView(uri: Uri, openElsewhere: () -> Unit) {
 
 @Composable
 private fun PdfPages(doc: PdfDoc) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val list = rememberLazyListState()
     val zoom = remember { Zoom() }
     val current by remember(list) { derivedStateOf { currentPage(list) } }
@@ -318,8 +329,8 @@ private fun PdfPages(doc: PdfDoc) {
             Text(
                 "${current + 1} / ${doc.sizes.size}",
                 Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 12.dp)
-                    .background(c.ink.copy(alpha = 0.72f), MikaShapes.Pill).padding(horizontal = 12.dp, vertical = 4.dp),
-                style = MikaType.Label, color = c.bg,
+                    .background(c.ink.copy(alpha = 0.72f), MaeveShapes.Pill).padding(horizontal = 12.dp, vertical = 4.dp),
+                style = MaeveType.Label, color = c.bg,
             )
         }
     }
@@ -334,7 +345,7 @@ private fun currentPage(list: LazyListState): Int {
 
 @Composable
 private fun PdfPage(doc: PdfDoc, index: Int, size: IntSize) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     BoxWithConstraints(
         Modifier.fillMaxWidth().aspectRatio(size.width.toFloat() / size.height.coerceAtLeast(1))
             .background(Color.White).border(0.5.dp, c.edge),
@@ -404,7 +415,7 @@ private fun Modifier.zoomable(zoom: Zoom, panWithOneFinger: Boolean): Modifier =
 @Composable
 private fun Loading() {
     Box(Modifier.fillMaxSize().testTag("viewer.loading"), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(Modifier.size(28.dp), color = MikaTheme.colors.accent, strokeWidth = 2.5.dp)
+        MazeRing(progress = null, modifier = Modifier, size = 28.dp, head = MaeveTheme.colors.machine, strokeWidth = 1.6.dp, indeterminate = true)
     }
 }
 
@@ -415,12 +426,12 @@ private fun Failure(message: String, openElsewhere: () -> Unit, modifier: Modifi
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(message, style = MikaType.Body, color = MikaTheme.colors.ink2, textAlign = TextAlign.Center)
-        MikaButton(stringResource(R.string.viewer_open_elsewhere), openElsewhere, kind = ButtonKind.Secondary, size = ButtonSize.Medium)
+        Text(message, style = MaeveType.Body, color = MaeveTheme.colors.ink2, textAlign = TextAlign.Center)
+        MaeveButton(stringResource(R.string.viewer_open_elsewhere), openElsewhere, kind = ButtonKind.Secondary, size = ButtonSize.Medium)
     }
 }
 
 @Composable
 private fun TruncatedNote(modifier: Modifier = Modifier) {
-    Text(stringResource(R.string.viewer_truncated), modifier, style = MikaType.Caption, color = MikaTheme.colors.ink3)
+    Text(stringResource(R.string.viewer_truncated), modifier, style = MaeveType.Caption, color = MaeveTheme.colors.ink3)
 }

@@ -41,13 +41,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 
 /** 按 Markdown 显示一段回答；流式草稿用临时闭合的语法预览。 */
 @Composable
 fun MarkdownText(markdown: String, style: TextStyle, modifier: Modifier = Modifier, streaming: Boolean = false) {
     // 流式片段更新频繁，在后台解析；上一帧保留到新片段准备好，避免主线程卡顿和文字闪空。
-    val colors = MikaTheme.colors
+    val colors = MaeveTheme.colors
     val styles = remember(colors) { MarkdownModel.Styles.of(colors) }
     val blocks = if (streaming) {
         val parsed by produceState<List<MdBlock>>(emptyList(), markdown, styles) {
@@ -93,26 +93,26 @@ private fun Block(b: MdBlock, style: TextStyle, depth: Int) {
             ),
         )
         is MdBlock.Code -> Box(
-            Modifier.fillMaxWidth().background(MikaTheme.colors.fill, RoundedCornerShape(10.dp))
+            Modifier.fillMaxWidth().background(MaeveTheme.colors.fill, RoundedCornerShape(10.dp))
                 .horizontalScroll(rememberScrollState()).padding(horizontal = 11.dp, vertical = 9.dp),
         ) {
             Text(b.code, style = style.copy(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp), softWrap = false)
         }
         is MdBlock.Quote -> Row(Modifier.height(IntrinsicSize.Min)) {
-            Box(Modifier.width(3.dp).fillMaxHeight().background(MikaTheme.colors.hair, RoundedCornerShape(2.dp)))
-            Blocks(b.blocks, style.copy(color = MikaTheme.colors.ink2), Modifier.padding(start = 10.dp), depth + 1)
+            Box(Modifier.width(3.dp).fillMaxHeight().background(MaeveTheme.colors.hair, RoundedCornerShape(2.dp)))
+            Blocks(b.blocks, style.copy(color = MaeveTheme.colors.ink2), Modifier.padding(start = 10.dp), depth + 1)
         }
         is MdBlock.ListBlock -> Column(verticalArrangement = Arrangement.spacedBy(if (b.tight) 3.dp else 8.dp)) {
             b.items.forEachIndexed { i, item ->
                 Row {
                     val marker = if (b.start != null) "${b.start + i}." else if (depth % 2 == 0) "•" else "◦"
-                    Text(marker, Modifier.widthIn(min = 18.dp).padding(end = 6.dp), style = style.copy(color = MikaTheme.colors.ink2))
+                    Text(marker, Modifier.widthIn(min = 18.dp).padding(end = 6.dp), style = style.copy(color = MaeveTheme.colors.ink2))
                     Blocks(item, style, depth = depth + 1, gap = if (b.tight) 3 else 8)
                 }
             }
         }
         is MdBlock.Table -> TableBlock(b, style)
-        MdBlock.Rule -> Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(0.5.dp).background(MikaTheme.colors.hair))
+        MdBlock.Rule -> Box(Modifier.fillMaxWidth().padding(vertical = 4.dp).height(0.5.dp).background(MaeveTheme.colors.hair))
     }
 }
 
@@ -129,8 +129,8 @@ private fun TableBlock(t: MdBlock.Table, style: TextStyle) {
                 rows.forEachIndexed { r, row ->
                     row.forEach { cell ->
                         Box(
-                            Modifier.border(0.5.dp, MikaTheme.colors.hair)
-                                .then(if (r == 0) Modifier.background(MikaTheme.colors.fill) else Modifier)
+                            Modifier.border(0.5.dp, MaeveTheme.colors.hair)
+                                .then(if (r == 0) Modifier.background(MaeveTheme.colors.fill) else Modifier)
                                 .padding(horizontal = 9.dp, vertical = 6.dp),
                         ) {
                             Text(cell, style = if (r == 0) cellStyle.copy(fontWeight = FontWeight.SemiBold) else cellStyle)
@@ -138,7 +138,7 @@ private fun TableBlock(t: MdBlock.Table, style: TextStyle) {
                     }
                 }
             },
-            modifier = Modifier.border(0.5.dp, MikaTheme.colors.hair, RoundedCornerShape(2.dp)),
+            modifier = Modifier.border(0.5.dp, MaeveTheme.colors.hair, RoundedCornerShape(2.dp)),
         ) { measurables, _ ->
             val maxCol = 240.dp.roundToPx()
             val minCol = 48.dp.roundToPx()

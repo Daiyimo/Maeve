@@ -18,18 +18,18 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.lifecycleScope
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.core.trace.TraceArchive
 import com.daiyimo.maeve.core.trace.TraceRow
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaSwitch
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveSwitch
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.RowValue
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -43,7 +43,7 @@ private const val TRACE_REFRESH_MS = 1_000L
 @Composable
 internal fun RunTraceSection(runId: String) {
     val context = LocalContext.current
-    val store = (context.applicationContext as MikaApp).detailedTraces.store
+    val store = (context.applicationContext as MaeveApp).detailedTraces.store
     // 运行过程页在任务跑着时就能打开:还在录就按秒重读,录完再读最后一次就停
     val loaded by produceState<Pair<TraceArchive, List<TraceRow>>?>(null, runId) {
         var archive: TraceArchive? = null
@@ -64,7 +64,7 @@ private fun TraceDetails(archive: TraceArchive, all: List<TraceRow>) {
     val root = all.firstOrNull()
     var expanded by rememberSaveable(archive.runId) { mutableStateOf(false) }
     GroupCard {
-        ListRow(MikaIcons.Code, stringResource(R.string.trace_title),
+        ListRow(MaeveIcons.Code, stringResource(R.string.trace_title),
             stringResource(if (root == null || root.status == "partial") R.string.trace_partial else R.string.trace_recorded),
             first = true, onClick = { expanded = !expanded }) { RowChevron() }
         if (expanded && root != null) {
@@ -110,7 +110,7 @@ private fun TraceEntryRow(archive: TraceArchive, row: TraceRow, worst: Boolean) 
         }
         body?.let { result ->
             Column(Modifier.padding(horizontal = 16.dp)) {
-                SelectionContainer { Text(result.text.ifEmpty { unknown }, style = MikaType.Hint) }
+                SelectionContainer { Text(result.text.ifEmpty { unknown }, style = MaeveType.Hint) }
                 if (page > 0 || result.hasMore) Row {
                     TextButton(onClick = { page-- }, enabled = page > 0) { Text("‹") }
                     Text((page + 1).toString())
@@ -138,11 +138,11 @@ private fun TraceExportControls(archive: TraceArchive) {
         }
     }
     ListRow(null, stringResource(R.string.trace_attach), stringResource(R.string.trace_attach_hint),
-        onClick = { includeBody = !includeBody }) { MikaSwitch(includeBody, null) }
-    ListRow(MikaIcons.Doc, stringResource(R.string.trace_save), onClick = {
-        if (includeBody) zip.launch("mika-trace-${archive.runId}.zip") else proto.launch("mika-trace-${archive.runId}.pb")
+        onClick = { includeBody = !includeBody }) { MaeveSwitch(includeBody, null) }
+    ListRow(MaeveIcons.Doc, stringResource(R.string.trace_save), onClick = {
+        if (includeBody) zip.launch("maeve-trace-${archive.runId}.zip") else proto.launch("maeve-trace-${archive.runId}.pb")
     }) { RowChevron() }
-    if (result != 0) Text(stringResource(result), Modifier.padding(horizontal = 16.dp, vertical = 6.dp), style = MikaType.Hint)
+    if (result != 0) Text(stringResource(result), Modifier.padding(horizontal = 16.dp, vertical = 6.dp), style = MaeveType.Hint)
 }
 
 private suspend fun saveTrace(archive: TraceArchive, includeBody: Boolean, open: () -> java.io.OutputStream?): Int =
@@ -156,7 +156,7 @@ private suspend fun saveTrace(archive: TraceArchive, includeBody: Boolean, open:
 
 @Composable
 internal fun TraceSettingsRows() {
-    val traces = (LocalContext.current.applicationContext as MikaApp).detailedTraces
+    val traces = (LocalContext.current.applicationContext as MaeveApp).detailedTraces
     val scope = LocalLifecycleOwner.current.lifecycleScope
     var traceEnabled by remember { mutableStateOf(traces.enabled) }
     var traceLimitMiB by remember { mutableIntStateOf(traces.limitMiB) }
@@ -167,7 +167,7 @@ internal fun TraceSettingsRows() {
     }
 
     ListRow(null, stringResource(R.string.trace_switch), stringResource(R.string.trace_switch_detail), first = true, onClick = { onTrace(!traceEnabled) }) {
-        MikaSwitch(traceEnabled, ::onTrace, Modifier.testTag("dev-trace"))
+        MaeveSwitch(traceEnabled, ::onTrace, Modifier.testTag("dev-trace"))
     }
     ListRow(null, stringResource(R.string.trace_storage_limit), stringResource(R.string.trace_storage_hint), onClick = { editingLimit = true }) {
         RowValue(stringResource(R.string.trace_storage_value, traceLimitMiB))
@@ -175,7 +175,7 @@ internal fun TraceSettingsRows() {
     if (editingLimit) {
         var text by rememberSaveable { mutableStateOf(traceLimitMiB.toString()) }
         val limit = text.toIntOrNull()?.takeIf { it > 0 }
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { editingLimit = false },
             title = { Text(stringResource(R.string.trace_storage_limit)) },
             text = {

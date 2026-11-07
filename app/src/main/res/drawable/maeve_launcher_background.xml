@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Reverie preset: foggy violet gradient. Design contract: docs/spec/visual-tokens.md §4. -->
+<!-- 默认图标底:梅子。Maeve 的戏服色,深紫里带一点血。
+     前景是迷宫螺线(maeve_launcher_foreground),两者同一套几何。 -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <gradient
         android:type="linear"
         android:angle="270"
-        android:startColor="#FF6E6296"
-        android:endColor="#FF332B4A" />
+        android:startColor="#FF6B3D57"
+        android:endColor="#FF38202F" />
 </shape>

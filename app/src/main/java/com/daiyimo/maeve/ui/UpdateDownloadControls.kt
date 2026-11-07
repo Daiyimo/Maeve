@@ -27,9 +27,9 @@ import com.daiyimo.maeve.about.ApkUpdater
 import com.daiyimo.maeve.about.DownloadPhase
 import com.daiyimo.maeve.about.ReleaseInfo
 import com.daiyimo.maeve.ui.components.ButtonKind
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -125,13 +125,13 @@ internal fun UpdateDownloadActions(
         state.phase == DownloadPhase.Failed -> stringResource(R.string.about_update_retry)
         else -> stringResource(R.string.about_update_download_in_app)
     }
-    MikaButton(text, if (state.phase == DownloadPhase.Ready) onInstall else onDownload,
+    MaeveButton(text, if (state.phase == DownloadPhase.Ready) onInstall else onDownload,
         Modifier.fillMaxWidth().padding(top = 14.dp), enabled = !busy && !active)
     if (active || state.phase == DownloadPhase.Ready) {
-        MikaButton(stringResource(R.string.about_update_cancel), onCancel,
+        MaeveButton(stringResource(R.string.about_update_cancel), onCancel,
             Modifier.fillMaxWidth().padding(top = 10.dp), kind = ButtonKind.Tonal, enabled = !busy)
     }
     val note = error ?: if (state.phase == DownloadPhase.Failed) R.string.about_update_error else R.string.about_update_install_hint
     Text(stringResource(note),
-        Modifier.padding(top = 8.dp), style = MikaType.Caption, color = MikaTheme.colors.ink3)
+        Modifier.padding(top = 8.dp), style = MaeveType.Caption, color = MaeveTheme.colors.ink3)
 }

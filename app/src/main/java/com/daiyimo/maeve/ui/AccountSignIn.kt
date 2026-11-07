@@ -37,12 +37,12 @@ import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.ValueTone
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /** 「添加模型」里「用账号登录」那一组的三家。ChatGPT 的登录另有一套,xAI、OpenRouter 对应 [AccountProvider]。 */
 enum class SignInKind(val account: AccountProvider?, val label: String, val tag: String) {
@@ -121,7 +121,7 @@ class SignInSheetActions(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SignInSheet(ui: ModelSetupUi, kind: SignInKind, actions: SignInSheetActions) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     ModalBottomSheet(
         onDismissRequest = actions.dismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -148,12 +148,12 @@ internal fun SignInSheetBody(ui: ModelSetupUi, kind: SignInKind, actions: SignIn
 
 @Composable
 private fun IntroBody(kind: SignInKind, running: Boolean, failure: String?, busy: Boolean, actions: SignInSheetActions) {
-    val c = MikaTheme.colors
-    Text(ModelsCopy.signInTitle(kind), Modifier.fillMaxWidth(), style = MikaType.Title, color = c.ink, textAlign = TextAlign.Center)
+    val c = MaeveTheme.colors
+    Text(ModelsCopy.signInTitle(kind), Modifier.fillMaxWidth(), style = MaeveType.Title, color = c.ink, textAlign = TextAlign.Center)
     Text(ModelsCopy.signInBody(kind), Modifier.padding(top = 10.dp), fontSize = 13.5.sp, lineHeight = 21.sp, color = c.ink2)
     ModelsCopy.signInRisk(kind)?.let { Note(it, c.warnSoft, c.warn, Modifier.testTag("signin-risk")) }
     ModelsCopy.signInInfo(kind)?.let { Note(it, c.fill, c.ink2) }
-    MikaButton(
+    MaeveButton(
         ModelsCopy.signInStart(kind), { actions.start(kind) },
         Modifier.fillMaxWidth().padding(top = 16.dp).testTag("signin-start"), enabled = !running && !busy,
     )
@@ -172,7 +172,7 @@ private fun IntroBody(kind: SignInKind, running: Boolean, failure: String?, busy
         Text(it, Modifier.padding(top = 10.dp).testTag("signin-failed"), fontSize = 13.sp, lineHeight = 18.sp, color = c.bad)
     }
     if (kind.keyPreset != null && !running) {
-        MikaButton(
+        MaeveButton(
             ModelsCopy.SIGN_IN_USE_KEY, { actions.useApiKey(kind) },
             Modifier.fillMaxWidth().padding(top = 4.dp).testTag("signin-use-key"), kind = ButtonKind.Text, size = ButtonSize.Medium,
         )
@@ -182,9 +182,9 @@ private fun IntroBody(kind: SignInKind, running: Boolean, failure: String?, busy
 /** xAI 设备码:和浏览器确认页上一样的短码、有效期;复制并重新打开确认页;等待中可以取消。 */
 @Composable
 private fun DeviceCodeBody(s: AccountSignInUi, code: String, cancel: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val context = LocalContext.current
-    Text(ModelsCopy.XAI_CODE_TITLE, Modifier.fillMaxWidth(), style = MikaType.Title, color = c.ink, textAlign = TextAlign.Center)
+    Text(ModelsCopy.XAI_CODE_TITLE, Modifier.fillMaxWidth(), style = MaeveType.Title, color = c.ink, textAlign = TextAlign.Center)
     Text(
         ModelsCopy.XAI_CODE_BODY, Modifier.fillMaxWidth().padding(top = 10.dp),
         fontSize = 13.5.sp, lineHeight = 21.sp, color = c.ink2, textAlign = TextAlign.Center,
@@ -196,9 +196,9 @@ private fun DeviceCodeBody(s: AccountSignInUi, code: String, cancel: () -> Unit)
     )
     if (s.expiresAtMs > 0) {
         val minutes = ((s.expiresAtMs - System.currentTimeMillis()) / 60_000).coerceAtLeast(1)
-        Text(ModelsCopy.codeValid(minutes.toInt()), Modifier.fillMaxWidth().padding(top = 4.dp), style = MikaType.Hint, color = c.ink3, textAlign = TextAlign.Center)
+        Text(ModelsCopy.codeValid(minutes.toInt()), Modifier.fillMaxWidth().padding(top = 4.dp), style = MaeveType.Hint, color = c.ink3, textAlign = TextAlign.Center)
     }
-    MikaButton(
+    MaeveButton(
         ModelsCopy.XAI_CODE_COPY_REOPEN, { copyAndReopen(context, code, s.openUrl) },
         Modifier.fillMaxWidth().padding(top = 16.dp).testTag("signin-copy-reopen"), kind = ButtonKind.Tonal,
     )
@@ -206,7 +206,7 @@ private fun DeviceCodeBody(s: AccountSignInUi, code: String, cancel: () -> Unit)
         ModelsCopy.XAI_CODE_WAITING, Modifier.fillMaxWidth().padding(top = 14.dp),
         fontSize = 13.sp, color = c.ink2, textAlign = TextAlign.Center,
     )
-    MikaButton(
+    MaeveButton(
         ModelSetupCopy.CANCEL, cancel, Modifier.fillMaxWidth().padding(top = 4.dp).testTag("signin-cancel"),
         kind = ButtonKind.Text, size = ButtonSize.Medium,
     )

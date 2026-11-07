@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,16 +40,16 @@ import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.SegmentedControl
 import com.daiyimo.maeve.ui.components.SheetAction
 import com.daiyimo.maeve.ui.components.StateCard
 import com.daiyimo.maeve.ui.components.SubPage
 import com.daiyimo.maeve.ui.components.TileTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import java.time.Instant
 import com.daiyimo.maeve.i18n.uiLocale
 import java.time.LocalDateTime
@@ -84,18 +84,18 @@ fun PlansScreen(context: Context, onBack: () -> Unit, onOpenConversation: (Strin
     val (running, stopped) = snapshot.triggers.sortedBy { it.nextAtMs }.partition { it.enabled }
     val shown = if (segment == 0) running else stopped
 
-    SubPage(tr(R.string.drawer_plans), onBack) {
+    SubPage(tr(R.string.drawer_plans), onBack, eyebrow = "LOOPS") {
         if (!exact) {
             StateCard(
-                MikaIcons.Alarm, ExactAlarmGuide.TITLE, tr(R.string.plans_alarm_body),
+                MaeveIcons.Alarm, ExactAlarmGuide.TITLE, tr(R.string.plans_alarm_body),
                 tone = TileTone.Warn,
-            ) { MikaButton(tr(R.string.turn_on_go), { act { context.startActivity(TriggerRuntime.exactAlarmSettings(context)) } }, kind = ButtonKind.Primary, size = ButtonSize.Small) }
+            ) { MaeveButton(tr(R.string.turn_on_go), { act { context.startActivity(TriggerRuntime.exactAlarmSettings(context)) } }, kind = ButtonKind.Primary, size = ButtonSize.Small) }
         }
         SegmentedControl(
             listOf(tr(R.string.plans_running_n, running.size), tr(R.string.plans_stopped_n, stopped.size)), segment, { segment = it },
             tags = listOf("plans-segment-running", "plans-segment-stopped"),
         )
-        error?.let { Text(it, Modifier.padding(top = 8.dp), style = MikaType.Caption, color = MikaTheme.colors.bad) }
+        error?.let { Text(it, Modifier.padding(top = 8.dp), style = MaeveType.Caption, color = MaeveTheme.colors.bad) }
         if (shown.isEmpty()) {
             GroupLabel("")
             EmptyNote(
@@ -132,16 +132,16 @@ fun PlansScreen(context: Context, onBack: () -> Unit, onOpenConversation: (Strin
         val at = runCatching {
             LocalDateTime.parse(value, PLAN_TIME).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
         }.getOrNull()
-        MikaDialog(onDismissRequest = { editing = null }, title = { Text(tr(R.string.plans_edit_title)) },
+        MaeveDialog(onDismissRequest = { editing = null }, title = { Text(tr(R.string.plans_edit_title)) },
             text = { KeyboardDismissArea {
                 Column {
                     OutlinedTextField(value, { value = it }, Modifier.keepsKeyboard(), label = { Text(tr(R.string.plans_edit_label)) },
                         singleLine = true)
                     if (at != null && at > System.currentTimeMillis()) {
                         Spacer(Modifier.height(8.dp))
-                        Text(tr(R.string.plans_preview), style = MikaType.Caption, color = MikaTheme.colors.ink3)
+                        Text(tr(R.string.plans_preview), style = MaeveType.Caption, color = MaeveTheme.colors.ink3)
                         upcoming(plan.rescheduledTo(at), at, 3).forEachIndexed { index, t ->
-                            Text("${index + 1}  ${formatPlanTime(t)}", style = MikaType.Caption, color = MikaTheme.colors.ink3)
+                            Text("${index + 1}  ${formatPlanTime(t)}", style = MaeveType.Caption, color = MaeveTheme.colors.ink3)
                         }
                     }
                 }
@@ -153,10 +153,10 @@ fun PlansScreen(context: Context, onBack: () -> Unit, onOpenConversation: (Strin
             dismissButton = { TextButton(onClick = { editing = null }) { Text(tr(R.string.cancel)) } })
     }
     deleting?.let { plan ->
-        MikaDialog(onDismissRequest = { deleting = null }, title = { Text(tr(R.string.plans_delete_title)) },
+        MaeveDialog(onDismissRequest = { deleting = null }, title = { Text(tr(R.string.plans_delete_title)) },
             text = { Text(plan.goal) },
             confirmButton = { TextButton(onClick = { act { TriggerRuntime.remove(context, plan.id) }; deleting = null }) {
-                Text(tr(R.string.confirm_delete), color = MikaTheme.colors.bad)
+                Text(tr(R.string.confirm_delete), color = MaeveTheme.colors.bad)
             } }, dismissButton = { TextButton(onClick = { deleting = null }) { Text(tr(R.string.cancel)) } })
     }
 }
@@ -184,7 +184,7 @@ private fun PlanRow(plan: TriggerDefinition, last: TriggerWindow?, first: Boolea
     }
     val when_ = if (plan.enabled) tr(R.string.plans_next, repeat, formatPlanTime(plan.nextAtMs)) else "$repeat · $status"
     val subtitle = plan.conditionGoal?.let { tr(R.string.plans_condition, it, when_) } ?: when_
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val delivered = last?.state == TriggerWindowState.Delivered
     // 一次性的任务做完后不能再打开;循环的和从没跑过的可以
     val canToggle = plan.enabled || plan.intervalMs != null || plan.calendarTime != null || last == null
@@ -193,7 +193,7 @@ private fun PlanRow(plan: TriggerDefinition, last: TriggerWindow?, first: Boolea
         detail = last?.let { tr(R.string.plans_last, formatPlanTime(it.dueAtMs), windowLabel(it.state)) } ?: tr(R.string.plans_never_run),
         detailColor = if (delivered) c.ok else c.ink3,
         onClick = onClick,
-    ) { MikaSwitch(plan.enabled, onToggle, enabled = canToggle) }
+    ) { MaeveSwitch(plan.enabled, onToggle, enabled = canToggle) }
 }
 
 private val PLAN_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")

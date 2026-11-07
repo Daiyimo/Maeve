@@ -36,13 +36,13 @@ import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.RowActions
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.SegmentedControl
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -133,14 +133,14 @@ object RunMetricsCopy {
 /** 「查看过程」顶上的一行小结;点一下展开时间去向、token 和步数。 */
 @Composable
 fun RunMetricsSummary(m: RunMetrics) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var open by rememberSaveable { mutableStateOf(false) }
     Column(
         Modifier.fillMaxWidth().clickable(role = Role.Button) { open = !open }.testTag("run-metrics-summary")
             .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 10.dp),
     ) {
-        Text(RunMetricsCopy.summaryLine(m), style = MikaType.Caption, color = c.ink2)
-        Text(if (open) tr(R.string.collapse) else tr(R.string.metrics_where_time), Modifier.padding(top = 2.dp), style = MikaType.Hint, color = c.accent)
+        Text(RunMetricsCopy.summaryLine(m), style = MaeveType.Caption, color = c.ink2)
+        Text(if (open) tr(R.string.collapse) else tr(R.string.metrics_where_time), Modifier.padding(top = 2.dp), style = MaeveType.Hint, color = c.accent)
     }
     if (open) RunMetricsCopy.breakdown(m).forEach { (k, v) -> ListRow(null, k) { RowValue(v) } }
 }
@@ -172,7 +172,7 @@ fun RunStatsContent(
     onBack: () -> Unit,
     loaded: Boolean = true,
 ) {
-    PageScaffold(RunMetricsCopy.STATS_TITLE, onBack) {
+    PageScaffold(RunMetricsCopy.STATS_TITLE, onBack, eyebrow = "USAGE · RUNS") {
         SegmentedControl(RunMetricsCopy.RANGE_LABELS, range, onRange, tags = RunMetricsCopy.RANGES.map { "run-stats-range-${it ?: "all"}" })
         if (!loaded) return@PageScaffold
         if (stats == null) {
@@ -187,8 +187,8 @@ fun RunStatsContent(
         GroupCard {
             ListRow(null, trPlural(R.plurals.metrics_summary_of, stats.runs), tr(R.string.metrics_summary_sub), first = true)
             RowActions {
-                MikaButton(RunMetricsCopy.COPY, onCopy, Modifier.testTag("run-stats-copy"), size = ButtonSize.Small)
-                MikaButton(RunMetricsCopy.SHARE, onShare, Modifier.testTag("run-stats-share"), kind = ButtonKind.Tonal, size = ButtonSize.Small)
+                MaeveButton(RunMetricsCopy.COPY, onCopy, Modifier.testTag("run-stats-copy"), size = ButtonSize.Small)
+                MaeveButton(RunMetricsCopy.SHARE, onShare, Modifier.testTag("run-stats-share"), kind = ButtonKind.Tonal, size = ButtonSize.Small)
             }
         }
         FooterNote(RunMetricsCopy.STATS_NOTE)

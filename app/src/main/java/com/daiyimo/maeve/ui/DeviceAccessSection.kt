@@ -28,12 +28,12 @@ import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.InputRow
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.RadioRow
 import com.daiyimo.maeve.ui.components.RowActions
 import com.daiyimo.maeve.ui.components.TileTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,8 +70,8 @@ fun DeviceAccessSection(settings: DeviceAccessSettings) {
 
     GroupLabel(stringResource(R.string.device_access_group))
     GroupCard {
-        ListRow(MikaIcons.Desktop, stringResource(R.string.device_access_title), stringResource(R.string.device_access_sub), first = true) {
-            MikaSwitch(config.enabled, { on -> change({ settings.setEnabled(on) }) }, Modifier.testTag("device-access-enabled"), enabled = !busy)
+        ListRow(MaeveIcons.Desktop, stringResource(R.string.device_access_title), stringResource(R.string.device_access_sub), first = true) {
+            MaeveSwitch(config.enabled, { on -> change({ settings.setEnabled(on) }) }, Modifier.testTag("device-access-enabled"), enabled = !busy)
         }
         val subtitle = when {
             config.blocked -> R.string.device_access_blocked
@@ -79,11 +79,11 @@ fun DeviceAccessSection(settings: DeviceAccessSettings) {
             config.kind == CredentialKind.Password -> R.string.device_access_password_saved
             else -> R.string.device_access_no_credential
         }
-        ListRow(MikaIcons.Key, stringResource(R.string.device_access_credential), stringResource(subtitle),
+        ListRow(MaeveIcons.Key, stringResource(R.string.device_access_credential), stringResource(subtitle),
             tone = if (config.blocked) TileTone.Bad else TileTone.Neutral,
             onClick = { if (!busy) { kind = config.kind ?: CredentialKind.Pin; editing = true } })
         if (config.kind != null && !editing) RowActions {
-            MikaButton(stringResource(R.string.device_access_clear), { change({ settings.clearCredential() }) }, kind = ButtonKind.Tonal, size = ButtonSize.Small, enabled = !busy)
+            MaeveButton(stringResource(R.string.device_access_clear), { change({ settings.clearCredential() }) }, kind = ButtonKind.Tonal, size = ButtonSize.Small, enabled = !busy)
         }
     }
     FooterNote(stringResource(R.string.device_access_foot))
@@ -102,11 +102,11 @@ fun DeviceAccessSection(settings: DeviceAccessSettings) {
                 keyboard = if (kind == CredentialKind.Pin) KeyboardType.NumberPassword else KeyboardType.Password,
                 modifier = Modifier.testTag("device-access-repeat"))
             RowActions {
-                MikaButton(stringResource(R.string.device_access_save), {
+                MaeveButton(stringResource(R.string.device_access_save), {
                     val k = kind; val v = value
                     change({ settings.setCredential(k, v) }, ::closeEditor)
                 }, size = ButtonSize.Small, enabled = !busy && value == repeat && DeviceCredential.valid(kind, value.toCharArray()))
-                MikaButton(stringResource(R.string.cancel), ::closeEditor, kind = ButtonKind.Tonal, size = ButtonSize.Small, enabled = !busy)
+                MaeveButton(stringResource(R.string.cancel), ::closeEditor, kind = ButtonKind.Tonal, size = ButtonSize.Small, enabled = !busy)
             }
         }
         FooterNote(stringResource(if (kind == CredentialKind.Pin) R.string.device_access_pin_hint else R.string.device_access_password_hint))

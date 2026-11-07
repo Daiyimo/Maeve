@@ -37,17 +37,29 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.daiyimo.maeve.ui.theme.MikaColors
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaSize
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import androidx.compose.ui.unit.sp
+import com.daiyimo.maeve.ui.theme.MaeveColors
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
-/** 分组小标题:13 / 500,辅助文字色。 */
+/**
+ * 分组小标题:等宽大写、宽字距。
+ *
+ * 这行字是整套界面最便宜的「仪表感」来源:同样的文案,只要加上等宽 + 字距 + 全大写,
+ * 就从「一段说明」变成「一块面板的标题」。全站设置页的每一组都靠它立骨架。
+ */
 @Composable
 fun GroupLabel(text: String, modifier: Modifier = Modifier) {
-    Text(text, modifier.padding(top = 8.dp, bottom = 8.dp), style = MikaType.Label, color = MikaTheme.colors.ink3)
+    Text(
+        text,
+        modifier.padding(top = 22.dp, bottom = 8.dp, start = 2.dp),
+        style = MaeveType.Label.copy(fontSize = 12.5.sp),
+        color = MaeveTheme.colors.ink3,
+        maxLines = 1,
+    )
 }
 
 /** 分组下面的说明,和卡片里的文字对齐。 */
@@ -55,7 +67,7 @@ fun GroupLabel(text: String, modifier: Modifier = Modifier) {
 fun FooterNote(text: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
     Text(
         text, modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-        style = MikaType.Hint, color = color.takeOrElse { MikaTheme.colors.ink3 },
+        style = MaeveType.Hint, color = color.takeOrElse { MaeveTheme.colors.ink3 },
     )
 }
 
@@ -63,8 +75,9 @@ fun FooterNote(text: String, modifier: Modifier = Modifier, color: Color = Color
 enum class TileTone {
     Neutral, Accent, Ok, Warn, Bad;
 
-    fun colors(c: MikaColors): Pair<Color, Color> = when (this) {
-        Neutral -> c.neutralSoft to c.ink
+    fun colors(c: MaeveColors): Pair<Color, Color> = when (this) {
+        // 普通行是中性墨色:图标块上色会让整页变成彩色糖果罐,只有状态才该有颜色
+        Neutral -> c.neutralSoft to c.ink2
         Accent -> c.accentSoft to c.accent
         Ok -> c.okSoft to c.ok
         Warn -> c.warnSoft to c.warn
@@ -72,14 +85,16 @@ enum class TileTone {
     }
 }
 
-/** 行左边的图标块:30dp、圆角 9,里面图形 18dp。 */
+/** 行左边的图标块:30dp、圆角 7,里面图形 17dp。中性色,只有状态才上色。 */
 @Composable
 fun IconTile(icon: ImageVector, tone: TileTone = TileTone.Neutral) {
-    val (bg, fg) = tone.colors(MikaTheme.colors)
-    Box(Modifier.size(MikaSize.Tile).background(bg, MikaShapes.Tile), contentAlignment = Alignment.Center) {
-        Icon(icon, null, Modifier.size(MikaSize.TileIcon), tint = fg)
+    val (bg, fg) = tone.colors(MaeveTheme.colors)
+    Box(Modifier.size(MaeveSize.Tile).background(bg, TileShape), contentAlignment = Alignment.Center) {
+        Icon(icon, null, Modifier.size(MaeveSize.TileIcon * 0.95f), tint = fg)
     }
 }
+
+private val TileShape = androidx.compose.foundation.shape.RoundedCornerShape(7.dp)
 
 /** 行与行之间的分隔线,从 [start] 画到右边;分组首行([first])不画。 */
 private fun Modifier.topHairline(first: Boolean, start: Dp, color: Color): Modifier =
@@ -111,8 +126,8 @@ fun ListRow(
     onClick: (() -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
-    val c = MikaTheme.colors
-    val haptics = MikaTheme.haptics
+    val c = MaeveTheme.colors
+    val haptics = MaeveTheme.haptics
     Row(
         Modifier.fillMaxWidth()
             .topHairline(first, if (icon != null) TextStartWithIcon else TextStartPlain, c.hair)
@@ -122,16 +137,16 @@ fun ListRow(
                     onClick?.invoke()
                 } else Modifier,
             )
-            .heightIn(min = MikaSize.RowMin)
+            .heightIn(min = MaeveSize.RowMin)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         if (icon != null) IconTile(icon, tone)
         Column(Modifier.weight(1f).padding(vertical = 11.dp)) {
-            Text(title, style = MikaType.Body, color = titleColor.takeOrElse { c.ink })
-            if (!subtitle.isNullOrEmpty()) Text(subtitle, Modifier.padding(top = 2.dp), style = MikaType.Caption, color = c.ink3)
-            if (!detail.isNullOrEmpty()) Text(detail, Modifier.padding(top = 2.dp), style = MikaType.Hint, color = detailColor.takeOrElse { c.ink3 })
+            Text(title, style = MaeveType.Body, color = titleColor.takeOrElse { c.ink })
+            if (!subtitle.isNullOrEmpty()) Text(subtitle, Modifier.padding(top = 2.dp), style = MaeveType.Caption, color = c.ink3)
+            if (!detail.isNullOrEmpty()) Text(detail, Modifier.padding(top = 2.dp), style = MaeveType.Hint, color = detailColor.takeOrElse { c.ink3 })
         }
         trailing()
     }
@@ -139,12 +154,20 @@ fun ListRow(
 
 enum class ValueTone { Plain, Ok, Warn, Bad, Link }
 
-/** 行尾的值。 */
+/**
+ * 行尾的值。
+ *
+ * 值里只要没有中文,就自动改用等宽字体——版本号、模型名、地址、耗时、开关之外的
+ * 一切短标识都落在这一条规则里,不需要每个调用点自己声明。这是「读数感」自动扩散的关键:
+ * 一处判断,全站生效。
+ */
 @Composable
 fun RowValue(text: String, tone: ValueTone = ValueTone.Plain) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
+    val numeric = text.none { it.code > 0x2E80 }
     Text(
-        text, style = MikaType.Value,
+        text,
+        style = if (numeric) MaeveType.Mono.copy(fontSize = 13.sp, lineHeight = 18.sp) else MaeveType.Value,
         fontWeight = if (tone == ValueTone.Link) FontWeight.Medium else FontWeight.Normal,
         color = when (tone) {
             ValueTone.Plain -> c.ink3
@@ -160,7 +183,7 @@ fun RowValue(text: String, tone: ValueTone = ValueTone.Plain) {
 /** 行尾的小箭头:点进去还有一页。 */
 @Composable
 fun RowChevron() {
-    DirectionalIcon(MikaIcons.Chevron, null, Modifier.size(MikaSize.SmallIcon), tint = MikaTheme.colors.ink3)
+    DirectionalIcon(MaeveIcons.Chevron, null, Modifier.size(MaeveSize.SmallIcon), tint = MaeveTheme.colors.ink3)
 }
 
 /** 单选行:左边圆圈,选中时实心强调色。分隔线从文字处开始。 */
@@ -172,12 +195,12 @@ fun RadioRow(
     subtitle: String? = null,
     first: Boolean = false,
     enabled: Boolean = true,
-    titleStyle: TextStyle = MikaType.Body,
+    titleStyle: TextStyle = MaeveType.Body,
     /** 标题下面的附加内容(例如能力小标签)。 */
     below: (@Composable () -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(
         Modifier.fillMaxWidth()
             .topHairline(first, 50.dp, c.hair)
@@ -190,7 +213,7 @@ fun RadioRow(
         RadioMark(selected, enabled)
         Column(Modifier.weight(1f).padding(vertical = 9.dp)) {
             Text(title, style = titleStyle, color = if (enabled) c.ink else c.ink3)
-            if (!subtitle.isNullOrEmpty()) Text(subtitle, Modifier.padding(top = 2.dp), style = MikaType.Caption, color = c.ink3)
+            if (!subtitle.isNullOrEmpty()) Text(subtitle, Modifier.padding(top = 2.dp), style = MaeveType.Caption, color = c.ink3)
             if (below != null) Box(Modifier.padding(top = 4.dp)) { below() }
         }
         trailing()
@@ -199,7 +222,7 @@ fun RadioRow(
 
 @Composable
 private fun RadioMark(selected: Boolean, enabled: Boolean = true) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     if (selected && enabled) {
         Box(Modifier.size(22.dp).background(c.accent, CircleShape), contentAlignment = Alignment.Center) {
             Box(Modifier.size(10.dp).background(c.onAccent, CircleShape))
@@ -226,18 +249,18 @@ fun InputRow(
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(
         Modifier.fillMaxWidth().topHairline(first, TextStartPlain, c.hair).keepsKeyboard()
-            .heightIn(min = MikaSize.RowMin).padding(horizontal = 16.dp, vertical = 12.dp),
+            .heightIn(min = MaeveSize.RowMin).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(label, Modifier.width(labelWidth), style = MikaType.Body, color = c.ink)
+        Text(label, Modifier.width(labelWidth), style = MaeveType.Body, color = c.ink)
         Box(Modifier.weight(1f)) {
-            if (value.isEmpty()) Text(placeholder, style = MikaType.Body, color = c.ink3, maxLines = 1)
+            if (value.isEmpty()) Text(placeholder, style = MaeveType.Body, color = c.ink3, maxLines = 1)
             BasicTextField(
                 value, onChange, modifier.fillMaxWidth(), singleLine = true,
-                textStyle = MikaType.Body.copy(color = c.ink),
+                textStyle = MaeveType.Body.copy(color = c.ink),
                 cursorBrush = SolidColor(c.accent),
                 keyboardOptions = KeyboardOptions(keyboardType = keyboard, autoCorrectEnabled = false),
                 visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
@@ -250,5 +273,5 @@ fun InputRow(
 /** 卡片里自己排版的块之间的分隔线,从 [start] 画到右边。 */
 @Composable
 fun Hairline(start: Dp = TextStartWithIcon) {
-    Box(Modifier.fillMaxWidth().padding(start = start).height(0.5.dp).background(MikaTheme.colors.hair))
+    Box(Modifier.fillMaxWidth().padding(start = start).height(0.5.dp).background(MaeveTheme.colors.hair))
 }

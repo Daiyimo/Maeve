@@ -10,7 +10,7 @@ import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.RowChevron
 
@@ -68,7 +68,7 @@ fun DeveloperOptionsScreen(
     onGrounding: (Boolean) -> Unit = {},
     onOpenRunStats: (() -> Unit)? = null,
 ) {
-    PageScaffold(tr(R.string.settings_developer), onBack) {
+    PageScaffold(tr(R.string.settings_developer), onBack, eyebrow = "DEVELOPER") {
         GroupLabel(tr(R.string.dev_speed))
         SwitchGroup(DeveloperSwitches.speed(speed), onSpeed)
         GroupLabel(tr(R.string.dev_experiments))
@@ -77,7 +77,7 @@ fun DeveloperOptionsScreen(
             GroupLabel(GroundingCopy.GROUP)
             GroupCard {
                 ListRow(null, GroundingCopy.TITLE, GroundingCopy.subtitle(grounding.model), first = true, onClick = { onGrounding(!grounding.verified) }) {
-                    MikaSwitch(grounding.verified, onGrounding, Modifier.testTag("dev-grounding-verified"))
+                    MaeveSwitch(grounding.verified, onGrounding, Modifier.testTag("dev-grounding-verified"))
                 }
             }
         }
@@ -98,7 +98,7 @@ private fun SwitchGroup(switches: List<DevSwitch>, onSpeed: (SpeedFlags) -> Unit
         switches.forEachIndexed { i, s ->
             // 整行都能点:开关小,行大
             ListRow(null, s.title, s.subtitle, first = i == 0, onClick = { onSpeed(s.change(!s.checked)) }) {
-                MikaSwitch(s.checked, { onSpeed(s.change(it)) }, Modifier.testTag("dev-${s.id}"))
+                MaeveSwitch(s.checked, { onSpeed(s.change(it)) }, Modifier.testTag("dev-${s.id}"))
             }
         }
     }

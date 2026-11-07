@@ -13,8 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /** 结果卡片下的小字:记住了什么、学会或停用了哪项技能,各带按钮。 */
 internal fun LazyListScope.learningNotes(index: Int, ex: Exchange, vm: ChatViewModel) {
@@ -46,7 +46,7 @@ internal fun LazyListScope.learningNotes(index: Int, ex: Exchange, vm: ChatViewM
 @Composable
 private fun NoteLine(text: String, buttons: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, Modifier.weight(1f), style = MikaType.Hint, color = MikaTheme.colors.ink3)
+        Text(text, Modifier.weight(1f), style = MaeveType.Hint, color = MaeveTheme.colors.ink3)
         buttons()
     }
 }

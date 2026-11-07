@@ -13,6 +13,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import com.daiyimo.maeve.ui.components.EmptyNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
+import com.daiyimo.maeve.ui.components.glassSource
 import com.daiyimo.maeve.ui.components.ListRow
 import com.daiyimo.maeve.ui.components.PageBackground
 import com.daiyimo.maeve.ui.components.RowChevron
@@ -58,9 +61,11 @@ import com.daiyimo.maeve.ui.components.StepItem
 import com.daiyimo.maeve.ui.components.StepState
 import com.daiyimo.maeve.ui.components.TopBar
 import com.daiyimo.maeve.ui.components.ValueTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.LocalGlassBackdrop
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -101,19 +106,20 @@ fun RunTimelineScreen(vm: RunTimelineViewModel, onBack: () -> Unit) {
     }
 
     PageBackground {
-        Column(Modifier.fillMaxSize()) {
-            TopBar(stringResource(R.string.timeline_title), left = MikaIcons.Back, leftLabel = stringResource(R.string.back), onLeft = onBack)
+        val backdrop = LocalGlassBackdrop.current
+        val statusBar = WindowInsets.statusBars.asPaddingValues()
+        Box(Modifier.fillMaxSize()) {
             when (val u = ui) {
                 TimelineUi.Loading -> Unit
                 TimelineUi.Expired -> EmptyNote(TimelineUi.EXPIRED_TEXT, Modifier.padding(top = 80.dp))
                 is TimelineUi.Ready -> LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 16.dp),
+                    Modifier.fillMaxSize().glassSource(backdrop),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = statusBar.calculateTopPadding() + MaeveSize.TopBar + 16.dp, bottom = bottom + 16.dp),
                 ) {
                     item("header") {
                         HeaderGroup(u.header) {
                             try {
-                                saveLog.launch("mika-usage-${vm.runId}.jsonl")
+                                saveLog.launch("maeve-usage-${vm.runId}.jsonl")
                             } catch (_: ActivityNotFoundException) {
                                 Toast.makeText(context, R.string.timeline_export_failed, Toast.LENGTH_SHORT).show()
                             }
@@ -134,23 +140,24 @@ fun RunTimelineScreen(vm: RunTimelineViewModel, onBack: () -> Unit) {
                     }
                 }
             }
+            TopBar(stringResource(R.string.timeline_title), left = MaeveIcons.Back, leftLabel = stringResource(R.string.back), onLeft = onBack, eyebrow = "DIAGNOSTIC")
         }
     }
 }
 
 @Composable
 private fun HeaderGroup(h: TimelineHeader, onExport: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var more by rememberSaveable { mutableStateOf(false) }
     GroupCard {
         Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp)) {
-            Text(h.goal, style = MikaType.Title, color = c.ink)
+            Text(h.goal, style = MaeveType.Title, color = c.ink)
             if (h.criteria.isNotEmpty()) {
-                Text(stringResource(R.string.timeline_criteria), Modifier.padding(top = 10.dp), style = MikaType.Label, color = c.ink3)
+                Text(stringResource(R.string.timeline_criteria), Modifier.padding(top = 10.dp), style = MaeveType.Label, color = c.ink3)
                 h.criteria.forEachIndexed { i, text ->
                     Text(
                         if (h.criteria.size > 1) "${i + 1}. $text" else text, Modifier.padding(top = 3.dp),
-                        style = MikaType.Caption, color = c.ink2,
+                        style = MaeveType.Caption, color = c.ink2,
                     )
                 }
             }
@@ -183,14 +190,14 @@ private fun HeaderGroup(h: TimelineHeader, onExport: () -> Unit) {
                 ListRow(null, stringResource(R.string.timeline_memory_used)) { RowValue(trPlural(R.plurals.items, h.usedMemory.size)) }
                 Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp)) {
                     h.usedMemory.forEach { memory ->
-                        Text("· $memory", Modifier.padding(top = 3.dp), style = MikaType.Hint, color = c.ink2)
+                        Text("· $memory", Modifier.padding(top = 3.dp), style = MaeveType.Hint, color = c.ink2)
                     }
                 }
             }
             Text(
                 stringResource(R.string.timeline_timing_note),
                 Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
-                style = MikaType.Hint, color = c.ink3,
+                style = MaeveType.Hint, color = c.ink3,
             )
         }
     }
@@ -199,7 +206,7 @@ private fun HeaderGroup(h: TimelineHeader, onExport: () -> Unit) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TimelineRow(s: TimelineStep, first: Boolean, last: Boolean, vm: RunTimelineViewModel) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var open by rememberSaveable(s.step) { mutableStateOf(false) }
     val shot = s.screenshotId
     val failed = s.result?.startsWith(stringResource(R.string.result_error_prefix)) == true
@@ -210,15 +217,15 @@ private fun TimelineRow(s: TimelineStep, first: Boolean, last: Boolean, vm: RunT
     ) {
         Column(Modifier.fillMaxWidth().padding(end = 16.dp, top = 11.dp, bottom = 11.dp)) {
             Row(verticalAlignment = Alignment.Top) {
-                Text(stringResource(R.string.step_number, s.step), style = MikaType.Label, color = c.ink3)
+                Text(stringResource(R.string.step_number, s.step), style = MaeveType.Label, color = c.ink3)
                 Text(
                     if (s.activities.isEmpty()) listOfNotNull(s.tool, s.detail).joinToString(" · ") else "",
                     Modifier.weight(1f).padding(start = 8.dp),
-                    style = MikaType.Body, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    style = MaeveType.Body, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 )
                 s.result?.let {
                     Text(
-                        it, Modifier.padding(start = 8.dp).widthIn(max = 120.dp), style = MikaType.Caption,
+                        it, Modifier.padding(start = 8.dp).widthIn(max = 120.dp), style = MaeveType.Caption,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         color = when {
                             failed -> c.bad
@@ -228,9 +235,9 @@ private fun TimelineRow(s: TimelineStep, first: Boolean, last: Boolean, vm: RunT
                     )
                 }
             }
-            Text(RunTimelineViewModel.timingLabel(s.timing), Modifier.padding(top = 2.dp), style = MikaType.Hint, color = c.ink3)
+            Text(RunTimelineViewModel.timingLabel(s.timing), Modifier.padding(top = 2.dp), style = MaeveType.Hint, color = c.ink3)
             if (s.said.isNotEmpty()) {
-                Text(s.said, Modifier.padding(top = 3.dp), style = MikaType.Caption, color = c.ink2)
+                Text(s.said, Modifier.padding(top = 3.dp), style = MaeveType.Caption, color = c.ink2)
             }
             s.activities.forEach { a ->
                 val action = if (a.count > 1) trPlural(R.plurals.timeline_viewed_times, a.count) else a.label
@@ -238,7 +245,7 @@ private fun TimelineRow(s: TimelineStep, first: Boolean, last: Boolean, vm: RunT
                 val effect = ChatCopy.effectLabel(a.effect)
                 Text(
                     listOfNotNull(action, a.target?.takeIf(String::isNotBlank), effect.takeIf(String::isNotBlank)).joinToString(" · "),
-                    Modifier.padding(top = 3.dp), style = MikaType.Caption, color = c.ink2,
+                    Modifier.padding(top = 3.dp), style = MaeveType.Caption, color = c.ink2,
                 )
             }
             if (s.tags.isNotEmpty()) {
@@ -249,7 +256,7 @@ private fun TimelineRow(s: TimelineStep, first: Boolean, last: Boolean, vm: RunT
             if (shot != null) {
                 Text(
                     if (open) stringResource(R.string.timeline_hide_screen) else stringResource(R.string.timeline_show_screen), Modifier.padding(top = 6.dp),
-                    style = MikaType.Label, color = c.accent,
+                    style = MaeveType.Label, color = c.accent,
                 )
                 if (open) Shot(vm, shot, s.step)
             }
@@ -259,7 +266,7 @@ private fun TimelineRow(s: TimelineStep, first: Boolean, last: Boolean, vm: RunT
 
 @Composable
 private fun TagChip(t: Tag) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val (bg, fg) = when (t.tone) {
         TagTone.Ok -> c.okSoft to c.ok
         TagTone.Warn -> c.warnSoft to c.warn
@@ -267,7 +274,7 @@ private fun TagChip(t: Tag) {
     }
     Text(
         t.text, Modifier.background(bg, RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
-        style = MikaType.Hint, fontWeight = FontWeight.SemiBold, color = fg,
+        style = MaeveType.Hint, fontWeight = FontWeight.SemiBold, color = fg,
     )
 }
 
@@ -281,7 +288,7 @@ private fun Shot(vm: RunTimelineViewModel, id: Int, step: Int) {
     image?.let {
         Image(
             it, stringResource(R.string.timeline_step_screen, step),
-            Modifier.padding(top = 8.dp).widthIn(max = 220.dp).clip(shape).background(MikaTheme.colors.fill, shape),
+            Modifier.padding(top = 8.dp).widthIn(max = 220.dp).clip(shape).background(MaeveTheme.colors.fill, shape),
             contentScale = ContentScale.FillWidth,
         )
     }

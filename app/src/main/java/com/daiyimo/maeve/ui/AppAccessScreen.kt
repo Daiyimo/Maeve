@@ -15,7 +15,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.cap.phone.a11y.launchableApps
 import com.daiyimo.maeve.core.access.*
@@ -56,7 +56,7 @@ private fun classifierLanguage(locale: java.util.Locale): String = when {
 
 @Composable
 fun AppAccessScreen(onBack: () -> Unit, classifyApps: Boolean = true) {
-    val app = LocalContext.current.applicationContext as MikaApp
+    val app = LocalContext.current.applicationContext as MaeveApp
     val store = app.appAccess
     val state by store.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -122,7 +122,7 @@ fun AppAccessScreen(onBack: () -> Unit, classifyApps: Boolean = true) {
         }
     }
 
-    PageScaffold(stringResource(R.string.appaccess_title), onBack) {
+    PageScaffold(stringResource(R.string.appaccess_title), onBack, eyebrow = "ACCESS") {
         Text(stringResource(R.string.appaccess_intro))
         Text(stringResource(R.string.appaccess_privacy))
         failure?.let { f ->
@@ -184,7 +184,7 @@ fun AppAccessScreen(onBack: () -> Unit, classifyApps: Boolean = true) {
         }
     }
     if (confirmingClassify) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { confirmingClassify = false },
             title = { Text(stringResource(R.string.appaccess_send_title)) },
             text = { Text(stringResource(R.string.appaccess_send_body)) },
@@ -196,7 +196,7 @@ fun AppAccessScreen(onBack: () -> Unit, classifyApps: Boolean = true) {
         )
     }
     if (recommending) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { recommending = false },
             title = { Text(stringResource(R.string.appaccess_recommend_title)) },
             text = {
@@ -226,7 +226,7 @@ fun AppAccessScreen(onBack: () -> Unit, classifyApps: Boolean = true) {
         )
     }
     editing?.let { pkg ->
-        MikaDialog(onDismissRequest = { editing = null }, title = { Text(stringResource(R.string.appaccess_edit_category)) }, text = {
+        MaeveDialog(onDismissRequest = { editing = null }, title = { Text(stringResource(R.string.appaccess_edit_category)) }, text = {
             Column { AppCategory.entries.forEach { category ->
                 TextButton({
                     save { store.classify(mapOf(pkg to AppClassification(category, "", manual = true))) }

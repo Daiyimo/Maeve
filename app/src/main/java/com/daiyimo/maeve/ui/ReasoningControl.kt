@@ -29,11 +29,11 @@ import com.daiyimo.maeve.core.model.ModelRole
 import com.daiyimo.maeve.settings.ReasoningOptions
 import com.daiyimo.maeve.settings.RoleChoice
 import com.daiyimo.maeve.ui.components.FooterNote
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.SelectChip
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /** 每个用途自己的档位;跟随主模型时说明继承,显式选同一个模型仍能独立设置。 */
 @OptIn(ExperimentalLayoutApi::class)
@@ -53,7 +53,7 @@ internal fun ReasoningControl(ui: ModelSetupUi, role: ModelRole, modifier: Modif
         stringResource(R.string.model_reasoning_title, reasoningLabel(selected)),
         "reasoning-${role.name.lowercase()}", modifier,
     ) { open = true }
-    if (open) MikaDialog(
+    if (open) MaeveDialog(
         onDismissRequest = { open = false },
         title = { Text(stringResource(R.string.model_reasoning_title, ModelsCopy.roleName(role))) },
         text = {
@@ -84,7 +84,7 @@ internal fun ModelOptionButton(text: String, tag: String, modifier: Modifier = M
         horizontalArrangement = Arrangement.Center,
     ) {
         Text(
-            text, Modifier.weight(1f), style = MikaType.Hint, color = MikaTheme.colors.ink2,
+            text, Modifier.weight(1f), style = MaeveType.Hint, color = MaeveTheme.colors.ink2,
             textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
         RowChevron()

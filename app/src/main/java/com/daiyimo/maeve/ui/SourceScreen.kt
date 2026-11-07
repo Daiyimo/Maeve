@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import android.graphics.BitmapFactory
@@ -46,9 +47,12 @@ import com.daiyimo.maeve.ui.components.PageBackground
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.EmptyNote
 import com.daiyimo.maeve.ui.components.TopBar
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.components.glassSource
+import com.daiyimo.maeve.ui.theme.LocalGlassBackdrop
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /** 一次答复的来源:每条是「第几步 · 在哪 · 标题」,下面是当时的画面;没有画面的(后台读的网页正文、文件、命令输出)是摘录原文。 */
 @Composable
@@ -56,17 +60,18 @@ fun SourceScreen(vm: SourceViewModel, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
     val ui by produceState<SourceUi?>(null, vm) { value = withContext(Dispatchers.IO) { vm.load() } }
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     PageBackground {
-        Column(Modifier.fillMaxSize()) {
-            TopBar(stringResource(R.string.source_label), left = MikaIcons.Back, leftLabel = stringResource(R.string.back), onLeft = onBack)
+        val backdrop = LocalGlassBackdrop.current
+        val statusBar = WindowInsets.statusBars.asPaddingValues()
+        Box(Modifier.fillMaxSize()) {
             ui?.let { source ->
                 LazyColumn(
-                    Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = bottom + 16.dp),
+                    Modifier.fillMaxSize().glassSource(backdrop),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = statusBar.calculateTopPadding() + MaeveSize.TopBar + 8.dp, bottom = bottom + 16.dp),
                 ) {
                     source.legacyText?.takeIf(String::isNotBlank)?.let { legacy ->
-                        item("legacy") { GroupCard { Text(legacy, Modifier.padding(16.dp), style = MikaType.Body, color = c.ink) } }
+                        item("legacy") { GroupCard { Text(legacy, Modifier.padding(16.dp), style = MaeveType.Body, color = c.ink) } }
                     }
                     source.entries.forEachIndexed { index, entry ->
                         item("source-$index") {
@@ -74,11 +79,11 @@ fun SourceScreen(vm: SourceViewModel, onBack: () -> Unit) {
                                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
                                     Text(
                                         listOfNotNull(stringResource(R.string.step_number, entry.step), entry.place, entry.title).joinToString(" · "),
-                                        style = MikaType.BodyStrong, color = c.ink,
+                                        style = MaeveType.BodyStrong, color = c.ink,
                                     )
                                     // 有画面就只给画面:识别出的文字和画面重复;没有画面时摘录就是唯一的依据
                                     if (entry.screenshots.isEmpty()) {
-                                        entry.text?.let { Text(it, Modifier.padding(top = 6.dp), style = MikaType.Caption, color = c.ink2) }
+                                        entry.text?.let { Text(it, Modifier.padding(top = 6.dp), style = MaeveType.Caption, color = c.ink2) }
                                     }
                                     entry.screenshots.forEach { id -> SourceShot(vm, id) }
                                 }
@@ -90,6 +95,7 @@ fun SourceScreen(vm: SourceViewModel, onBack: () -> Unit) {
                     }
                 }
             }
+            TopBar(stringResource(R.string.source_label), left = MaeveIcons.Back, leftLabel = stringResource(R.string.back), onLeft = onBack, eyebrow = "SOURCE")
         }
     }
 }

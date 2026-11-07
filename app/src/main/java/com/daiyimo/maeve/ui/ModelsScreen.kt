@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -30,7 +32,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -67,8 +69,8 @@ import com.daiyimo.maeve.settings.RoleChoice
 import com.daiyimo.maeve.ui.components.BarIconButton
 import com.daiyimo.maeve.ui.components.ButtonKind
 import com.daiyimo.maeve.ui.components.ButtonSize
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
@@ -85,12 +87,15 @@ import com.daiyimo.maeve.ui.components.StatusPill
 import com.daiyimo.maeve.ui.components.TileTone
 import com.daiyimo.maeve.ui.components.TopBar
 import com.daiyimo.maeve.ui.components.ValueTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.components.cardSurface
+import com.daiyimo.maeve.ui.components.glassSource
+import com.daiyimo.maeve.ui.theme.LocalGlassBackdrop
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.ui.theme.MaeveRadius
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaSize
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import com.daiyimo.maeve.voice.SpeechChoice
 import com.daiyimo.maeve.voice.SpeechOptions
 
@@ -100,15 +105,28 @@ fun ModelsScreen(store: ProviderStore, onBack: () -> Unit, onOpenSpeech: (() -> 
     ModelSetupScreen(store, onboarding = false, onBack = onBack, onDone = onBack, onOpenSpeech = onOpenSpeech, onOpenUsage = onOpenUsage)
 }
 
-/** 子页面共用的骨架:顶栏 + 可滚动内容。 */
+/** 子页面共用的骨架:顶栏 + 可滚动内容。顶栏是毛玻璃,内容从它底下滚过去。 */
 @Composable
 internal fun Page(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     PageBackground {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars).windowInsetsPadding(WindowInsets.ime)) {
-            TopBar(title, MikaIcons.Back, onBack, stringResource(R.string.back))
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+        val backdrop = LocalGlassBackdrop.current
+        val statusBar = WindowInsets.statusBars.asPaddingValues()
+        Box(Modifier.fillMaxSize()) {
+            Column(
+                Modifier.fillMaxSize()
+                    .glassSource(backdrop)
+                    .verticalScroll(rememberScrollState())
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .windowInsetsPadding(WindowInsets.ime)
+                    .padding(start = 16.dp, end = 16.dp)
+                    .padding(
+                        top = statusBar.calculateTopPadding() + MaeveSize.TopBar + 8.dp,
+                        bottom = 24.dp,
+                    ),
+            ) {
                 content()
             }
+            TopBar(title, MaeveIcons.Back, onBack, stringResource(R.string.back), eyebrow = "MODELS")
         }
     }
 }
@@ -116,7 +134,7 @@ internal fun Page(title: String, onBack: () -> Unit, content: @Composable () -> 
 /** 用途卡:大图标块、「名字 · 做什么」、选了什么(模型名用等宽字)、说明。 */
 @Composable
 internal fun RoleCard(icon: ImageVector, label: String, line: ModelsCopy.RoleLine, first: Boolean = false, tag: String, onClick: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Column {
         if (!first) Hairline(start = 0.dp)
         Row(
@@ -135,7 +153,7 @@ internal fun RoleCard(icon: ImageVector, label: String, line: ModelsCopy.RoleLin
                 )
                 if (line.subtitle.isNotEmpty()) {
                     Text(
-                        line.subtitle, Modifier.padding(top = 1.dp), style = MikaType.Caption,
+                        line.subtitle, Modifier.padding(top = 1.dp), style = MaeveType.Caption,
                         color = if (line.subtitleOk) c.ok else c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
                 }
@@ -150,20 +168,20 @@ private val RoleTileShape = RoundedCornerShape(12.dp)
 /** 服务商一行:左边是名字首字的图标块;[warning] 是要提醒的一句(用提醒色另起一行)。 */
 @Composable
 internal fun ProviderRow(p: Provider, line: String, first: Boolean, warning: String? = null, onClick: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Column {
         if (!first) Hairline()
         Row(
             Modifier.fillMaxWidth().clickable(onClick = onClick).testTag("provider-${p.name}").padding(horizontal = 16.dp).padding(vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Box(Modifier.size(MikaSize.Tile).background(c.neutralSoft, MikaShapes.Tile), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(MaeveSize.Tile).background(c.neutralSoft, MaeveShapes.Tile), contentAlignment = Alignment.Center) {
                 Text(p.name.take(1).uppercase(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.ink)
             }
             Column(Modifier.weight(1f)) {
-                Text(ModelsCopy.providerName(p), style = MikaType.Body, color = c.ink, maxLines = 1)
-                Text(line, Modifier.padding(top = 2.dp), style = MikaType.Caption, color = c.ink3)
-                warning?.let { Text(it, Modifier.padding(top = 2.dp).testTag("provider-warning-${p.name}"), style = MikaType.Caption, color = c.warn) }
+                Text(ModelsCopy.providerName(p), style = MaeveType.Body, color = c.ink, maxLines = 1)
+                Text(line, Modifier.padding(top = 2.dp), style = MaeveType.Caption, color = c.ink3)
+                warning?.let { Text(it, Modifier.padding(top = 2.dp).testTag("provider-warning-${p.name}"), style = MaeveType.Caption, color = c.warn) }
             }
             RowChevron()
         }
@@ -195,7 +213,7 @@ internal fun fixedChoices(role: ModelRole): List<RoleChoice> = when (role) {
  */
 @Composable
 fun RolePickerContent(ui: ModelSetupUi, role: ModelRole, actions: RolePickerActions, onBack: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var filter by rememberSaveable { mutableStateOf("") }
     val groups = ui.providers.map { it to ui.options(it) }
     val total = groups.sumOf { it.second.size }
@@ -250,7 +268,7 @@ fun RolePickerContent(ui: ModelSetupUi, role: ModelRole, actions: RolePickerActi
         if (q.isNotEmpty() && !anyShown) FooterNote(ModelsCopy.NO_MATCH)
         if (ui.providers.isEmpty()) FooterNote(ModelsCopy.ROLE_EMPTY)
         GroupCard(Modifier.padding(top = 8.dp)) {
-            ListRow(MikaIcons.Plus, ModelsCopy.ADD_PROVIDER, first = true, titleColor = c.accent, tone = TileTone.Accent, onClick = actions.addProvider)
+            ListRow(MaeveIcons.Plus, ModelsCopy.ADD_PROVIDER, first = true, titleColor = c.accent, tone = TileTone.Accent, onClick = actions.addProvider)
         }
         FooterNote(ModelsCopy.PICKER_NOTE)
     }
@@ -266,7 +284,7 @@ internal fun ManualModel(p: Provider, state: ListState?, first: Boolean, onUse: 
     InputRow(ModelsCopy.MODEL_NAME, name, { name = it }, example, first = first, modifier = Modifier.testTag("manual-model")) {
         Text(
             if (running) ModelSetupCopy.TESTING else ModelsCopy.USE, Modifier.clickable(enabled = enabled) { onUse(name.trim()) }.testTag("manual-model-use"),
-            fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (enabled) MikaTheme.colors.accent else MikaTheme.colors.ink3,
+            fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (enabled) MaeveTheme.colors.accent else MaeveTheme.colors.ink3,
         )
     }
 }
@@ -304,7 +322,7 @@ class ProviderDetailActions(
  */
 @Composable
 fun ProviderDetailContent(ui: ModelSetupUi, p: Provider, actions: ProviderDetailActions, onBack: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var changingKey by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var using by remember { mutableStateOf<ModelOption?>(null) }
@@ -337,7 +355,7 @@ fun ProviderDetailContent(ui: ModelSetupUi, p: Provider, actions: ProviderDetail
 
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             GroupLabel(ModelsCopy.MODELS, Modifier.weight(1f))
-            BarIconButton(MikaIcons.Refresh, ModelsCopy.REFRESH, actions.refresh, enabled = state != ListState.Running)
+            BarIconButton(MaeveIcons.Refresh, ModelsCopy.REFRESH, actions.refresh, enabled = state != ListState.Running)
         }
         if (list.isNotEmpty()) {
             GroupCard {
@@ -359,7 +377,7 @@ fun ProviderDetailContent(ui: ModelSetupUi, p: Provider, actions: ProviderDetail
         // 有模型在用时可以就地重测一次;没有的在用的,先刷新列表或去选一个
         if (unverified.isNotEmpty()) {
             val retest = ui.retest[p.id]
-            MikaButton(
+            MaeveButton(
                 if (retest == ListState.Running) ModelSetupCopy.TESTING else ModelsCopy.RETEST, actions.retest,
                 Modifier.fillMaxWidth().padding(bottom = 8.dp).testTag("provider-retest"),
                 kind = ButtonKind.Secondary, size = ButtonSize.Medium, enabled = retest != ListState.Running,
@@ -373,23 +391,23 @@ fun ProviderDetailContent(ui: ModelSetupUi, p: Provider, actions: ProviderDetail
         }
 
         GroupCard(Modifier.padding(top = 8.dp)) {
-            ListRow(MikaIcons.Trash, ModelsCopy.DELETE, titleColor = c.bad, tone = TileTone.Bad, first = true, onClick = { confirmDelete = true })
+            ListRow(MaeveIcons.Trash, ModelsCopy.DELETE, titleColor = c.bad, tone = TileTone.Bad, first = true, onClick = { confirmDelete = true })
         }
     }
 
     using?.let { o -> UseAsSheet(ui, p, o.id, onUse = { role -> actions.use(role, o.id) }, onVision = { actions.setVision(o.id, it) }, onDismiss = { using = null }) }
     if (changingKey) {
         var key by remember { mutableStateOf("") }
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { changingKey = false },
             title = { Text(ModelsCopy.CHANGE_KEY) },
             text = {
                 KeyboardDismissArea {
-                    Box(Modifier.fillMaxWidth().keepsKeyboard().background(c.fill, MikaShapes.Button).padding(12.dp)) {
-                        if (key.isEmpty()) Text(ModelsCopy.NEW_KEY_HINT, style = MikaType.Body, color = c.ink3)
+                    Box(Modifier.fillMaxWidth().keepsKeyboard().cardSurface(c, MaeveShapes.Button).padding(12.dp)) {
+                        if (key.isEmpty()) Text(ModelsCopy.NEW_KEY_HINT, style = MaeveType.Body, color = c.ink3)
                         BasicTextField(
                             key, { key = it }, Modifier.fillMaxWidth().testTag("new-key"), singleLine = true,
-                            textStyle = MikaType.Body.copy(color = c.ink), cursorBrush = SolidColor(c.accent),
+                            textStyle = MaeveType.Body.copy(color = c.ink), cursorBrush = SolidColor(c.accent),
                             visualTransformation = PasswordVisualTransformation(),
                         )
                     }
@@ -405,7 +423,7 @@ fun ProviderDetailContent(ui: ModelSetupUi, p: Provider, actions: ProviderDetail
         )
     }
     if (confirmDelete) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text(ModelsCopy.deleteTitle(ModelsCopy.providerName(p))) },
             text = { Text(ModelsCopy.deleteBody(ui.rolesOf(p))) },
@@ -426,7 +444,7 @@ fun ProviderDetailContent(ui: ModelSetupUi, p: Provider, actions: ProviderDetail
  */
 @Composable
 private fun ChatGptConnection(ui: ModelSetupUi, state: ListState?, actions: ProviderDetailActions) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val account = ui.chatGptAccount
     val signedIn = account?.signedIn == true
     GroupCard {
@@ -460,7 +478,7 @@ private fun ChatGptConnection(ui: ModelSetupUi, state: ListState?, actions: Prov
  */
 @Composable
 private fun AccountConnection(ui: ModelSetupUi, p: Provider, state: ListState?, actions: ProviderDetailActions) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val kind = if (p.kind == ProviderConfig.Kind.Xai) SignInKind.Xai else SignInKind.OpenRouter
     val account = if (kind == SignInKind.Xai) ui.xaiAccount else ui.openRouterAccount
     val signedIn = account?.signedIn == true
@@ -500,7 +518,7 @@ private fun AccountConnection(ui: ModelSetupUi, p: Provider, state: ListState?, 
  */
 @Composable
 fun AllModelsContent(ui: ModelSetupUi, p: Provider, actions: ProviderDetailActions, onBack: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var filter by rememberSaveable { mutableStateOf("") }
     var using by remember { mutableStateOf<ModelOption?>(null) }
     val state = ui.listing[p.id]
@@ -508,31 +526,35 @@ fun AllModelsContent(ui: ModelSetupUi, p: Provider, actions: ProviderDetailActio
     val q = filter.trim()
     val shown = all.filter { q.isEmpty() || it.id.contains(q, ignoreCase = true) }
     PageBackground {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars).windowInsetsPadding(WindowInsets.ime)) {
-            TopBar(ModelsCopy.allModelsTitle(ModelsCopy.providerName(p)), MikaIcons.Back, onBack, stringResource(R.string.back), right = {
-                BarIconButton(MikaIcons.Refresh, ModelsCopy.REFRESH, actions.refresh, enabled = state != ListState.Running)
-            })
-            Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 10.dp)) {
-                SearchField(filter, { filter = it }, ModelsCopy.FILTER_HINT, Modifier.testTag("all-models-filter"))
-            }
-            when (state) {
-                ListState.Running -> FooterNote(ModelsCopy.LISTING)
-                is ListState.Failed -> FooterNote(ModelSetupCopy.failed(state.message), color = c.bad)
-                else -> Unit
-            }
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
-                itemsIndexed(shown, key = { _, o -> o.id }) { i, o ->
-                    Box(Modifier.fillMaxWidth().clip(rowShape(i, shown.size)).background(c.surface)) {
-                        ModelRow(o, ui.rolesOf(p.id, o.id), first = i == 0) { using = o }
+        val backdrop = LocalGlassBackdrop.current
+        val statusBar = WindowInsets.statusBars.asPaddingValues()
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars).windowInsetsPadding(WindowInsets.ime)) {
+                Box(Modifier.padding(start = 16.dp, end = 16.dp, top = statusBar.calculateTopPadding() + MaeveSize.TopBar + 4.dp, bottom = 10.dp)) {
+                    SearchField(filter, { filter = it }, ModelsCopy.FILTER_HINT, Modifier.testTag("all-models-filter"))
+                }
+                when (state) {
+                    ListState.Running -> FooterNote(ModelsCopy.LISTING)
+                    is ListState.Failed -> FooterNote(ModelSetupCopy.failed(state.message), color = c.bad)
+                    else -> Unit
+                }
+                LazyColumn(Modifier.weight(1f).fillMaxWidth().glassSource(backdrop), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)) {
+                    itemsIndexed(shown, key = { _, o -> o.id }) { i, o ->
+                        Box(Modifier.fillMaxWidth().cardSurface(c, rowShape(i, shown.size))) {
+                            ModelRow(o, ui.rolesOf(p.id, o.id), first = i == 0) { using = o }
+                        }
+                    }
+                    item {
+                        FooterNote(
+                            if (q.isNotEmpty() && shown.isEmpty()) ModelsCopy.NO_MATCH else ModelsCopy.allModelsNote(all.size),
+                            Modifier.padding(top = 10.dp),
+                        )
                     }
                 }
-                item {
-                    FooterNote(
-                        if (q.isNotEmpty() && shown.isEmpty()) ModelsCopy.NO_MATCH else ModelsCopy.allModelsNote(all.size),
-                        Modifier.padding(top = 10.dp),
-                    )
-                }
             }
+            TopBar(ModelsCopy.allModelsTitle(ModelsCopy.providerName(p)), MaeveIcons.Back, onBack, stringResource(R.string.back), eyebrow = "MODELS", right = {
+                BarIconButton(MaeveIcons.Refresh, ModelsCopy.REFRESH, actions.refresh, enabled = state != ListState.Running)
+            })
         }
     }
     using?.let { o -> UseAsSheet(ui, p, o.id, onUse = { role -> actions.use(role, o.id) }, onVision = { actions.setVision(o.id, it) }, onDismiss = { using = null }) }
@@ -555,7 +577,7 @@ private fun ModelRow(o: ModelOption, roles: List<ModelRole>, first: Boolean, onC
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                Text(o.id, style = ModelIdStyle, color = MikaTheme.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(o.id, style = ModelIdStyle, color = MaeveTheme.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Box(Modifier.padding(top = 4.dp)) { Tags(o, accent = false) }
             }
             roles.forEach { StatusPill(ModelsCopy.roleName(it), PillTone.Accent) }
@@ -571,11 +593,11 @@ private fun ModelRow(o: ModelOption, roles: List<ModelRole>, first: Boolean, onC
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun UseAsSheet(ui: ModelSetupUi, p: Provider, model: String, onUse: (ModelRole) -> Unit, onVision: (Boolean) -> Unit, onDismiss: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = c.surface, shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(bottom = 8.dp).testTag("use-as")) {
             Text(model, Modifier.padding(horizontal = 16.dp), style = ModelIdStyle, color = c.ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(ModelsCopy.useAsSubtitle(ModelsCopy.providerName(p)), Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 6.dp), style = MikaType.Caption, color = c.ink3)
+            Text(ModelsCopy.useAsSubtitle(ModelsCopy.providerName(p)), Modifier.padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 6.dp), style = MaeveType.Caption, color = c.ink3)
             ModelRole.entries.forEachIndexed { i, role ->
                 val on = ui.picked(role, p.id, model)
                 RadioRow(
@@ -588,7 +610,7 @@ private fun UseAsSheet(ui: ModelSetupUi, p: Provider, model: String, onUse: (Mod
                 val usedForVision = ModelRole.Vision in ui.rolesOf(p.id, model)
                 val sees = ModelOptions.seesImages(o.capabilities.vision, o.visionByUser, usedForVision)
                 ListRow(null, ModelsCopy.SEES_IMAGES, ModelsCopy.seesNote(o, usedForVision)) {
-                    MikaSwitch(sees, onVision, Modifier.testTag("model-sees-images"))
+                    MaeveSwitch(sees, onVision, Modifier.testTag("model-sees-images"))
                 }
             }
             ListRow(null, ModelSetupCopy.CANCEL, titleColor = c.ink2, onClick = onDismiss)
@@ -807,7 +829,7 @@ object ModelsCopy {
 
     /** 第四个用途「语音转文字」不在 [ModelRole] 里(它不是对话模型),卡片的名字、图标、右边两行在这里。 */
     val SPEECH_LABEL: String get() = "${tr(R.string.role_speech)} · ${tr(R.string.role_speech_what)}"
-    val SPEECH_ICON: ImageVector get() = MikaIcons.Mic
+    val SPEECH_ICON: ImageVector get() = MaeveIcons.Mic
 
     fun speechLine(ui: ModelSetupUi): RoleLine {
         val s = SpeechOptions.summary(ui.speech, ui.systemSpeech, ui.providers)
@@ -816,9 +838,9 @@ object ModelsCopy {
     }
 
     fun roleIcon(role: ModelRole): ImageVector = when (role) {
-        ModelRole.Main -> MikaIcons.Spark
-        ModelRole.Vision -> MikaIcons.Eye
-        ModelRole.Light -> MikaIcons.Leaf
+        ModelRole.Main -> MaeveIcons.Spark
+        ModelRole.Vision -> MaeveIcons.Eye
+        ModelRole.Light -> MaeveIcons.Leaf
     }
 
     /** 用途卡上写什么:选了模型写模型名和服务商;「用主模型」写主模型是谁;「不用」写只靠文字读屏。 */

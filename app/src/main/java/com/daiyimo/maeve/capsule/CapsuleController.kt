@@ -30,7 +30,7 @@ import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.chat.ConversationStore
 import java.util.UUID
 import kotlinx.coroutines.withContext
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.cap.phone.a11y.MainScreenCapture
 import com.daiyimo.maeve.cap.phone.a11y.OverlayDrag
 import com.daiyimo.maeve.cap.phone.a11y.OverlayHold
@@ -52,7 +52,6 @@ import com.daiyimo.maeve.task.TaskService.Companion.isActive
 import com.daiyimo.maeve.takeover.TakeoverQueue
 import com.daiyimo.maeve.ui.ChatCopy
 import com.daiyimo.maeve.ui.VoiceCopy
-import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.voice.HoldToTalk
 import com.daiyimo.maeve.voice.SpeechChoice
 import com.daiyimo.maeve.voice.SpeechFailure
@@ -62,7 +61,7 @@ import com.daiyimo.maeve.ui.ExchangeStatus
 import com.daiyimo.maeve.ui.ScreenCopy
 import com.daiyimo.maeve.ui.screenThumbnail
 import com.daiyimo.maeve.ui.ToolLabels
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import com.daiyimo.maeve.ui.theme.animationsOff
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -86,7 +85,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 悬浮胶囊的接线:把各任务的状态([TaskCenterState.runs] 和每个 [TaskRun] 的状态、接管阶段、活动)、开关、
- * Mika 界面在不在前台([AppForeground])、屏幕亮没亮([DeviceStateWatcher])、无障碍服务在不在交给 [CapsuleModel],
+ * Maeve 界面在不在前台([AppForeground])、屏幕亮没亮([DeviceStateWatcher])、无障碍服务在不在交给 [CapsuleModel],
  * 按它的结果经 [com.daiyimo.maeve.cap.phone.a11y.OverlayHost] 加上、挪动或拆掉浮层窗口。
  * 点一颗或胶囊展开卡片([CapsuleCards] 定内容,只说一件事),点卡片外面、收起按钮或返回收回成一颗(看过的不再展开,模型记着);卡片和胶囊上的按钮都转成任务服务现有的动作。
  * 一颗和卡片各在一个窗口里、各待各的位置(见 [window]):展开时一颗那个窗口空出来,卡片在自己的窗口里从那一颗的方位缩放、淡入,
@@ -116,7 +115,7 @@ class CapsuleController(
     private val model = CapsuleModel(::reasonLabel)
     private val flags = FeatureFlags.get(context)
     /** 任务结束后留在后台运行的那一页(没有任务时胶囊说它,卡片里能看画面、关掉)。 */
-    private val keeper get() = (context.applicationContext as MikaApp).pageKeeper
+    private val keeper get() = (context.applicationContext as MaeveApp).pageKeeper
     private val toolLabels by lazy { ToolLabels(knownTools()) }
     private val appLabels = HashMap<String, String>()
     /** 各任务这一问一答此刻的样子,和对话页同一套推法(步骤、要你做的事、结果)。 */
@@ -154,7 +153,7 @@ class CapsuleController(
     private var idle: CardView.Chat? = null
 
     /** 长按说话;[talkIdle] 是空闲图标上开始说时去读的最近那段对话(说完发给它)。 */
-    private val talk = CapsuleTalk(context, { (context.applicationContext as MikaApp).voice }, scope, ::spoken)
+    private val talk = CapsuleTalk(context, { (context.applicationContext as MaeveApp).voice }, scope, ::spoken)
     private var talkIdle: Deferred<CardView.Chat>? = null
     /** 胶囊上临时闪的一句(已发出、没听清、用不了);到时自己消失。 */
     private var note by mutableStateOf<CapsuleNote?>(null)
@@ -278,7 +277,7 @@ class CapsuleController(
     }
 
     private data class Snapshot(
-        val runs: List<CapsuleRun>, val mode: CapsuleMode, val mikaInForeground: Boolean, val locked: Boolean,
+        val runs: List<CapsuleRun>, val mode: CapsuleMode, val maeveInForeground: Boolean, val locked: Boolean,
         val service: ScreenAccessibility?,
         /** 任务结束后留在后台运行的那一页。 */
         val kept: KeptPage? = null,
@@ -333,7 +332,7 @@ class CapsuleController(
             windowOn = null
         }
         val inputs = CapsuleInputs(
-            s.runs, s.mode, s.mikaInForeground, screenInteractive = !s.locked,
+            s.runs, s.mode, s.maeveInForeground, screenInteractive = !s.locked,
             serviceAvailable = service != null && service !== failedOn, cardOpen = expanded, kept = s.kept,
         )
         val shown = model.update(inputs, System.currentTimeMillis()) as? CapsuleView.Shown
@@ -491,7 +490,7 @@ class CapsuleController(
 
     /**
      * 发出输入框里的话,和在对话页里发的走同一条路(都记进那个对话):在跑、等条件时插话给它,
-     * Mika 问你时作为回答,办完后在同一个对话里接着说,空闲时接着最近的对话或开新对话;后两种之后卡片跟着那个对话的任务看回答。
+     * Maeve 问你时作为回答,办完后在同一个对话里接着说,空闲时接着最近的对话或开新对话;后两种之后卡片跟着那个对话的任务看回答。
      */
     private fun send() {
         val text = inputUi.draft.trim()
@@ -525,7 +524,7 @@ class CapsuleController(
      * 再写成带屏幕的一句话([UserScreenMessage])照常发出;存不下就不发。
      */
     private fun deliver(c: CardView, kind: CardInputKind, shot: CapturedScreen, words: String) {
-        val access = (context.applicationContext as MikaApp).appAccess.current()
+        val access = (context.applicationContext as MaeveApp).appAccess.current()
         if (shot.sourcePackages.isEmpty() || shot.sourcePackages.any { !access.canShare(it) }) {
             inputUi = inputUi.copy(screen = null)
             android.widget.Toast.makeText(context, tr(R.string.appaccess_share_expired), android.widget.Toast.LENGTH_SHORT).show()
@@ -533,9 +532,9 @@ class CapsuleController(
         }
         val conversationId = CapsuleCards.conversationOf(c) ?: ConversationStore.shared(context).newConversation()
         scope.launch {
-            val saved = runCatching { (context.applicationContext as MikaApp).userScreens.save(conversationId, shot) }
+            val saved = runCatching { (context.applicationContext as MaeveApp).userScreens.save(conversationId, shot) }
                 .onFailure { Log.w(TAG, "could not save the screen", it) }.getOrNull() ?: return@launch
-            val latest = (context.applicationContext as MikaApp).appAccess.current()
+            val latest = (context.applicationContext as MaeveApp).appAccess.current()
             if (shot.sourcePackages.any { !latest.canShare(it) }) {
                 inputUi = inputUi.copy(screen = null)
                 android.widget.Toast.makeText(context, tr(R.string.appaccess_share_expired), android.widget.Toast.LENGTH_SHORT).show()
@@ -583,7 +582,7 @@ class CapsuleController(
 
     /**
      * 截下用户此刻的屏幕:输入框开着先收起(等输入法下去),浮层藏起来、真的从屏幕上下去了再截,截完马上出来、一颗上闪一下;
-     * 再在后台整理屏上的字。前台是 Mika 自己、截不到时为 null。
+     * 再在后台整理屏上的字。前台是 Maeve 自己、截不到时为 null。
      */
     private suspend fun captureScreen(): CapturedScreen? {
         val service = windowOn ?: return null
@@ -597,7 +596,7 @@ class CapsuleController(
             }
             // 空着的那个窗口(展开时一颗那个、收起时卡片那个)不画东西,不用等它
             suspend fun <T> OverlayWindow.hidden(block: suspend () -> T): T = if (height > 0) hiddenWhile(block) else block()
-            val store = (context.applicationContext as MikaApp).appAccess
+            val store = (context.applicationContext as MaeveApp).appAccess
             val sources = MainScreenCapture.sourcePackages(service) ?: return null
             if (context.packageName in sources || !store.current().available) return null
             for (pkg in sources) {
@@ -987,7 +986,7 @@ class CapsuleController(
 
     /** 此刻能不能在胶囊上说话:有面板窗口、不是「你来处理」那一条、语音输入没设成不用。 */
     private fun canTalk(): Boolean = panelWindow != null && !isBar() &&
-        (context.applicationContext as MikaApp).speech.choice.value != SpeechChoice.Off
+        (context.applicationContext as MaeveApp).speech.choice.value != SpeechChoice.Off
 
     /** 一颗那个窗口交来的长按:开始说、手指移动算落点、松开按落点收尾。 */
     private val talkHold = object : OverlayHold {
@@ -1015,7 +1014,7 @@ class CapsuleController(
 
     /**
      * 开始说:先等着的单击、双击不算了。说给谁按单击会展开的那张卡片(空闲图标上先去读最近那段对话,读到后面板顶上那句跟着换)。
-     * 没有录音权限(胶囊弹不了权限框)、语音输入用不了时不录,胶囊上说一句,点一下打开 Mika。
+     * 没有录音权限(胶囊弹不了权限框)、语音输入用不了时不录,胶囊上说一句,点一下打开 Maeve。
      */
     private fun beginTalk(byTouch: Boolean) {
         val v = view ?: return
@@ -1038,11 +1037,11 @@ class CapsuleController(
             }
             CapsuleTalk.Begin.NoPermission -> {
                 loading?.cancel()
-                showNote(tr(R.string.capsule_voice_need_mic), CapsuleKind.Failed, opensMika = true, NOTE_LONG_MS)
+                showNote(tr(R.string.capsule_voice_need_mic), CapsuleKind.Failed, opensMaeve = true, NOTE_LONG_MS)
             }
             is CapsuleTalk.Begin.Unavailable -> {
                 loading?.cancel()
-                showNote(tr(R.string.capsule_voice_not_ready), CapsuleKind.Failed, opensMika = true, NOTE_LONG_MS)
+                showNote(tr(R.string.capsule_voice_not_ready), CapsuleKind.Failed, opensMaeve = true, NOTE_LONG_MS)
             }
         }
     }
@@ -1059,10 +1058,10 @@ class CapsuleController(
             is HoldToTalk.State.Problem -> {
                 idleJob?.cancel()
                 when (val why = state.why) {
-                    null -> showNote(VoiceCopy.NO_MATCH, CapsuleKind.Failed, opensMika = false, NOTE_SHORT_MS)
-                    SpeechFailure.NoPermission -> showNote(tr(R.string.capsule_voice_need_mic), CapsuleKind.Failed, opensMika = true, NOTE_LONG_MS)
-                    is SpeechFailure.Unavailable -> showNote(tr(R.string.capsule_voice_not_ready), CapsuleKind.Failed, opensMika = true, NOTE_LONG_MS)
-                    else -> showNote(VoiceCopy.failure(why), CapsuleKind.Failed, opensMika = false, NOTE_LONG_MS)
+                    null -> showNote(VoiceCopy.NO_MATCH, CapsuleKind.Failed, opensMaeve = false, NOTE_SHORT_MS)
+                    SpeechFailure.NoPermission -> showNote(tr(R.string.capsule_voice_need_mic), CapsuleKind.Failed, opensMaeve = true, NOTE_LONG_MS)
+                    is SpeechFailure.Unavailable -> showNote(tr(R.string.capsule_voice_not_ready), CapsuleKind.Failed, opensMaeve = true, NOTE_LONG_MS)
+                    else -> showNote(VoiceCopy.failure(why), CapsuleKind.Failed, opensMaeve = false, NOTE_LONG_MS)
                 }
             }
             else -> idleJob?.cancel()
@@ -1083,7 +1082,7 @@ class CapsuleController(
             return
         }
         submit(target, kind, text, CapsuleCards.conversationOf(target))
-        showNote(CapsuleVoice.sent(kind, text), CapsuleKind.Done, opensMika = false, NOTE_SENT_MS)
+        showNote(CapsuleVoice.sent(kind, text), CapsuleKind.Done, opensMaeve = false, NOTE_SENT_MS)
         refresh()
     }
 
@@ -1095,9 +1094,9 @@ class CapsuleController(
         if (card?.let(CapsuleCards::input) != null) openInput()
     }
 
-    private fun showNote(text: String, kind: CapsuleKind, opensMika: Boolean, ms: Long) {
+    private fun showNote(text: String, kind: CapsuleKind, opensMaeve: Boolean, ms: Long) {
         resetTaps()
-        note = CapsuleNote(text, kind, opensMika, ++noteCount)
+        note = CapsuleNote(text, kind, opensMaeve, ++noteCount)
         wake()
         noteJob?.cancel()
         noteJob = scope.launch {
@@ -1111,13 +1110,13 @@ class CapsuleController(
         note = null
     }
 
-    /** 胶囊上闪着一句时点它:那句说要打开 Mika 就打开,否则只收掉那句;这一下不参与单击或双击计时。 */
+    /** 胶囊上闪着一句时点它:那句说要打开 Maeve 就打开,否则只收掉那句;这一下不参与单击或双击计时。 */
     private fun tapCapsule() {
         val n = note
         clearNote()
         if (n != null) {
             resetTaps()
-            if (n.opensMika) open(null)
+            if (n.opensMaeve) open(null)
             return
         }
         val touch = capsuleTouch
@@ -1229,7 +1228,7 @@ class CapsuleController(
         override fun answer(runKey: String, text: String) = TaskService.answer(context, text, runKey)
         override fun approve(runKey: String, requestKey: Int) = TaskService.approve(context, requestKey, runKey)
         override fun decline(runKey: String, requestKey: Int) = TaskService.decline(context, requestKey, runKey)
-        override fun openMika(conversationId: String) {
+        override fun openMaeve(conversationId: String) {
             open(conversationId)
             collapse()
         }
@@ -1260,7 +1259,7 @@ class CapsuleController(
     @Composable
     private fun CardOverlay() {
         val c = card ?: return
-        MikaTheme(reduceMotion = animationsOff(context)) {
+        MaeveTheme(reduceMotion = animationsOff(context)) {
             val height = if (cardHeight > 0) with(LocalDensity.current) { cardHeight.toDp() } else Dp.Unspecified
             OverlayMotion(open = !closing, origin = ::cardOrigin, onClosed = ::closed, onOpened = { cardOut = true }) {
                 CapsuleCard(c, preview, zoomed, actions, { elapsed(it) }, input = inputUi, thread = thread, height = height, onHandle = ::onHandle)
@@ -1275,7 +1274,7 @@ class CapsuleController(
         val a = windowOn?.overlays()?.area()
         val top = placedY + room()
         val bottom = placedY + (window?.height ?: 0) - room()
-        MikaTheme(reduceMotion = animationsOff(context)) {
+        MaeveTheme(reduceMotion = animationsOff(context)) {
             CapsuleVoicePanel(talk, top, bottom.coerceAtLeast(top), a?.insetTop ?: 0, a?.insetBottom ?: 0)
         }
     }
@@ -1289,7 +1288,7 @@ class CapsuleController(
         val v = if (n == null || shown.kind == CapsuleKind.HandedOver) shown
             else shown.copy(kind = n.kind, text = n.text, detail = null, count = 0, needCount = 0, pill = true, widthEpoch = -n.id)
         val talking = talk.active && !talk.released
-        MikaTheme(reduceMotion = animationsOff(context)) {
+        MaeveTheme(reduceMotion = animationsOff(context)) {
             OverlayMotion(open = true, origin = { TransformOrigin(if (dock.side == DockSide.Right) 1f else 0f, 0.5f) }, onClosed = {}) {
                 CapsuleContent(
                     v,
@@ -1300,7 +1299,7 @@ class CapsuleController(
                     onHandBack = { v.runKey?.let { TaskService.handBack(context, runKey = it) } },
                     side = dock.side,
                     tapLabel = when {
-                        n?.opensMika == true -> tr(R.string.capsule_voice_open)
+                        n?.opensMaeve == true -> tr(R.string.capsule_voice_open)
                         v.kind == CapsuleKind.Idle -> CapsuleCopy.TALK
                         else -> CapsuleCopy.EXPAND
                     },
@@ -1327,10 +1326,10 @@ class CapsuleController(
         return ChatCopy.clock(now - startedAt)
     }
 
-    /** 回到 Mika 的那个对话(和点通知同一个入口)。 */
+    /** 回到 Maeve 的那个对话(和点通知同一个入口)。 */
     private fun open(conversationId: String?) {
         runCatching { context.startActivity(TaskService.openAppIntent(context, conversationId)) }
-            .onFailure { Log.w(TAG, "could not open Mika from capsule", it) }
+            .onFailure { Log.w(TAG, "could not open Maeve from capsule", it) }
     }
 
     private fun appLabel(pkg: String): String = appLabels.getOrPut(pkg) { ConfirmationNotifier.appLabel(context, pkg) }
@@ -1347,7 +1346,7 @@ class CapsuleController(
     private fun dp(v: Int) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), context.resources.displayMetrics).toInt()
 
     private companion object {
-        const val TAG = "MikaCapsule"
+        const val TAG = "MaeveCapsule"
         /** 看得见的胶囊离屏幕左右边、离状态栏和底部。 */
         const val EDGE_MARGIN_DP = 12
         const val TOP_GAP_DP = 8
@@ -1369,5 +1368,5 @@ class CapsuleController(
     }
 }
 
-/** 胶囊上临时闪的一句:[kind] 定前面的标记(办好了是勾、没办成是叹号);[opensMika] 时点它打开 Mika;[id] 每句不同(胶囊按它重新定宽)。 */
-private data class CapsuleNote(val text: String, val kind: CapsuleKind, val opensMika: Boolean, val id: Int)
+/** 胶囊上临时闪的一句:[kind] 定前面的标记(办好了是勾、没办成是叹号);[opensMaeve] 时点它打开 Maeve;[id] 每句不同(胶囊按它重新定宽)。 */
+private data class CapsuleNote(val text: String, val kind: CapsuleKind, val opensMaeve: Boolean, val id: Int)

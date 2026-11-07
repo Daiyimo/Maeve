@@ -13,7 +13,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import com.daiyimo.maeve.ui.theme.animationsOff
 import com.daiyimo.maeve.ui.theme.systemBarsFor
 
@@ -37,7 +37,7 @@ class FileViewerActivity : ComponentActivity() {
         setContent {
             val dark = com.daiyimo.maeve.ui.theme.appearanceDark()
             androidx.compose.runtime.LaunchedEffect(dark) { systemBarsFor(dark) }
-            MikaTheme(dark = dark, reduceMotion = animationsOff(this)) {
+            MaeveTheme(dark = dark, reduceMotion = animationsOff(this)) {
                 FileViewerScreen(uri, name, kind, onBack = ::finish)
             }
         }

@@ -29,19 +29,19 @@ import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.components.MikaCard
-import com.daiyimo.maeve.ui.components.MikaDialog
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.MaeveCard
+import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.PillTone
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.StateCard
 import com.daiyimo.maeve.ui.components.StatusPill
 import com.daiyimo.maeve.ui.components.TileTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import com.daiyimo.maeve.wechat.WechatConnectionState
 import com.daiyimo.maeve.wechat.WechatRuntime
 import kotlinx.coroutines.CancellationException
@@ -136,7 +136,7 @@ fun WechatSettingsScreen(runtime: WechatRuntime, onBack: () -> Unit) {
 
     DisposableEffect(Unit) { onDispose { loginJob?.cancel() } }
 
-    PageScaffold(stringResource(R.string.wechat_title), { cancelLogin(); onBack() }) {
+    PageScaffold(stringResource(R.string.wechat_title), { cancelLogin(); onBack() }, eyebrow = "WECHAT") {
         val status = when {
             loginContent != null -> Triple(
                 stringResource(R.string.wechat_status_waiting),
@@ -148,37 +148,37 @@ fun WechatSettingsScreen(runtime: WechatRuntime, onBack: () -> Unit) {
             )
             else -> wechatStateCopy(state, bound)
         }
-        StateCard(MikaIcons.Chats, status.first, status.second, status.third, Modifier.testTag("wechat-status"))
+        StateCard(MaeveIcons.Chats, status.first, status.second, status.third, Modifier.testTag("wechat-status"))
 
         GroupLabel(stringResource(R.string.wechat_how))
         GroupCard {
             Text(
                 stringResource(R.string.wechat_how_body), Modifier.padding(16.dp),
-                style = MikaType.Body, color = MikaTheme.colors.ink2,
+                style = MaeveType.Body, color = MaeveTheme.colors.ink2,
             )
         }
 
         if (!bound && loginContent == null) {
-            MikaButton(
+            MaeveButton(
                 stringResource(if (loginError == null) R.string.wechat_bind else R.string.wechat_bind_retry),
                 ::startLogin, Modifier.fillMaxWidth(), enabled = !loginBusy,
             )
         }
-        loginError?.let { FooterNote(it, color = MikaTheme.colors.bad) }
+        loginError?.let { FooterNote(it, color = MaeveTheme.colors.bad) }
 
         loginContent?.let { content ->
-            MikaCard(Modifier.padding(bottom = 12.dp).testTag("wechat-login")) {
+            MaeveCard(Modifier.padding(bottom = 12.dp).testTag("wechat-login")) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(stringResource(R.string.wechat_qr_title), style = MikaType.BodyStrong, color = MikaTheme.colors.ink)
+                    Text(stringResource(R.string.wechat_qr_title), style = MaeveType.BodyStrong, color = MaeveTheme.colors.ink)
                     QrCodeImage(
                         content, stringResource(R.string.wechat_qr_title),
                         Modifier.padding(vertical = 16.dp).size(240.dp).testTag("wechat-qr"),
                     )
                     Text(
-                        stringResource(R.string.wechat_qr_help), style = MikaType.Caption,
-                        color = MikaTheme.colors.ink2, textAlign = TextAlign.Center,
+                        stringResource(R.string.wechat_qr_help), style = MaeveType.Caption,
+                        color = MaeveTheme.colors.ink2, textAlign = TextAlign.Center,
                     )
-                    MikaButton(
+                    MaeveButton(
                         stringResource(R.string.cancel), ::cancelLogin, Modifier.fillMaxWidth().padding(top = 8.dp),
                         kind = ButtonKind.Text,
                     )
@@ -191,7 +191,7 @@ fun WechatSettingsScreen(runtime: WechatRuntime, onBack: () -> Unit) {
             GroupCard {
                 val receiving = state !is WechatConnectionState.Off && state !is WechatConnectionState.NeedsBinding
                 ListRow(
-                    MikaIcons.Message, stringResource(R.string.wechat_receive),
+                    MaeveIcons.Message, stringResource(R.string.wechat_receive),
                     stringResource(R.string.wechat_receive_sub), first = true,
                     onClick = if (actionBusy) null else ({
                         val target = !receiving
@@ -210,24 +210,24 @@ fun WechatSettingsScreen(runtime: WechatRuntime, onBack: () -> Unit) {
                         }
                     }),
                 ) {
-                    MikaSwitch(receiving, null, Modifier.testTag("wechat-enabled"), enabled = !actionBusy)
+                    MaeveSwitch(receiving, null, Modifier.testTag("wechat-enabled"), enabled = !actionBusy)
                 }
-                ListRow(MikaIcons.Chats, stringResource(R.string.wechat_bound_account)) {
+                ListRow(MaeveIcons.Chats, stringResource(R.string.wechat_bound_account)) {
                     RowValue(stringResource(R.string.wechat_current_account))
                 }
-                ListRow(MikaIcons.Shield, stringResource(R.string.wechat_message_scope)) {
+                ListRow(MaeveIcons.Shield, stringResource(R.string.wechat_message_scope)) {
                     RowValue(stringResource(R.string.wechat_owner_private))
                 }
             }
-            MikaButton(
+            MaeveButton(
                 stringResource(R.string.wechat_rebind), ::startLogin, Modifier.fillMaxWidth(),
                 kind = ButtonKind.Secondary, enabled = !loginBusy && !actionBusy,
             )
             TextButton({ confirmUnbind = true }, Modifier.fillMaxWidth(), enabled = !actionBusy && !loginBusy) {
-                Text(stringResource(R.string.wechat_unbind), color = MikaTheme.colors.bad)
+                Text(stringResource(R.string.wechat_unbind), color = MaeveTheme.colors.bad)
             }
         }
-        actionError?.let { FooterNote(it, color = MikaTheme.colors.bad) }
+        actionError?.let { FooterNote(it, color = MaeveTheme.colors.bad) }
 
         GroupLabel(stringResource(R.string.wechat_capabilities))
         GroupCard {
@@ -248,7 +248,7 @@ fun WechatSettingsScreen(runtime: WechatRuntime, onBack: () -> Unit) {
     }
 
     if (confirmUnbind) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { confirmUnbind = false },
             title = { Text(stringResource(R.string.wechat_unbind_title)) },
             text = { Text(stringResource(R.string.wechat_unbind_body)) },
@@ -269,7 +269,7 @@ fun WechatSettingsScreen(runtime: WechatRuntime, onBack: () -> Unit) {
                             actionBusy = false
                         }
                     }
-                }) { Text(stringResource(R.string.wechat_unbind), color = MikaTheme.colors.bad) }
+                }) { Text(stringResource(R.string.wechat_unbind), color = MaeveTheme.colors.bad) }
             },
             dismissButton = { TextButton({ confirmUnbind = false }) { Text(stringResource(R.string.cancel)) } },
         )

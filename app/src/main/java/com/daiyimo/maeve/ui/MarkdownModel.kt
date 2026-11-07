@@ -41,7 +41,7 @@ import org.commonmark.node.Text
 import org.commonmark.node.ThematicBreak
 import org.commonmark.parser.Parser
 import com.daiyimo.maeve.ui.theme.LightColors
-import com.daiyimo.maeve.ui.theme.MikaColors
+import com.daiyimo.maeve.ui.theme.MaeveColors
 
 /** 回答里的 Markdown 解析成的显示模型:块级结构 + 带样式的行内文字。纯数据,不依赖界面。 */
 sealed interface MdBlock {
@@ -64,7 +64,7 @@ object MarkdownModel {
     /** 行内代码和链接的样式;颜色跟着深浅色,由显示的地方按当前配色给。 */
     class Styles(val code: SpanStyle, val link: TextLinkStyles) {
         companion object {
-            fun of(c: MikaColors) = Styles(
+            fun of(c: MaeveColors) = Styles(
                 code = SpanStyle(fontFamily = FontFamily.Monospace, background = c.fill),
                 link = TextLinkStyles(SpanStyle(color = c.accent)),
             )

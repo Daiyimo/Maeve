@@ -26,8 +26,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.daiyimo.maeve.ui.theme.MaeveMotion
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /**
  * 危险动作的长按确认:1500 ms 环形进度,按下一次 Tick,完成一次 Heavy,取消不发任何反馈。
@@ -44,8 +44,8 @@ fun HoldToConfirm(
     enabled: Boolean = true,
     durationMs: Int = MaeveMotion.HoldToConfirmMs,
 ) {
-    val c = MikaTheme.colors
-    val haptics = MikaTheme.haptics
+    val c = MaeveTheme.colors
+    val haptics = MaeveTheme.haptics
     var holding by remember { mutableStateOf(false) }
     val progress by animateFloatAsState(
         targetValue = if (holding) 1f else 0f,
@@ -92,7 +92,7 @@ fun HoldToConfirm(
         }
         Text(
             label, Modifier.padding(horizontal = 16.dp),
-            style = MikaType.Hint, color = c.ink2, textAlign = TextAlign.Center,
+            style = MaeveType.Hint, color = c.ink2, textAlign = TextAlign.Center,
         )
     }
 }

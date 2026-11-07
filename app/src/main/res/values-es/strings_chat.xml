@@ -5,7 +5,9 @@
     <string name="chat_greeting_afternoon">Buenas tardes</string>
     <string name="chat_greeting_evening">Buenas noches</string>
     <string name="chat_greeting_night">Despierto hasta tarde</string>
-    <string name="chat_empty_prompt">¿Qué debería hacer Maeve?</string>
+    <string name="chat_eyebrow_waiting">Te escucho</string>
+    <string name="chat_eyebrow_round">Ronda %1$s</string>
+    <string name="chat_empty_prompt">Dime qué hacer. Del resto me encargo yo.</string>
     <string name="chat_example_group_summary">Abre WhatsApp y resume los mensajes no leídos de hoy, destacando todo lo que necesite mi respuesta.</string>
     <string name="chat_example_jobs">Abre LinkedIn, busca cinco empleos remotos de gestor de producto de IA y compara sus requisitos.</string>
     <string name="chat_example_alarms">Pon alarmas mañana por la mañana a las 9:40, 9:50 y 10:00.</string>
@@ -151,7 +153,7 @@
     <string name="chat_branch_attachments_readd">Vuelve a adjuntar los archivos que quieras incluir</string>
     <string name="chat_select_hint">Mantén pulsado el texto para seleccionarlo</string>
     <string name="chat_quote_remove">Quitar cita</string>
-    <string name="chat_quoting_mika">Citando a Maeve: %1$s</string>
+    <string name="chat_quoting_maeve">Citando a Maeve: %1$s</string>
     <string name="chat_quoting_you">Citándote a ti: %1$s</string>
     <string name="chat_edit_message">Editar mensaje</string>
     <string name="chat_withdraw_message">Retirar mensaje</string>

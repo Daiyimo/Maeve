@@ -11,8 +11,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import com.daiyimo.maeve.ui.components.MikaDialog
-import com.daiyimo.maeve.ui.components.MikaNoticeDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.MaeveNoticeDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,8 +37,8 @@ import com.daiyimo.maeve.ui.components.EmptyNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.RowActions
 import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.RowValue
@@ -47,9 +47,9 @@ import com.daiyimo.maeve.ui.components.SegmentedControl
 import com.daiyimo.maeve.ui.components.SheetAction
 import com.daiyimo.maeve.ui.components.SubPage
 import com.daiyimo.maeve.ui.components.TileTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 private val SEGMENT_TAGS = Segment.entries.map { "segment-${it.name}" }
 
@@ -103,11 +103,11 @@ fun MemoryScreen(
     SubPage(
         stringResource(R.string.settings_memory_data), onBack,
         right = if (searchable) ({
-            BarIconButton(MikaIcons.Search, stringResource(R.string.search), { searching = !searching; if (!searching) vm.search("") })
+            BarIconButton(MaeveIcons.Search, stringResource(R.string.search), { searching = !searching; if (!searching) vm.search("") })
         }) else null,
     ) {
         ui.brokenNotice?.let {
-            GroupCard { Text(stringResource(R.string.memory_unreadable), Modifier.padding(16.dp), style = MikaType.Caption, color = MikaTheme.colors.warn) }
+            GroupCard { Text(stringResource(R.string.memory_unreadable), Modifier.padding(16.dp), style = MaeveType.Caption, color = MaeveTheme.colors.warn) }
         }
 
         val pendingLabel = if (ui.pendingCount > 0) stringResource(R.string.memory_pending_n, ui.pendingCount) else stringResource(R.string.memory_pending)
@@ -138,7 +138,7 @@ fun MemoryScreen(
                 }
                 GroupLabel("")
                 GroupCard {
-                    ListRow(MikaIcons.Plus, stringResource(R.string.memory_add), first = true, titleColor = MikaTheme.colors.accent, tone = TileTone.Accent, onClick = { adding = true })
+                    ListRow(MaeveIcons.Plus, stringResource(R.string.memory_add), first = true, titleColor = MaeveTheme.colors.accent, tone = TileTone.Accent, onClick = { adding = true })
                 }
             }
             Segment.Skills -> SkillsSection(vm, ui.skills, pending = false)
@@ -154,8 +154,8 @@ fun MemoryScreen(
                             Column {
                                 MemoryRow(r, first = i == 0, onClick = null)
                                 RowActions {
-                                    MikaButton(stringResource(R.string.ok_yes), { vm.approve(r.id) }, size = ButtonSize.Small)
-                                    MikaButton(stringResource(R.string.no_thanks), { vm.reject(r.id) }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
+                                    MaeveButton(stringResource(R.string.ok_yes), { vm.approve(r.id) }, size = ButtonSize.Small)
+                                    MaeveButton(stringResource(R.string.no_thanks), { vm.reject(r.id) }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
                                 }
                             }
                         }
@@ -177,13 +177,13 @@ fun MemoryScreen(
                 var first = true
                 fun take(): Boolean = first.also { first = false }
                 webSitesCount?.let {
-                    ListRow(MikaIcons.Globe, stringResource(R.string.settings_web_logins), first = take(), onClick = onOpenWebSites) {
+                    ListRow(MaeveIcons.Globe, stringResource(R.string.settings_web_logins), first = take(), onClick = onOpenWebSites) {
                         RowValue(trPlural(R.plurals.settings_count_sites, it))
                         RowChevron()
                     }
                 }
                 routes?.let {
-                    ListRow(MikaIcons.Route, stringResource(R.string.settings_routes), first = take(), onClick = onOpenRoutes) {
+                    ListRow(MaeveIcons.Route, stringResource(R.string.settings_routes), first = take(), onClick = onOpenRoutes) {
                         RowValue(trPlural(R.plurals.settings_count_routes, it))
                         RowChevron()
                     }
@@ -191,7 +191,7 @@ fun MemoryScreen(
             }
         }
         GroupCard {
-            ListRow(MikaIcons.Close, stringResource(R.string.routes_clear_all), stringResource(R.string.memory_clear_sub), first = true, titleColor = MikaTheme.colors.bad, tone = TileTone.Bad, onClick = vm::requestClear)
+            ListRow(MaeveIcons.Close, stringResource(R.string.routes_clear_all), stringResource(R.string.memory_clear_sub), first = true, titleColor = MaeveTheme.colors.bad, tone = TileTone.Bad, onClick = vm::requestClear)
         }
     }
 
@@ -213,10 +213,10 @@ fun MemoryScreen(
         EditDialog(stringResource(R.string.memory_add), "", emptyList(), onDismiss = { adding = false }, withKind = true) { content, keywords, kind -> vm.add(kind, content, keywords); adding = false }
     }
     ui.message?.let { m ->
-        MikaNoticeDialog(m, onDismiss = vm::dismissMessage)
+        MaeveNoticeDialog(m, onDismiss = vm::dismissMessage)
     }
     if (ui.clearStage > 0) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = vm::cancelClear,
             title = { Text(if (ui.clearStage == 1) stringResource(R.string.memory_clear_q) else stringResource(R.string.memory_clear_sure)) },
             text = { Text(if (ui.clearStage == 1) stringResource(R.string.memory_clear_body) else stringResource(R.string.memory_clear_final)) },
@@ -228,7 +228,7 @@ fun MemoryScreen(
 
 @Composable
 private fun SwitchRow(title: String, subtitle: String, on: Boolean, first: Boolean = false, onChange: (Boolean) -> Unit) {
-    ListRow(null, title, subtitle, first = first) { MikaSwitch(on, onChange) }
+    ListRow(null, title, subtitle, first = first) { MaeveSwitch(on, onChange) }
 }
 
 @Composable
@@ -244,7 +244,7 @@ private fun MemoryRow(r: Row, first: Boolean, onClick: (() -> Unit)?) {
 
 @Composable
 internal fun Link(text: String, onClick: () -> Unit) {
-    Text(text, Modifier.clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 2.dp), style = MikaType.Hint, fontWeight = FontWeight.Medium, color = MikaTheme.colors.accent)
+    Text(text, Modifier.clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 2.dp), style = MaeveType.Hint, fontWeight = FontWeight.Medium, color = MaeveTheme.colors.accent)
 }
 
 @Composable
@@ -255,7 +255,7 @@ private fun EditDialog(
     var kind by remember { mutableIntStateOf(0) }
     var text by remember { mutableStateOf(content) }
     var words by remember { mutableStateOf(keywords.joinToString(" ")) }
-    MikaDialog(
+    MaeveDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {

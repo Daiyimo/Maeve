@@ -81,15 +81,16 @@ import com.daiyimo.maeve.core.usage.UsageTotals
 import com.daiyimo.maeve.settings.Provider
 import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.IconTile
-import com.daiyimo.maeve.ui.components.MikaCard
+import com.daiyimo.maeve.ui.components.MaeveCard
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.SegmentedControl
 import com.daiyimo.maeve.ui.components.cardSurface
-import com.daiyimo.maeve.ui.theme.MikaColors
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveColors
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
@@ -140,7 +141,7 @@ object UsageCopy {
     val CHANGE_DATES: String get() = tr(R.string.usage_change_dates)
     const val UNIT = "Token"
 
-    /** 图表里有自己颜色的服务商最多几家(主题里 [MikaColors.series] 的个数),其余在趋势图里归为「其他」。 */
+    /** 图表里有自己颜色的服务商最多几家(主题里 [MaeveColors.series] 的个数),其余在趋势图里归为「其他」。 */
     const val COLORED = 3
 
     /**
@@ -316,20 +317,20 @@ fun UsageContent(
     onSelect: (String?) -> Unit,
     onBack: () -> Unit,
 ) {
-    val c = MikaTheme.colors
-    PageScaffold(UsageCopy.TITLE, onBack) {
+    val c = MaeveTheme.colors
+    PageScaffold(UsageCopy.TITLE, onBack, eyebrow = "USAGE") {
         SegmentedControl(
             UsagePreset.entries.map { it.label }, preset.ordinal, { onPreset(UsagePreset.entries[it]) },
             tags = UsagePreset.entries.map { "usage-range-${it.name}" },
         )
         if (report == null) return@PageScaffold
         Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp), horizontalArrangement = Arrangement.Center) {
-            Text(UsageCopy.rangeText(report.range, today), style = MikaType.Hint, color = c.ink3)
+            Text(UsageCopy.rangeText(report.range, today), style = MaeveType.Hint, color = c.ink3)
             if (preset == UsagePreset.Custom) {
-                Text(" · ", style = MikaType.Hint, color = c.ink3)
+                Text(" · ", style = MaeveType.Hint, color = c.ink3)
                 Text(
                     UsageCopy.CHANGE_DATES, Modifier.clickable(role = Role.Button, onClick = onPickCustom).testTag("usage-change-dates"),
-                    style = MikaType.Hint, color = c.accent, fontWeight = FontWeight.Medium,
+                    style = MaeveType.Hint, color = c.accent, fontWeight = FontWeight.Medium,
                 )
             }
         }
@@ -387,20 +388,20 @@ fun UsageContent(
     }
 }
 
-private fun seriesColor(c: MikaColors, p: ProviderUsage): Color = UsageCopy.colorSlot(p)?.let { c.series.getOrNull(it) } ?: c.seriesOther
+private fun seriesColor(c: MaeveColors, p: ProviderUsage): Color = UsageCopy.colorSlot(p)?.let { c.series.getOrNull(it) } ?: c.seriesOther
 
 /** 总用量卡:大字是输入加输出,下面一排输入、输出、缓存命中、调用次数。 */
 @Composable
 private fun TotalsCard(t: UsageTotals) {
-    val c = MikaTheme.colors
-    MikaCard {
+    val c = MaeveTheme.colors
+    MaeveCard {
         Column(Modifier.padding(start = 18.dp, end = 18.dp, top = 18.dp, bottom = 16.dp)) {
-            Text(UsageCopy.TOTAL, style = MikaType.Caption, color = c.ink3)
+            Text(UsageCopy.TOTAL, style = MaeveType.Caption, color = c.ink3)
             Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.Bottom) {
                 Text(UsageCopy.tokens(t.tokens), Modifier.testTag("usage-total"), style = TotalStyle, color = c.ink)
                 Text(
                     UsageCopy.UNIT, Modifier.padding(start = 4.dp, bottom = 6.dp),
-                    style = MikaType.Value, fontWeight = FontWeight.Medium, color = c.ink2,
+                    style = MaeveType.Value, fontWeight = FontWeight.Medium, color = c.ink2,
                 )
             }
             Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -418,10 +419,10 @@ private val TotalStyle = TextStyle(fontSize = 34.sp, lineHeight = 40.sp, fontWei
 @Composable
 private fun Stat(label: String, value: String, modifier: Modifier) {
     Column(modifier) {
-        Text(label, style = MikaType.Hint, color = MikaTheme.colors.ink3, maxLines = 1)
+        Text(label, style = MaeveType.Hint, color = MaeveTheme.colors.ink3, maxLines = 1)
         Text(
-            value, Modifier.padding(top = 2.dp), style = MikaType.Value, fontWeight = FontWeight.SemiBold,
-            color = MikaTheme.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            value, Modifier.padding(top = 2.dp), style = MaeveType.Value, fontWeight = FontWeight.SemiBold,
+            color = MaeveTheme.colors.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -429,12 +430,12 @@ private fun Stat(label: String, value: String, modifier: Modifier) {
 /** 一张图的卡片:左边标题,右边一句小字。 */
 @Composable
 private fun ChartCard(title: String, hint: String, content: @Composable () -> Unit) {
-    val c = MikaTheme.colors
-    MikaCard(Modifier.padding(top = 12.dp)) {
+    val c = MaeveTheme.colors
+    MaeveCard(Modifier.padding(top = 12.dp)) {
         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, Modifier.weight(1f), style = CardTitle, color = c.ink)
-                Text(hint, style = MikaType.Hint, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(hint, style = MaeveType.Hint, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             content()
         }
@@ -446,15 +447,15 @@ private val CardTitle = TextStyle(fontSize = 15.sp, lineHeight = 20.sp, fontWeig
 /** 没有用量时:一张居中的说明卡。 */
 @Composable
 private fun EmptyCard() {
-    val c = MikaTheme.colors
-    MikaCard(Modifier.testTag("usage-empty")) {
+    val c = MaeveTheme.colors
+    MaeveCard(Modifier.testTag("usage-empty")) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 40.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            IconTile(MikaIcons.Chart)
-            Text(UsageCopy.EMPTY_TITLE, Modifier.padding(top = 12.dp), style = MikaType.BodyStrong, color = c.ink)
-            Text(UsageCopy.EMPTY_BODY, Modifier.padding(top = 6.dp), style = MikaType.Caption, color = c.ink3, textAlign = TextAlign.Center)
+            IconTile(MaeveIcons.Chart)
+            Text(UsageCopy.EMPTY_TITLE, Modifier.padding(top = 12.dp), style = MaeveType.BodyStrong, color = c.ink)
+            Text(UsageCopy.EMPTY_BODY, Modifier.padding(top = 6.dp), style = MaeveType.Caption, color = c.ink3, textAlign = TextAlign.Center)
         }
     }
 }
@@ -468,7 +469,7 @@ private fun RankRow(
     name: String, mono: Boolean, muted: Boolean, color: Color, fraction: Float, tokens: Long, share: Double,
     dim: Boolean = false, bold: Boolean = false, onClick: (() -> Unit)? = null, tag: String,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(
         Modifier.fillMaxWidth()
             .then(if (onClick != null) Modifier.clip(RowShape).clickable(role = Role.Button, onClick = onClick) else Modifier)
@@ -509,7 +510,7 @@ private val RankShare = TextStyle(fontSize = 11.sp, lineHeight = 14.sp)
 /** 切换服务商的胶囊:选中时强调色实底;[deleted] 的名字变淡、后面写「（已删除）」。 */
 @Composable
 private fun UsageChip(text: String, selected: Boolean, onClick: () -> Unit, deleted: Boolean = false, tag: String) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val fg = when {
         selected -> c.onAccent
         deleted -> c.ink3
@@ -517,8 +518,8 @@ private fun UsageChip(text: String, selected: Boolean, onClick: () -> Unit, dele
     }
     Box(
         Modifier.height(34.dp)
-            .then(if (selected) Modifier.background(c.accent, MikaShapes.Pill) else Modifier.cardSurface(c, MikaShapes.Pill))
-            .clip(MikaShapes.Pill)
+            .then(if (selected) Modifier.background(c.accent, MaeveShapes.Pill) else Modifier.cardSurface(c, MaeveShapes.Pill, tier = GlassTier.Pill))
+            .clip(MaeveShapes.Pill)
             .selectable(selected, role = Role.Tab, onClick = onClick)
             .padding(horizontal = 14.dp)
             .testTag(tag),
@@ -541,7 +542,7 @@ private data class StackPart(val slot: Int?, val tokens: Long)
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TrendChart(report: UsageReport, selected: String?, today: LocalDate) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val series = report.series
     if (series.isEmpty()) return
@@ -617,7 +618,7 @@ private fun TrendChart(report: UsageReport, selected: String?, today: LocalDate)
         tapped?.let { i -> TrendTip(series[i], report, i, gutter, today) }
     }
     Box(Modifier.fillMaxWidth().padding(top = 6.dp, end = gutter)) {
-        val style = MikaType.Hint
+        val style = MaeveType.Hint
         Text(UsageCopy.axis(series.first(), report.step, today), Modifier.align(Alignment.CenterStart), style = style, color = c.ink3)
         if (series.size > 2) {
             Text(UsageCopy.axis(series[series.size / 2], report.step, today), Modifier.align(Alignment.Center), style = style, color = c.ink3)
@@ -632,7 +633,7 @@ private fun TrendChart(report: UsageReport, selected: String?, today: LocalDate)
 private fun LegendItem(color: Color, name: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         Box(Modifier.size(9.dp).background(color, LegendShape))
-        Text(name, style = MikaType.Hint, color = MikaTheme.colors.ink2, maxLines = 1)
+        Text(name, style = MaeveType.Hint, color = MaeveTheme.colors.ink2, maxLines = 1)
     }
 }
 
@@ -640,7 +641,7 @@ private val LegendShape = RoundedCornerShape(3.dp)
 
 @Composable
 private fun GridLabel(text: String, modifier: Modifier) {
-    Text(text, modifier.width(34.dp), style = GridText, color = MikaTheme.colors.ink3, textAlign = TextAlign.End, maxLines = 1)
+    Text(text, modifier.width(34.dp), style = GridText, color = MaeveTheme.colors.ink3, textAlign = TextAlign.End, maxLines = 1)
 }
 
 private val GridText = TextStyle(fontSize = 10.5.sp, lineHeight = 14.sp)
@@ -648,7 +649,7 @@ private val GridText = TextStyle(fontSize = 10.5.sp, lineHeight = 14.sp)
 /** 点中一根柱子时的说明:哪段时间、合计,下面各家服务商各一行(按用量从多到少);横向对着那根柱子,不出图的左右边。 */
 @Composable
 private fun TrendTip(b: UsageBucket, report: UsageReport, index: Int, gutter: Dp, today: LocalDate) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val rows = b.byProvider.entries.sortedByDescending { it.value }
     Column(

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,6 +28,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -67,12 +69,16 @@ import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.Hairline
 import com.daiyimo.maeve.ui.components.TopBar
 import com.daiyimo.maeve.ui.components.cardSurface
+import com.daiyimo.maeve.ui.components.glassSource
 import com.daiyimo.maeve.ui.components.keepsKeyboard
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaSpace
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.LocalGlassBackdrop
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveSize
+import com.daiyimo.maeve.ui.theme.MaeveSpace
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 val BROWSER_SEARCH_HINT: String get() = tr(R.string.browser_search_hint)
 val BROWSER_ENGINE_NOTE: String get() = tr(R.string.browser_engine_note)
@@ -100,33 +106,29 @@ fun BrowserStart(
     onClearRecent: () -> Unit,
     now: Long = System.currentTimeMillis(),
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var query by rememberSaveable { mutableStateOf("") }
     var editing by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = editing || query.isNotEmpty()) {
         if (editing) editing = false else query = ""
     }
-    Column(Modifier.fillMaxSize()) {
-        if (editing) {
-            TopBar(tr(R.string.browser_edit_favorites), right = {
-                Text(
-                    tr(R.string.done), Modifier.clip(MikaShapes.Pill).clickable(role = Role.Button) { editing = false }.padding(horizontal = 12.dp, vertical = 8.dp),
-                    style = MikaType.BodyStrong, color = c.accent,
-                )
-            })
-        } else {
-            TopBar(tr(R.string.drawer_browser), MikaIcons.Back, onBack, tr(R.string.back))
-        }
+    val backdrop = LocalGlassBackdrop.current
+    val statusBar = WindowInsets.statusBars.asPaddingValues()
+    Box(Modifier.fillMaxSize()) {
         Column(
-            Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-                .windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = MikaSpace.Page),
+            Modifier.fillMaxSize().glassSource(backdrop).windowInsetsPadding(WindowInsets.navigationBars),
         ) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                    .padding(horizontal = MaeveSpace.Page)
+                    .padding(top = statusBar.calculateTopPadding() + MaeveSize.TopBar),
+            ) {
             if (editing) {
                 SectionHeader(tr(R.string.browser_tap_x))
                 SiteGrid(sites, face, editing = true, onOpen = {}, onRemove = onRemoveSite, onEdit = {}, onAdd = null)
                 Legend(tr(R.string.browser_long_press), dot = false)
             } else {
-                Spacer(Modifier.height(MikaSpace.S20))
+                Spacer(Modifier.height(MaeveSpace.S20))
                 BigSearchField(query, { query = it }, onGo = {
                     if (query.isNotBlank()) {
                         val q = query
@@ -150,7 +152,18 @@ fun BrowserStart(
                     Caption(BROWSER_TYPING_NOTE)
                 }
             }
-            Spacer(Modifier.height(MikaSpace.S24))
+            Spacer(Modifier.height(MaeveSpace.S24))
+        }
+        }
+        if (editing) {
+            TopBar(tr(R.string.browser_edit_favorites), right = {
+                Text(
+                    tr(R.string.done), Modifier.clip(MaeveShapes.Pill).clickable(role = Role.Button) { editing = false }.padding(horizontal = 12.dp, vertical = 8.dp),
+                    style = MaeveType.BodyStrong, color = c.accent,
+                )
+            })
+        } else {
+            TopBar(tr(R.string.drawer_browser), MaeveIcons.Back, onBack, tr(R.string.back), eyebrow = "BROWSER")
         }
     }
 }
@@ -158,16 +171,16 @@ fun BrowserStart(
 /** 大搜索框:52 高的白色胶囊,聚焦时一圈强调色;键盘上是「前往」。 */
 @Composable
 private fun BigSearchField(value: String, onChange: (String) -> Unit, onGo: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var focused by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().height(52.dp).keepsKeyboard().cardSurface(c, MikaShapes.Pill)
-            .then(if (focused) Modifier.border(1.5.dp, c.accent, MikaShapes.Pill) else Modifier)
+        Modifier.fillMaxWidth().height(52.dp).keepsKeyboard().cardSurface(c, MaeveShapes.Pill, tier = GlassTier.Chrome)
+            .then(if (focused) Modifier.border(1.5.dp, c.accent, MaeveShapes.Pill) else Modifier)
             .padding(start = 18.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(MikaIcons.Search, null, Modifier.size(20.dp), tint = c.ink3)
+        Icon(MaeveIcons.Search, null, Modifier.size(20.dp), tint = c.ink3)
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (value.isEmpty()) Text(BROWSER_SEARCH_HINT, style = BigText, color = c.ink3, maxLines = 1)
             BasicTextField(
@@ -184,30 +197,30 @@ private fun BigSearchField(value: String, onChange: (String) -> Unit, onGo: () -
             Box(
                 Modifier.size(36.dp).clip(CircleShape).clickable(onClickLabel = tr(R.string.browser_clear_input), role = Role.Button) { onChange("") },
                 contentAlignment = Alignment.Center,
-            ) { Icon(MikaIcons.Close, tr(R.string.browser_clear_input), Modifier.size(16.dp), tint = c.ink3) }
+            ) { Icon(MaeveIcons.Close, tr(R.string.browser_clear_input), Modifier.size(16.dp), tint = c.ink3) }
         }
     }
 }
 
-private val BigText = MikaType.Body.copy(fontSize = 16.sp)
+private val BigText = MaeveType.Body.copy(fontSize = 16.sp)
 
 @Composable
 private fun Caption(text: String) {
     Text(
-        text, Modifier.fillMaxWidth().padding(top = 8.dp), style = MikaType.Hint, color = MikaTheme.colors.ink3, textAlign = TextAlign.Center,
+        text, Modifier.fillMaxWidth().padding(top = 8.dp), style = MaeveType.Hint, color = MaeveTheme.colors.ink3, textAlign = TextAlign.Center,
     )
 }
 
 /** 分组标题,右边可带一个小字链接([action])。 */
 @Composable
 private fun SectionHeader(title: String, action: String? = null, onAction: () -> Unit = {}) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, Modifier.weight(1f), style = MikaType.Label, color = c.ink3)
+        Text(title, Modifier.weight(1f), style = MaeveType.Label, color = c.ink3)
         if (action != null) {
             Text(
-                action, Modifier.clip(MikaShapes.Pill).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 6.dp, vertical = 2.dp),
-                style = MikaType.Label, color = c.accent,
+                action, Modifier.clip(MaeveShapes.Pill).clickable(role = Role.Button, onClick = onAction).padding(horizontal = 6.dp, vertical = 2.dp),
+                style = MaeveType.Label, color = c.accent,
             )
         }
     }
@@ -215,10 +228,10 @@ private fun SectionHeader(title: String, action: String? = null, onAction: () ->
 
 @Composable
 private fun Legend(text: String, dot: Boolean) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(Modifier.fillMaxWidth().padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         if (dot) Box(Modifier.size(9.dp).background(c.ok, CircleShape))
-        Text(text, style = MikaType.Hint, color = c.ink3)
+        Text(text, style = MaeveType.Hint, color = c.ink3)
     }
 }
 
@@ -260,8 +273,8 @@ private fun SiteCell(
     onRemove: () -> Unit,
     onEdit: () -> Unit,
 ) {
-    val c = MikaTheme.colors
-    val reduce = MikaTheme.reduceMotion
+    val c = MaeveTheme.colors
+    val reduce = MaeveTheme.reduceMotion
     val angle = if (editing && !reduce) {
         rememberInfiniteTransition(label = "wiggle").animateFloat(
             -WIGGLE_DEG, WIGGLE_DEG, infiniteRepeatable(tween(WIGGLE_MS), RepeatMode.Reverse), label = "wiggle-angle",
@@ -294,16 +307,16 @@ private fun SiteCell(
                         .background(c.ink2).clickable(onClickLabel = tr(R.string.browser_remove_site, face.name), role = Role.Button, onClick = onRemove)
                         .testTag("browser-site-remove"),
                     contentAlignment = Alignment.Center,
-                ) { Icon(MikaIcons.Close, tr(R.string.browser_remove_site, face.name), Modifier.size(11.dp), tint = c.bg) }
+                ) { Icon(MaeveIcons.Close, tr(R.string.browser_remove_site, face.name), Modifier.size(11.dp), tint = c.bg) }
             }
         }
-        Text(face.name, style = MikaType.Hint, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+        Text(face.name, style = MaeveType.Hint, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
 private fun AddCell(onAdd: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Column(
         Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = tr(R.string.browser_add_favorite), role = Role.Button, onClick = onAdd)
             .padding(horizontal = 2.dp, vertical = 4.dp),
@@ -311,25 +324,25 @@ private fun AddCell(onAdd: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Box(Modifier.size(54.dp).cardSurface(c, TileShape), contentAlignment = Alignment.Center) {
-            Icon(MikaIcons.Plus, null, Modifier.size(24.dp), tint = c.ink3)
+            Icon(MaeveIcons.Plus, null, Modifier.size(24.dp), tint = c.ink3)
         }
-        Text(tr(R.string.add), style = MikaType.Hint, color = c.ink2, maxLines = 1)
+        Text(tr(R.string.add), style = MaeveType.Hint, color = c.ink2, maxLines = 1)
     }
 }
 
 @Composable
 private fun RecentCard(recent: List<RecentItem>, face: (String) -> SiteFace, now: Long, onOpen: (String) -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     GroupCard {
         if (recent.isEmpty()) {
-            Text(tr(R.string.browser_no_recent), Modifier.fillMaxWidth().padding(16.dp), style = MikaType.Body, color = c.ink3)
+            Text(tr(R.string.browser_no_recent), Modifier.fillMaxWidth().padding(16.dp), style = MaeveType.Body, color = c.ink3)
         }
         recent.forEachIndexed { i, r ->
             if (i > 0) Hairline(start = 56.dp)
             SmallRow(
                 r.title, r.subtitle, onClick = { onOpen(r.url) },
                 lead = { if (r.search || r.host == null) SearchMini() else SiteTile(face(r.host), 28.dp, MiniShape, InitialSmall) },
-                trailing = { Text(StartPageModel.relativeTime(r.openedAtMs, now), style = MikaType.Hint, color = c.ink3, maxLines = 1) },
+                trailing = { Text(StartPageModel.relativeTime(r.openedAtMs, now), style = MaeveType.Hint, color = c.ink3, maxLines = 1) },
             )
         }
     }
@@ -347,7 +360,7 @@ private fun SuggestionCard(list: List<Suggestion>, face: (String) -> SiteFace, o
                     when {
                         s.search -> SearchMini()
                         s.host != null -> SiteTile(face(s.host), 28.dp, MiniShape, InitialSmall)
-                        else -> SearchMini(MikaIcons.Globe)
+                        else -> SearchMini(MaeveIcons.Globe)
                     }
                 },
             )
@@ -364,7 +377,7 @@ private fun SmallRow(
     lead: @Composable () -> Unit,
     trailing: @Composable () -> Unit = {},
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -372,22 +385,22 @@ private fun SmallRow(
     ) {
         lead()
         Column(Modifier.weight(1f).padding(vertical = 9.dp)) {
-            Text(title, style = MikaType.Body, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (subtitle.isNotEmpty()) Text(subtitle, Modifier.padding(top = 2.dp), style = MikaType.Caption, color = c.ink3, maxLines = 1)
+            Text(title, style = MaeveType.Body, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotEmpty()) Text(subtitle, Modifier.padding(top = 2.dp), style = MaeveType.Caption, color = c.ink3, maxLines = 1)
         }
         trailing()
     }
 }
 
 @Composable
-private fun SearchMini(icon: ImageVector = MikaIcons.Search) {
-    val c = MikaTheme.colors
+private fun SearchMini(icon: ImageVector = MaeveIcons.Search) {
+    val c = MaeveTheme.colors
     Box(Modifier.size(28.dp).background(c.neutralSoft, MiniShape), contentAlignment = Alignment.Center) {
         Icon(icon, null, Modifier.size(16.dp), tint = c.ink2)
     }
 }
 
 private val TileShape = RoundedCornerShape(16.dp)
-private val InitialLarge = MikaType.Title.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold)
+private val InitialLarge = MaeveType.Title.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold)
 private const val WIGGLE_DEG = 1.5f
 private const val WIGGLE_MS = 250

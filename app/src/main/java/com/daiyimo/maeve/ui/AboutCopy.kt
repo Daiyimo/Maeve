@@ -3,10 +3,10 @@ package com.daiyimo.maeve.ui
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.about.CheckStatus
-import com.daiyimo.maeve.about.MikaLinks
+import com.daiyimo.maeve.about.MaeveLinks
 import com.daiyimo.maeve.about.UpdateState
 
-/** 关于页的文字,以及「检查更新」一行、设置首页「关于 Mika」一行、侧栏入口上的提示怎么显示。 */
+/** 关于页的文字,以及「检查更新」一行、设置首页「关于 Maeve」一行、侧栏入口上的提示怎么显示。 */
 object AboutCopy {
     val TITLE: String get() = tr(R.string.settings_about)
     val TAGLINE: String get() = tr(R.string.about_tagline)
@@ -40,7 +40,7 @@ object AboutCopy {
     val DIAGNOSTICS_LOADING: String get() = tr(R.string.diagnostics_loading)
 
     val REPO: String get() = tr(R.string.about_repo)
-    val REPO_SUB: String get() = tr(R.string.about_repo_sub, MikaLinks.REPO_LABEL)
+    val REPO_SUB: String get() = tr(R.string.about_repo_sub, MaeveLinks.REPO_LABEL)
     val GUIDE: String get() = tr(R.string.about_guide)
     val GUIDE_SUB: String get() = tr(R.string.about_guide_sub)
 
@@ -75,11 +75,11 @@ object AboutCopy {
         else -> CheckValue(null)
     }
 
-    /** 设置首页「关于 Mika」一行右边:有新版写「x 可更新」带红点,不然写当前版本号。 */
+    /** 设置首页「关于 Maeve」一行右边:有新版写「x 可更新」带红点,不然写当前版本号。 */
     fun settingsValue(updateVersion: String?, versionName: String): CheckValue =
         if (updateVersion != null) CheckValue(available(updateVersion), dot = true, highlight = true)
         else CheckValue(versionName.takeIf { it.isNotEmpty() })
 
-    /** 侧栏「关于 Mika」上的红点。 */
+    /** 侧栏「关于 Maeve」上的红点。 */
     fun drawerDot(s: UpdateState): Boolean = s.hasUpdate
 }

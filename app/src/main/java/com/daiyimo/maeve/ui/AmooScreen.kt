@@ -10,7 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.intercept.AmooBridge
 import com.daiyimo.maeve.intercept.AmooSetup
@@ -19,7 +19,7 @@ import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.ListRow
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.TileTone
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -52,11 +52,11 @@ fun AmooScreen(onBack: () -> Unit) {
         lastAt == null -> stringResource(R.string.amoo_status_listening)
         else -> stringResource(R.string.amoo_status_connected, clock(lastAt!!))
     }
-    PageScaffold(stringResource(R.string.amoo_page_title), onBack) {
+    PageScaffold(stringResource(R.string.amoo_page_title), onBack, eyebrow = "BRIDGE") {
         AmooSetupCard()
         GroupCard {
             ListRow(
-                if (bridgeOn) MikaIcons.Link else MikaIcons.Info,
+                if (bridgeOn) MaeveIcons.Link else MaeveIcons.Info,
                 stringResource(R.string.amoo_status_title),
                 detail,
                 first = true,
@@ -83,7 +83,7 @@ private fun clock(ms: Long): String =
 @Composable
 private fun AmooSetupCard() {
     val context = LocalContext.current
-    val setup = (context.applicationContext as MikaApp).amooSetup
+    val setup = (context.applicationContext as MaeveApp).amooSetup
     val stage by setup.stage.collectAsState()
     GuideStep(stringResource(R.string.amoo_setup_step), stringResource(R.string.amoo_setup_sub),
         stringResource(R.string.amoo_setup_button), { setup.start() })
@@ -97,7 +97,7 @@ private fun AmooSetupCard() {
     if (line != null) {
         GroupCard {
             ListRow(
-                if (stage == AmooSetup.Stage.Done) MikaIcons.Check else MikaIcons.Info,
+                if (stage == AmooSetup.Stage.Done) MaeveIcons.Check else MaeveIcons.Info,
                 stringResource(line),
                 first = true,
                 tone = if (stage == AmooSetup.Stage.Done) TileTone.Ok else TileTone.Neutral,

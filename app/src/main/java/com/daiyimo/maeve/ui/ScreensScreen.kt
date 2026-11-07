@@ -51,8 +51,8 @@ import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.ListRow
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.RowValue
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -130,7 +130,7 @@ fun ScreensContent(
     onOpenConversation: (String) -> Unit,
     frames: (String) -> StateFlow<Bitmap?>? = { null },
 ) {
-    PageScaffold(ScreensCopy.TITLE, onBack) {
+    PageScaffold(ScreensCopy.TITLE, onBack, eyebrow = "CRADLE") {
         if (rows.isEmpty()) {
             EmptyNote(ScreensCopy.EMPTY)
             return@PageScaffold
@@ -143,11 +143,11 @@ fun ScreensContent(
 /** 一个任务:在做什么、正在用哪个 App、状态;点这一行回到它的对话,点「看画面」展开实时画面。 */
 @Composable
 private fun ScreenCard(row: ScreenRow, frames: StateFlow<Bitmap?>?, onOpenConversation: (String) -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var open by rememberSaveable(row.key) { mutableStateOf(false) }
     GroupCard(Modifier.padding(top = 8.dp)) {
         ListRow(
-            MikaIcons.Screens, row.goal.oneLine(), ScreensCopy.place(row),
+            MaeveIcons.Screens, row.goal.oneLine(), ScreensCopy.place(row),
             first = true, onClick = { onOpenConversation(row.conversationId) },
         ) { RowValue(ScreensCopy.state(row.state)) }
         if (row.displayId >= 0 || row.web) {
@@ -193,7 +193,7 @@ private fun FrameZoom(frame: Bitmap, onDismiss: () -> Unit) {
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(
-            Modifier.fillMaxSize().background(MikaTheme.colors.bg.copy(alpha = 0.96f)).clickable { onDismiss() }
+            Modifier.fillMaxSize().background(MaeveTheme.colors.bg.copy(alpha = 0.96f)).clickable { onDismiss() }
                 .testTag("screens-zoom-dialog"),
             contentAlignment = Alignment.Center,
         ) {

@@ -3,7 +3,7 @@ package com.daiyimo.maeve.ui
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -21,8 +21,8 @@ import com.daiyimo.maeve.cap.web.WebProxy
 import com.daiyimo.maeve.core.net.ProxyAddress
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.settings.NetProxyStore
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /**
  * 设置 › 网络代理 的文案(纯函数,便于测试)。地址只写协议、主机、端口,不带账号密码(这一行随时看得到)。
@@ -56,17 +56,17 @@ object NetProxyCopy {
 fun NetProxyDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
     var text by remember { mutableStateOf(initial) }
     val ok = NetProxyStore.valid(text)
-    MikaDialog(
+    MaeveDialog(
         onDismissRequest = onDismiss,
         title = { Text(NetProxyCopy.TITLE) },
         text = {
             Column {
-                Text(NetProxyCopy.HINT, style = MikaType.Caption, color = MikaTheme.colors.ink3)
+                Text(NetProxyCopy.HINT, style = MaeveType.Caption, color = MaeveTheme.colors.ink3)
                 OutlinedTextField(
                     text, { text = it }, Modifier.fillMaxWidth().padding(top = 8.dp).testTag("net-proxy-input"),
                     singleLine = true, isError = !ok, placeholder = { Text("http://127.0.0.1:7890") },
                 )
-                if (!ok) Text(NetProxyCopy.INVALID, Modifier.padding(top = 4.dp), style = MikaType.Hint, color = MikaTheme.colors.bad)
+                if (!ok) Text(NetProxyCopy.INVALID, Modifier.padding(top = 4.dp), style = MaeveType.Hint, color = MaeveTheme.colors.bad)
             }
         },
         confirmButton = { TextButton({ onSave(text) }, enabled = ok) { Text(stringResource(R.string.save)) } },

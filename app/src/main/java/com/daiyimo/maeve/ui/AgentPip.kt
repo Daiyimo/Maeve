@@ -40,7 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -69,8 +69,8 @@ import com.daiyimo.maeve.ui.PipPhysics.Corner
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.ui.components.floatShadow
 
 /** 小窗宽度:收起 / 展开。高度按画面(没有画面时按主屏)的长宽比算,整屏完整显示、不裁底部。 */
@@ -124,7 +124,7 @@ fun AgentPip(
             ClosedPip(pip.mode == PipMode.NeedsYou, reduceMotion, Modifier.padding(end = 12.dp, bottom = bottom + 12.dp), onReopen, onAttention)
         }
         AnimatedVisibility(pip.visible && !pip.closed && pip.expanded, enter = fadeIn(fade), exit = fadeOut(fade)) {
-            Box(Modifier.fillMaxSize().background(MikaTheme.colors.floatShadow.copy(alpha = 0.12f)).pointerInput(Unit) { detectTapGestures { onCollapse() } })
+            Box(Modifier.fillMaxSize().background(MaeveTheme.colors.floatShadow.copy(alpha = 0.12f)).pointerInput(Unit) { detectTapGestures { onCollapse() } })
         }
         AnimatedVisibility(pip.visible && !pip.closed, enter = fadeIn(fade), exit = fadeOut(if (reduceMotion) tween(150) else tween(500))) {
             PipWindow(
@@ -144,7 +144,7 @@ fun AgentPip(
  */
 @Composable
 private fun ClosedPip(needsYou: Boolean, reduceMotion: Boolean, modifier: Modifier, onReopen: () -> Unit, onAttention: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val shape = RoundedCornerShape(50)
     val breath = if (needsYou && !reduceMotion) {
         rememberInfiniteTransition(label = "closedBreathe").animateFloat(
@@ -163,8 +163,8 @@ private fun ClosedPip(needsYou: Boolean, reduceMotion: Boolean, modifier: Modifi
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         if (needsYou) Box(Modifier.size(7.dp).alpha(breath).background(c.warnSolid, CircleShape))
-        else Icon(MikaIcons.Screens, null, Modifier.size(14.dp), tint = c.ink2)
-        Text(label, style = MikaType.Hint, color = if (needsYou) c.warn else c.ink2)
+        else Icon(MaeveIcons.Screens, null, Modifier.size(14.dp), tint = c.ink2)
+        Text(label, style = MaeveType.Hint, color = if (needsYou) c.warn else c.ink2)
     }
 }
 
@@ -280,15 +280,15 @@ private fun PipWindow(
             // 橙色光晕:比窗口大一圈,模糊后透出边缘(安卓 12 以下不模糊,只是一圈淡橙色)
             Box(
                 Modifier.offset((-5).dp, (-5).dp).size(w + 10.dp, h + 10.dp).alpha(breath)
-                    .blur(10.dp).background(MikaTheme.colors.warnSolid.copy(alpha = 0.55f), outer),
+                    .blur(10.dp).background(MaeveTheme.colors.warnSolid.copy(alpha = 0.55f), outer),
             )
         }
         Box(
             Modifier.testTag("pip-window").size(w, h)
                 .alpha(if (pip.mode == PipMode.Done) 0.85f else 1f)
-                .floatShadow(MikaTheme.colors, outer)
-                .background(MikaTheme.colors.glass, outer)
-                .border(0.5.dp, MikaTheme.colors.glassEdge, outer)
+                .floatShadow(MaeveTheme.colors, outer)
+                .background(MaeveTheme.colors.glass, outer)
+                .border(0.5.dp, MaeveTheme.colors.glassEdge, outer)
                 .pointerInput(Unit) {
                     val tracker = VelocityTracker()
                     // 自己数位移而不用 detectDragGestures:越过触摸阈值时把阈值内的那段也补上,
@@ -320,7 +320,7 @@ private fun PipWindow(
                 .pointerInput(Unit) { detectTapGestures { if (needsYou) attend() else if (!expanded) expand() } }
                 .padding(if (pip.expanded) 4.dp else 3.dp),
         ) {
-            Box(Modifier.fillMaxSize().clip(inner).background(MikaTheme.colors.surface)) {
+            Box(Modifier.fillMaxSize().clip(inner).background(MaeveTheme.colors.surface)) {
                 if (frame != null) {
                     val image = remember(frame) { frame.asImageBitmap() }
                     Image(image, stringResource(R.string.pip_screen), Modifier.testTag("pip-frame").fillMaxSize(), alignment = Alignment.Center,
@@ -331,13 +331,13 @@ private fun PipWindow(
                 // 左上角:一次性恢复当前 App 声音,再关掉小画面;不伪造与真实音频无关的开关状态
                 Row(Modifier.align(Alignment.TopStart).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     PipButton(
-                        icon = MikaIcons.Sound,
+                        icon = MaeveIcons.Sound,
                         label = stringResource(R.string.pip_unmute),
                         onClick = onUnmute,
                         tag = "pip-unmute",
                     )
                     PipButton(
-                        icon = MikaIcons.EyeOff,
+                        icon = MaeveIcons.EyeOff,
                         label = stringResource(R.string.pip_close),
                         onClick = onClose,
                         tag = "pip-close",
@@ -345,16 +345,16 @@ private fun PipWindow(
                 }
                 Box(
                     Modifier.align(Alignment.TopEnd).padding(6.dp).size(26.dp)
-                        .floatShadow(MikaTheme.colors, CircleShape).background(MikaTheme.colors.glass, CircleShape).clip(CircleShape)
+                        .floatShadow(MaeveTheme.colors, CircleShape).background(MaeveTheme.colors.glass, CircleShape).clip(CircleShape)
                         .clickable(onClickLabel = stringResource(R.string.collapse), onClick = onCollapse),
                     contentAlignment = Alignment.Center,
-                ) { Icon(MikaIcons.Close, stringResource(R.string.collapse), Modifier.size(12.dp), tint = MikaTheme.colors.ink) }
+                ) { Icon(MaeveIcons.Close, stringResource(R.string.collapse), Modifier.size(12.dp), tint = MaeveTheme.colors.ink) }
             }
         }
         // 边框光画在玻璃框外沿
         val glow = when (pip.mode) {
-            PipMode.Running -> MikaTheme.colors.ok to 2.dp
-            PipMode.NeedsYou -> MikaTheme.colors.warnSolid.copy(alpha = breath) to 2.dp
+            PipMode.Running -> MaeveTheme.colors.ok to 2.dp
+            PipMode.NeedsYou -> MaeveTheme.colors.warnSolid.copy(alpha = breath) to 2.dp
             PipMode.Done -> null
         }
         if (glow != null) Box(Modifier.size(w, h).border(glow.second, glow.first, outer))
@@ -365,9 +365,9 @@ private fun PipWindow(
 private fun PipButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, tag: String) {
     Box(
         Modifier.size(26.dp)
-            .floatShadow(MikaTheme.colors, CircleShape).background(MikaTheme.colors.glass, CircleShape).clip(CircleShape)
+            .floatShadow(MaeveTheme.colors, CircleShape).background(MaeveTheme.colors.glass, CircleShape).clip(CircleShape)
             .clickable(onClickLabel = label, onClick = onClick)
             .testTag(tag),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, label, Modifier.size(13.dp), tint = MikaTheme.colors.ink) }
+    ) { Icon(icon, label, Modifier.size(13.dp), tint = MaeveTheme.colors.ink) }
 }

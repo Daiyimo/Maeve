@@ -62,6 +62,22 @@ object ChatCopy {
 
     enum class Tone { Accent, Warn, Ok }
 
+    /**
+     * 顶栏眉标（标题上方那一行小字）。
+     *
+     * 不写状态机术语。`READY` / `LOOP 03` 是给机器看的，Maeve 不会这么说自己。
+     * 这里写的是**她会怎么开口**：
+     *
+     * - 空对话 → 「我听着，说你要办的事」——她在等你，不是在报"就绪"
+     * - 有往来 → 「第 02 轮」——这一场谈到第几回合了
+     *
+     * 返回 null 表示不显示眉标（顶栏不必为一行小字长高）。
+     */
+    fun eyebrow(exchanges: List<Exchange>): String? = when {
+        exchanges.isEmpty() -> tr(R.string.chat_eyebrow_waiting)
+        else -> tr(R.string.chat_eyebrow_round, exchanges.size.toString().padStart(2, '0'))
+    }
+
     /** 顶栏副标题:这个对话留着一页在后台运行(没有任务在跑时)。 */
     val KEPT_PAGE: String get() = tr(R.string.kept_chat_sub)
 

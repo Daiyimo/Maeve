@@ -3,8 +3,8 @@ package com.daiyimo.maeve.ui
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import androidx.compose.foundation.layout.Column
-import com.daiyimo.maeve.ui.components.MikaDialog
-import com.daiyimo.maeve.ui.components.MikaNoticeDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.MaeveNoticeDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -22,8 +22,8 @@ import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.ValueTone
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.ui.components.TileTone
 import com.daiyimo.maeve.ui.components.FooterNote
 
@@ -52,12 +52,12 @@ fun WebSitesSection(state: WebSitesState, labeled: Boolean = true) {
     if (labeled) GroupLabel(tr(R.string.settings_web_logins))
     GroupCard {
         if (state.sites.isEmpty()) {
-            ListRow(MikaIcons.Globe, tr(R.string.web_none), tr(R.string.web_none_sub), first = true)
+            ListRow(MaeveIcons.Globe, tr(R.string.web_none), tr(R.string.web_none_sub), first = true)
         }
         val now = System.currentTimeMillis()
         state.sites.forEachIndexed { i, s ->
             ListRow(
-                MikaIcons.Globe, s.host,
+                MaeveIcons.Globe, s.host,
                 subtitle = listOfNotNull(
                     tr(R.string.web_signed_in_by_you).takeIf { s.loggedInByUser },
                     tr(R.string.web_challenged).takeIf { s.challenged(now) },
@@ -68,18 +68,18 @@ fun WebSitesSection(state: WebSitesState, labeled: Boolean = true) {
             ) { RowValue(tr(R.string.web_manage), ValueTone.Link) }
         }
         ListRow(
-            MikaIcons.Close, tr(R.string.web_logout_all_title), titleColor = MikaTheme.colors.bad, tone = TileTone.Bad,
+            MaeveIcons.Close, tr(R.string.web_logout_all_title), titleColor = MaeveTheme.colors.bad, tone = TileTone.Bad,
             onClick = { confirmAll = true },
         )
     }
     FooterNote(WEB_DATA_NOTE)
 
     picked?.let { s ->
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { picked = null },
             title = { Text(s.host) },
             text = {
-                val base = if (s.loggedInByUser) tr(R.string.web_you_signed_in) else tr(R.string.web_mika_visited)
+                val base = if (s.loggedInByUser) tr(R.string.web_you_signed_in) else tr(R.string.web_maeve_visited)
                 Text(if (s.challenged(System.currentTimeMillis())) "$base\n\n$WEB_CHALLENGED_NOTE" else base)
             },
             confirmButton = {
@@ -92,7 +92,7 @@ fun WebSitesSection(state: WebSitesState, labeled: Boolean = true) {
                         picked = null
                         state.onLogout(s.host)
                         notice = if (clearing) tr(R.string.web_cleared, s.host) else tr(R.string.web_signed_out, s.host, WEB_LOGOUT_PARTIAL)
-                    }) { Text(if (clearing) tr(R.string.web_clear_site) else tr(R.string.web_sign_out_site), color = MikaTheme.colors.bad) }
+                    }) { Text(if (clearing) tr(R.string.web_clear_site) else tr(R.string.web_sign_out_site), color = MaeveTheme.colors.bad) }
                 }
             },
             dismissButton = { TextButton({ picked = null }) { Text(tr(R.string.cancel)) } },
@@ -100,13 +100,13 @@ fun WebSitesSection(state: WebSitesState, labeled: Boolean = true) {
     }
 
     if (confirmAll) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { confirmAll = false },
             title = { Text(tr(R.string.web_logout_all_q)) },
             text = { Text(tr(R.string.web_logout_all_body)) },
             confirmButton = {
                 TextButton({ confirmAll = false; state.onLogoutAll(); notice = tr(R.string.web_logged_out_all) }) {
-                    Text(tr(R.string.web_logout_all), color = MikaTheme.colors.bad)
+                    Text(tr(R.string.web_logout_all), color = MaeveTheme.colors.bad)
                 }
             },
             dismissButton = { TextButton({ confirmAll = false }) { Text(tr(R.string.cancel)) } },
@@ -114,7 +114,7 @@ fun WebSitesSection(state: WebSitesState, labeled: Boolean = true) {
     }
 
     notice?.let { n ->
-        MikaNoticeDialog(n, onDismiss = { notice = null })
+        MaeveNoticeDialog(n, onDismiss = { notice = null })
     }
 }
 

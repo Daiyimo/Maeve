@@ -23,9 +23,9 @@ import com.daiyimo.maeve.core.trace.TraceArchive
 import com.daiyimo.maeve.record.OtlpReceipt
 import com.daiyimo.maeve.record.OtlpSender
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import com.daiyimo.maeve.ui.components.RowChevron
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -68,7 +68,7 @@ internal fun TraceSendRow(archive: TraceArchive) {
         is OtlpReceipt.HttpError -> stringResource(R.string.trace_http_error, r.code)
         null -> if (sender.failed) stringResource(R.string.trace_send_failed) else null
     }
-    if (message != null) Text(message, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), style = MikaType.Hint)
+    if (message != null) Text(message, Modifier.padding(horizontal = 16.dp, vertical = 6.dp), style = MaeveType.Hint)
     if (dialog) {
         // Credentials live only in this dialog and the single user-initiated request.
         var address by remember { mutableStateOf("") }
@@ -76,7 +76,7 @@ internal fun TraceSendRow(archive: TraceArchive) {
         var value by remember { mutableStateOf("") }
         val validAddress = OtlpSender.endpoint(address) != null
         val validHeader = OtlpSender.validHeader(name, value)
-        MikaDialog(onDismissRequest = { dialog = false }, title = { Text(stringResource(R.string.trace_send)) },
+        MaeveDialog(onDismissRequest = { dialog = false }, title = { Text(stringResource(R.string.trace_send)) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     OutlinedTextField(address, { address = it }, Modifier.testTag("trace-endpoint"), singleLine = true, isError = address.isNotBlank() && !validAddress,

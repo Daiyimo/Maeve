@@ -99,14 +99,16 @@ import com.daiyimo.maeve.ui.UserMessage
 import androidx.compose.ui.graphics.ImageBitmap
 import com.daiyimo.maeve.ui.components.ButtonKind
 import com.daiyimo.maeve.ui.components.ButtonSize
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.components.MikaLogo
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.MaeveLogo
 import com.daiyimo.maeve.ui.components.StepItem
 import com.daiyimo.maeve.ui.components.StepState
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.ui.theme.MaeveMotion
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.components.cardSurface
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import com.daiyimo.maeve.voice.HoldToTalk
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
@@ -132,7 +134,7 @@ object CardCopy {
     val APPROVE_ONCE_ONLY: String get() = tr(R.string.card_approve_once)
     val DECLINE: String get() = tr(R.string.action_decline)
     val SEE_PROCESS: String get() = tr(R.string.card_see_process)
-    val BACK_TO_MIKA: String get() = tr(R.string.card_back_to_mika)
+    val BACK_TO_MAEVE: String get() = tr(R.string.card_back_to_maeve)
     val SEND: String get() = tr(R.string.chat_send)
     val NEW_CHAT: String get() = tr(R.string.chat_new)
     val CONTINUE_LAST: String get() = tr(R.string.card_continue_last)
@@ -156,7 +158,7 @@ interface CardActions {
     fun answer(runKey: String, text: String)
     fun approve(runKey: String, requestKey: Int)
     fun decline(runKey: String, requestKey: Int)
-    fun openMika(conversationId: String)
+    fun openMaeve(conversationId: String)
     fun zoom(on: Boolean)
     /** 点了底部的输入框:这时浮层才改成能接收键盘。 */
     fun openInput()
@@ -221,7 +223,7 @@ fun CapsuleCard(
     onHandle: (Rect) -> Unit = {},
 ) {
     val field = CapsuleCards.input(card)
-    // 任务还在进行(干活中、Mika 问你、等条件)时,停止和对话页一样放在输入框右边,不另占一个按钮
+    // 任务还在进行(干活中、Maeve 问你、等条件)时,停止和对话页一样放在输入框右边,不另占一个按钮
     val stopKey = CapsuleCards.stopKey(card)
     val h = if (height == Dp.Unspecified) (LocalConfiguration.current.screenHeightDp * CardDocking.SHARE).dp else height
     val report by rememberUpdatedState(onHandle)
@@ -252,7 +254,7 @@ fun CapsuleCard(
 fun OverlayMotion(
     open: Boolean, origin: (Size) -> TransformOrigin, onClosed: () -> Unit, onOpened: () -> Unit = {}, content: @Composable () -> Unit,
 ) {
-    val still = MikaTheme.reduceMotion
+    val still = MaeveTheme.reduceMotion
     val shown = remember { Animatable(if (still) 1f else 0f) }
     val closed by rememberUpdatedState(onClosed)
     val opened by rememberUpdatedState(onOpened)
@@ -325,40 +327,42 @@ private fun InputRow(field: CardInput, ui: CardInputUi, actions: CardActions, st
 /** 输入框左边的截屏按钮:圆钮里一块屏。 */
 @Composable
 private fun CameraKey(onClick: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Box(
-        Modifier.testTag("capsule-camera").size(38.dp).clip(MikaShapes.Pill).background(c.ink.copy(alpha = 0.05f))
+        Modifier.testTag("capsule-camera").size(38.dp)
+            .cardSurface(c, MaeveShapes.Pill, tier = GlassTier.Pill)
             .clickable(role = Role.Button, onClickLabel = ScreenCopy.CAMERA, onClick = onClick)
             .semantics { contentDescription = ScreenCopy.CAMERA },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(MikaIcons.Camera, null, Modifier.size(18.dp), tint = c.ink2)
+        Icon(MaeveIcons.Camera, null, Modifier.size(18.dp), tint = c.ink2)
     }
 }
 
 /** 输入框上面那一条:缩略图、「你此刻的屏幕」、App · 时刻,右边 × 不要它;不让截图的页面写「没截到」。 */
 @Composable
 private fun ScreenChip(p: PendingScreen, onRemove: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val s = p.shot.screen
     Row(
-        Modifier.testTag("capsule-attachment").padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
-            .background(c.ink.copy(alpha = 0.05f)).padding(6.dp),
+        Modifier.testTag("capsule-attachment").padding(top = 8.dp).fillMaxWidth()
+            .cardSurface(c, RoundedCornerShape(12.dp))
+            .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (s.blocked) Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) { Icon(MikaIcons.Lock, null, Modifier.size(16.dp), tint = c.ink2) }
+        if (s.blocked) Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) { Icon(MaeveIcons.Lock, null, Modifier.size(16.dp), tint = c.ink2) }
         else ScreenThumb(p.thumb, 34.dp)
         Column(Modifier.weight(1f)) {
             Text(if (s.blocked) ScreenCopy.BLOCKED else ScreenCopy.TAG, style = Strong.copy(fontSize = 12.5.sp), color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(ScreenCopy.detail(s), style = Sub, color = c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Box(
-            Modifier.testTag("capsule-attachment-remove").size(26.dp).clip(MikaShapes.Pill)
+            Modifier.testTag("capsule-attachment-remove").size(26.dp).clip(MaeveShapes.Pill)
                 .clickable(role = Role.Button, onClickLabel = ScreenCopy.REMOVE, onClick = onRemove)
                 .semantics { contentDescription = ScreenCopy.REMOVE },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(MikaIcons.Close, null, Modifier.size(15.dp), tint = c.ink3)
+            Icon(MaeveIcons.Close, null, Modifier.size(15.dp), tint = c.ink3)
         }
     }
 }
@@ -366,27 +370,28 @@ private fun ScreenChip(p: PendingScreen, onRemove: () -> Unit) {
 /** 发送键:有东西可发时是蓝底,否则灰的点不了。 */
 @Composable
 private fun SendKey(enabled: Boolean, onSend: () -> Unit, start: Dp = 0.dp) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Box(
-        Modifier.testTag("capsule-send").padding(start = start).size(KeySize).clip(MikaShapes.Pill)
+        Modifier.testTag("capsule-send").padding(start = start).size(KeySize).clip(MaeveShapes.Pill)
             .background(if (enabled) c.accent else c.ink3.copy(alpha = 0.3f))
             .clickable(enabled = enabled, role = Role.Button, onClickLabel = CardCopy.SEND, onClick = onSend)
             .semantics { contentDescription = CardCopy.SEND },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(MikaIcons.Up, null, Modifier.size(17.dp), tint = Color.White)
+        Icon(MaeveIcons.Up, null, Modifier.size(17.dp), tint = Color.White)
     }
 }
 
 @Composable
 private fun InputField(field: CardInput, ui: CardInputUi, actions: CardActions, stop: (() -> Unit)?) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val shape = RoundedCornerShape(14.dp)
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     if (!ui.open) {
         Row(
-            Modifier.fillMaxWidth().heightIn(min = 42.dp).clip(shape).background(c.ink.copy(alpha = 0.05f))
+            Modifier.fillMaxWidth().heightIn(min = 42.dp)
+                .cardSurface(c, shape)
                 .padding(end = if (stop != null || ui.screen != null) 4.dp else 0.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -411,7 +416,8 @@ private fun InputField(field: CardInput, ui: CardInputUi, actions: CardActions, 
     var fieldValue by remember { mutableStateOf(TextFieldValue(ui.draft, TextRange(ui.draft.length))) }
     val shownValue = if (fieldValue.text == ui.draft) fieldValue else TextFieldValue(ui.draft, TextRange(ui.draft.length))
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 42.dp).clip(shape).background(c.ink.copy(alpha = 0.05f))
+        Modifier.fillMaxWidth().heightIn(min = 42.dp)
+            .cardSurface(c, shape)
             .border(1.dp, c.accent.copy(alpha = 0.5f), shape).padding(start = 12.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -433,14 +439,14 @@ private fun InputField(field: CardInput, ui: CardInputUi, actions: CardActions, 
 /** 输入框右边的停止键:黑底圆钮里一个方块,同对话页输入栏。 */
 @Composable
 internal fun StopKey(onStop: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Box(
-        Modifier.testTag("capsule-stop").size(KeySize).clip(MikaShapes.Pill).background(c.ink)
+        Modifier.testTag("capsule-stop").size(KeySize).clip(MaeveShapes.Pill).background(c.ink)
             .clickable(role = Role.Button, onClickLabel = CardCopy.STOP, onClick = onStop)
             .semantics { contentDescription = CardCopy.STOP },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(MikaIcons.Stop, null, Modifier.size(20.dp), tint = c.bg)
+        Icon(MaeveIcons.Stop, null, Modifier.size(20.dp), tint = c.bg)
     }
 }
 
@@ -454,7 +460,7 @@ private fun cardWidth() = minOf(CardWidth, (LocalConfiguration.current.screenWid
 /** 卡片的底:[fixed] 时就是 [height] 高(对话卡片),否则按内容高、最多 [height](任务卡片)。 */
 @Composable
 private fun CardFrame(height: Dp, fixed: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Column(
         Modifier.testTag("capsule-card").width(cardWidth()).then(if (fixed) Modifier.height(height) else Modifier.heightIn(max = height))
             .glass(c, CardShape, need = false).padding(12.dp),
@@ -462,27 +468,27 @@ private fun CardFrame(height: Dp, fixed: Boolean = true, content: @Composable Co
     )
 }
 
-/** 标题栏(按着它能拖卡片,见 [CapsuleCard] 的 onHandle):左边 Mika 图标,中间标题和状态,右边收起。 */
+/** 标题栏(按着它能拖卡片,见 [CapsuleCard] 的 onHandle):左边 Maeve 图标,中间标题和状态,右边收起。 */
 @Composable
 private fun Header(title: String, sub: String, actions: CardActions, handle: Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(handle.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        MikaLogo(28.dp, corner = 14.dp)
+        MaeveLogo(28.dp, corner = 14.dp)
         Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
             Text(title, style = Title, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(sub, style = Sub, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        IconButton(MikaIcons.Close, CardCopy.COLLAPSE, actions::collapse)
+        IconButton(MaeveIcons.Close, CardCopy.COLLAPSE, actions::collapse)
     }
 }
 
 /** 空闲卡片的标题栏:「接着「…」聊 · 新对话」或「新对话 · 接着上次聊」;没有任何对话时只有「新对话」。 */
 @Composable
 private fun IdleHeader(card: CardView.Chat, actions: CardActions, handle: Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val continuing = !card.fresh && card.conversationId != null
     Row(handle.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        MikaLogo(28.dp, corner = 14.dp)
+        MaeveLogo(28.dp, corner = 14.dp)
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (continuing) tr(R.string.card_continuing, card.title.orEmpty().let(ScreenCopy::plain).let { if (it.length > TITLE_MAX) it.take(TITLE_MAX) + "…" else it }) else CardCopy.NEW_CHAT,
@@ -493,18 +499,18 @@ private fun IdleHeader(card: CardView.Chat, actions: CardActions, handle: Modifi
                 TextLink(if (continuing) CardCopy.NEW_CHAT else CardCopy.CONTINUE_LAST) { actions.freshChat(continuing) }
             }
         }
-        IconButton(MikaIcons.Close, CardCopy.COLLAPSE, actions::collapse)
+        IconButton(MaeveIcons.Close, CardCopy.COLLAPSE, actions::collapse)
     }
 }
 
 @Composable
 private fun IconButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     Box(
-        Modifier.size(32.dp).clip(MikaShapes.Pill).clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+        Modifier.size(32.dp).clip(MaeveShapes.Pill).clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, null, Modifier.size(18.dp), tint = MikaTheme.colors.ink3)
+        Icon(icon, null, Modifier.size(18.dp), tint = MaeveTheme.colors.ink3)
     }
 }
 
@@ -514,7 +520,7 @@ private fun Detail(
     card: CardView.Detail, preview: Bitmap?, actions: CardActions, elapsed: @Composable (Long?) -> String?,
     height: Dp, handle: Modifier, input: @Composable () -> Unit,
 ) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val r = card.run
     val sub = listOfNotNull(CapsuleCards.status(r.kind), elapsed(r.startedAt)).joinToString(" · ")
     CardFrame(height, fixed = false) {
@@ -558,7 +564,7 @@ private fun Detail(
             }
         }
         input()
-        FooterLinks(actions, CardCopy.SEE_PROCESS to { actions.openMika(r.run.conversationId) })
+        FooterLinks(actions, CardCopy.SEE_PROCESS to { actions.openMaeve(r.run.conversationId) })
     }
 }
 
@@ -568,7 +574,7 @@ private fun Detail(
  */
 @Composable
 private fun KeptCard(card: CardView.Kept, preview: Bitmap?, actions: CardActions, height: Dp, handle: Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val p = card.page
     val now by produceState(System.currentTimeMillis(), p.id) {
         while (true) {
@@ -598,10 +604,12 @@ private fun KeptCard(card: CardView.Kept, preview: Bitmap?, actions: CardActions
             )
         }
         Row(Modifier.padding(top = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.weight(1f).testTag("kept-open")) { Action(tr(R.string.kept_open_chat), ButtonKind.Tonal) { actions.openMika(p.conversationId) } }
+            Box(Modifier.weight(1f).testTag("kept-open")) { Action(tr(R.string.kept_open_chat), ButtonKind.Tonal) { actions.openMaeve(p.conversationId) } }
             // 关闭是红字的淡红按钮,和别的按钮分开
             Box(
-                Modifier.weight(1f).height(40.dp).testTag("kept-close").clip(MikaShapes.Pill).background(c.badSoft)
+                Modifier.weight(1f).height(40.dp).testTag("kept-close")
+                    .cardSurface(c, MaeveShapes.Pill, tier = GlassTier.Pill)
+                    .border(1.dp, c.bad.copy(alpha = 0.35f), MaeveShapes.Pill)
                     .clickable(role = Role.Button, onClick = actions::closeKeptPage),
                 contentAlignment = Alignment.Center,
             ) { Text(tr(R.string.kept_close), style = Strong, color = c.bad) }
@@ -640,7 +648,7 @@ internal fun Pinned(content: CardContent?, key: String, actions: CardActions) {
 }
 
 /**
- * 对话卡片:那个对话的来回在中间滚;要你回答、同意时按钮固定在来回下面,再下面是输入框和「回到 Mika」。
+ * 对话卡片:那个对话的来回在中间滚;要你回答、同意时按钮固定在来回下面,再下面是输入框和「回到 Maeve」。
  * 不带任务时是空闲卡片(标题栏能切新对话)。
  */
 @Composable
@@ -662,12 +670,12 @@ private fun ChatCard(
         }
         if (r != null) Pinned(card.content, r.run.key, actions)
         input()
-        FooterLinks(actions, card.target?.let { id -> CardCopy.BACK_TO_MIKA to { actions.openMika(id) } })
+        FooterLinks(actions, card.target?.let { id -> CardCopy.BACK_TO_MAEVE to { actions.openMaeve(id) } })
     }
 }
 
 /**
- * 卡片最底下一行:[primary](「查看过程」「回到 Mika」;空闲卡片还没有对话时没有)和灰色的「关闭悬浮胶囊」。
+ * 卡片最底下一行:[primary](「查看过程」「回到 Maeve」;空闲卡片还没有对话时没有)和灰色的「关闭悬浮胶囊」。
  * 右上角的 × 只是收起;想让胶囊不再出现的人在这里关,不用去找设置。
  */
 @Composable
@@ -678,9 +686,9 @@ private fun FooterLinks(actions: CardActions, primary: Pair<String, () -> Unit>?
     ) {
         primary?.let { (text, onClick) ->
             TextLink(text, onClick = onClick)
-            Text("·", style = Sub, color = MikaTheme.colors.ink3)
+            Text("·", style = Sub, color = MaeveTheme.colors.ink3)
         }
-        TextLink(CardCopy.HIDE_CAPSULE, MikaTheme.colors.ink3, actions::hideCapsule)
+        TextLink(CardCopy.HIDE_CAPSULE, MaeveTheme.colors.ink3, actions::hideCapsule)
     }
 }
 
@@ -690,7 +698,7 @@ private fun FooterLinks(actions: CardActions, primary: Pair<String, () -> Unit>?
  */
 @Composable
 internal fun ThreadList(thread: ChatThread, conversationId: String?, actions: CardActions, footer: (@Composable () -> Unit)? = null) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val state = rememberLazyListState(initialFirstVisibleItemIndex = thread.anchor)
     var following by remember { mutableStateOf(false) }
     LaunchedEffect(state) {
@@ -774,7 +782,7 @@ private const val END_OFFSET = 1_000_000
  */
 @Composable
 internal fun Steps(steps: List<String>, max: Dp, tags: List<String?> = emptyList()) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     // 倒着排:第 0 项是最新一步,贴在底下
     val state = rememberLazyListState()
     var following by remember { mutableStateOf(true) }
@@ -826,13 +834,13 @@ private val FadeEdge = 28.dp
 
 @Composable
 private fun Action(text: String, kind: ButtonKind, onClick: () -> Unit) {
-    MikaButton(text, onClick, Modifier.fillMaxWidth(), kind = kind, size = ButtonSize.Medium)
+    MaeveButton(text, onClick, Modifier.fillMaxWidth(), kind = kind, size = ButtonSize.Medium)
 }
 
 @Composable
-private fun TextLink(text: String, color: Color = MikaTheme.colors.accent, onClick: () -> Unit) {
+private fun TextLink(text: String, color: Color = MaeveTheme.colors.accent, onClick: () -> Unit) {
     Text(
-        text, Modifier.clip(MikaShapes.Pill).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 6.dp, vertical = 8.dp),
+        text, Modifier.clip(MaeveShapes.Pill).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 6.dp, vertical = 8.dp),
         style = Sub.copy(fontSize = 13.sp), color = color,
     )
 }
@@ -840,7 +848,7 @@ private fun TextLink(text: String, color: Color = MikaTheme.colors.accent, onCli
 /** 虚拟屏小画面,点一下放大。 */
 @Composable
 private fun MiniScreen(frame: Bitmap, onZoom: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val image = remember(frame) { frame.asImageBitmap() }
     Box(
         Modifier.testTag("capsule-screen").width(ScreenWidth).aspectRatio(ratio(frame)).clip(ScreenShape)
@@ -863,7 +871,7 @@ private fun Zoomed(frame: Bitmap, actions: CardActions) {
     val image = remember(frame) { frame.asImageBitmap() }
     val width = minOf(ZoomWidth, (LocalConfiguration.current.screenWidthDp * 0.72f).dp)
     Box(
-        Modifier.testTag("capsule-zoom").width(width).aspectRatio(ratio(frame)).glass(MikaTheme.colors, CardShape, need = false)
+        Modifier.testTag("capsule-zoom").width(width).aspectRatio(ratio(frame)).glass(MaeveTheme.colors, CardShape, need = false)
             .clickable(role = Role.Image, onClickLabel = CardCopy.ZOOMED) { actions.zoom(false) }
             .semantics { contentDescription = CardCopy.ZOOMED },
     ) {

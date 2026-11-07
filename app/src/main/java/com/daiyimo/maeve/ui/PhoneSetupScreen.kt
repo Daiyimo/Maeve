@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.ui
 
+import com.daiyimo.maeve.ui.theme.MazeRing
 import com.daiyimo.maeve.R
 import androidx.compose.ui.res.stringResource
 import com.daiyimo.maeve.ui.components.keepsKeyboard
@@ -12,8 +13,10 @@ import android.os.SystemClock
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -30,7 +34,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.glassSource
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -76,18 +81,20 @@ import com.daiyimo.maeve.ui.components.TopBar
 import com.daiyimo.maeve.ui.components.ListRow
 import com.daiyimo.maeve.ui.components.RowValue
 import com.daiyimo.maeve.ui.components.ValueTone
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.LocalGlassBackdrop
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.ui.components.TileTone
 import com.daiyimo.maeve.ui.components.RowChevron
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.ButtonKind
 import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.cardSurface
 import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.ProgressDots
-import com.daiyimo.maeve.ui.theme.MikaType
-import com.daiyimo.maeve.ui.theme.MikaShapes
+import com.daiyimo.maeve.ui.theme.MaeveType
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveSize
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -100,7 +107,7 @@ private val StepSetSaver = Saver<Set<SetupStep>, String>(
 
 /**
  * 「设置手机操作」引导页:接上实时状态。每一步按系统开关自动打勾,读不到或读不准时用户点「我已经打开了,下一步」;
- * 点清单里前面的某一步可以回去重做。停在配对一步时开始找配对窗口:无障碍开着就由 Mika 自己读配对码,否则发带输入框的通知。
+ * 点清单里前面的某一步可以回去重做。停在配对一步时开始找配对窗口:无障碍开着就由 Maeve 自己读配对码,否则发带输入框的通知。
  * [repair] 是从设置页「重新配对」进来的。
  */
 @Composable
@@ -275,16 +282,21 @@ fun PhoneSetupContent(
     val canRevisit = view.phase == SetupPhase.Guide || view.phase == SetupPhase.Failed
     fun revisitable(step: SetupStep) = canRevisit && step != view.current && step in PhoneSetupFlow.REVISITABLE &&
         view.marks.getValue(step) in setOf(StepMark.Done, StepMark.Skipped, StepMark.Failed)
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     PageBackground {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
-            TopBar(PhoneSetupCopy.BAR_TITLE, MikaIcons.Back, onClose, stringResource(R.string.back))
-            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+        val backdrop = LocalGlassBackdrop.current
+        val statusBar = WindowInsets.statusBars.asPaddingValues()
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars)) {
+                Column(
+                    Modifier.weight(1f).glassSource(backdrop).verticalScroll(rememberScrollState())
+                        .padding(start = 16.dp, end = 16.dp, top = statusBar.calculateTopPadding() + MaeveSize.TopBar + 4.dp, bottom = 16.dp),
+                ) {
                 if (view.phase == SetupPhase.Unavailable) {
                     // 这个环境没有能起助手的路:只说明,不列走不通的步骤
                     GroupCard {
                         Column(Modifier.padding(16.dp).testTag("setup-unavailable")) {
-                            Text(PhoneSetupCopy.UNAVAILABLE, style = MikaType.Body, fontWeight = FontWeight.SemiBold, color = c.ink)
+                            Text(PhoneSetupCopy.UNAVAILABLE, style = MaeveType.Body, fontWeight = FontWeight.SemiBold, color = c.ink)
                             Text(
                                 PhoneSetupCopy.UNAVAILABLE_REASON, Modifier.padding(top = 8.dp),
                                 fontSize = 14.5.sp, lineHeight = 23.sp, color = c.ink2,
@@ -295,7 +307,7 @@ fun PhoneSetupContent(
                     if (view.phase == SetupPhase.Success) {
                         Text(
                             PhoneSetupCopy.SUCCESS_LINE, Modifier.padding(top = 4.dp, bottom = 16.dp).testTag("setup-success"),
-                            style = MikaType.Body, fontWeight = FontWeight.SemiBold, color = c.ok,
+                            style = MaeveType.Body, fontWeight = FontWeight.SemiBold, color = c.ok,
                         )
                     } else {
                         Text(
@@ -332,29 +344,31 @@ fun PhoneSetupContent(
                 if (view.phase == SetupPhase.Success) {
                     Text(
                         PhoneSetupCopy.successNote(view.restart), Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                        style = MikaType.Caption, color = c.ink3, textAlign = TextAlign.Center,
+                        style = MaeveType.Caption, color = c.ink3, textAlign = TextAlign.Center,
                     )
                 }
                 if (onboarding) ProgressDots(Onboarding.DOTS, Onboarding.dot(OnboardingStep.Phone), Modifier.padding(bottom = 8.dp))
                 when (view.phase) {
-                    SetupPhase.Success -> MikaButton(
+                    SetupPhase.Success -> MaeveButton(
                         if (onboarding) PhoneSetupCopy.START_USING else PhoneSetupCopy.SUCCESS_DONE, onClose,
                         Modifier.fillMaxWidth().testTag("setup-done"),
                     )
-                    SetupPhase.Unavailable -> MikaButton(stringResource(R.string.ok_got_it), onClose, Modifier.fillMaxWidth().testTag("setup-got-it"))
+                    SetupPhase.Unavailable -> MaeveButton(stringResource(R.string.ok_got_it), onClose, Modifier.fillMaxWidth().testTag("setup-got-it"))
                     // 正在连接、连不上时也能先离开,之后在设置里接着弄
-                    SetupPhase.Guide, SetupPhase.Working, SetupPhase.Failed -> MikaButton(
+                    SetupPhase.Guide, SetupPhase.Working, SetupPhase.Failed -> MaeveButton(
                         PhoneSetupCopy.LATER, onClose, Modifier.fillMaxWidth().testTag("setup-later"),
                         kind = ButtonKind.Text, size = ButtonSize.Medium,
                     )
                 }
                 onDiagnostics?.let {
-                    MikaButton(
+                    MaeveButton(
                         PhoneSetupCopy.DIAGNOSTICS, it, Modifier.fillMaxWidth().testTag("setup-diagnostics"),
                         kind = ButtonKind.Text, size = ButtonSize.Small,
                     )
                 }
+                }
             }
+            TopBar(PhoneSetupCopy.BAR_TITLE, MaeveIcons.Back, onClose, stringResource(R.string.back), eyebrow = "PHONE")
         }
     }
 }
@@ -365,13 +379,18 @@ fun PhoneSetupContent(
  */
 @Composable
 private fun UsbStartCard(restart: HelperRestart, command: String, onCopy: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val (title, body) = PhoneSetupCopy.usbCard(restart)
-    Column(Modifier.padding(top = 10.dp).fillMaxWidth().background(c.accentSoft, RoundedCornerShape(12.dp)).padding(12.dp).testTag("setup-usb")) {
+    Column(
+        Modifier.padding(top = 10.dp).fillMaxWidth()
+            .cardSurface(c, RoundedCornerShape(12.dp))
+            .border(1.dp, c.accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .padding(12.dp).testTag("setup-usb"),
+    ) {
         Text(title, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
         Text(body, Modifier.padding(top = 2.dp), fontSize = 13.sp, lineHeight = 18.sp, color = c.ink2)
         Text(
-            command, Modifier.padding(top = 8.dp).fillMaxWidth().background(c.fill, RoundedCornerShape(10.dp)).padding(10.dp).testTag("setup-usb-command"),
+            command, Modifier.padding(top = 8.dp).fillMaxWidth().cardSurface(c, RoundedCornerShape(10.dp)).padding(10.dp).testTag("setup-usb-command"),
             fontFamily = FontFamily.Monospace, fontSize = 12.sp, lineHeight = 17.sp, color = c.ink,
         )
         PillButton(PhoneSetupCopy.USB_COPY, primary = false, tag = "setup-usb-copy", onClick = onCopy)
@@ -384,7 +403,7 @@ private fun StepRow(
     onUseWireless: () -> Unit = {}, body: @Composable () -> Unit,
 ) {
     val copy = PhoneSetupCopy.step(step)
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Box(Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).testTag("setup-step-${step.name}")) {
         if (!first) Box(Modifier.padding(start = 58.dp).fillMaxWidth().height(0.5.dp).background(c.hair))
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -392,7 +411,7 @@ private fun StepRow(
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        copy.title, Modifier.weight(1f), style = MikaType.Body,
+                        copy.title, Modifier.weight(1f), style = MaeveType.Body,
                         fontWeight = if (mark == StepMark.Current || mark == StepMark.Failed) FontWeight.SemiBold else FontWeight.Medium,
                         color = if (mark == StepMark.Todo || mark == StepMark.Skipped) c.ink3 else c.ink,
                     )
@@ -403,7 +422,7 @@ private fun StepRow(
                         RowValue(if (wireless) PhoneSetupCopy.WIRELESS_SKIPPED else PhoneSetupCopy.ACCESSIBILITY_SKIPPED)
                     }
                 }
-                if (!current) Text(copy.brief, Modifier.padding(top = 2.dp), style = MikaType.Caption, color = if (mark == StepMark.Todo) c.ink3 else c.ink2)
+                if (!current) Text(copy.brief, Modifier.padding(top = 2.dp), style = MaeveType.Caption, color = if (mark == StepMark.Todo) c.ink3 else c.ink2)
                 // 只在无线调试这一行给一次:两步被跳过是同一个原因
                 if (mark == StepMark.Skipped && step == SetupStep.WirelessDebugging) {
                     LinkText(PhoneSetupCopy.USE_WIRELESS, "setup-use-wireless", onUseWireless)
@@ -416,7 +435,7 @@ private fun StepRow(
 
 @Composable
 private fun StepBadge(n: Int, mark: StepMark) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val bg = when (mark) {
         StepMark.Done -> c.ok
         StepMark.Current -> c.accent
@@ -425,8 +444,8 @@ private fun StepBadge(n: Int, mark: StepMark) {
     }
     Box(Modifier.size(28.dp).background(bg, CircleShape), contentAlignment = Alignment.Center) {
         when (mark) {
-            StepMark.Done -> Icon(MikaIcons.Check, null, Modifier.size(15.dp), tint = c.onAccent)
-            StepMark.Failed -> Icon(MikaIcons.Exclaim, null, Modifier.size(15.dp), tint = c.onAccent)
+            StepMark.Done -> Icon(MaeveIcons.Check, null, Modifier.size(15.dp), tint = c.onAccent)
+            StepMark.Failed -> Icon(MaeveIcons.Exclaim, null, Modifier.size(15.dp), tint = c.onAccent)
             else -> Text("$n", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (mark == StepMark.Todo || mark == StepMark.Skipped) c.ink3 else c.onAccent)
         }
     }
@@ -451,14 +470,14 @@ private fun CurrentStepBody(
     onConnectPort: ((Int) -> Unit)?,
 ) {
     val copy = PhoneSetupCopy.step(step)
-    Text(copy.body, Modifier.padding(top = 2.dp), style = MikaType.Caption, color = MikaTheme.colors.ink2)
+    Text(copy.body, Modifier.padding(top = 2.dp), style = MaeveType.Caption, color = MaeveTheme.colors.ink2)
     view.failure?.let { f ->
         val fc = PhoneSetupCopy.failure(f.reason)
         Column(
-            Modifier.padding(top = 10.dp).fillMaxWidth().background(MikaTheme.colors.badSoft, RoundedCornerShape(12.dp)).padding(12.dp),
+            Modifier.padding(top = 10.dp).fillMaxWidth().background(MaeveTheme.colors.badSoft, RoundedCornerShape(12.dp)).padding(12.dp),
         ) {
-            Text(fc.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MikaTheme.colors.bad)
-            Text(fc.body, Modifier.padding(top = 2.dp), fontSize = 13.sp, lineHeight = 18.sp, color = MikaTheme.colors.ink2)
+            Text(fc.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaeveTheme.colors.bad)
+            Text(fc.body, Modifier.padding(top = 2.dp), fontSize = 13.sp, lineHeight = 18.sp, color = MaeveTheme.colors.ink2)
         }
         // 要再运行 USB 命令时,下面的卡片里就有命令和复制按钮,不再重复一个
         if (f.fix != BuiltinShellFix.RunUsbCommand || !view.usbFallback) {
@@ -472,9 +491,9 @@ private fun CurrentStepBody(
     view.suspect?.let { s ->
         Text(
             PhoneSetupCopy.suspect(s),
-            Modifier.padding(top = 10.dp).fillMaxWidth().background(MikaTheme.colors.warnSoft, RoundedCornerShape(12.dp)).padding(12.dp)
+            Modifier.padding(top = 10.dp).fillMaxWidth().background(MaeveTheme.colors.warnSoft, RoundedCornerShape(12.dp)).padding(12.dp)
                 .testTag("setup-suspect"),
-            fontSize = 13.sp, lineHeight = 18.sp, color = MikaTheme.colors.ink,
+            fontSize = 13.sp, lineHeight = 18.sp, color = MaeveTheme.colors.ink,
         )
         PillButton(PhoneSetupCopy.goBackTo(s.step), primary = view.failure == null, tag = "setup-suspect-back") { onRevisit(s.step) }
     }
@@ -483,20 +502,20 @@ private fun CurrentStepBody(
     if (step == SetupStep.PairingCode) {
         when (view.notifyIssue) {
             PairingNotifyIssue.NotificationsOff -> {
-                Text(PhoneSetupCopy.NEED_NOTIFICATIONS, Modifier.padding(top = 8.dp), fontSize = 13.sp, lineHeight = 18.sp, color = MikaTheme.colors.warn)
+                Text(PhoneSetupCopy.NEED_NOTIFICATIONS, Modifier.padding(top = 8.dp), fontSize = 13.sp, lineHeight = 18.sp, color = MaeveTheme.colors.warn)
                 PillButton(PhoneSetupCopy.ALLOW_NOTIFICATIONS, primary = fixNotificationsFirst, tag = "setup-notify-fix") { onAllowNotifications() }
             }
             PairingNotifyIssue.ChannelOff -> {
-                Text(PhoneSetupCopy.PAIRING_CHANNEL_OFF, Modifier.padding(top = 8.dp), fontSize = 13.sp, lineHeight = 18.sp, color = MikaTheme.colors.warn)
+                Text(PhoneSetupCopy.PAIRING_CHANNEL_OFF, Modifier.padding(top = 8.dp), fontSize = 13.sp, lineHeight = 18.sp, color = MaeveTheme.colors.warn)
                 PillButton(PhoneSetupCopy.OPEN_PAIRING_CHANNEL, primary = fixNotificationsFirst, tag = "setup-notify-fix") { onOpenPairingChannel() }
             }
             // 不弹出也能下拉去填:只提醒,不抢主按钮;无障碍开着时用不上通知,不提
             PairingNotifyIssue.NotHeadsUp -> if (!view.autoRead) {
                 Text(
                     PhoneSetupCopy.PAIRING_LOWERED,
-                    Modifier.padding(top = 10.dp).fillMaxWidth().background(MikaTheme.colors.warnSoft, RoundedCornerShape(12.dp)).padding(12.dp)
+                    Modifier.padding(top = 10.dp).fillMaxWidth().background(MaeveTheme.colors.warnSoft, RoundedCornerShape(12.dp)).padding(12.dp)
                         .testTag("setup-pairing-lowered"),
-                    fontSize = 13.sp, lineHeight = 18.sp, color = MikaTheme.colors.ink,
+                    fontSize = 13.sp, lineHeight = 18.sp, color = MaeveTheme.colors.ink,
                 )
                 PillButton(PhoneSetupCopy.OPEN_HEADS_UP, primary = false, tag = "setup-pairing-lowered-open") { onOpenPairingChannel() }
             }
@@ -504,17 +523,17 @@ private fun CurrentStepBody(
         }
         if (headsUpLowered && !view.needsNotifications) {
             Column(
-                Modifier.padding(top = 10.dp).fillMaxWidth().background(MikaTheme.colors.warnSoft, RoundedCornerShape(12.dp)).padding(12.dp)
+                Modifier.padding(top = 10.dp).fillMaxWidth().background(MaeveTheme.colors.warnSoft, RoundedCornerShape(12.dp)).padding(12.dp)
                     .testTag("setup-heads-up"),
             ) {
-                Text(PhoneSetupCopy.HEADS_UP_LOWERED, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, color = MikaTheme.colors.warn)
+                Text(PhoneSetupCopy.HEADS_UP_LOWERED, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, color = MaeveTheme.colors.warn)
             }
             PillButton(PhoneSetupCopy.OPEN_HEADS_UP, primary = false, tag = "setup-heads-up-open") { onOpenHeadsUp() }
         }
         if (view.autoRead) AutoReadHint() else NotifyGuide()
-        if (view.portFound && !view.autoRead) Text(PhoneSetupCopy.PORT_FOUND, Modifier.padding(top = 8.dp), fontSize = 13.sp, color = MikaTheme.colors.ok)
+        if (view.portFound && !view.autoRead) Text(PhoneSetupCopy.PORT_FOUND, Modifier.padding(top = 8.dp), fontSize = 13.sp, color = MaeveTheme.colors.ok)
     }
-    // 无障碍一步推荐跳过:配对后 Mika 自己打开,也不会被「受限制的设置」拦住
+    // 无障碍一步推荐跳过:配对后 Maeve 自己打开,也不会被「受限制的设置」拦住
     val a11y = step == SetupStep.Accessibility
     if (a11y) PillButton(PhoneSetupCopy.ACCESSIBILITY_SKIP, primary = true, tag = "setup-skip-a11y", onClick = onSkipAccessibility)
     if (view.failure == null && copy.action != null) {
@@ -531,23 +550,25 @@ private fun CurrentStepBody(
 private fun LinkText(text: String, tag: String?, onClick: () -> Unit) {
     Text(
         text, Modifier.padding(top = 6.dp).clickable(onClick = onClick).padding(vertical = 4.dp).then(if (tag != null) Modifier.testTag(tag) else Modifier),
-        fontSize = 13.sp, color = MikaTheme.colors.accent,
+        fontSize = 13.sp, color = MaeveTheme.colors.accent,
     )
 }
 
-/** 无障碍开着:去系统设置前说一句,Mika 会自己读配对码。 */
+/** 无障碍开着:去系统设置前说一句,Maeve 会自己读配对码。 */
 @Composable
 private fun AutoReadHint() {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     Row(
-        Modifier.padding(top = 10.dp).fillMaxWidth().background(c.okSoft, RoundedCornerShape(12.dp))
+        Modifier.padding(top = 10.dp).fillMaxWidth()
+            .cardSurface(c, RoundedCornerShape(12.dp))
+            .border(1.dp, c.ok.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
             .padding(12.dp).testTag("setup-pairing-hint"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Icon(MikaIcons.Check, null, Modifier.size(20.dp), tint = c.ok)
+        Icon(MaeveIcons.Check, null, Modifier.size(20.dp), tint = c.ok)
         Column {
             Text(PhoneSetupCopy.AUTO_READ_HINT, fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.SemiBold, color = c.ink)
-            // 有的系统一进设置就停掉 Mika 的无障碍、冻结后台:读不到时填码通知已经在通知栏里了
+            // 有的系统一进设置就停掉 Maeve 的无障碍、冻结后台:读不到时填码通知已经在通知栏里了
             Text(PhoneSetupCopy.AUTO_READ_FALLBACK, Modifier.padding(top = 4.dp), fontSize = 13.sp, lineHeight = 18.sp, color = c.ink2)
         }
     }
@@ -556,10 +577,12 @@ private fun AutoReadHint() {
 /** 无障碍没开:用三行编号小图示说清楚配对码怎么填进通知,不用离开配对窗口。 */
 @Composable
 private fun NotifyGuide() {
-    val c = MikaTheme.colors
-    val icons = listOf(MikaIcons.Phone, MikaIcons.Bell, MikaIcons.Key)
+    val c = MaeveTheme.colors
+    val icons = listOf(MaeveIcons.Phone, MaeveIcons.Bell, MaeveIcons.Key)
     Column(
-        Modifier.padding(top = 10.dp).fillMaxWidth().background(c.accentSoft, RoundedCornerShape(12.dp))
+        Modifier.padding(top = 10.dp).fillMaxWidth()
+            .cardSurface(c, RoundedCornerShape(12.dp))
+            .border(1.dp, c.accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
             .padding(12.dp).testTag("setup-pairing-guide"),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -584,10 +607,10 @@ private fun ManualCode(askPort: Boolean, onSubmit: (String, Int?) -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     Text(
         PhoneSetupCopy.MANUAL_TOGGLE, Modifier.padding(top = 8.dp).clickable { open = !open }.padding(vertical = 4.dp).testTag("setup-manual"),
-        fontSize = 13.sp, color = MikaTheme.colors.accent,
+        fontSize = 13.sp, color = MaeveTheme.colors.accent,
     )
     if (!open) return
-    Text(PhoneSetupCopy.MANUAL_HINT, fontSize = 12.5.sp, lineHeight = 17.sp, color = MikaTheme.colors.ink3)
+    Text(PhoneSetupCopy.MANUAL_HINT, fontSize = 12.5.sp, lineHeight = 17.sp, color = MaeveTheme.colors.ink3)
     OutlinedTextField(
         code, { code = it; error = null }, Modifier.fillMaxWidth().padding(top = 6.dp).keepsKeyboard().testTag("setup-code"),
         label = { Text(PhoneSetupCopy.CODE_LABEL) }, singleLine = true,
@@ -600,7 +623,7 @@ private fun ManualCode(askPort: Boolean, onSubmit: (String, Int?) -> Unit) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
     }
-    error?.let { Text(it, Modifier.padding(top = 4.dp), fontSize = 12.5.sp, color = MikaTheme.colors.bad) }
+    error?.let { Text(it, Modifier.padding(top = 4.dp), fontSize = 12.5.sp, color = MaeveTheme.colors.bad) }
     PillButton(PhoneSetupCopy.SUBMIT, primary = true, tag = "setup-submit") {
         val c = PairingCode.normalize(code)
         val p = if (askPort && port.isNotBlank()) PairingCode.port(port) else null
@@ -630,7 +653,7 @@ private fun ConnectPort(onConnect: (Int) -> Unit) {
     OutlinedTextField(
         port, { port = it; invalid = false }, Modifier.fillMaxWidth().padding(top = 10.dp).keepsKeyboard().testTag("setup-connect-port"),
         label = { Text(PhoneSetupCopy.CONNECT_PORT_LABEL) },
-        supportingText = { Text(if (invalid) PhoneSetupCopy.PORT_INVALID else PhoneSetupCopy.CONNECT_PORT_HINT, color = if (invalid) MikaTheme.colors.bad else MikaTheme.colors.ink3) },
+        supportingText = { Text(if (invalid) PhoneSetupCopy.PORT_INVALID else PhoneSetupCopy.CONNECT_PORT_HINT, color = if (invalid) MaeveTheme.colors.bad else MaeveTheme.colors.ink3) },
         singleLine = true, isError = invalid,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
     )
@@ -644,17 +667,17 @@ private fun ConnectPort(onConnect: (Int) -> Unit) {
 @Composable
 private fun WorkingLine(scanning: Boolean) {
     Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        CircularProgressIndicator(Modifier.size(16.dp), color = MikaTheme.colors.accent, strokeWidth = 2.dp)
+        MazeRing(progress = null, modifier = Modifier, size = 16.dp, head = MaeveTheme.colors.machine, indeterminate = true)
         Text(
             if (scanning) PhoneSetupCopy.SCANNING_PORTS else PhoneSetupCopy.WORKING, Modifier.testTag("setup-working"),
-            fontSize = 13.5.sp, color = MikaTheme.colors.ink2,
+            fontSize = 13.5.sp, color = MaeveTheme.colors.ink2,
         )
     }
 }
 
 @Composable
 private fun PillButton(text: String, primary: Boolean, tag: String? = null, onClick: () -> Unit) {
-    MikaButton(
+    MaeveButton(
         text, onClick, Modifier.padding(top = 10.dp).then(if (tag != null) Modifier.testTag(tag) else Modifier),
         kind = if (primary) ButtonKind.Primary else ButtonKind.Tonal, size = ButtonSize.Small,
     )
@@ -668,24 +691,24 @@ fun PhoneHelperSection(status: BuiltinShellStatus, onRepair: () -> Unit, onUnpai
     var confirming by remember { mutableStateOf(false) }
     GroupCard {
         val (value, tone) = PhoneSetupCopy.statusValue(status)
-        ListRow(MikaIcons.Phone, PhoneSetupCopy.ROW_TITLE, PhoneSetupCopy.statusLine(status, usbDebugging), first = true) {
+        ListRow(MaeveIcons.Phone, PhoneSetupCopy.ROW_TITLE, PhoneSetupCopy.statusLine(status, usbDebugging), first = true) {
             RowValue(value, tone)
         }
-        ListRow(MikaIcons.Link, PhoneSetupCopy.REPAIR, PhoneSetupCopy.REPAIR_SUBTITLE, onClick = onRepair) {
+        ListRow(MaeveIcons.Link, PhoneSetupCopy.REPAIR, PhoneSetupCopy.REPAIR_SUBTITLE, onClick = onRepair) {
             RowChevron()
         }
         val paired = status != BuiltinShellStatus.NotPaired
         ListRow(
-            MikaIcons.Close, PhoneSetupCopy.UNPAIR, PhoneSetupCopy.UNPAIR_SUBTITLE,
-            titleColor = if (paired) MikaTheme.colors.bad else MikaTheme.colors.ink3, tone = if (paired) TileTone.Bad else TileTone.Neutral, onClick = if (paired) ({ confirming = true }) else null,
+            MaeveIcons.Close, PhoneSetupCopy.UNPAIR, PhoneSetupCopy.UNPAIR_SUBTITLE,
+            titleColor = if (paired) MaeveTheme.colors.bad else MaeveTheme.colors.ink3, tone = if (paired) TileTone.Bad else TileTone.Neutral, onClick = if (paired) ({ confirming = true }) else null,
         )
     }
     if (confirming) {
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { confirming = false },
             title = { Text(PhoneSetupCopy.UNPAIR_TITLE) },
             text = { Text(PhoneSetupCopy.UNPAIR_BODY) },
-            confirmButton = { TextButton({ confirming = false; onUnpair() }) { Text(PhoneSetupCopy.UNPAIR_CONFIRM, color = MikaTheme.colors.bad) } },
+            confirmButton = { TextButton({ confirming = false; onUnpair() }) { Text(PhoneSetupCopy.UNPAIR_CONFIRM, color = MaeveTheme.colors.bad) } },
             dismissButton = { TextButton({ confirming = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
@@ -696,16 +719,16 @@ fun PhoneHelperSection(status: BuiltinShellStatus, onRepair: () -> Unit, onUnpai
 /** 任务要用手机而手机操作没准备好时,任务卡片下面的一行。 */
 @Composable
 fun PhoneSetupLine(onOpen: () -> Unit) {
-    val shape = MikaShapes.Card
+    val shape = MaeveShapes.Card
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 12.dp).cardSurface(MikaTheme.colors, shape)
+        Modifier.fillMaxWidth().padding(bottom = 12.dp).cardSurface(MaeveTheme.colors, shape)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(PhoneSetupCopy.DEGRADED_LINE, Modifier.weight(1f), fontSize = 13.sp, lineHeight = 18.sp, color = MikaTheme.colors.ink2)
+        Text(PhoneSetupCopy.DEGRADED_LINE, Modifier.weight(1f), fontSize = 13.sp, lineHeight = 18.sp, color = MaeveTheme.colors.ink2)
         Text(
             PhoneSetupCopy.DEGRADED_ACTION, Modifier.clickable(onClick = onOpen).padding(4.dp).testTag("phone-setup-open"),
-            fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MikaTheme.colors.accent,
+            fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = MaeveTheme.colors.accent,
         )
     }
 }

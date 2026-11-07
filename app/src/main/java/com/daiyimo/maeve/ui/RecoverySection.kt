@@ -32,14 +32,14 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.components.MikaSwitch
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.components.MaeveSwitch
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /**
  * 设置 › 恢复与修复 里手机操作的几个授权开关的文字(纯函数,便于测试)。和引导页一样说大白话,
- * 每一项都写清楚打开后 Mika 会做什么、怎么关;说明一直写在开关下面。都默认打开,配好手机操作后 Mika 自己补上。
+ * 每一项都写清楚打开后 Maeve 会做什么、怎么关;说明一直写在开关下面。都默认打开,配好手机操作后 Maeve 自己补上。
  */
 object RecoveryCopy {
     data class SwitchCopy(val title: String, val subtitle: String, val explain: String)
@@ -180,27 +180,27 @@ fun RecoverySection(
             val on = consent.wants(cap)
             val icon = iconOf(cap)
             ListRow(icon, copy.title, if (busy == cap) RecoveryCopy.WORKING else copy.subtitle, first = i == 0) {
-                MikaSwitch(on, { want -> onToggle(cap, want) }, Modifier.testTag("recovery-${cap.name}"), enabled = busy == null)
+                MaeveSwitch(on, { want -> onToggle(cap, want) }, Modifier.testTag("recovery-${cap.name}"), enabled = busy == null)
             }
-            Note(copy.explain, MikaTheme.colors.ink3)
-            notes[cap]?.let { Note(it, MikaTheme.colors.bad) }
-            if (cap == RecoveryCapability.Accessibility) restartNote?.let { Note(it, MikaTheme.colors.ink3) }
+            Note(copy.explain, MaeveTheme.colors.ink3)
+            notes[cap]?.let { Note(it, MaeveTheme.colors.bad) }
+            if (cap == RecoveryCapability.Accessibility) restartNote?.let { Note(it, MaeveTheme.colors.ink3) }
             if (cap == RecoveryCapability.RestoreAfterReboot && consent.isApplied(cap)) {
-                RecoveryCopy.lastRestore(lastRestore)?.let { Note(it, MikaTheme.colors.warn) }
+                RecoveryCopy.lastRestore(lastRestore)?.let { Note(it, MaeveTheme.colors.warn) }
             }
-            if (cap == RecoveryCapability.AutoWirelessDebugging && consent.wants(cap)) autoOnNote?.let { Note(it, MikaTheme.colors.warn) }
+            if (cap == RecoveryCapability.AutoWirelessDebugging && consent.wants(cap)) autoOnNote?.let { Note(it, MaeveTheme.colors.warn) }
         }
     }
 }
 
 private fun iconOf(c: RecoveryCapability): ImageVector = when (c) {
-    RecoveryCapability.Accessibility -> MikaIcons.Hand
-    RecoveryCapability.BatteryWhitelist -> MikaIcons.Sun
-    RecoveryCapability.RestoreAfterReboot -> MikaIcons.Wrench
-    RecoveryCapability.AutoWirelessDebugging -> MikaIcons.Refresh
+    RecoveryCapability.Accessibility -> MaeveIcons.Hand
+    RecoveryCapability.BatteryWhitelist -> MaeveIcons.Sun
+    RecoveryCapability.RestoreAfterReboot -> MaeveIcons.Wrench
+    RecoveryCapability.AutoWirelessDebugging -> MaeveIcons.Refresh
 }
 
 @Composable
 private fun Note(text: String, color: Color) {
-    Text(text, Modifier.fillMaxWidth().padding(start = 60.dp, end = 16.dp, bottom = 10.dp), style = MikaType.Hint, color = color)
+    Text(text, Modifier.fillMaxWidth().padding(start = 60.dp, end = 16.dp, bottom = 10.dp), style = MaeveType.Hint, color = color)
 }

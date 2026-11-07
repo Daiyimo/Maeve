@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.capsule
 
+import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.components.glassFill
 import com.daiyimo.maeve.i18n.tr
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -39,6 +41,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
@@ -69,12 +72,14 @@ import androidx.compose.ui.unit.sp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.ui.ScreenCopy
 import com.daiyimo.maeve.ui.components.ButtonSize
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.components.MikaLogo
-import com.daiyimo.maeve.ui.theme.MikaColors
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.MaeveLogo
+import com.daiyimo.maeve.ui.theme.MarkState
+import com.daiyimo.maeve.ui.theme.drawMark
+import com.daiyimo.maeve.ui.theme.MaeveColors
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import kotlin.math.ceil
 
 /** 胶囊外面留给阴影的边:浮层窗口按内容大小,阴影画在窗口里面;留得越少,窗口挡住下面 App 的透明边越窄。 */
@@ -117,7 +122,7 @@ object CapsuleCopy {
 }
 
 /**
- * 悬浮胶囊,不带状态:平时是一颗 Mika 图标,状态画在外圈和角标上(干活中蓝弧绕着转、等条件灰圈、要你处理整颗变橙、
+ * 悬浮胶囊,不带状态:平时是一颗 Maeve 图标,状态画在外圈和角标上(干活中蓝弧绕着转、等条件灰圈、要你处理整颗变橙、
  * 外圈一呼一吸;好几件时角上写件数;办好了绿勾,没办成、已停止灰色角标;空闲时什么都没有);
  * [CapsuleView.Shown.pill] 时展开成一行字的胶囊(要你处理、刚办完),宽度慢慢变,图标贴着停靠的那一边([side])不动;
  * App 交到你手上时是顶部那一条「你来处理 · 不做了 · 处理好了」。
@@ -148,7 +153,7 @@ fun CapsuleContent(
     talkLabel: String = "",
 ) {
     // 淡下去、恢复都慢慢来;关了动画时直接换
-    val shown = if (MikaTheme.reduceMotion) alpha else animateFloatAsState(alpha, tween(FADE_MS), label = "fade").value
+    val shown = if (MaeveTheme.reduceMotion) alpha else animateFloatAsState(alpha, tween(FADE_MS), label = "fade").value
     val a11y = Modifier.semantics {
         customActions = listOfNotNull(
             onSwapSide?.let { f -> CustomAccessibilityAction(CapsuleCopy.SWAP_SIDE) { f(); true } },
@@ -165,14 +170,14 @@ fun CapsuleContent(
 /** 一颗或展开的胶囊:同一块玻璃底,看得见的宽度在两者之间慢慢变(只在画的时候变,见 [Morph]);[end] 时贴右边(图标在右)。 */
 @Composable
 private fun Capsule(view: CapsuleView.Shown, end: Boolean, onTap: () -> Unit, tapLabel: String, a11y: Modifier, alpha: Float, flash: Int, holding: Boolean) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     // 长按说话中:放大一点、外面一圈蓝边(画在阴影边里,窗口大小不变)
-    val press = if (MikaTheme.reduceMotion) (if (holding) 1f else 0f)
+    val press = if (MaeveTheme.reduceMotion) (if (holding) 1f else 0f)
         else animateFloatAsState(if (holding) 1f else 0f, tween(HOLD_MS), label = "hold").value
     val need = view.kind.needsYou || view.needCount > 0
     // 截到屏幕:白光从亮到无,和截图时屏幕闪一下一个意思;关了动画时不闪
     val glow = remember { Animatable(0f) }
-    val still = MikaTheme.reduceMotion
+    val still = MaeveTheme.reduceMotion
     val morph = rememberMorph(animate = !still)
     LaunchedEffect(flash) {
         if (flash == 0 || still) return@LaunchedEffect
@@ -216,7 +221,7 @@ private fun Capsule(view: CapsuleView.Shown, end: Boolean, onTap: () -> Unit, ta
 /** 展开的胶囊里那一行:图标、状态标记、字;贴右边时图标在最右,和一颗时的位置一样。 */
 @Composable
 private fun PillRow(view: CapsuleView.Shown, end: Boolean, need: Boolean) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val maxWidth = (LocalConfiguration.current.screenWidthDp * 0.6f).dp
     // 同一件事、同一个状态里换句只变宽:记下这一段里最宽的时候
     var widest by remember(view.widthEpoch) { mutableIntStateOf(0) }
@@ -242,12 +247,12 @@ private fun PillRow(view: CapsuleView.Shown, end: Boolean, need: Boolean) {
 /** 文字前面的状态标记:要你处理是呼吸点,办好了是勾,没办成是叹号,已停止是停止,后台网页运行中是绿点。 */
 @Composable
 private fun Leading(kind: CapsuleKind) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     when {
         kind.needsYou -> BreathingDot(c)
-        kind == CapsuleKind.Done -> Icon(MikaIcons.Check, null, Modifier.size(16.dp), tint = c.ok)
-        kind == CapsuleKind.Failed -> Icon(MikaIcons.Exclaim, null, Modifier.size(16.dp), tint = c.ink3)
-        kind == CapsuleKind.Cancelled -> Icon(MikaIcons.Stop, null, Modifier.size(16.dp), tint = c.ink3)
+        kind == CapsuleKind.Done -> Icon(MaeveIcons.Check, null, Modifier.size(16.dp), tint = c.ok)
+        kind == CapsuleKind.Failed -> Icon(MaeveIcons.Exclaim, null, Modifier.size(16.dp), tint = c.ink3)
+        kind == CapsuleKind.Cancelled -> Icon(MaeveIcons.Stop, null, Modifier.size(16.dp), tint = c.ink3)
         kind == CapsuleKind.KeptPage -> LiveDot(c)
         else -> Unit
     }
@@ -255,61 +260,92 @@ private fun Leading(kind: CapsuleKind) {
 
 /** 后台网页运行中:绿色圆点,外面一圈淡绿。 */
 @Composable
-private fun LiveDot(c: MikaColors) {
+private fun LiveDot(c: MaeveColors) {
     Box(Modifier.size(14.dp).testTag("capsule-live-dot"), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(14.dp).background(c.okSoft, MikaShapes.Pill))
-        Box(Modifier.size(8.dp).background(c.ok, MikaShapes.Pill))
+        Box(Modifier.size(14.dp).background(c.okSoft, MaeveShapes.Pill))
+        Box(Modifier.size(8.dp).background(c.ok, MaeveShapes.Pill))
     }
 }
 
 /** 需要你:橙色圆点,外面一圈淡橙一呼一吸;关了动画时不动。 */
 @Composable
-private fun BreathingDot(c: MikaColors) {
+private fun BreathingDot(c: MaeveColors) {
     val halo = breathe(still = 0f)
     Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(14.dp).graphicsLayer { alpha = halo }.background(c.warnSoft, MikaShapes.Pill))
-        Box(Modifier.size(8.dp).background(c.warnSolid, MikaShapes.Pill))
+        Box(Modifier.size(14.dp).graphicsLayer { alpha = halo }.background(c.warnSoft, MaeveShapes.Pill))
+        Box(Modifier.size(8.dp).background(c.warnSolid, MaeveShapes.Pill))
     }
 }
 
 /** 一呼一吸(0..1 来回);关了动画时停在 [still]。 */
 @Composable
-private fun breathe(still: Float): Float = if (MikaTheme.reduceMotion) still else rememberInfiniteTransition(label = "breathe").animateFloat(
+private fun breathe(still: Float): Float = if (MaeveTheme.reduceMotion) still else rememberInfiniteTransition(label = "breathe").animateFloat(
     0f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "breathe",
 ).value
 
-/** 一颗图标的外圈:干活中一段蓝弧绕着转(关了动画时是一整圈不动),等条件灰色一整圈,要你处理橙色一整圈一呼一吸;其余没有。 */
+/**
+ * 胶囊主圆:**迷你标志**。
+ *
+ * 胶囊是唯一一直跟着用户的东西,所以它必须和桌面图标、顶栏、空状态长得一样——
+ * 同一个「开了门的环 + 三根键」,只是缩到 26dp。状态靠**键怎么亮**区分,不靠颜色:
+ *
+ * | 状态 | 键的表现 |
+ * |---|---|
+ * | 干活中 | 三根依次亮起(跑马灯),越快越像在演奏 |
+ * | 等条件 | 三根一起明暗,越长越亮(手悬在琴上) |
+ * | 需要你 | 三根全亮成琥珀,环也变琥珀(这一整枚在叫你) |
+ * | 办好了 / 已停 | 键全暗,只剩环——演奏结束,门开着 |
+ */
 @Composable
 private fun Ring(kind: CapsuleKind, need: Boolean, modifier: Modifier) {
-    val c = MikaTheme.colors
-    val color = when {
-        need -> c.warnSolid
-        kind == CapsuleKind.Running -> c.accent
+    val c = MaeveTheme.colors
+    val tone = when {
+        need -> c.signal
+        kind == CapsuleKind.Running -> c.machine
         kind == CapsuleKind.Held -> c.ink3
-        else -> return
+        kind == CapsuleKind.KeptPage -> c.ok
+        else -> c.ink3
     }
-    val spin = kind == CapsuleKind.Running && !need && !MikaTheme.reduceMotion
-    val angle = if (!spin) 0f else rememberInfiniteTransition(label = "spin").animateFloat(
-        0f, 360f, infiniteRepeatable(tween(SPIN_MS, easing = LinearEasing)), label = "spin",
-    ).value
-    val strength = if (need) 0.45f + 0.55f * breathe(still = 1f) else 1f
+    val state = when {
+        kind == CapsuleKind.Running -> MarkState.Playing
+        kind == CapsuleKind.Held -> MarkState.Armed
+        need -> MarkState.Idle
+        else -> MarkState.Idle
+    }
+    // 先取相位:组合期调用的 @Composable 不能写在 Canvas 的绘制 lambda 里
+    val phase = markPhase(kind, need)
+    val strength = if (need) 0.55f + 0.45f * breathe(still = 1f) else 1f
     Canvas(modifier.testTag("capsule-ring")) {
-        val stroke = 2.dp.toPx()
-        val topLeft = Offset(stroke / 2, stroke / 2)
-        val box = Size(size.width - stroke, size.height - stroke)
-        if (spin) {
-            drawArc(c.accentSoft, 0f, 360f, useCenter = false, topLeft = topLeft, size = box, style = Stroke(stroke))
-            drawArc(color, angle - 90f, 100f, useCenter = false, topLeft = topLeft, size = box, style = Stroke(stroke, cap = StrokeCap.Round))
-        } else {
-            drawArc(color.copy(alpha = strength), 0f, 360f, useCenter = false, topLeft = topLeft, size = box, style = Stroke(stroke))
-        }
+        drawMark(
+            corona = tone.copy(alpha = strength),
+            dark = Color.Transparent,
+            state = state,
+            phase = phase,
+            uid = size.minDimension,
+        )
     }
+}
+
+/** 迷你标志的动画相位:一秒一循环;需要你时不动(整枚在呼吸,键不需要再跑)。 */
+@Composable
+private fun markPhase(kind: CapsuleKind, need: Boolean): Float {
+    val animate = !need && !MaeveTheme.reduceMotion &&
+        (kind == CapsuleKind.Running || kind == CapsuleKind.Held)
+    if (!animate) return 0f
+    return rememberInfiniteTransition(label = "mark").animateFloat(
+        0f, 1f,
+        infiniteRepeatable(
+            tween(if (kind == CapsuleKind.Running) SPIN_MS * 2 else 1400, easing = LinearEasing),
+            RepeatMode.Restart,
+        ),
+        label = "mark-t",
+    ).value
 }
 
 /** 一颗图标角上的标:好几件时写件数(要你处理橙、等条件灰、其余蓝);只一件时办好了绿勾,没办成、已停止灰色。 */
 @Composable
 private fun Badge(view: CapsuleView.Shown, need: Boolean, modifier: Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     if (view.count >= 2) {
         val fill = when {
             need -> c.warnSolid
@@ -317,8 +353,8 @@ private fun Badge(view: CapsuleView.Shown, need: Boolean, modifier: Modifier) {
             else -> c.accent
         }
         Box(
-            modifier.testTag("capsule-count").background(c.surface, MikaShapes.Pill).padding(1.5.dp)
-                .sizeIn(minWidth = 15.dp, minHeight = 15.dp).background(fill, MikaShapes.Pill).padding(horizontal = 3.dp),
+            modifier.testTag("capsule-count").glassFill(c, MaeveShapes.Pill, GlassTier.Pill).padding(1.5.dp)
+                .sizeIn(minWidth = 15.dp, minHeight = 15.dp).background(fill, MaeveShapes.Pill).padding(horizontal = 3.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text("${view.count}", style = CountText, color = c.onAccent, maxLines = 1)
@@ -326,14 +362,14 @@ private fun Badge(view: CapsuleView.Shown, need: Boolean, modifier: Modifier) {
         return
     }
     val (icon, tint) = when (view.kind) {
-        CapsuleKind.Done -> MikaIcons.Check to c.ok
-        CapsuleKind.Failed -> MikaIcons.Exclaim to c.ink3
-        CapsuleKind.Cancelled -> MikaIcons.Stop to c.ink3
+        CapsuleKind.Done -> MaeveIcons.Check to c.ok
+        CapsuleKind.Failed -> MaeveIcons.Exclaim to c.ink3
+        CapsuleKind.Cancelled -> MaeveIcons.Stop to c.ink3
         else -> return
     }
     Box(
-        modifier.testTag("capsule-badge").size(16.dp).background(c.surface, MikaShapes.Pill).padding(1.5.dp)
-            .background(tint, MikaShapes.Pill),
+        modifier.testTag("capsule-badge").size(16.dp).glassFill(c, MaeveShapes.Pill, GlassTier.Pill).padding(1.5.dp)
+            .background(tint, MaeveShapes.Pill),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, null, Modifier.size(9.dp), tint = c.surface)
@@ -379,7 +415,7 @@ private fun Modifier.morphLayout(m: Morph, end: Boolean): Modifier = layout { me
  * 玻璃底(同 [glass]),只画看得见的那一段宽、贴着停靠的那一边:阴影、裁切、底色和描边都按它,宽度变时只重画图层。
  * [alpha] 淡底和里面的图标。
  */
-private fun Modifier.morphGlass(m: Morph, end: Boolean, c: MikaColors, need: Boolean, alpha: Float): Modifier =
+private fun Modifier.morphGlass(m: Morph, end: Boolean, c: MaeveColors, need: Boolean, alpha: Float): Modifier =
     graphicsLayer {
         this.alpha = alpha
         shadowElevation = 8.dp.toPx()
@@ -412,11 +448,11 @@ private class EdgePill(private val width: Float, private val end: Boolean, priva
 /** App 在你手上时顶部那一条:「你来处理」和下面一行小字,右边「不做了」「处理好了」。 */
 @Composable
 private fun TakeoverBar(view: CapsuleView.Shown, onStop: () -> Unit, onHandBack: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val maxWidth = (LocalConfiguration.current.screenWidthDp - 32).coerceAtLeast(200).dp
     Row(
         Modifier.testTag("capsule-bar")
-            .glass(c, MikaShapes.Pill, need = false)
+            .glass(c, MaeveShapes.Pill, need = false)
             .widthIn(max = maxWidth)
             .height(BarHeight)
             .padding(horizontal = 6.dp),
@@ -429,27 +465,27 @@ private fun TakeoverBar(view: CapsuleView.Shown, onStop: () -> Unit, onHandBack:
             view.detail?.let { Text(it, style = BarDetail, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis) }
         }
         Box(
-            Modifier.clip(MikaShapes.Pill).clickable(role = Role.Button, onClick = onStop)
+            Modifier.clip(MaeveShapes.Pill).clickable(role = Role.Button, onClick = onStop)
                 .heightIn(min = 36.dp).padding(horizontal = 10.dp),
             contentAlignment = Alignment.Center,
         ) {
             Text(CapsuleCopy.STOP, style = CapsuleText.copy(fontWeight = FontWeight.Normal), color = c.ink2, maxLines = 1)
         }
-        MikaButton(stringResource(R.string.action_hand_back), onHandBack, size = ButtonSize.Small)
+        MaeveButton(stringResource(R.string.action_hand_back), onHandBack, size = ButtonSize.Small)
     }
 }
 
-/** 胶囊上的 Mika 图标(圆形)。 */
+/** 胶囊上的 Maeve 图标(圆形)。 */
 @Composable
 private fun CapsuleLogo() {
-    MikaLogo(LogoSize, corner = LogoSize / 2)
+    MaeveLogo(LogoSize, corner = LogoSize / 2)
 }
 
 /**
  * 浮在别的 App 上的玻璃底:浮层窗口里拿不到下面 App 的画面做模糊,用接近不透明的卡片底、细描边和悬浮阴影;
  * 需要你时叠一层淡橙、描边变橙。
  */
-internal fun Modifier.glass(c: MikaColors, shape: Shape, need: Boolean): Modifier =
+internal fun Modifier.glass(c: MaeveColors, shape: Shape, need: Boolean): Modifier =
     shadow(8.dp, shape, clip = false, ambientColor = c.floatShadow.copy(alpha = 0.25f), spotColor = c.floatShadow.copy(alpha = 0.3f))
         .clip(shape)
         .background(c.surface.copy(alpha = 0.95f))

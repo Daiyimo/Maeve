@@ -8,27 +8,34 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Maeve 的六套配色。取名来自《西部世界》的意象:
+ * Maeve 的六套配色。取名来自《西部世界》的意象,颜色全部落在暖侧——
+ * 这套界面是纸,纸上的色不能是屏幕蓝。
  *
  * | id | 名字 | 意象 |
  * |---|---|---|
- * | [Reverie] | 雾紫 | 默认。梦游、觉醒前的迷雾 |
- * | [Dolores] | 晨金 | 首发代号。牧场晨光 |
- * | [Maze] | 沙褐 | 迷宫。 Maeve 找路的那座 |
- * | [Pearl] | 珠白 | 珍珠。冷静的旁观者 |
- * | [Sublime] | 深靛 | 升华。甜水镇夜里的蓝 |
- * | [Graphite] | 石墨 | 近无色。Cradle 的金属 |
+ * | [Reverie] | 梅子 | 默认。Maeve 的戏服色,深紫里带一点血 |
+ * | [Dolores] | 黄铜 | 首发代号。甜水镇的灯与铜件 |
+ * | [Maze] | 沙原 | 迷宫。她找路的那座 |
+ * | [Pearl] | 珍珠 | 冷静的旁观者 |
+ * | [Sublime] | 夜靛 | 升华。甜水镇的夜 |
+ * | [Graphite] | 石墨 | 近无色。摇篮的金属 |
  *
  * 每套只定**种子**(浅/深各一枚)和中性色的色调,其余色位按 [AccentSpec] 的
  * 阶梯现推,推完过对比度守卫。数值是设计决策,见 docs/spec/visual-tokens.md §1–§2。
  */
-enum class AccentPreset(val id: String, val lightSeed: Long, val darkSeed: Long, val tintChroma: Float) {
-    Reverie("reverie", 0xFF6E6296, 0xFFB3A8D6, 1.0f),
-    Dolores("dolores", 0xFF8A6A3E, 0xFFD8BC93, 0.8f),
-    Maze("maze", 0xFF7A6248, 0xFFC9AE93, 0.9f),
-    Pearl("pearl", 0xFF4F6472, 0xFFAFC3CE, 0.7f),
-    Sublime("sublime", 0xFF3A4A7A, 0xFF9BAEDD, 0.9f),
-    Graphite("graphite", 0xFF2C2E32, 0xFFE5E8ED, 0.15f),
+enum class AccentPreset(
+    val id: String,
+    val display: String,
+    val lightSeed: Long,
+    val darkSeed: Long,
+    val tintChroma: Float,
+) {
+    Reverie("reverie", "梅子", 0xFF6B3D57, 0xFFB98CA8, 1.0f),
+    Dolores("dolores", "黄铜", 0xFF7A5626, 0xFFD2AE74, 0.85f),
+    Maze("maze", "沙原", 0xFF6E5740, 0xFFC6AE90, 0.9f),
+    Pearl("pearl", "珍珠", 0xFF4E5F6B, 0xFFAFC2CE, 0.7f),
+    Sublime("sublime", "夜靛", 0xFF3B4A72, 0xFF9CAEDD, 0.9f),
+    Graphite("graphite", "石墨", 0xFF34312E, 0xFFDED8D0, 0.15f),
     ;
 
     companion object {
@@ -80,7 +87,7 @@ data class AccentSpec(
     val label: String get() = when {
         id == ACCENT_CUSTOM -> "自定义"
         id == ACCENT_WALLPAPER -> "壁纸"
-        else -> AccentPreset.byId(id).name
+        else -> AccentPreset.byId(id).display
     }
 
     /** 按亮度取种子。 */

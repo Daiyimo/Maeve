@@ -9,8 +9,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
 import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.SegmentedControl
-import com.daiyimo.maeve.ui.theme.MikaShapes
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveShapes
+import com.daiyimo.maeve.ui.theme.MaeveType
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -29,7 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.settings.ProviderStore
@@ -41,8 +41,8 @@ import com.daiyimo.maeve.ui.components.PillTone
 import com.daiyimo.maeve.ui.components.RadioRow
 import com.daiyimo.maeve.ui.components.StatusPill
 import com.daiyimo.maeve.ui.components.InputRow
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import com.daiyimo.maeve.voice.SpeechChoice
 import com.daiyimo.maeve.voice.SpeechOptions
 import com.daiyimo.maeve.voice.SystemSpeech
@@ -72,7 +72,7 @@ class SpeechPickActions(
 fun SpeechModelScreen(store: ProviderStore, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val settings = (context.applicationContext as? MikaApp)?.speech
+    val settings = (context.applicationContext as? MaeveApp)?.speech
     var doubaoConfigured by remember { mutableStateOf(settings?.hasDoubaoCredentials == true) }
     // 豆包的设置页叠在这一页上面;返回键先关它
     var doubaoOpen by remember { mutableStateOf(false) }
@@ -120,7 +120,7 @@ fun SpeechModelScreen(store: ProviderStore, onBack: () -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SpeechModelContent(ui: ModelSetupUi, probe: Map<String, String>, actions: SpeechPickActions, onBack: () -> Unit, doubaoConfigured: Boolean = false) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val system = ui.systemSpeech
     val choice = ui.speech
     // 没选过时有手机自带就是在用它,所以「没选过」也把它标成选中
@@ -197,7 +197,7 @@ fun SpeechModelContent(ui: ModelSetupUi, probe: Map<String, String>, actions: Sp
  */
 @Composable
 private fun DoubaoRow(choice: SpeechChoice, configured: Boolean, actions: SpeechPickActions) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     GroupLabel(tr(R.string.speech_doubao_group))
     GroupCard {
         val selected = configured && choice is SpeechChoice.Doubao
@@ -209,11 +209,11 @@ private fun DoubaoRow(choice: SpeechChoice, configured: Boolean, actions: Speech
             trailing = {
                 if (configured) {
                     Row(
-                        Modifier.clip(MikaShapes.Pill).clickable(onClick = actions.openDoubao).padding(start = 8.dp, top = 6.dp, bottom = 6.dp)
+                        Modifier.clip(MaeveShapes.Pill).clickable(onClick = actions.openDoubao).padding(start = 8.dp, top = 6.dp, bottom = 6.dp)
                             .testTag("speech-doubao-edit"),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(tr(R.string.speech_doubao_edit), style = MikaType.Value, color = c.ink2)
+                        Text(tr(R.string.speech_doubao_edit), style = MaeveType.Value, color = c.ink2)
                         RowChevron()
                     }
                 } else {
@@ -234,7 +234,7 @@ private fun planName(resource: String): Int =
  */
 @Composable
 fun DoubaoSetupPage(choice: SpeechChoice, configured: Boolean, actions: SpeechPickActions, onBack: () -> Unit) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     var legacy by remember { mutableStateOf(false) }
     var key by remember { mutableStateOf("") }
     var appId by remember { mutableStateOf("") }
@@ -271,7 +271,7 @@ fun DoubaoSetupPage(choice: SpeechChoice, configured: Boolean, actions: SpeechPi
             )
         }
         FooterNote(tr(R.string.speech_doubao_privacy), Modifier.padding(top = 8.dp))
-        MikaButton(
+        MaeveButton(
             tr(R.string.speech_doubao_save),
             onClick = {
                 failed = runCatching {
@@ -288,9 +288,9 @@ fun DoubaoSetupPage(choice: SpeechChoice, configured: Boolean, actions: SpeechPi
             Box(Modifier.fillMaxWidth().padding(top = 6.dp), contentAlignment = Alignment.Center) {
                 Text(
                     tr(R.string.speech_doubao_remove),
-                    Modifier.clip(MikaShapes.Pill).clickable(onClick = actions.clearDoubao).padding(horizontal = 16.dp, vertical = 12.dp)
+                    Modifier.clip(MaeveShapes.Pill).clickable(onClick = actions.clearDoubao).padding(horizontal = 16.dp, vertical = 12.dp)
                         .testTag("speech-doubao-remove"),
-                    style = MikaType.Body, color = c.bad,
+                    style = MaeveType.Body, color = c.bad,
                 )
             }
         }

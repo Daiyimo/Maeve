@@ -5,7 +5,9 @@
     <string name="chat_greeting_afternoon">좋은 오후예요</string>
     <string name="chat_greeting_evening">좋은 저녁이에요</string>
     <string name="chat_greeting_night">늦은 시간이네요</string>
-    <string name="chat_empty_prompt">Maeve가 무엇을 할까요?</string>
+    <string name="chat_eyebrow_waiting">듣고 있어</string>
+    <string name="chat_eyebrow_round">%1$s번째 라운드</string>
+    <string name="chat_empty_prompt">할 일을 말해. 나머지는 내가 해.</string>
     <string name="chat_example_group_summary">WhatsApp에서 오늘 읽지 않은 메시지를 요약하고 답장이 필요한 내용을 표시해 줘</string>
     <string name="chat_example_jobs">LinkedIn에서 원격 AI 프로덕트 매니저 채용 공고 5개를 찾아 지원 요건을 비교해 줘</string>
     <string name="chat_example_alarms">내일 아침 9시 40분, 9시 50분, 10시에 알람을 맞춰 줘</string>
@@ -141,7 +143,7 @@
     <string name="chat_branch_attachments_readd">첨부 파일을 다시 추가하세요</string>
     <string name="chat_select_hint">텍스트를 길게 눌러 선택하세요</string>
     <string name="chat_quote_remove">인용 삭제</string>
-    <string name="chat_quoting_mika">Maeve 인용: %1$s</string>
+    <string name="chat_quoting_maeve">Maeve 인용: %1$s</string>
     <string name="chat_quoting_you">내 말 인용: %1$s</string>
     <string name="chat_edit_message">메시지 수정</string>
     <string name="chat_withdraw_message">메시지 회수</string>

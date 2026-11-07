@@ -5,7 +5,9 @@
     <string name="chat_greeting_afternoon">Good afternoon</string>
     <string name="chat_greeting_evening">Good evening</string>
     <string name="chat_greeting_night">Up late</string>
-    <string name="chat_empty_prompt">What should Maeve do?</string>
+    <string name="chat_eyebrow_waiting">I\'m listening</string>
+    <string name="chat_eyebrow_round">Round %1$s</string>
+    <string name="chat_empty_prompt">Tell me what to do. I\'ll take it from there.</string>
     <string name="chat_example_group_summary">Open WhatsApp and summarize today\'s unread messages, highlighting anything that needs my reply.</string>
     <string name="chat_example_jobs">Open LinkedIn, find five remote AI product manager jobs, and compare their requirements.</string>
     <string name="chat_example_alarms">Set alarms for 9:40, 9:50 and 10:00 tomorrow morning.</string>
@@ -23,8 +25,8 @@
     </plurals>
     <string name="chat_background_note">Running in the background — keep using your phone. Tap the small view to enlarge it.</string>
     <string name="chat_placeholder_busy">Add or change details…</string>
-    <string name="chat_placeholder_answer">Answer Maeve’s question</string>
-    <string name="chat_placeholder_more">Say something more…</string>
+    <string name="chat_placeholder_answer">Answer her</string>
+    <string name="chat_placeholder_more">Keep going…</string>
     <string name="chat_cannot_start">Can’t start tasks yet</string>
     <string name="chat_missing">Missing: %1$s</string>
     <string name="chat_go_settings">Open Settings</string>
@@ -146,7 +148,7 @@
     <string name="chat_branch_attachments_readd">Re-add the attachments you want to include</string>
     <string name="chat_select_hint">Press and hold the text to select it</string>
     <string name="chat_quote_remove">Remove quote</string>
-    <string name="chat_quoting_mika">Quoting Maeve: %1$s</string>
+    <string name="chat_quoting_maeve">Quoting Maeve: %1$s</string>
     <string name="chat_quoting_you">Quoting you: %1$s</string>
     <string name="chat_edit_message">Edit message</string>
     <string name="chat_withdraw_message">Withdraw message</string>

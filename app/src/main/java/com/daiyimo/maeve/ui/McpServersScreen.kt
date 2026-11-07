@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,13 +28,13 @@ import com.daiyimo.maeve.settings.McpServerStore
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.SegmentedControl
 import com.daiyimo.maeve.ui.components.RowChevron
-import com.daiyimo.maeve.ui.components.MikaButton
+import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.ButtonSize
-import com.daiyimo.maeve.ui.theme.MikaIcons
+import com.daiyimo.maeve.ui.theme.MaeveIcons
 import android.content.Intent
 import android.net.Uri
 import kotlinx.coroutines.launch
@@ -49,10 +49,10 @@ fun McpServersScreen(store: McpServerStore, onBack: () -> Unit) {
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    PageScaffold(stringResource(R.string.mcp_servers_title), onBack) {
+    PageScaffold(stringResource(R.string.mcp_servers_title), onBack, eyebrow = "MCP · OUTBOUND") {
         if (servers.isEmpty()) {
             GroupCard {
-                ListRow(MikaIcons.Link, stringResource(R.string.mcp_servers_empty), stringResource(R.string.mcp_servers_empty_sub), first = true)
+                ListRow(MaeveIcons.Link, stringResource(R.string.mcp_servers_empty), stringResource(R.string.mcp_servers_empty_sub), first = true)
             }
         } else {
             GroupCard {
@@ -60,7 +60,7 @@ fun McpServersScreen(store: McpServerStore, onBack: () -> Unit) {
                     val state = health[server.id]
                     val address = if (server.transport == "stdio") server.command else server.url
                     ListRow(
-                        MikaIcons.Link, server.name,
+                        MaeveIcons.Link, server.name,
                         subtitle = (state?.let {
                             if (it.ok) stringResource(R.string.mcp_servers_status_ok, it.tools.size)
                             else stringResource(R.string.mcp_servers_status_fail, it.message.orEmpty())
@@ -69,14 +69,14 @@ fun McpServersScreen(store: McpServerStore, onBack: () -> Unit) {
                         first = i == 0,
                         onClick = { editing = server },
                     ) {
-                        MikaSwitch(server.enabled, { on -> store.setEnabled(server.id, on) })
+                        MaeveSwitch(server.enabled, { on -> store.setEnabled(server.id, on) })
                     }
                 }
             }
         }
         Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            MikaButton(stringResource(R.string.mcp_servers_add), { adding = true }, size = ButtonSize.Small)
-            MikaButton(
+            MaeveButton(stringResource(R.string.mcp_servers_add), { adding = true }, size = ButtonSize.Small)
+            MaeveButton(
                 stringResource(if (refreshing) R.string.mcp_servers_testing else R.string.mcp_servers_refresh_all),
                 {
                     refreshing = true
@@ -164,7 +164,7 @@ private fun McpServerDialog(
         return cfg
     }
 
-    MikaDialog(
+    MaeveDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(if (initial == null) R.string.mcp_servers_add else R.string.mcp_servers_edit)) },
         text = {

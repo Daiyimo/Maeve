@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import com.daiyimo.maeve.ui.components.MikaDialog
+import com.daiyimo.maeve.ui.components.MaeveDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,13 +32,13 @@ import com.daiyimo.maeve.ui.components.EmptyNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
-import com.daiyimo.maeve.ui.components.MikaButton
-import com.daiyimo.maeve.ui.components.MikaSwitch
+import com.daiyimo.maeve.ui.components.MaeveButton
+import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.RowActions
 import com.daiyimo.maeve.ui.components.RowChevron
 import com.daiyimo.maeve.ui.components.SheetAction
-import com.daiyimo.maeve.ui.theme.MikaTheme
-import com.daiyimo.maeve.ui.theme.MikaType
+import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.MaeveType
 
 /**
  * 技能相关的两块内容。[pending] 为假是「技能」段:已收下的个人技能(开关即启用/停用)和在用的 App 知识;
@@ -64,10 +64,10 @@ internal fun SkillsSection(vm: MemoryViewModel, ui: SkillsUi, pending: Boolean) 
                             detail = stringResource(R.string.skills_imported).takeIf { d.imported }, onClick = { toggle(d.id) })
                         SkillBody(d, expanded = viewing == d.id)
                         RowActions {
-                            MikaButton(stringResource(R.string.skills_accept_try), { vm.approveSkill(d.id) }, size = ButtonSize.Small)
-                            MikaButton(stringResource(R.string.edit_it), { editing = d }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
-                            MikaButton(if (viewing == d.id) stringResource(R.string.skills_hide_full) else stringResource(R.string.skills_view_full), { toggle(d.id) }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
-                            MikaButton(stringResource(R.string.no_thanks), { vm.rejectSkill(d.id) }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
+                            MaeveButton(stringResource(R.string.skills_accept_try), { vm.approveSkill(d.id) }, size = ButtonSize.Small)
+                            MaeveButton(stringResource(R.string.edit_it), { editing = d }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
+                            MaeveButton(if (viewing == d.id) stringResource(R.string.skills_hide_full) else stringResource(R.string.skills_view_full), { toggle(d.id) }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
+                            MaeveButton(stringResource(R.string.no_thanks), { vm.rejectSkill(d.id) }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
                         }
                     }
                 }
@@ -90,7 +90,7 @@ internal fun SkillsSection(vm: MemoryViewModel, ui: SkillsUi, pending: Boolean) 
                     stringResource(R.string.skills_imported).takeIf { s.imported }, state, s.recent.takeIf { it.isNotEmpty() }?.let { stringResource(R.string.skills_recent, it.joinToString(" · ")) }).joinToString(" · ")
                 Column(Modifier.testTag("skill-row")) {
                     ListRow(null, s.display, s.description.ifBlank { null }, first = i == 0, detail = detail, onClick = { acting = s }) {
-                        MikaSwitch(!s.suspended, { on -> if (on) vm.restoreSkill(s.name) else vm.suspendSkill(s.name) })
+                        MaeveSwitch(!s.suspended, { on -> if (on) vm.restoreSkill(s.name) else vm.suspendSkill(s.name) })
                     }
                     SkillBody(s, expanded = viewing == s.id)
                 }
@@ -131,15 +131,15 @@ internal fun SkillsSection(vm: MemoryViewModel, ui: SkillsUi, pending: Boolean) 
     if (importing) {
         var text by remember { mutableStateOf("") }
         var problem by remember { mutableStateOf<String?>(null) }
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { importing = false },
             title = { Text(stringResource(R.string.skills_import)) },
             text = {
                 KeyboardDismissArea {
                     Column {
-                        Text(stringResource(R.string.skills_import_hint), style = MikaType.Hint, color = MikaTheme.colors.ink3)
+                        Text(stringResource(R.string.skills_import_hint), style = MaeveType.Hint, color = MaeveTheme.colors.ink3)
                         OutlinedTextField(text, { text = it; problem = null }, Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 240.dp).keepsKeyboard().testTag("skill-import"))
-                        problem?.let { Text(it, Modifier.padding(top = 6.dp), style = MikaType.Hint, color = MikaTheme.colors.bad) }
+                        problem?.let { Text(it, Modifier.padding(top = 6.dp), style = MaeveType.Hint, color = MaeveTheme.colors.bad) }
                     }
                 }
             },
@@ -154,7 +154,7 @@ internal fun SkillsSection(vm: MemoryViewModel, ui: SkillsUi, pending: Boolean) 
 
     editing?.let { d ->
         var text by remember(d.id) { mutableStateOf(d.markdown) }
-        MikaDialog(
+        MaeveDialog(
             onDismissRequest = { editing = null },
             title = { Text(stringResource(R.string.skills_edit_title)) },
             text = { KeyboardDismissArea { OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth().heightIn(min = 240.dp).keepsKeyboard().testTag("skill-markdown")) } },
@@ -177,9 +177,9 @@ private fun AppKnowledgeItem(vm: MemoryViewModel, row: AppKnowledgeRow, first: B
         ListRow(null, row.name, stage, first = first, onClick = onToggle)
         ChangesAndText(row.changedLines, row.markdown, expanded)
         RowActions {
-            MikaButton(if (expanded) stringResource(R.string.skills_hide_full) else stringResource(R.string.skills_view_full), onToggle, kind = ButtonKind.Tonal, size = ButtonSize.Small)
-            if (row.stage == AppKnowledgeStage.Draft) MikaButton(stringResource(R.string.skills_accept_try), { vm.approveAppDraft(row.id) }, size = ButtonSize.Small)
-            if (row.stage != AppKnowledgeStage.Verified && !row.replaced) MikaButton(stringResource(R.string.skills_archive), { vm.rejectAppDraft(row.id) }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
+            MaeveButton(if (expanded) stringResource(R.string.skills_hide_full) else stringResource(R.string.skills_view_full), onToggle, kind = ButtonKind.Tonal, size = ButtonSize.Small)
+            if (row.stage == AppKnowledgeStage.Draft) MaeveButton(stringResource(R.string.skills_accept_try), { vm.approveAppDraft(row.id) }, size = ButtonSize.Small)
+            if (row.stage != AppKnowledgeStage.Verified && !row.replaced) MaeveButton(stringResource(R.string.skills_archive), { vm.rejectAppDraft(row.id) }, kind = ButtonKind.Tonal, size = ButtonSize.Small)
         }
     }
 }
@@ -191,13 +191,13 @@ private fun SkillBody(r: SkillRow, expanded: Boolean) = ChangesAndText(r.changed
 /** 一行下面:这份草稿改了哪几行([changed]),展开时再加全文。 */
 @Composable
 private fun ChangesAndText(changed: List<String>, markdown: String, expanded: Boolean) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     if (changed.isEmpty() && !expanded) return
     Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
         if (changed.isNotEmpty()) {
-            Text(stringResource(R.string.skills_changed_lines), style = MikaType.Hint, color = c.ink3)
-            changed.forEach { Text(it, style = MikaType.Hint, color = if (it.startsWith("+")) c.ok else c.bad) }
+            Text(stringResource(R.string.skills_changed_lines), style = MaeveType.Hint, color = c.ink3)
+            changed.forEach { Text(it, style = MaeveType.Hint, color = if (it.startsWith("+")) c.ok else c.bad) }
         }
-        if (expanded) Text(markdown, Modifier.padding(top = 6.dp), style = MikaType.Hint, color = c.ink2)
+        if (expanded) Text(markdown, Modifier.padding(top = 6.dp), style = MaeveType.Hint, color = c.ink2)
     }
 }

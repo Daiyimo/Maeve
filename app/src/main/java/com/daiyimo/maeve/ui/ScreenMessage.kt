@@ -37,13 +37,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.daiyimo.maeve.MikaApp
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.agent.QuoteMessage
 import com.daiyimo.maeve.core.cap.web.AttachedPage
 import com.daiyimo.maeve.core.userscreen.UserScreen
 import com.daiyimo.maeve.core.userscreen.UserScreenMessage
-import com.daiyimo.maeve.ui.theme.MikaIcons
-import com.daiyimo.maeve.ui.theme.MikaTheme
+import com.daiyimo.maeve.ui.theme.MaeveIcons
+import com.daiyimo.maeve.ui.theme.MaeveTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -95,7 +95,7 @@ private class StoredScreenShots(private val context: Context) : ScreenShots {
     override suspend fun load(conversationId: String, id: String): ShownScreen? = withContext(Dispatchers.IO) {
         val key = "$conversationId/$id"
         cache.get(key)?.let { return@withContext it }
-        val files = (context.applicationContext as MikaApp).userScreens
+        val files = (context.applicationContext as MaeveApp).userScreens
         val screen = files.screen(conversationId, id) ?: return@withContext null
         val thumb = if (screen.blocked) null else files.image(conversationId, id)?.let(::screenThumbnail)
         ShownScreen(screen, thumb).also { cache.put(key, it) }
@@ -154,14 +154,14 @@ private val TagText = TextStyle(fontSize = 11.5.sp, lineHeight = 15.sp)
 /** 一屏:缩略图和下面那一行;还没读到时先占着位置。 */
 @Composable
 private fun ScreenItem(shown: ShownScreen?, width: Dp) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val screen = shown?.screen
     if (screen?.blocked == true) {
         Row(
             Modifier.testTag("screen-blocked").background(c.ink.copy(alpha = 0.05f), ThumbShape).padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Icon(MikaIcons.Lock, null, Modifier.size(15.dp), tint = c.ink2)
+            Icon(MaeveIcons.Lock, null, Modifier.size(15.dp), tint = c.ink2)
             Text(ScreenCopy.BLOCKED, style = TextStyle(fontSize = 12.sp, lineHeight = 16.sp), color = c.ink2)
         }
         return
@@ -171,7 +171,7 @@ private fun ScreenItem(shown: ShownScreen?, width: Dp) {
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         ScreenThumb(shown?.thumb, width, Modifier.testTag("screen-thumb"))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(MikaIcons.Phone, null, Modifier.size(13.dp), tint = c.ink3)
+            Icon(MaeveIcons.Phone, null, Modifier.size(13.dp), tint = c.ink3)
             Text(tag, Modifier.testTag("screen-tag"), style = TagText, color = c.ink3)
         }
     }
@@ -180,7 +180,7 @@ private fun ScreenItem(shown: ShownScreen?, width: Dp) {
 /** 截图缩略图:按图的宽高比,圆角细边;没有图时是同样大小的一块淡灰。 */
 @Composable
 fun ScreenThumb(thumb: ImageBitmap?, width: Dp, modifier: Modifier = Modifier) {
-    val c = MikaTheme.colors
+    val c = MaeveTheme.colors
     val ratio = thumb?.let { (it.width.toFloat() / it.height.coerceAtLeast(1)).coerceIn(0.3f, 1.8f) } ?: DEFAULT_RATIO
     Box(modifier.width(width).aspectRatio(ratio).clip(ThumbShape).border(1.dp, c.glassEdge, ThumbShape).background(c.ink.copy(alpha = 0.05f))) {
         thumb?.let { Image(it, null, Modifier.matchParentSize(), contentScale = ContentScale.Crop) }
