@@ -64,6 +64,7 @@ import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
 import com.daiyimo.maeve.ui.components.ListRow
+import com.daiyimo.maeve.ui.components.InfoTip
 import com.daiyimo.maeve.ui.components.MaeveButton
 import com.daiyimo.maeve.ui.components.PageScaffold
 import com.daiyimo.maeve.ui.components.PillTone
@@ -311,7 +312,7 @@ fun SettingsContent(
 
         GroupLabel(stringResource(R.string.settings_basic))
         GroupCard {
-            ListRow(MaeveIcons.Spark, stringResource(R.string.settings_model), stringResource(R.string.settings_model_sub), first = true, onClick = onOpenModels) {
+            ListRow(MaeveIcons.Spark, stringResource(R.string.settings_model), first = true, onClick = onOpenModels) {
                 RowValue(mainModel ?: stringResource(R.string.settings_not_set))
                 RowChevron()
             }
@@ -319,16 +320,16 @@ fun SettingsContent(
                 PhoneOpsPill(status)
                 RowChevron()
             }
-            ListRow(MaeveIcons.Message, stringResource(R.string.amoo_page_title), stringResource(R.string.amoo_page_sub), onClick = onOpenAmoo) {
+            ListRow(MaeveIcons.Message, stringResource(R.string.amoo_page_title), onClick = onOpenAmoo) {
                 RowValue(stringResource(if (amooOn) R.string.state_on else R.string.state_off), if (amooOn) ValueTone.Ok else ValueTone.Plain)
                 RowChevron()
             }
-            ListRow(MaeveIcons.Chats, stringResource(R.string.wechat_title), stringResource(R.string.wechat_settings_sub), onClick = onOpenWechat) {
+            ListRow(MaeveIcons.Chats, stringResource(R.string.wechat_title), onClick = onOpenWechat) {
                 WechatEntryStatus(wechatState, wechatBound)
                 RowChevron()
             }
-            ListRow(MaeveIcons.Moon, stringResource(R.string.settings_during_work), stringResource(R.string.settings_during_work_sub), onClick = onOpenDuringWork) { RowChevron() }
-            ListRow(MaeveIcons.Message, CapsuleSettingsCopy.TITLE, CapsuleSettingsCopy.SUBTITLE, onClick = onOpenCapsule) {
+            ListRow(MaeveIcons.Moon, stringResource(R.string.settings_during_work), onClick = onOpenDuringWork) { RowChevron() }
+            ListRow(MaeveIcons.Message, CapsuleSettingsCopy.TITLE, onClick = onOpenCapsule) {
                 RowValue(CapsuleSettingsCopy.label(capsuleMode))
                 RowChevron()
             }
@@ -341,7 +342,6 @@ fun SettingsContent(
             ListRow(
                 MaeveIcons.Spark,
                 stringResource(R.string.settings_haptic),
-                stringResource(R.string.settings_haptic_sub),
             ) {
                 Switch(
                     checked = hapticOn,
@@ -353,7 +353,7 @@ fun SettingsContent(
                 )
             }
             val (notifText, notifTone) = StatusCopy.notificationSummary(status.notificationOverview().summary)
-            ListRow(MaeveIcons.Bell, StatusCopy.NOTIFICATIONS, stringResource(R.string.settings_notif_sub), onClick = onOpenNotifications) {
+            ListRow(MaeveIcons.Bell, StatusCopy.NOTIFICATIONS, onClick = onOpenNotifications) {
                 RowValue(notifText, notifTone)
                 RowChevron()
             }
@@ -362,14 +362,14 @@ fun SettingsContent(
         GroupLabel(stringResource(R.string.settings_privacy))
         GroupCard {
             onOpenMemory?.let {
-                ListRow(MaeveIcons.Heart, stringResource(R.string.settings_memory_data), stringResource(R.string.settings_memory_sub), first = true, onClick = it) { RowChevron() }
+                ListRow(MaeveIcons.Heart, stringResource(R.string.settings_memory_data), first = true, onClick = it) { RowChevron() }
             }
-            ListRow(MaeveIcons.Shield, stringResource(R.string.appaccess_title), stringResource(R.string.appaccess_row_sub), first = onOpenMemory == null, onClick = onOpenAppAccess) { RowChevron() }
+            ListRow(MaeveIcons.Shield, stringResource(R.string.appaccess_title), first = onOpenMemory == null, onClick = onOpenAppAccess) { RowChevron() }
         }
 
         GroupLabel(stringResource(R.string.settings_other))
         GroupCard {
-            ListRow(MaeveIcons.Wrench, stringResource(R.string.settings_advanced), stringResource(R.string.settings_advanced_sub), first = true, onClick = onOpenAdvanced) { RowChevron() }
+            ListRow(MaeveIcons.Wrench, stringResource(R.string.settings_advanced), first = true, onClick = onOpenAdvanced) { RowChevron() }
         }
         GroupCard {
             ListRow(MaeveIcons.Info, stringResource(R.string.settings_about), first = true, onClick = onOpenAbout) {
@@ -507,18 +507,26 @@ private fun StatusSummary(check: Prerequisites.Check, onProblem: (Problem) -> Un
             )
         }
         if (problem == null) {
+            // 一句话说清状态，不再跟一句复述它的解释。
             Text(
                 stringResource(R.string.all_ready), Modifier.padding(top = 9.dp),
                 style = MaeveType.BodyStrong, color = c.ink,
             )
-            Text(
-                stringResource(R.string.settings_all_ready_detail), Modifier.padding(top = 3.dp),
-                style = MaeveType.Caption, color = c.ink2,
-            )
         } else {
             val copy = StatusCopy.banner(problem)
-            Text(copy.title, Modifier.padding(top = 9.dp), style = MaeveType.BodyStrong, color = c.ink)
-            Text(copy.detail, Modifier.padding(top = 3.dp), style = MaeveType.Caption, color = c.ink2)
+            // 标题只留结论（「手机操作还没设置」），原因和后果放进气泡，默认不显示。
+            Row(Modifier.padding(top = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    copy.title, Modifier.weight(1f, fill = false),
+                    style = MaeveType.BodyStrong, color = c.ink,
+                )
+                InfoTip(
+                    text = copy.detail,
+                    modifier = Modifier.padding(start = 8.dp),
+                    size = 15.dp,
+                    alignStart = false,
+                )
+            }
             MaeveButton(copy.link, { onProblem(problem) }, Modifier.padding(top = 12.dp), kind = ButtonKind.Secondary, size = ButtonSize.Small)
         }
     }

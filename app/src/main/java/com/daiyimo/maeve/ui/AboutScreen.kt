@@ -111,7 +111,7 @@ fun AboutScreen(
         GroupCard {
             val v = AboutCopy.checkValue(update)
             ListRow(
-                MaeveIcons.Refresh, AboutCopy.CHECK, if (update.hasUpdate) AboutCopy.CHECK_SUB_NEW else AboutCopy.CHECK_SUB, first = true,
+                MaeveIcons.Refresh, AboutCopy.CHECK, first = true,
                 onClick = {
                     if (update.hasUpdate) sheet = AboutSheet.Update
                     else if (update.status != CheckStatus.Checking) {
@@ -123,28 +123,24 @@ fun AboutScreen(
                 TrailingValue(v)
                 RowChevron()
             }
-            ListRow(MaeveIcons.Lines, AboutCopy.CHANGELOG, AboutCopy.CHANGELOG_SUB, onClick = { sheet = AboutSheet.Changelog }) { RowChevron() }
+            ListRow(MaeveIcons.Lines, AboutCopy.CHANGELOG, onClick = { sheet = AboutSheet.Changelog }) { RowChevron() }
         }
         GroupCard {
-            ListRow(MaeveIcons.Bug, AboutCopy.FEEDBACK, AboutCopy.FEEDBACK_SUB, first = true, onClick = { sheet = AboutSheet.Feedback }) { RowChevron() }
+            ListRow(MaeveIcons.Bug, AboutCopy.FEEDBACK, first = true, onClick = { sheet = AboutSheet.Feedback }) { RowChevron() }
         }
         GroupCard {
-            ListRow(MaeveIcons.Code, AboutCopy.REPO, AboutCopy.REPO_SUB, first = true, onClick = { onOpenUrl(MaeveLinks.REPO) }) { ExternalMark() }
-            ListRow(MaeveIcons.Book, AboutCopy.GUIDE, AboutCopy.GUIDE_SUB, onClick = { onOpenUrl(MaeveLinks.README) }) { ExternalMark() }
+            ListRow(MaeveIcons.Code, AboutCopy.REPO, first = true, onClick = { onOpenUrl(MaeveLinks.REPO) }) { ExternalMark() }
+            ListRow(MaeveIcons.Book, AboutCopy.GUIDE, onClick = { onOpenUrl(MaeveLinks.README) }) { ExternalMark() }
         }
 
-        Row(
-            Modifier.fillMaxWidth().padding(top = 2.dp)
-                .cardSurface(c, RoundedCornerShape(14.dp))
-                .border(1.dp, c.ok.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Icon(MaeveIcons.Shield, null, Modifier.padding(top = 1.dp).size(18.dp), tint = c.ok)
-            Text(AboutCopy.DATA_NOTE, style = MaeveType.Caption, color = c.ink2)
-        }
-
-        Column(Modifier.fillMaxWidth().padding(top = 20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        // 免责声明与版本信息只在这里出现一次。
+        // 原来它是一张独立的卡片插在正文中段，读起来像第三个分区——
+        // 其实它属于"页脚该说的话"，不该跟功能并列。
+        Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                AboutCopy.DATA_NOTE, Modifier.padding(horizontal = 18.dp),
+                style = MaeveType.Hint, color = c.ink3, textAlign = TextAlign.Center,
+            )
             Text(
                 buildAnnotatedString {
                     val (before, after) = stringResource(R.string.about_released_under).split("%1\$s").let { it[0] to it.getOrElse(1) { "" } }
@@ -302,14 +298,14 @@ private fun ChangelogSheet(latest: ReleaseInfo?, onOpenAll: () -> Unit, onDismis
 private fun FeedbackSheet(onGitHub: () -> Unit, onDiagnostics: () -> Unit, onDismiss: () -> Unit) {
     AboutSheetFrame(AboutCopy.FEEDBACK, AboutCopy.FEEDBACK_SHEET_SUB, "feedback-sheet", onDismiss) {
         Column(Modifier.padding(top = 6.dp)) {
-            FeedbackOption(MaeveIcons.Code, AboutCopy.FEEDBACK_GITHUB, AboutCopy.FEEDBACK_GITHUB_SUB, first = true, onGitHub)
-            FeedbackOption(MaeveIcons.Copy, AboutCopy.DIAGNOSTICS, AboutCopy.DIAGNOSTICS_SUB, first = false, onDiagnostics)
+            FeedbackOption(MaeveIcons.Code, AboutCopy.FEEDBACK_GITHUB, first = true, onClick = onGitHub)
+            FeedbackOption(MaeveIcons.Copy, AboutCopy.DIAGNOSTICS, first = false, onClick = onDiagnostics)
         }
     }
 }
 
 @Composable
-private fun FeedbackOption(icon: ImageVector, title: String, sub: String, first: Boolean, onClick: () -> Unit) {
+private fun FeedbackOption(icon: ImageVector, title: String, sub: String? = null, first: Boolean, onClick: () -> Unit) {
     Box(Modifier.testTag("feedback-option")) {
         ListRow(icon, title, sub, first = first, onClick = onClick)
     }
