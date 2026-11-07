@@ -100,6 +100,13 @@
             android:theme="@style/Theme.Maeve"
             android:windowSoftInputMode="adjustResize" />
 
+        <!-- Opt-in Flutter workbench for migration and device visual acceptance. -->
+        <activity
+            android:name=".ui.FlutterShellActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Maeve"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- 桌面图标变体:雾紫(默认)、珠白、夜色、单色。targetActivity 都指向唯一的 MainActivity。 -->
         <activity-alias
             android:name=".ui.MainActivityAliasReverie"

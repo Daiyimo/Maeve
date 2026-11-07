@@ -14,3 +14,5 @@ dependencyResolutionManagement {
 }
 rootProject.name = "Maeve"
 include(":core", ":app")
+
+// Flutter-first UI migration: the host consumes the verified local Flutter AAR.
