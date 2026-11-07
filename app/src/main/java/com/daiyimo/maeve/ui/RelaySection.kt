@@ -1,6 +1,7 @@
 package com.daiyimo.maeve.ui
 
 import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -102,7 +103,8 @@ internal fun RelayControls(config: RelayConfig, state: RelayState, busy: Boolean
             ListRow(MaeveIcons.Link, stringResource(R.string.relay_enable), stringResource(status), first = true) {
                 MaeveSwitch(config.enabled, onEnabled, Modifier.testTag("relay-enabled"), enabled = !busy)
             }
-            ListRow(null, stringResource(R.string.relay_device_access), stringResource(R.string.relay_device_access_sub)) {
+            ListRow(null, stringResource(R.string.relay_device_access)) {
+                InfoTipInline(stringResource(R.string.relay_device_access_sub), overlay = true)
                 MaeveSwitch(config.deviceAccess, onDeviceAccess, Modifier.testTag("relay-device-access"), enabled = !busy)
             }
             ListRow(null, stringResource(R.string.relay_gateway), config.gateway)

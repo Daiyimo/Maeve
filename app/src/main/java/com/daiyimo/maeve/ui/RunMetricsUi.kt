@@ -30,6 +30,7 @@ import com.daiyimo.maeve.core.record.RunMetrics
 import com.daiyimo.maeve.core.record.RunMetricsStore
 import com.daiyimo.maeve.core.record.RunStats
 import com.daiyimo.maeve.ui.components.ButtonKind
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.EmptyNote
 import com.daiyimo.maeve.ui.components.FooterNote
@@ -185,7 +186,9 @@ fun RunStatsContent(
         GroupCard { RunMetricsCopy.splitRows(stats).forEachIndexed { i, (k, v) -> ListRow(null, k, first = i == 0) { RowValue(v) } } }
         GroupLabel(tr(R.string.metrics_export))
         GroupCard {
-            ListRow(null, trPlural(R.plurals.metrics_summary_of, stats.runs), tr(R.string.metrics_summary_sub), first = true)
+            ListRow(null, trPlural(R.plurals.metrics_summary_of, stats.runs), first = true) {
+                InfoTipInline(tr(R.string.metrics_summary_sub), overlay = true)
+            }
             RowActions {
                 MaeveButton(RunMetricsCopy.COPY, onCopy, Modifier.testTag("run-stats-copy"), size = ButtonSize.Small)
                 MaeveButton(RunMetricsCopy.SHARE, onShare, Modifier.testTag("run-stats-share"), kind = ButtonKind.Tonal, size = ButtonSize.Small)

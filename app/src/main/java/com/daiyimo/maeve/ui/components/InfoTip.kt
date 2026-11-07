@@ -26,11 +26,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
 import com.daiyimo.maeve.ui.theme.MaeveTheme
 import com.daiyimo.maeve.ui.theme.MaeveType
 
@@ -100,25 +103,59 @@ fun InfoTip(
  * 用在列表行、设置项后面——比单独占一行省地方。
  */
 @Composable
-fun InfoTipInline(text: String, modifier: Modifier = Modifier, size: Dp = 14.dp) {
+fun InfoTipInline(
+    text: String,
+    modifier: Modifier = Modifier,
+    size: Dp = 14.dp,
+    overlay: Boolean = false,
+) {
     val c = MaeveTheme.colors
     var open by remember { mutableStateOf(false) }
-    Column(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(
-                Modifier.size(size).clip(CircleShape)
-                    .border(0.5.dp, c.rule, CircleShape)
-                    .clickable(role = Role.Button) { open = !open },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("?", style = MaeveType.Caption.copy(fontSize = (size.value * 0.62f).sp), color = c.ink3)
-            }
+    val bubble: @Composable () -> Unit = {
+        Text(
+            text, Modifier.padding(top = 5.dp).widthIn(max = 300.dp),
+            style = MaeveType.Caption, color = c.ink2,
+        )
+    }
+    val button: @Composable () -> Unit = {
+        Box(
+            Modifier.size(size).clip(CircleShape)
+                .border(0.5.dp, c.rule, CircleShape)
+                .clickable(role = Role.Button) { open = !open },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("?", style = MaeveType.Caption.copy(fontSize = (size.value * 0.62f).sp), color = c.ink3)
         }
-        if (open) {
-            Text(
-                text, Modifier.padding(top = 5.dp).widthIn(max = 300.dp),
-                style = MaeveType.Caption, color = c.ink2,
-            )
+    }
+    if (!overlay) {
+        Column(modifier) {
+            button()
+            if (open) bubble()
+        }
+    } else {
+        // ★ overlay：气泡用 Popup 浮在**问号下方**，不参与行布局。
+        //   用在列表行尾：那里只有几十 dp，气泡若参与测量会把开关挤出去，
+        //   行高也会跳。Popup 自带「点外面关掉」，且能盖住相邻行。
+        val d = LocalDensity.current
+        Box(modifier) {
+            button()
+            if (open) {
+                Popup(
+                    alignment = Alignment.TopStart,
+                    offset = IntOffset(0, with(d) { (size + 6.dp).roundToPx() }),
+                    onDismissRequest = { open = false },
+                ) {
+                    Box(Modifier.widthIn(max = 248.dp)) {
+                        Text(
+                            text,
+                            Modifier.background(c.surfaceHigh, RoundedCornerShape(10.dp))
+                                .border(0.5.dp, c.rule, RoundedCornerShape(10.dp))
+                                .padding(horizontal = 11.dp, vertical = 9.dp),
+                            style = MaeveType.Caption, color = c.ink2,
+                        )
+                    }
+                }
+            }
         }
     }
 }

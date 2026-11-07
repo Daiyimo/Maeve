@@ -119,9 +119,17 @@ fun SearchField(
 
 /** 空状态:一两句居中的说明。 */
 @Composable
-fun EmptyNote(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text, modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 28.dp),
-        style = MaeveType.Body, color = MaeveTheme.colors.ink3, textAlign = TextAlign.Center,
-    )
+fun EmptyNote(text: String, modifier: Modifier = Modifier, action: @Composable (() -> Unit)? = null) {
+    // 空状态只写一句话，需要动作时给一个按钮。不要在句子后面再追加一句
+    // 「点下面就能…」——那是把按钮该说的话写成了正文。
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 28.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text, style = MaeveType.Body, color = MaeveTheme.colors.ink3, textAlign = TextAlign.Center,
+        )
+        action?.invoke()
+    }
 }

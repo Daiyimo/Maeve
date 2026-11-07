@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.ui.components.GroupCard
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import com.daiyimo.maeve.ui.components.ListRow
 import com.daiyimo.maeve.ui.theme.ACCENT_CUSTOM
 import com.daiyimo.maeve.ui.theme.ACCENT_WALLPAPER
@@ -64,15 +65,11 @@ fun AccentPickerCard(modifier: Modifier = Modifier) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.accent_title), style = MaeveType.BodyStrong, color = c.ink)
+                InfoTipInline(stringResource(R.string.accent_sub), Modifier.padding(start = 6.dp), overlay = true)
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End) {
                     Text(accentName(spec), style = MaeveType.Caption, color = c.ink3)
                 }
             }
-            Text(
-                stringResource(R.string.accent_sub),
-                Modifier.padding(top = 3.dp),
-                style = MaeveType.Caption, color = c.ink3,
-            )
             Row(
                 Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -97,9 +94,9 @@ fun AccentPickerCard(modifier: Modifier = Modifier) {
             ListRow(
                 icon = MaeveIcons.Photo,
                 title = stringResource(R.string.accent_wallpaper_title),
-                subtitle = stringResource(R.string.accent_wallpaper_sub),
                 onClick = { if (spec.id != ACCENT_WALLPAPER) { haptics.tick(); store.setWallpaper() } },
                 trailing = {
+                    InfoTipInline(stringResource(R.string.accent_wallpaper_sub), overlay = true)
                     Switch(
                         checked = spec.id == ACCENT_WALLPAPER,
                         onCheckedChange = { on ->
@@ -166,12 +163,10 @@ fun LauncherIconCard(modifier: Modifier = Modifier) {
     val c = MaeveTheme.colors
     GroupCard(modifier) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Text(stringResource(R.string.icon_title), style = MaeveType.BodyStrong, color = c.ink)
-            Text(
-                stringResource(R.string.icon_sub),
-                Modifier.padding(top = 3.dp),
-                style = MaeveType.Caption, color = c.ink3,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.icon_title), style = MaeveType.BodyStrong, color = c.ink)
+                InfoTipInline(stringResource(R.string.icon_sub), Modifier.padding(start = 6.dp), overlay = true)
+            }
             Row(
                 Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,

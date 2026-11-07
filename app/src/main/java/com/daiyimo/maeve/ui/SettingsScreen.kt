@@ -24,6 +24,7 @@ import com.daiyimo.maeve.settings.ProviderConnection
 import android.app.ActivityManager
 import androidx.activity.compose.BackHandler
 import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import com.daiyimo.maeve.ui.haptic.MaeveHaptics
 import androidx.compose.material3.Text
 import androidx.compose.material3.Switch
@@ -410,6 +411,8 @@ fun AdvancedSettingsContent(
                 fun take(): Boolean = first.also { first = false }
                 proxy?.let {
                     ListRow(MaeveIcons.Link, NetProxyCopy.TITLE, proxyNote, first = take(), onClick = onOpenProxy) {
+                        // 它管哪些连接 —— 平时进气泡；配置真的配不上时才作为副标题留在行上。
+                        InfoTipInline(NetProxyCopy.HINT, overlay = true)
                         RowValue(NetProxyCopy.value(it))
                         RowChevron()
                     }

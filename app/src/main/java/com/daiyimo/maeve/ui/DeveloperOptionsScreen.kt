@@ -9,6 +9,7 @@ import com.daiyimo.maeve.core.agent.SpeedFlags
 import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
 import com.daiyimo.maeve.ui.components.GroupLabel
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import com.daiyimo.maeve.ui.components.ListRow
 import com.daiyimo.maeve.ui.components.MaeveSwitch
 import com.daiyimo.maeve.ui.components.PageScaffold
@@ -76,7 +77,8 @@ fun DeveloperOptionsScreen(
         if (grounding != null) {
             GroupLabel(GroundingCopy.GROUP)
             GroupCard {
-                ListRow(null, GroundingCopy.TITLE, GroundingCopy.subtitle(grounding.model), first = true, onClick = { onGrounding(!grounding.verified) }) {
+                ListRow(null, GroundingCopy.TITLE, first = true, onClick = { onGrounding(!grounding.verified) }) {
+                    InfoTipInline(GroundingCopy.subtitle(grounding.model), overlay = true)
                     MaeveSwitch(grounding.verified, onGrounding, Modifier.testTag("dev-grounding-verified"))
                 }
             }
@@ -85,7 +87,10 @@ fun DeveloperOptionsScreen(
         GroupCard {
             TraceSettingsRows()
             if (onOpenRunStats != null) {
-                ListRow(null, RunMetricsCopy.STATS_TITLE, RunMetricsCopy.STATS_SUBTITLE, onClick = onOpenRunStats) { RowChevron() }
+                ListRow(null, RunMetricsCopy.STATS_TITLE, onClick = onOpenRunStats) {
+                    InfoTipInline(RunMetricsCopy.STATS_SUBTITLE, overlay = true)
+                    RowChevron()
+                }
             }
         }
         FooterNote(DEVELOPER_NOTE)
@@ -96,8 +101,11 @@ fun DeveloperOptionsScreen(
 private fun SwitchGroup(switches: List<DevSwitch>, onSpeed: (SpeedFlags) -> Unit) {
     GroupCard {
         switches.forEachIndexed { i, s ->
-            // 整行都能点:开关小,行大
-            ListRow(null, s.title, s.subtitle, first = i == 0, onClick = { onSpeed(s.change(!s.checked)) }) {
+            // 整行都能点:开关小,行大。
+            // 每个开关「改变了什么」是调试时才需要读的，按规范进气泡，不进副标题——
+            // 八条说明并排会让这一页读起来像变更日志。
+            ListRow(null, s.title, first = i == 0, onClick = { onSpeed(s.change(!s.checked)) }) {
+                InfoTipInline(s.subtitle, overlay = true)
                 MaeveSwitch(s.checked, { onSpeed(s.change(it)) }, Modifier.testTag("dev-${s.id}"))
             }
         }

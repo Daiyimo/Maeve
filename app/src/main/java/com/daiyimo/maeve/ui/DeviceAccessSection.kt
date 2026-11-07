@@ -22,6 +22,7 @@ import com.daiyimo.maeve.core.device.CredentialKind
 import com.daiyimo.maeve.core.device.DeviceCredential
 import com.daiyimo.maeve.settings.DeviceAccessSettings
 import com.daiyimo.maeve.ui.components.ButtonKind
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.FooterNote
 import com.daiyimo.maeve.ui.components.GroupCard
@@ -70,7 +71,8 @@ fun DeviceAccessSection(settings: DeviceAccessSettings) {
 
     GroupLabel(stringResource(R.string.device_access_group))
     GroupCard {
-        ListRow(MaeveIcons.Desktop, stringResource(R.string.device_access_title), stringResource(R.string.device_access_sub), first = true) {
+        ListRow(MaeveIcons.Desktop, stringResource(R.string.device_access_title), first = true) {
+            InfoTipInline(stringResource(R.string.device_access_sub), overlay = true)
             MaeveSwitch(config.enabled, { on -> change({ settings.setEnabled(on) }) }, Modifier.testTag("device-access-enabled"), enabled = !busy)
         }
         val subtitle = when {

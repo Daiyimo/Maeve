@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import com.daiyimo.maeve.ui.haptic.HoldToConfirm
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -157,10 +158,13 @@ fun AdvancedSection(
     var clearingAll by remember { mutableStateOf(false) }
 
     GroupCard {
-        ListRow(MaeveIcons.Link, SandboxCopy.NETWORK_TITLE, SandboxCopy.NETWORK_SUBTITLE, first = true) {
+        // 「默认关闭」是状态，放右侧值；「会怎样」是解释，进气泡。
+        // 原来这两条各占一行副标题 + 一行 Note，四行里只有一行是开关本身。
+        ListRow(MaeveIcons.Link, SandboxCopy.NETWORK_TITLE, first = true) {
+            InfoTipInline(SandboxCopy.NETWORK_EXPLAIN, overlay = true)
+            if (!networkAllowed) RowValue(SandboxCopy.NETWORK_SUBTITLE)
             MaeveSwitch(networkAllowed, onNetworkChange, Modifier.testTag("sandbox-network"))
         }
-        Note(SandboxCopy.NETWORK_EXPLAIN, if (networkAllowed) MaeveTheme.colors.warn else MaeveTheme.colors.ink3)
         if (isolationIssue) Note(SandboxCopy.ISOLATION_UNAVAILABLE, MaeveTheme.colors.bad)
         ListRow(MaeveIcons.Close, tr(R.string.sandbox_reset), SandboxCopy.resetSubtitle(status), titleColor = MaeveTheme.colors.bad, tone = TileTone.Bad,
             onClick = if (status is SandboxStatus.Installing) null else ({ confirming = true }))

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import com.daiyimo.maeve.ui.components.MaeveDialog
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -51,8 +52,13 @@ fun McpServersScreen(store: McpServerStore, onBack: () -> Unit) {
 
     PageScaffold(stringResource(R.string.mcp_servers_title), onBack, eyebrow = "MCP · OUTBOUND") {
         if (servers.isEmpty()) {
+            // 空状态：一句话 + 一个按钮。「添加外部 MCP 服务器，把它的工具交给 Maeve」
+            // 那句是拿标题换个说法再说一遍，已经去掉；解释进气泡，默认不显示。
             GroupCard {
-                ListRow(MaeveIcons.Link, stringResource(R.string.mcp_servers_empty), stringResource(R.string.mcp_servers_empty_sub), first = true)
+                ListRow(MaeveIcons.Link, stringResource(R.string.mcp_servers_empty), first = true) {
+                    InfoTipInline(stringResource(R.string.mcp_servers_empty_sub), overlay = true)
+                    MaeveButton(stringResource(R.string.mcp_servers_add), { adding = true }, size = ButtonSize.Small)
+                }
             }
         } else {
             GroupCard {

@@ -37,16 +37,18 @@ object NetProxyCopy {
     fun value(proxy: String): String = NetProxyStore.display(proxy).ifEmpty { tr(R.string.settings_not_set) }
 
     /**
-     * 那一行下面的说明:平时说它管哪些连接;只给容器用的写法、浏览器用不上时照实说。
+     * 那一行唯一的副标题:只在**确实配不上的时候**出现(只给容器用的写法、浏览器用不了)。
+     * 平时返回 null —— 「调模型、下更新、内置浏览器都走它」是拿标题换个说法再说一遍，
+     * 已经挪进标题旁的 [HINT] 气泡。
      * [browser] 为空表示还没查出浏览器这边的情况。
      */
-    fun subtitle(proxy: String, browser: WebProxy.Mode?): String {
+    fun subtitle(proxy: String, browser: WebProxy.Mode?): String? {
         val address = ProxyAddress.parse(proxy)
         return when {
             address != null && !address.forApp -> tr(R.string.net_proxy_container_only)
             browser == WebProxy.Mode.Unsupported -> tr(R.string.net_proxy_browser_unsupported)
             browser == WebProxy.Mode.SocksWithCredentials -> tr(R.string.net_proxy_browser_socks_auth)
-            else -> tr(R.string.net_proxy_row_sub)
+            else -> null
         }
     }
 }

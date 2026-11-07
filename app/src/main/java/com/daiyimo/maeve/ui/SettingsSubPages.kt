@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.testTag
 import com.daiyimo.maeve.settings.FeatureFlags
 import com.daiyimo.maeve.settings.ThemeMode
 import com.daiyimo.maeve.ui.components.MaeveSwitch
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -204,10 +205,13 @@ fun DuringWorkScreen(
             }
         }
         GroupCard {
-            ListRow(MaeveIcons.Sun, stringResource(R.string.settings_keep_on), stringResource(R.string.settings_keep_on_sub), first = true, onClick = { onKeepScreenOn(!keepScreenOn) }) {
+            // 关掉之后会怎样，属于「为什么」，进气泡；行里只留标题和开关。
+            ListRow(MaeveIcons.Sun, stringResource(R.string.settings_keep_on), first = true, onClick = { onKeepScreenOn(!keepScreenOn) }) {
+                InfoTipInline(stringResource(R.string.settings_keep_on_sub), overlay = true)
                 MaeveSwitch(keepScreenOn, onKeepScreenOn, Modifier.testTag("work-keep-screen-on"))
             }
-            ListRow(MaeveIcons.Mute, stringResource(R.string.settings_mute), stringResource(R.string.settings_mute_sub), onClick = { onMuteTarget(!muteTarget) }) {
+            ListRow(MaeveIcons.Mute, stringResource(R.string.settings_mute), onClick = { onMuteTarget(!muteTarget) }) {
+                InfoTipInline(stringResource(R.string.settings_mute_sub), overlay = true)
                 MaeveSwitch(muteTarget, onMuteTarget, Modifier.testTag("work-mute-target"))
             }
             ListRow(
@@ -230,10 +234,10 @@ fun DuringWorkScreen(
         GroupCard {
             ListRow(
                 MaeveIcons.Spark, stringResource(R.string.settings_self_config),
-                stringResource(R.string.settings_self_config_sub),
                 first = true,
                 onClick = { onSelfConfig(!selfConfig) },
             ) {
+                InfoTipInline(stringResource(R.string.settings_self_config_sub), overlay = true)
                 MaeveSwitch(selfConfig, onSelfConfig, Modifier.testTag("work-self-config"))
             }
         }
@@ -313,9 +317,11 @@ private fun ParallelRow(p: ParallelSetting, onMax: (Int) -> Unit) {
     val supported = p.limit.reason == null
     ListRow(
         MaeveIcons.Phone, stringResource(R.string.settings_parallel),
-        subtitle = p.limit.reason ?: stringResource(R.string.settings_parallel_sub),
+        // 不支持时必须当场说清原因（这是状态，不是解释），支持时那句说明进气泡。
+        subtitle = p.limit.reason,
         titleColor = if (supported) MaeveTheme.colors.ink else MaeveTheme.colors.ink3,
     ) {
+        if (supported) InfoTipInline(stringResource(R.string.settings_parallel_sub), overlay = true)
         if (!supported) {
             RowValue(trPlural(R.plurals.settings_count_tasks, 1))
             return@ListRow
@@ -482,9 +488,12 @@ fun RecoveryScreen(onBack: () -> Unit, onOpenSelfCheck: () -> Unit = {}) {
         RecoverySwitches()
         GroupCard {
             ListRow(
-                MaeveIcons.Bug, stringResource(R.string.selfcheck_title), stringResource(R.string.selfcheck_row_sub), first = true,
+                MaeveIcons.Bug, stringResource(R.string.selfcheck_title), first = true,
                 onClick = onOpenSelfCheck,
-            ) { RowChevron() }
+            ) {
+                InfoTipInline(stringResource(R.string.selfcheck_row_sub), overlay = true)
+                RowChevron()
+            }
         }
     }
 }

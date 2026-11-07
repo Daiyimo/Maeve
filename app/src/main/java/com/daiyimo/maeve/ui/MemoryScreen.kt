@@ -4,6 +4,7 @@ import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.i18n.trPlural
 import androidx.compose.ui.res.stringResource
+import com.daiyimo.maeve.ui.components.InfoTipInline
 import com.daiyimo.maeve.ui.components.keepsKeyboard
 import com.daiyimo.maeve.ui.components.KeyboardDismissArea
 import androidx.activity.compose.BackHandler
@@ -227,8 +228,21 @@ fun MemoryScreen(
 }
 
 @Composable
-private fun SwitchRow(title: String, subtitle: String, on: Boolean, first: Boolean = false, onChange: (Boolean) -> Unit) {
-    ListRow(null, title, subtitle, first = first) { MaeveSwitch(on, onChange) }
+/**
+ * 开关行：标题 + 右侧开关。
+ *
+ * 关掉一个开关会发生什么，属于「为什么」，按规范不进副标题，收进 [InfoTip]，
+ * 默认不显示。原来是标题下面挂一行小字解释，三条开关就是三块说明文字，
+ * 整页读起来像说明书。
+ */
+private fun SwitchRow(title: String, tip: String, on: Boolean, first: Boolean = false, onChange: (Boolean) -> Unit) {
+    ListRow(
+        null, title, first = first,
+        trailing = {
+            InfoTipInline(text = tip, overlay = true)
+            MaeveSwitch(on, onChange)
+        },
+    )
 }
 
 @Composable
