@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -77,8 +78,11 @@ class _MaeveShellState extends State<MaeveShell> {
   ];
   final memories = <String>[];
 
+  // Falls back to the newest conversation so a stale id cannot break the build
+  // once conversations become deletable.
   _Conversation get currentConversation => conversations.firstWhere(
     (conversation) => conversation.id == activeConversation,
+    orElse: () => conversations.first,
   );
 
   @override
@@ -245,38 +249,40 @@ class _MaeveShellState extends State<MaeveShell> {
                       itemBuilder: (context, index) {
                         final conversation = filtered[index];
                         final active = conversation.id == activeConversation;
-                        return ListTile(
-                          dense: true,
-                          selected: active,
-                          selectedTileColor: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: .12),
-                          leading: Icon(
-                            active
-                                ? Icons.radio_button_checked
-                                : Icons.chat_bubble_outline,
-                            size: 17,
-                            color: active
-                                ? Theme.of(context).colorScheme.primary
-                                : null,
+                        return _sidebarTile(
+                          tile: ListTile(
+                            dense: true,
+                            selected: active,
+                            selectedTileColor: Theme.of(context)
+                                .colorScheme
+                                .primary
+                                .withValues(alpha: .12),
+                            leading: Icon(
+                              active
+                                  ? Icons.radio_button_checked
+                                  : Icons.chat_bubble_outline,
+                              size: 17,
+                              color: active
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                            title: Text(
+                              conversation.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              _relativeTime(conversation.updatedAt),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            onTap: () => setState(() {
+                              activeConversation = conversation.id;
+                              page = 0;
+                              drawer = false;
+                              responseGeneration++;
+                              generating = false;
+                            }),
                           ),
-                          title: Text(
-                            conversation.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            _relativeTime(conversation.updatedAt),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          onTap: () => setState(() {
-                            activeConversation = conversation.id;
-                            page = 0;
-                            drawer = false;
-                            responseGeneration++;
-                            generating = false;
-                          }),
                         );
                       },
                     ),
@@ -297,15 +303,17 @@ class _MaeveShellState extends State<MaeveShell> {
   }
 
   Widget _sidebarDestination(IconData icon, String label, int value) =>
-      ListTile(
-        dense: true,
-        leading: Icon(icon, size: 19),
-        title: Text(label),
-        selected: page == value,
-        onTap: () => setState(() {
-          page = value;
-          drawer = false;
-        }),
+      _sidebarTile(
+        tile: ListTile(
+          dense: true,
+          leading: Icon(icon, size: 19),
+          title: Text(label),
+          selected: page == value,
+          onTap: () => setState(() {
+            page = value;
+            drawer = false;
+          }),
+        ),
       );
 
   Widget _content(BuildContext context, {required bool wide}) => Column(
@@ -693,12 +701,15 @@ class _MaeveShellState extends State<MaeveShell> {
       MaeveGlassSurface(
         tier: MaeveGlassTier.card,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        child: SwitchListTile.adaptive(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('Light appearance'),
-          subtitle: const Text('Use a cool, light workspace palette.'),
-          value: widget.themeMode == ThemeMode.light,
-          onChanged: (_) => widget.onTheme(),
+        child: Material(
+          type: MaterialType.transparency,
+          child: SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Light appearance'),
+            subtitle: const Text('Use a cool, light workspace palette.'),
+            value: widget.themeMode == ThemeMode.light,
+            onChanged: (_) => widget.onTheme(),
+          ),
         ),
       ),
       const SizedBox(height: 12),
@@ -807,6 +818,11 @@ class _MaeveShellState extends State<MaeveShell> {
     );
   }
 
+  /// ListTiles inside the drawer paint selection and ink onto the nearest
+  /// Material, so each row owns a transparent Material to keep them visible.
+  Widget _sidebarTile({required Widget tile}) =>
+      Material(type: MaterialType.transparency, child: tile);
+
   void _newConversation() {
     setState(() {
       responseGeneration++;
@@ -845,16 +861,11 @@ class _MaeveShellState extends State<MaeveShell> {
 
   Future<void> _appendDemoReply(int generation, String conversationId) async {
     await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted ||
-        generation != responseGeneration ||
-        !generating ||
-        !conversations.any((item) => item.id == conversationId)) {
-      return;
-    }
+    final index = conversations.indexWhere((item) => item.id == conversationId);
+    if (!mounted || generation != responseGeneration || !generating) return;
+    if (index < 0) return;
     setState(() {
-      final conversation = conversations.firstWhere(
-        (item) => item.id == conversationId,
-      );
+      final conversation = conversations[index];
       conversation.messages.add(
         _Message('I have it. The next move is yours.', isUser: false),
       );
@@ -925,37 +936,74 @@ class MaeveMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CustomPaint(
     size: Size.square(size),
-    painter: _MarkPainter(
+    painter: MaeveMarkPainter(
       Theme.of(context).colorScheme.onSurface,
       Theme.of(context).scaffoldBackgroundColor,
+      armed: state == MarkState.armed,
     ),
   );
 }
 
 enum MarkState { idle, armed }
 
-class _MarkPainter extends CustomPainter {
-  const _MarkPainter(this.color, this.background);
+/// Public so tests can record the draw calls for each mark state.
+@visibleForTesting
+class MaeveMarkPainter extends CustomPainter {
+  const MaeveMarkPainter(this.color, this.background, {this.armed = false});
   final Color color;
   final Color background;
+  final bool armed;
+
+  static const arcStart = -.6;
+  static const arcSweep = 4.4;
+  static const fillRatio = .67;
+
+  /// Direction of the middle of the ring opening when armed.
+  static double get gapDirection =>
+      arcStart + arcSweep + (2 * math.pi - arcSweep) / 2;
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = size.center(Offset.zero);
     final radius = size.shortestSide * .3;
+    final stroke = size.shortestSide * .045;
     final outline = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = size.shortestSide * .045
+      ..strokeWidth = stroke
       ..strokeCap = StrokeCap.round;
-    canvas.drawCircle(center, radius, outline);
-    canvas.drawCircle(center, radius * .67, Paint()..color = color);
+    if (armed) {
+      // The eclipse ring opens into an arc once Maeve is ready to work. The
+      // tick sits in the middle of that opening, outside the inner disk.
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        arcStart,
+        arcSweep,
+        false,
+        outline,
+      );
+      final direction = Offset(math.cos(gapDirection), math.sin(gapDirection));
+      canvas.drawLine(
+        center + direction * (radius * .9),
+        center + direction * (radius * fillRatio),
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = stroke,
+      );
+    } else {
+      canvas.drawCircle(center, radius, outline);
+    }
+    canvas.drawCircle(center, radius * fillRatio, Paint()..color = color);
     canvas.drawCircle(center, radius * .4, Paint()..color = background);
   }
 
   @override
-  bool shouldRepaint(covariant _MarkPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.background != background;
+  bool shouldRepaint(covariant MaeveMarkPainter oldDelegate) =>
+      oldDelegate.color != color ||
+      oldDelegate.background != background ||
+      oldDelegate.armed != armed;
 }
 
 class MaeveBridge {
