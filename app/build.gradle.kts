@@ -80,18 +80,41 @@ kotlin {
     jvmToolchain(17)
 }
 
+// Flutter AAR 的传递依赖不在仓库声明里,只能按本地缓存的具体文件引入。
+// 缓存根目录从 Gradle 实际的 GRADLE_USER_HOME 推导,搬家后不用改这个文件。
+val gradleCacheRoot: File = run {
+    val fromEnv = System.getenv("GRADLE_USER_HOME")?.takeIf { it.isNotBlank() }
+    val base = fromEnv?.let(::File) ?: gradle.gradleUserHomeDir
+    File(base, "caches/modules-2/files-2.1")
+}
+
+fun cachedModule(group: String, name: String, version: String, hash: String, file: String): File =
+    File(gradleCacheRoot, "$group/$name/$version/$hash/$file").also { resolved ->
+        check(resolved.exists()) {
+            "缺少缓存依赖 $group:$name:$version。请先在线构建一次,或确认 GRADLE_USER_HOME=$gradleCacheRoot 正确。"
+        }
+    }
+
 dependencies {
     // Flutter-first UI migration: the new shell is opt-in via FlutterShellActivity.
     implementation(files("../flutter/.android/Flutter/build/outputs/aar/flutter-debug.aar"))
-    debugImplementation(files("G:/gradle-home/caches/modules-2/files-2.1/com.getkeepsafe.relinker/relinker/1.4.5/222d7b0624248da9336bbfccff8a129e3e280ce8/relinker-1.4.5.aar"))
-    debugImplementation(files("G:/gradle-home/caches/modules-2/files-2.1/androidx.window/window/1.2.0/1d080d0a72684227bf6eb9af56264542708f8d16/window-1.2.0.aar"))
-    debugImplementation(files("G:/gradle-home/caches/modules-2/files-2.1/androidx.window/window-java/1.2.0/924d0a3ca93fac4acb32c6a972e9fa1e283f1f07/window-java-1.2.0.aar"))
-    debugImplementation(files(
-        "G:/gradle-home/caches/modules-2/files-2.1/io.flutter/flutter_embedding_debug/1.0.0-deb287481e3ce9468f3434937ced4240a70539ca/2820d8d41717cfbffa60d2fc734a43ab0a8b8580/flutter_embedding_debug-1.0.0-deb287481e3ce9468f3434937ced4240a70539ca.jar",
-        "G:/gradle-home/caches/modules-2/files-2.1/io.flutter/arm64_v8a_debug/1.0.0-deb287481e3ce9468f3434937ced4240a70539ca/5231e7ca773fc3789c114eca038c7d9a12135db9/arm64_v8a_debug-1.0.0-deb287481e3ce9468f3434937ced4240a70539ca.jar",
-        "G:/gradle-home/caches/modules-2/files-2.1/io.flutter/armeabi_v7a_debug/1.0.0-deb287481e3ce9468f3434937ced4240a70539ca/d3e987c4ef55591d0edcb1912af12a4d15519806/armeabi_v7a_debug-1.0.0-deb287481e3ce9468f3434937ced4240a70539ca.jar",
-        "G:/gradle-home/caches/modules-2/files-2.1/io.flutter/x86_64_debug/1.0.0-deb287481e3ce9468f3434937ced4240a70539ca/20c335ddbc5c860bbd6c0248a012c0c969cb5e0b/x86_64_debug-1.0.0-deb287481e3ce9468f3434937ced4240a70539ca.jar"
-    ))
+    debugImplementation(
+        files(cachedModule("com.getkeepsafe.relinker", "relinker", "1.4.5", "222d7b0624248da9336bbfccff8a129e3e280ce8", "relinker-1.4.5.aar"))
+    )
+    debugImplementation(
+        files(cachedModule("androidx.window", "window", "1.2.0", "1d080d0a72684227bf6eb9af56264542708f8d16", "window-1.2.0.aar"))
+    )
+    debugImplementation(
+        files(cachedModule("androidx.window", "window-java", "1.2.0", "924d0a3ca93fac4acb32c6a972e9fa1e283f1f07", "window-java-1.2.0.aar"))
+    )
+    debugImplementation(
+        files(
+            cachedModule("io.flutter", "flutter_embedding_debug", "1.0.0-deb287481e3ce9468f3434937ced4240a70539ca", "2820d8d41717cfbffa60d2fc734a43ab0a8b8580", "flutter_embedding_debug-1.0.0-deb287481e3ce9468f3434937ced4240a70539ca.jar"),
+            cachedModule("io.flutter", "arm64_v8a_debug", "1.0.0-deb287481e3ce9468f3434937ced4240a70539ca", "5231e7ca773fc3789c114eca038c7d9a12135db9", "arm64_v8a_debug-1.0.0-deb287481e3ce9468f3434937ced4240a70539ca.jar"),
+            cachedModule("io.flutter", "armeabi_v7a_debug", "1.0.0-deb287481e3ce9468f3434937ced4240a70539ca", "d3e987c4ef55591d0edcb1912af12a4d15519806", "armeabi_v7a_debug-1.0.0-deb287481e3ce9468f3434937ced4240a70539ca.jar"),
+            cachedModule("io.flutter", "x86_64_debug", "1.0.0-deb287481e3ce9468f3434937ced4240a70539ca", "20c335ddbc5c860bbd6c0248a012c0c969cb5e0b", "x86_64_debug-1.0.0-deb287481e3ce9468f3434937ced4240a70539ca.jar"),
+        )
+    )
     implementation(project(":core"))
     implementation(libs.protobuf.lite)
     implementation(platform(libs.compose.bom))
