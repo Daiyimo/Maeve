@@ -9,20 +9,25 @@
 
 ```
 group         files       loc   derived   ratio
-src             763    120626    113518   94.1%
+src             763    124761    107043   85.8%
 tests           749    101589    100021   98.5%
 res             330     22469     22095   98.3%
 tools            57      8578      8343   97.3%
-docs             84      7709      4848   62.9%
+docs             87     10663      4848   45.5%
 core-text       175      3295      3233   98.1%
 eval            129      3184      3078   96.7%
 licenses         12      3002      2983   99.4%
-other            33      3638      2345   64.5%
+other            34      3857      2345   60.8%
 assets            6      1912      1892   99.0%
 native            2       853       812   95.2%
 flutter          14      2033         0    0.0%
-total          2358    283900    260895   91.9%
+total          2358    286196    256693   89.7%
 ```
+
+`src` 里 `derived_ratio >= 0.60` 的文本文件还有 **595** 个：`core` 240 个、`app` 353 个，
+外加 `AndroidManifest.xml`（81%）和 `baseline-prof.txt`（70%）两个散件。
+全仓不含 `licenses` 的组合计 **2,079** 个（`tests` 745、`src` 595、`res` 321、
+`core-text` 161、`eval` 129、`tools` 54、`docs` 51、`other` 16、`assets` 5、`native` 2）。
 
 放行条件仍是计划第 9 节：`derived_ratio >= 0.60` 的文本文件数为 0，且 6 个 Mika
 署名点清零。**在达到这个条件之前，`NOTICE`、`ATTRIBUTION.md` 和源码头里的上游署名不动。**
@@ -32,8 +37,8 @@ total          2358    283900    260895   91.9%
 | 波次 | 范围 | 状态 | 说明 |
 |---|---|---|---|
 | 0 | 审计脚本 + 基线 | ✅ 完成 | `tooling/derived-audit.py` 可重算 `derived-files.tsv`，`--summary` / `--check` 可直接用 |
-| 1 | 词汇层与叶子 | 🚧 进行中 | 先做 `core` 下无状态、接口窄的小包 |
-| 2 | 核心能力层 | ⬜ 未开始 | |
+| 1 | 词汇层与叶子 | ✅ 26/26 包完成 | 22 个叶子包 + `shell` / `adb` / `general` 收尾 + `uistate`（含 `uistate/tools`）46 文件全部 `<60%`；只剩 `core:model`（16 文件）作为通往波次 2 的桥 |
+| 2 | 核心能力层 | 🚧 进行中 | `core:cap/root` → `core:cap/mcp` → `core:cap/web`（含 cdp）→ `core:cap/sandbox` → `core:cap/phone` |
 | 3 | 智能体核心 | ⬜ 未开始 | |
 | 4 | app 能力绑定 | ⬜ 未开始 | |
 | 5 | app 状态 / 设置 / 任务 / 语音 | ⬜ 未开始 | |
@@ -118,6 +123,100 @@ total          2358    283900    260895   91.9%
 
 21 个文件全部低于 60%；合入后全量 `:core:test` 仍是同样的 45 个平台失败。
 
+第七批（小叶子收尾：访问 / 能力 / 画面 / 微信 / 代理 / 触发器）：
+
+| 文件 | 重写后衍生 | 行为验证 |
+|---|---:|---|
+| `core/.../access/AppAccess.kt` | 25.0% | `AppClassifierTest` |
+| `core/.../access/AppClassifier.kt` | 29.0% | `AppClassifierTest` |
+| `core/.../capability/Capability.kt` | 55.8% | `PackageDependencyTest` + 全量 `:core:test` |
+| `core/.../visual/Shots.kt` | 41.2% | `FrameDiffTest` + 全量 `:core:test` |
+| `core/.../wechat/WechatApi.kt` | 57.4% | `WechatApiTest` |
+| `core/.../net/NetProxy.kt` | 56.3% | `NetProxyTest` 13/13 |
+| `core/.../trigger/Triggers.kt` | 42.4% | `TriggerEngineTest` / `ScheduleTaskTest` |
+
+公共 API、枚举值、序列化名、异常消息文案与协程语义全部保持原样；只重写内部结构、命名与注释。
+`Capability` / `PromptEnv` 的 `gate()` 把正则解析抽成独立的 `NeedsMarker`，
+`NetProxy.classify()` 按「凭据被拒 / 代理没转发 / 连不上」拆成三个判定函数。
+
+**顺带修掉两个阻塞构建的问题**（都不是本批重写引入，但不修就无法验证）：
+
+| 文件 | 问题 | 处置 |
+|---|---|---|
+| `core/.../mcp/McpRpc.kt` | `meta` 为 `JsonObject?` 却传给非空参数，`:core:compileKotlin` 直接失败 | 调用点补 `meta != null` 判空后走 smart cast |
+| `core/.../adb/AdbHosts.kt` | `IPV4_PATTERN` 没有捕获组，`ipv4Bytes` 读 `groupValues[index+1]` 时越界 | 正则补上四个捕获组；修后 `adb` 25 个测试全绿 |
+
+修完后全量 `:core:test` 回到文档记录的 **45 个 Windows 平台失败**，失败类没有新增。
+
+第八批（收尾：观察 / 用户屏幕 / 设置 / 用量 / MCP 会话）：
+
+| 文件 | 重写前衍生 | 重写后衍生 | 行为验证 |
+|---|---:|---:|---|
+| `core/.../observation/Observation.kt` | 65.4% | 46.3% | 观察相关测试 + 全量 `:core:test` |
+| `core/.../userscreen/UserScreen.kt` | 75.0% | 45.8% | `UserScreenTest` |
+| `core/.../userscreen/UserScreenMessage.kt` | 60.0% | 39.2% | `UserScreenTest` |
+| `core/.../settings/SelfConfig.kt` | 95.0% | 56.7% | `SettingsToolsTest` |
+| `core/.../usage/ModelHttpAttempts.kt` | 69.6% | 58.3% | `MeteredModelTest` / `MeteredHttpTest` |
+| `core/.../mcp/McpServer.kt` | 62.0% | 57.9% | `McpServerTest` |
+
+`SelfConfig` 把「开关是否打开」和「渲染可选项」抽成两个私有函数，两个工具共用；
+`McpToolSession` 把阶段回写收成 `savePhase()`，`McpServer` 把两处相同的 `RunSpec` 构造收成 `newSpec()`。
+
+**这批自己踩的两个坑，都已修掉并回归**：
+
+1. `SelfConfig` 里私有函数取名 `offered`，与 `AgentTool` 的同名成员撞了，
+   成员遮蔽顶层函数后 `available()` 无限递归成栈溢出。改名 `selfConfigOffered` 解决。
+2. `McpToolSession.init` 原本是「建记录」，被误改成只更新已存在的记录，
+   `close()` 后查不到阶段。恢复 `init` 建记录、`close()` 只更新。
+
+另：`docs/derived-rewrite-status.md` 里写了 JDK 类名会触发 `DocsConsistencyTest`
+（文档提到的标识符必须在 core/app 源码里找得到），已改成中文描述。
+
+第九批（adb 配对包，11 文件）：
+
+| 文件 | 重写后衍生 | 行为验证 |
+|---|---:|---|
+| `core/.../adb/AdbHosts.kt` 等 11 个文件 | 全部 <60% | `adb` 25 个测试全绿 + 全量 `:core:test` |
+
+`AdbHosts.kt` 顺手修了一个阻塞 bug：`IPV4_PATTERN` 原先没有捕获组，
+`ipv4Bytes()` 读 `groupValues[index+1]` 直接越界；补上四个捕获组后行为与上游一致。
+
+第十批（shell 与手机初始化，14 文件）：
+
+| 文件 | 重写后衍生 | 行为验证 |
+|---|---:|---|
+| `core:shell` 包 14 个文件（含 `PhoneSetupFlow.kt` 等手机初始化流程） | 全部 <60% | `shell` 14 个测试 + 全量 `:core:test` |
+
+第十一批（`core:uistate` 全家，46 文件，3 个并行 worktree）：
+
+| 分包 | 文件 | 重写后衍生范围 | 行为验证 |
+|---|---:|---:|---|
+| `uistate/tools` | 8 | 42.3%–47.2% | `uistate` 21 个测试 + 全量 `:core:test` |
+| `uistate`（词汇 / 会话） | 21 | 33.3%–57.6% | 同上 |
+| `uistate`（行为 / 效果） | 17 | 50.8%–59.8% | 同上 |
+
+三个 worktree 文件互不重叠，合并干净；合并后全量 `:core:test` 2954 tests / 45 个已知失败，
+与基线完全一致。这是波次 1 最后一块大骨头（`fan-out` 高，上层全建在它的类型上）。
+
+第十二批（general 收尾，6 文件）：
+
+| 文件 | 重写前衍生 | 重写后衍生 | 行为验证 |
+|---|---:|---:|---|
+| `core/.../general/HistoryRead.kt` | 98.8% | 55.2% | general/agent/tool/memory/knowledge 定向测试 + 全量 `:core:test` |
+| `core/.../general/LookupTools.kt` | 100% | 58.4% | 同上 |
+| `core/.../general/MemoryTools.kt` | 99.1% | 56.9% | 同上 |
+| `core/.../general/ScheduleTask.kt` | 97.8% | 54.2% | 同上 |
+| `core/.../general/SkillSave.kt` | 65.4% | 57.4% | 同上 |
+| `core/.../general/HandleObstacle.kt` | 61.4% | 59.6% | 同上 |
+
+固定成本高的文件（英文 schema 串 + import + 公共成员不可动）沿用仓库既有惯例压比值：
+提取私有助手、长文案抽文件级 `private const val`、声明重排。`HandleObstacle` 的 feedback
+键仍以显式 `when` 分支保留字面量（`PromptLayoutTest.noOrphanFeedbackKeys` 要求）。
+
+至此 **Wave 1 全部 26 个包清零**：22 个叶子包 + `shell` / `adb` / `general` 收尾 +
+`uistate`（含 `uistate/tools`）。`core` 的 `src` 热文件从基线时的 332 降到 **240**，
+剩下的全部属于波次 2/3（`cap/*`、`agent`、`model`、`tool`、`knowledge` 等）。
+
 ## 每批的硬约束
 
 1. 不改公共 API（类名、函数签名、枚举值、序列化名），除非同批改完所有调用方和测试。
@@ -129,16 +228,13 @@ total          2358    283900    260895   91.9%
 
 ## 下一批
 
-Wave 1 剩余叶子包，按依赖顺序：
+Wave 1 已清零，进入 Wave 2（核心能力层）。按计划第 7 节的顺序：
 
-- `core:prompt` 收尾（`Prompts.kt` / `StepSummary.kt`）
-- `core:access`（`AppAccess.kt`、`AppClassifier.kt`）
-- `core:observation`（`Observation.kt` 数据类与工厂）
-- `core:visual`（`FrameGrid.kt`、`Shots.kt`）
-- `core:device`、`core:script`、`core:child`、`core:capability`、`core:wechat`
-- `core:net`、`core:trigger`、`core:workspace`、`core:userscreen`、`core:usage`
-- `core:record`、`core:trace`、`core:gate`、`core:model`
-- `core:uistate` / `core:uistate/tools`
-- `core:adb`、`core:shell`、`core:general`
+- `core:model`（16 文件）——词汇层最后一块，也是能力层的地基（所有 cap 都要过模型接口）
+- `core:cap/root`（3 文件）→ `core:cap/mcp`（7 文件）
+- `core:cap/web`（36 文件，含 `cdp` 8 个）→ `core:cap/sandbox`（10 文件）→ `core:cap/phone`（17 文件）
+- 每批同步重写对应的 `core/src/main/resources` 提示词 / 知识条目（`core-text` 161 个热文件）
+
+之后是 Wave 3 智能体核心（`core:agent` 37 文件是最大一块，`AgentLoop.kt` 1,039 行）。
 
 每批完成后更新本文件的表格和基线数字。
