@@ -1,14 +1,9 @@
-Mika
-Copyright 2026 wangzan101
-
-----
-
 Maeve
 Copyright 2026 Daiyimo
 
-Maeve contains code derived from Mika (Apache-2.0), by wangzan101 and contributors,
-starting at base commit bbc8922a.
-The package was renamed to com.daiyimo.maeve and the product identity, visual
-system and connection layer are being reworked. See ATTRIBUTION.md for the full change
-record. The original attribution above is retained verbatim, as required by
-Apache-2.0 section 4(d).
+----
+
+Maeve is an independent, Apache-2.0 project maintained by Daiyimo.
+Third-party notices for the components shipped with Maeve live in
+licenses/THIRD_PARTY_NOTICES.md and in the in-app licence screen; the Apache-2.0
+license text is in LICENSE. See ATTRIBUTION.md for the change record.

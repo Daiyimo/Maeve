@@ -27,11 +27,13 @@ def check(cond: bool, message: str) -> None:
         problems.append(message)
 
 
-# 1. Apache-2.0 section 4(d): the original attribution must survive verbatim.
+# 1. NOTICE carries the Maeve attribution and no upstream identity.
 notice = read("NOTICE")
 first_line = notice.splitlines()[0].strip() if notice else ""
-check(bool(first_line) and "Copyright 2026 wangzan101" in notice,
-      "NOTICE must keep the verbatim upstream attribution (Apache-2.0 4(d))")
+check(bool(first_line) and "Copyright 2026 Daiyimo" in notice,
+      "NOTICE must carry the Maeve attribution")
+check("wangzan101" not in notice and "mika" not in notice.lower(),
+      "NOTICE still carries upstream identity")
 
 # 2. License text and provenance record.
 license_text = read("LICENSE")
@@ -57,8 +59,8 @@ for h in headings:
     check(h in names, f"third-party notice not shown in LicensesScreen: {h}")
 check(bool(names) and names[0] == "Maeve",
       "LicensesScreen must show Maeve as its first entry")
-check("上游版权方" in names,
-      "LicensesScreen must keep an upstream-attribution entry (Apache-2.0 4(d))")
+check("上游版权方" not in names,
+      "LicensesScreen still shows an upstream-attribution entry")
 check("gpl-sources.tar.gz" in screen,
       "GPL source offer string lost from LicensesScreen")
 
@@ -79,15 +81,14 @@ check('rootProject.name = "Maeve"' in read("settings.gradle.kts"),
       "settings.gradle.kts rootProject.name is not Maeve")
 check('versionName = "0.1.0-dolores"' in gradle, "release codename missing from versionName")
 
-# 7. No residual upstream package identifier in CODE/CONFIG. Markdown is excluded on
-#    purpose: ATTRIBUTION.md and SPEC.md must be able to describe the upstream package
-#    name as historical fact.
+# 7. No residual upstream package identifier anywhere in the repo, markdown included:
+#    the owner decided to drop every upstream trace, so docs must not name it either.
 allowed = {"tools/maeve"}
 skip_dirs = {".git", "build", ".gradle", ".kotlin", ".idea", "__pycache__"}
 code_exts = {".kt", ".kts", ".java", ".xml", ".aidl", ".py", ".go", ".mod",
              ".json", ".pro", ".gradle", ".properties", ".yml", ".yaml",
-             ".sh", ".bat", ".txt"}
-needles = ("com.wangzan101.", "com/wangzan101/")
+             ".sh", ".bat", ".txt", ".md"}
+needles = ("com.wangzan101.", "com/wangzan101/", "wangzan101", "mika")
 for path in ROOT.rglob("*"):
     if not path.is_file() or path.suffix.lower() not in code_exts:
         continue

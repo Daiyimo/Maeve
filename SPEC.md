@@ -6,7 +6,7 @@
 > **v0.2 修订摘要**：① 双路线拆成 R1 / R2a(amoo 文件桥) / R2b(电脑 MCP)，两者不可互兜底；② 「隐藏核心」由「零配置」改为「能力隐藏 + 一次性握手」；③ `:18770` 实测仅回环，WorkBuddy 需显式开局域网或 USB forward；④ 「纯本地/内置模型」改为「端侧执行 + 外部 Provider 决策」；⑤ 新增文件桥协议缺陷、StepOS 平台约束、改包名致技能失效的迁移项。详见 §12。
 > **v0.3 修订摘要**：① 修掉 v0.1 正文与 §12 的 6 处直接矛盾（技能版本、`request_id` 生成、alias 生命周期、超时终态等）；② 补纳 `step-gui-edge-资料.md` / `mobile-agent-GUI实现分析.md` / `豆包手机实现调研.md` / `gelab-zero` 本地仓库；③ 新增端侧决策后端接缝、机械后验、敏感应用清单、`SelfCheck` 验收复用 4 条 ADR；④ 把文件桥 v3 从「缺陷描述」写成可实现的 wire contract；⑤ 给出决策阻塞表，明确哪些问题不回答也能开工。详见 §13。
 > **目标仓库**：`E:\project\daiyimo\Maeve` → `https://github.com/Daiyimo/Maeve.git`（**公开历史从单基线快照 `7cf7ff3` 开始，后面是 Maeve 提交；当前分支 `master`，单一贡献者；见 `ATTRIBUTION.md`**）
-> **上游**：`E:\project\daiyimo\Maeve`，Apache-2.0，Copyright 2026 wangzan101
+> **许可**：Apache-2.0，Copyright 2026 Daiyimo
 > **设计参考**：`E:\project\daiyimo\dsh-go`（dsh-Go，AGPL-3.0）
 > **本 spec 的范围**：只定义「要做什么、为什么、做成什么样、怎么验收」。**不写代码、不搬源码、不改上游**；实现与发布动作记录见 `docs/spec/migration.md`。
 
@@ -409,7 +409,7 @@ stateDiagram-v2
 - 认领（**v0.3 按 `AmooBridge.kt:105-132` 逐行订正**）：`in/<id>.json` → `renameTo(.claimed)` → 解析 → `RemoteTaskService.start(goal, null, requestId)`；**`requestId` 由 Maeve 侧 `UUID.randomUUID()` 生成，不是文件桥的 `id`**（v0.1 此处误写成传 `id`）。产品 `v0.1.0` 起改为 `id` 的稳定 UUIDv5 映射以获得幂等能力，见 §13.8。写回 `out/<id>.json` 用临时文件 + 原子 rename。
 - 并发：`MAX_IN_FLIGHT` 上限保持；两条路线同时在途时按 `request_id` 在 receipts 排队，不并发抢后台屏。
 - 安全：**信箱是明文的，等价于把「动手机」的能力交给任何能写该目录的应用**。产品 `v0.1.0` 至少补：请求体大小上限、`goal` 长度上限、来源目录权限检查、异常请求隔离（单个坏 JSON 不影响轮询）。更严格的签名校验列入后续版本。
-- **技能必须升级（v0.3 订正）**：v0.1 此处原写「不改 `AmooSetup` 注入的 skill 说明（SKILL_VERSION=2）」，与 §12.2⑦ 和 §12.6 直接矛盾。改包名后旧技能里的 `/sdcard/Android/media/com.wangzan101.maeve/amoo/` 永久失效，因此**必须**改名 `maeve-bridge`、`SKILL_VERSION` 升 **3**、首次启动自动重注入，并把 `AMOO_PKG` / `ID_INPUT` / `ID_SEND` 改为运行时探测。MCP 侧 `maeve_*` alias 只兜住电脑客户端，**兜不住文件桥**。
+- **技能必须升级（v0.3 订正）**：v0.1 此处原写「不改 `AmooSetup` 注入的 skill 说明（SKILL_VERSION=2）」，与 §12.2⑦ 和 §12.6 直接矛盾。改包名后旧技能里的 `/sdcard/Android/media/<旧包名>/amoo/` 永久失效，因此**必须**改名 `maeve-bridge`、`SKILL_VERSION` 升 **3**、首次启动自动重注入，并把 `AMOO_PKG` / `ID_INPUT` / `ID_SEND` 改为运行时探测。MCP 侧 `maeve_*` alias 只兜住电脑客户端，**兜不住文件桥**。
 
 ### 6.10 安全与隐私边界
 
@@ -582,10 +582,10 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | 机型 / 厂商 | **PZ261A / StepX**（STEPX Neo） | `getprop ro.product.model` / `ro.product.manufacturer` |
 | 系统 | **Android 16 / API 36** / `BQ2A.260122.002-BP2A.250705.008 release-keys` | `getprop ro.build.version.*` |
 | amoo | `com.stepos.ailauncher` **1.0.1_20261024_001806**（versionCode 100010，targetSdk 36） | `dumpsys package` |
-| Maeve | `com.wangzan101.maeve` **0.1.37 / versionCode 38**，2026-11-05 23:13 更新 | `dumpsys package` |
+| Maeve（旧包名） | **0.1.37 / versionCode 38**，2026-11-05 23:13 更新 | `dumpsys package` |
 | 关键系统包 | `com.stepos.stepclaw` / `ability` / `agentbus` / `aiengine` / `secureinput`、`io.github.shenhaostu.gagent` | `pm list packages` |
 | 运行时进程 | `openclaw_env`(root)、`ubuntu_zygote`(root)、`openclaw-gateway`(system)、`com.stepos.stepclaw`(system)、`com.stepos.ailauncher`(u0_a136) | `ps -A` |
-| 文件信箱 | `/sdcard/Android/media/com.wangzan101.maeve/amoo/` 存在；`in/` 空、`out/` **10 个结果 JSON**、`skill.json` = `{"skill":"maeve-bridge","version":2}` | `ls -laR` |
+| 文件信箱 | `/sdcard/Android/media/<旧包名>/amoo/` 存在；`in/` 空、`out/` **10 个结果 JSON**、`skill.json` = `{"skill":"maeve-bridge","version":2}` | `ls -laR` |
 | MCP 端口 | `[::ffff:127.0.0.1]:18770` **LISTEN（仅回环）**；手机侧 `curl 127.0.0.1:18770/api/v1` → **HTTP 401** | `ss -lntp` / `curl` |
 | 其它监听 | 8765、18789、18790、18791、18800、8900（均回环）；13636 / 13687 / 9114 / 58800 等 | `ss -lntp` |
 | 前台 | `com.android.launcher3/QuickstepLauncher`（**amoo 不在前台**） | `dumpsys activity activities` |
@@ -605,7 +605,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | ④ | 「纯本地 / 内置模型闭环」 | `Amoo-端侧GUI方案.md:19,219` 全离线 4B LLM / 2B VLM 决策质量不够、复杂任务失败率高；`GUI-Agent成熟实现调研.md:44-46` 模型推理先放 PC 或局域网 | **端侧执行闭环 + 外部 Provider 决策**；端侧小模型仅离线降级 |
 | ⑤ | 两路线共用一个执行内核 | Maeve 进程内成立（`amoo-intercept.md:21` 同一 `RemoteTaskService.start`）；但 GAgent / StepBridge / capability-kit 是三套独立实现 | 表述**收窄到 Maeve 进程内**，不外推 |
 | ⑥ | amoo 是「沙箱里的 agent」 | `Amoo/README.md:28-33,305` 实为 system app 前端（uid 10136/10136 段，预装 vendor），真编排在 pKVM 微 VM 的 Ubuntu + OpenClaw | 修正平台模型；厂商能力受平台签名门禁约束 |
-| ⑦ | `SKILL_VERSION=2` 可沿用 | 技能写死 `/sdcard/Android/media/com.wangzan101.maeve/amoo/`；改包名 = 新目录 = 技能失效；真机 amoo 已从 `1.0.0_20261002` 升到 `1.0.1_20261024`，`et_input_bar`/`btn_text_send` 写死有跨版本风险 | 升 **v3** + 自动重注入 + view id 运行时探测（§12.6） |
+| ⑦ | `SKILL_VERSION=2` 可沿用 | 技能写死 `/sdcard/Android/media/<旧包名>/amoo/`；改包名 = 新目录 = 技能失效；真机 amoo 已从 `1.0.0_20261002` 升到 `1.0.1_20261024`，`et_input_bar`/`btn_text_send` 写死有跨版本风险 | 升 **v3** + 自动重注入 + view id 运行时探测（§12.6） |
 | ⑧ | 无 amoo 时「MCP 兜底」 | `core/cap/mcp/` 是 **outbound 客户端**，`/mcp` 是 **inbound 服务端**，两者方向相反 | Q2/Q3 必须明确方向，不能含糊写成「MCP」 |
 
 ### 12.3 文件桥协议实证与四个协议缺陷
@@ -662,7 +662,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 
 ### 12.6 迁移新增项（补 §8.2）
 
-1. **改 `applicationId` 会让 amoo 侧技能整体失效**：技能里写死 `/sdcard/Android/media/com.wangzan101.maeve/amoo/`，新包名 = 新目录 = 旧的 `in/` 永远没人读。v0.1 必须：技能改名 `maeve-bridge`、`SKILL_VERSION` 升 **3**、首次启动检测到 amoo 时自动重注入、旧目录只读清理（不删用户数据）。
+1. **改 `applicationId` 会让 amoo 侧技能整体失效**：技能里写死 `/sdcard/Android/media/<旧包名>/amoo/`，新包名 = 新目录 = 旧的 `in/` 永远没人读。v0.1 必须：技能改名 `maeve-bridge`、`SKILL_VERSION` 升 **3**、首次启动检测到 amoo 时自动重注入、旧目录只读清理（不删用户数据）。
 2. `AmooSetup` 的 `AMOO_PKG` / `ID_INPUT` / `ID_SEND` 改为**运行时探测 + 失败降级**；真机 amoo 已跨版本，不能假定 id 稳定。
 3. `MaeveLinks` / `ApkIntegrity` / `tools/maeve-cli/scripts/maeve_cli.py` 的 `PHONE_FILES` 同步改（见 §8.2）。
 4. 迁移后**必须在真机重跑一次握手验证**：新会话 → 注入 v3 → 写 `in/` → 收到 `out/` 的 `done`。这是 M3 的硬验收项。
@@ -851,7 +851,7 @@ FLAG_SECURE 页面（银行 / 密码框）在自研 App 里读不到——豆包
 3. **崩溃恢复**：启动时扫描 `in/*.claimed`，超过 60s 未产生结果的写 `failed` + `code: INTERRUPTED` 并清理占位文件；不自动重跑（进程已重启，旧任务上下文已丢）。
 4. **来源与越界**：目录来自 `getExternalMediaDirs()`（属主为本 App）；校验 canonical path 仍在 root 下；单个坏 JSON / 超长 body 隔离处理，不影响本轮其余请求。
 
-> **不兼容声明**：换 `applicationId` 后，Maeve **无法读写** `/sdcard/Android/media/com.wangzan101.maeve/amoo/`（外部存储按包隔离），因此 `maeve-bridge` v2 技能**没有运行时兼容方案**，只能靠 §1.3 的一次性握手重注入 v3。这从传输层再次证明 C1 必须修：§6.8 的 `maeve_*` MCP alias 只对电脑客户端有效。
+> **不兼容声明**：换 `applicationId` 后，Maeve **无法读写** `/sdcard/Android/media/<旧包名>/amoo/`（外部存储按包隔离），因此 `maeve-bridge` v2 技能**没有运行时兼容方案**，只能靠 §1.3 的一次性握手重注入 v3。这从传输层再次证明 C1 必须修：§6.8 的 `maeve_*` MCP alias 只对电脑客户端有效。
 
 ### 13.9 `ConnectionHub` 数据契约（补 §6.5）
 
