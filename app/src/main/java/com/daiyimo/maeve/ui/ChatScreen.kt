@@ -34,9 +34,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -97,7 +95,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.layoutId
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -588,6 +588,11 @@ private fun PromptRow(index: Int, icon: ImageVector, text: String, onClick: () -
  *
  * 轨的颜色比正文淡得多(发丝线);只有**当前正在跑的那一幕**在轨顶上点亮一个小方块,
  * 这也顺手把「现在演到第几幕」变成了空间信息,不用看顶栏。
+ *
+ * 布局自己量、自己放(自定义 [Layout]):一幕的内容里可能有懒列表、BoxWithConstraints 这类
+ * 基于 SubcomposeLayout 的组件,它们不接固有测量(intrinsic)——以前用
+ * `height(IntrinsicSize.Min)` 让幕轨撑满内容高,遇到这种内容一测就崩
+ * (IllegalStateException: Asking for intrinsic measurements of SubcomposeLayout)。
  */
 @Composable
 private fun ActLine(
@@ -600,33 +605,53 @@ private fun ActLine(
     content: @Composable () -> Unit,
 ) {
     val c = MaeveTheme.colors
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        Column(
-            Modifier.width(ActRail).fillMaxHeight(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            if (showNum) {
-                Text(
-                    (index + 1).toString().padStart(2, '0'),
-                    Modifier.padding(top = 14.dp, bottom = 5.dp),
-                    style = MaeveType.Turn,
-                    color = c.ink3,
-                )
-                // 幕号下面一个小方块:这一幕的印章
-                Box(Modifier.size(3.dp).background(c.ink3.copy(alpha = 0.55f)))
-            } else {
-                Spacer(Modifier.height(14.dp))
+    Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = {
+            Column(
+                Modifier.width(ActRail).layoutId(ActRailId),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                if (showNum) {
+                    Text(
+                        (index + 1).toString().padStart(2, '0'),
+                        Modifier.padding(top = 14.dp, bottom = 5.dp),
+                        style = MaeveType.Turn,
+                        color = c.ink3,
+                    )
+                    // 幕号下面一个小方块:这一幕的印章
+                    Box(Modifier.size(3.dp).background(c.ink3.copy(alpha = 0.55f)))
+                } else {
+                    Spacer(Modifier.height(14.dp))
+                }
             }
+            // 竖轨:从幕号列底部一直画到这一幕的最后一行;最后一幕不画,让轨道自然收尾
             if (!tail) {
-                Box(
-                    Modifier.width(0.5.dp).weight(1f)
-                        .background(c.hair),
-                )
+                Box(Modifier.layoutId(ActTrackId).width(0.5.dp).background(c.hair))
             }
+            Box(Modifier.layoutId(ActBodyId)) { content() }
+        },
+    ) { measurables, constraints ->
+        val railWidth = ActRail.roundToPx()
+        // 幕号列按自然高量(幕号+印章,或 14dp 占位);内容单独量,互不问固有尺寸
+        val rail = measurables.firstOrNull { it.layoutId == ActRailId }
+            ?.measure(Constraints.fixedWidth(railWidth))
+        val body = measurables.first { it.layoutId == ActBodyId }
+            .measure(constraints.copy(minWidth = 0, maxWidth = (constraints.maxWidth - railWidth).coerceAtLeast(0)))
+        // 竖轨从幕号列底部接着画:高度是「这一幕有多高」减掉幕号列,最矮不画
+        val track = measurables.firstOrNull { it.layoutId == ActTrackId }
+            ?.measure(Constraints.fixedHeight((body.height - (rail?.height ?: 0)).coerceAtLeast(0)))
+        layout(constraints.maxWidth, maxOf(body.height, rail?.height ?: 0)) {
+            rail?.placeRelative(0, 0)
+            body.placeRelative(railWidth, 0)
+            track?.placeRelative((railWidth - track.width) / 2, rail?.height ?: 0)
         }
-        Box(Modifier.weight(1f)) { content() }
     }
 }
+
+private const val ActRailId = "act-rail"
+private const val ActTrackId = "act-track"
+private const val ActBodyId = "act-body"
 
 private val ActRail = 26.dp
 
