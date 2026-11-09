@@ -20,7 +20,7 @@
 | `.github` 缺 CI | 已修：core / flutter / cli / android 四个 job |
 | `docs/dev/` 堆积调试产物 | 已修：删除 uiautomator dump，截图移到 `docs/media/` 并在文档引用 |
 | `main.dart` 单文件过大 | 已修：拆出 models、bridge、mark widget；1014 → 915 行，页面仍在主文件 |
-| 品牌与上游 URL 未全量替换 | 已修：文档、prompt、eval、relay UI、自助页面、CLI/沙箱/MCP 命名；仅保留 NOTICE/LICENSE 必需的上游署名 |
+| 品牌与上游 URL 未全量替换 | 已修：文档、prompt、eval、relay UI、自助页面、CLI/沙箱/MCP 命名；NOTICE/LICENSE 中的上游署名已按所有者决定移除 |
 
 ## 2. 工具链已部署并验证
 

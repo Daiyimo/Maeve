@@ -17,7 +17,7 @@ over `/mcp`) is a completely separate network path; the two cannot fall back to 
 
 ## 2. Why v3 is mandatory
 
-`maeve-bridge` v2 hard-codes `/sdcard/Android/media/com.wangzan101.maeve/amoo/`. After the
+`maeve-bridge` v2 hard-codes `/sdcard/Android/media/<旧包名>/amoo/`. After the
 package rename to `com.daiyimo.maeve`, external storage is scoped **per package**: Maeve
 cannot read or write the old directory at all. There is no runtime compatibility shim, and
 the `maeve_*` MCP aliases kept for product `v0.1.0` only help desktop clients — they do not
@@ -163,4 +163,4 @@ run one smoke test: `{"goal":"只回答三个字:你好呀"}` in a **new convers
 - [ ] A 15-min timeout yields `failed` + `TIMEOUT`, never a permanent `running`.
 - [ ] Dropping the same `id` twice creates only one task.
 - [ ] Killing the app mid-task leaves an `INTERRUPTED` result on the next launch.
-- [ ] After the package rename, no code path still reads `com.wangzan101.maeve`'s mailbox.
+- [ ] After the package rename, no code path still reads the old package's mailbox.

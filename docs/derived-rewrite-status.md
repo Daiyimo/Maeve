@@ -9,28 +9,28 @@
 
 ```
 group         files       loc   derived   ratio
-src             763    125337    106009   84.6%
+src             763    125336    106009   84.6%
 tests           749    101589    100021   98.5%
 res             330     22469     22095   98.3%
-tools            57      8578      8343   97.3%
-docs             87     10716      4848   45.2%
+tools            57      8577      8338   97.2%
+docs             87     10735      4846   45.1%
 core-text       175      3295      3233   98.1%
 eval            129      3184      3078   96.7%
-licenses         12      3002      2983   99.4%
-other            36      3990      2345   58.8%
+licenses         12      2997      2975   99.3%
+other            36      3961      2337   59.0%
 assets            6      1912      1892   99.0%
 native            2       853       812   95.2%
 flutter          14      2033         0    0.0%
-total          2360    286958    255659   89.1%
+total          2360    286941    255636   89.1%
 ```
 
 `src` 里 `derived_ratio >= 0.60` 的文本文件还有 **579** 个：`core/src/main` 224 个、
 `app/src/main` 355 个（含 `AndroidManifest.xml` 81% 和 `baseline-prof.txt` 70% 两个散件）。
-全仓不含 `licenses` 的组合计 **2,063** 个（`tests` 745、`src` 579、`res` 321、
-`core-text` 161、`eval` 129、`tools` 54、`docs` 51、`other` 16、`assets` 5、`native` 2）。
+全仓不含 `licenses` 的组合计 **2,061** 个（`tests` 745、`src` 579、`res` 321、
+`core-text` 161、`eval` 129、`tools` 53、`docs` 51、`other` 15、`assets` 5、`native` 2）。
 
-放行条件仍是计划第 9 节：`derived_ratio >= 0.60` 的文本文件数为 0，且 6 个 Mika
-署名点清零。**在达到这个条件之前，`NOTICE`、`ATTRIBUTION.md` 和源码头里的上游署名不动。**
+放行条件仍是计划第 9 节：`derived_ratio >= 0.60` 的文本文件数为 0，且上游署名点清零
+（署名点已于 2026-11-09 按所有者决定全部删除）。**在达到这个条件之前，`NOTICE`、`ATTRIBUTION.md` 和源码头里的上游署名不动。**
 
 ## 波次状态
 

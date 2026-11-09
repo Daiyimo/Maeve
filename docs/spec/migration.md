@@ -10,7 +10,7 @@ for the Apache-2.0 change record.
 | Item | Result |
 |---|---|
 | Upstream history | Initially fetched from `E:\project\daiyimo\Maeve` (523 commits, base `bbc8922a`). On 2026-11-06 the published history was rewritten to one baseline snapshot `bccdcda6` + four Maeve commits so Contributors shows only the maintainer. Later edits moved the root to `7cf7ff3`; see `ATTRIBUTION.md` for the current state. Pre-rewrite history, if still present locally, is on the unpublished `backup/full-history-before-rewrite`. See `ATTRIBUTION.md` and "History rewrite" below. |
-| Package rename | `com.wangzan101.maeve` → `com.daiyimo.maeve`: 9,230 replacements in 1,442 files + 8 source directories. 0 residual references in the source tree. |
+| Package rename | upstream package → `com.daiyimo.maeve`: 9,230 replacements in 1,442 files + 8 source directories. 0 residual references in the source tree. |
 | Gradle identity | `rootProject.name = "Maeve"`, `namespace` / `applicationId` = `com.daiyimo.maeve`, `versionCode = 1`, `versionName = "0.1.0-dolores"`. |
 | Upstream URLs | `MaeveLinks.kt` (5 URLs, also drives `ApkIntegrity`'s whitelist), `tools/relay/go.mod` module path, `maeve_cli.py` `PHONE_FILES`, `tools/sandbox/build-runtime.py` split path tuple, `AboutScreenTest` release fixture. |
 | Compliance | New `README.md`, `ATTRIBUTION.md`, `CONTRIBUTING.md`, `SECURITY.md`; `NOTICE` addendum; `THIRD_PARTY_NOTICES.md` + in-app `Licenses.ENTRIES` augmented (ML Kit was undisclosed); GPL/LGPL texts, verbatim `NOTICE` and `SOURCE_OFFER.md` mirrored into `app/src/main/assets/licenses/`. |
@@ -51,7 +51,7 @@ Verification: `translations.py check` → 1989 resources / 10 languages pass;
 `./gradlew :app:assembleDebug` → BUILD SUCCESSFUL; `adb install -r` → Success;
 cold start 548–580 ms. Welcome screen, home screen and the main chat screen (top bar
 included) all show Maeve with the violet accent and no `Maeve` text.
-**The upstream `com.wangzan101.maeve` package is still installed alongside** — the old
+**The old upstream package is still installed alongside** — the old
 home-screen icon is expected, not a failed install.
 
 ### Test regression caught and fixed
@@ -86,10 +86,12 @@ The first cut only re-skinned Maeve. This pass changes how the UI actually *feel
 | HoldToConfirm | `ui/haptic/HoldToConfirm.kt`: 1500 ms ring, raw pointer events only, `Tick` on down / `Heavy` on completion / nothing on cancel. Wired to Advanced › clear all workspaces. Reduced motion does **not** shorten the hold. |
 | Settings | Settings › 交互触感 switch (`settings_haptic` / `settings_haptic_sub`, 10 locales), backed by `MaeveHaptics.setAppEnabled`. |
 | Shape & motion | `MaeveShapes.SquircleShape` (superellipse, continuous curvature) now backs `MaeveShapes.Card / Button / Tile`; `MaeveMotion` carries dsh-Go's duration ladder and `glide` curve. `ButtonSize.shape` widened from `RoundedCornerShape` to `Shape`. |
-| Residual cleanup | `about_author` → 戴以沫 / Dai Yimo in all 10 locales; `chat_example_follow` (follow Wang Zan / @wangzan101 in *every* locale) and `chat_example_multi_step` (汽水音乐 VIP) removed from resources and `ChatCopy.examples` (6 → 4); ADB certificate `CN=Maeve` (wireless-debugging paired-device name); MCP `serverInfo`, `clientName`, `APP_NAME`, trace service name → Maeve. |
+| Residual cleanup | `about_author` → 戴以沫 / Dai Yimo in all 10 locales; `chat_example_follow` (a follow-the-author example in *every* locale) and `chat_example_multi_step` (汽水音乐 VIP) removed from resources and `ChatCopy.examples` (6 → 4); ADB certificate `CN=Maeve` (wireless-debugging paired-device name); MCP `serverInfo`, `clientName`, `APP_NAME`, trace service name → Maeve. |
 
-**Apache-2.0 boundary kept:** `NOTICE`, `ATTRIBUTION.md` and the first `LicensesScreen` entry
-still name Maeve / Wang Zan. Only the user-facing "made by" line was re-attributed.
+**Apache-2.0 boundary kept at the time:** `NOTICE`, `ATTRIBUTION.md` and the first `LicensesScreen` entry
+still named Maeve and the upstream author. Only the user-facing "made by" line was re-attributed.
+(The upstream attribution in `NOTICE` / `ATTRIBUTION.md` / `LicensesScreen` was removed later,
+on the owner's decision — see `docs/derived-rewrite-plan.md` section 9.)
 
 Verification: `translations.py check` → 1989 resources / 10 languages; `check_compliance.py`
 → 23 notices / 24 entries; `assembleDebug` → BUILD SUCCESSFUL; `adb install -r` → Success.
@@ -113,7 +115,7 @@ upstream links, and `README.en.md` / `docs/README.*` still describe the upstream
 product. They were **not** mechanically rewritten because:
 
 1. Some lines are attribution statements, not links — a blind replace would turn
-   "a fork of Maeve by wangzan101" into a false claim.
+   "a fork of Maeve by the upstream author" into a false claim.
 2. Editing user-facing copy triggers three generated/checked surfaces, in this order:
    - the `updateReadme` Gradle task (generated block in `README.md`, source in
      `configure-maeve/SKILL.md`),
@@ -243,14 +245,14 @@ broken** on the new package).
 
 The user asked for Contributors to show only themselves and for all commits up to and
 including `0c92fc39e29c8c72efb7390daf9fb6a54405e6e2` to be dropped. The 39 commits after
-that point included 16 by `wangzan101` (pulled in by a merge of `upstream/main`), so a plain
+that point included 16 by the upstream author (pulled in by a merge of `upstream/main`), so a plain
 truncation would still have shown two contributors. Per the user's choice, they were
 collapsed into one baseline snapshot:
 
 | Step | Result |
 |---|---|
 | Local backup | `backup/full-history-before-rewrite` keeps all 526 old commits locally; it is **never pushed**. |
-| New root | `bccdcda6` — `git commit-tree bbc8922a^{tree}`, author `Daiyimo <auroral.8751@gmail.com>`, message names Maeve / wangzan101 and points at `NOTICE`, `LICENSE`, `ATTRIBUTION.md` and the licence screen. |
+| New root | `bccdcda6` — `git commit-tree bbc8922a^{tree}`, author `Daiyimo <auroral.8751@gmail.com>`, message names Maeve and the upstream author and points at `NOTICE`, `LICENSE`, `ATTRIBUTION.md` and the licence screen. |
 | Replay | `git cherry-pick` of the four Maeve commits (`0fd46b7d`, `fa1667db`, `481e87b3`, `a40ee242`). |
 | Content check | At rewrite time `git rev-parse HEAD^{tree}` = `643211ebcc2d…`, **identical** to the pre-rewrite tree — no source file changed. The later docs-only commit changes the tree hash by design. |
 | Contributors | `git log --format='%an <%ae>'` now returns only `Daiyimo <auroral.8751@gmail.com>`. |

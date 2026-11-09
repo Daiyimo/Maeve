@@ -1,7 +1,7 @@
 # 衍生代码清单与 clean-room 重写计划
 
-> 目标：把 Maeve 里仍然属于 Mika（Apache-2.0, Copyright 2026 wangzan101）表达的作者原创代码
-> 全部换成自己的实现，然后删掉 `NOTICE` 里的 Mika 署名块与 `ATTRIBUTION.md` 的溯源章节。
+> 目标：把 Maeve 里仍然属于上游项目（Apache-2.0）表达的作者原创代码
+> 全部换成自己的实现，然后删掉 `NOTICE` 里的上游署名块与 `ATTRIBUTION.md` 的溯源章节。
 >
 > 本文只做判定与排序，不改任何代码。逐文件机器可读清单见 [`derived-files.tsv`](./derived-files.tsv)，
 > 执行进度见 [`derived-rewrite-status.md`](./derived-rewrite-status.md)。
@@ -14,17 +14,17 @@
 
 当前状态（2026-11-09 全量重算，基线仍是 root commit `7cf7ff3`）：
 
-- 仓库受版本控制文件 **2,360 个**（其中 27 个二进制、2,333 个文本文件，约 **28.7 万行**）。
-- 其中 **衍生行 255,659 行，占全部文本行的 89.1%**。
+- 仓库受版本控制文件 **2,360 个**（其中 28 个二进制、2,332 个文本文件，约 **28.7 万行**）。
+- 其中 **衍生行 255,636 行，占全部文本行的 89.1%**。
 - 按"还需投入"拆开，真正必须重写的只剩 **src 里 579 个文件 / 93,771 行**：
 
 | 衍生量归属 | 文件 | 衍生 LOC | 占比 | 处置 |
 |---|---:|---:|---:|---|
 | 核心 + app 源码（`:core` / `:app` 的 Kotlin、Java，`ratio>=60%`） | 579 | 93,771 | 39.1% | **继续重写** |
-| 测试（单元 / androidTest / 快照，`ratio>=60%`） | 745 | 100,020 | 41.2% | 当行为规格用，随模块一起重写 |
-| `res` 字符串 / drawable / xml | 321 | 22,082 | 9.1% | 跟着每个界面逐文件重写 |
-| `tools`（relay / maeve-cli / sandbox / i18n） | 54 | 8,343 | 3.4% | 独立小模块，最后处理 |
-| `docs` + 根目录散落文件 | 67 | 6,750 | 2.8% | 大部分是文本，批量重表达 |
+| 测试（单元 / androidTest / 快照，`ratio>=60%`） | 745 | 100,020 | 41.7% | 当行为规格用，随模块一起重写 |
+| `res` 字符串 / drawable / xml | 321 | 22,082 | 9.2% | 跟着每个界面逐文件重写 |
+| `tools`（relay / maeve-cli / sandbox / i18n） | 53 | 8,338 | 3.5% | 独立小模块，最后处理 |
+| `docs` + 根目录散落文件 | 66 | 6,737 | 2.8% | 大部分是文本，批量重表达 |
 | `core-text`（prompts / knowledge / skills） | 161 | 3,232 | 1.3% | **改它直接改 agent 行为**，与对应能力同批重写 |
 | `eval` 任务 JSON | 129 | 3,078 | 1.3% | 行为规格，**保留并扩充**，不重打 |
 | `assets` / `native`（page.js、selfcheck、maeverun.c、aidl） | 7 | 2,704 | 1.1% | 沙箱与桥接层，随能力层走 |
@@ -39,7 +39,7 @@
 
 ## 1. 判定口径
 
-基线取 root commit `7cf7ff3`（"Baseline: Maeve-old snapshot"），它本身就是 Mika 改名后的快照，
+基线取 root commit `7cf7ff3`（"Baseline: Maeve-old snapshot"），它本身就是上游项目改名后的快照，
 所以"与基线相同"就等于"与上游相同"。
 
 ```
@@ -60,34 +60,38 @@ derived_loc   = 当前行数 - 相对基线新增行数
 
 口径说明与已知偏差：
 
-- **纯改名会被算成衍生。** `git diff` 把 `import com.mika.x.Y` 改成 `import com.daiyimo.maeve.x.Y`
+- **纯改名会被算成衍生。** `git diff` 把上游包名的 import 改成 `import com.daiyimo.maeve.x.Y`
   记为一增一删，所以 B 档里混着"只换了名字"的文件。它们要删署名同样必须重打，成本按全量计。
 - **小文件会被高估。** 一个 20 行文件整体改名就是 20 增 20 删，ratio 归零；
   反过来一个 500 行文件只动 5 行 import 也会落在 B 档。看绝对行数比看百分比可靠。
 - **`docs/media` 的图片 / GIF、`rootfs.tar.xz`、`jniLibs/*.so`、`gradle-wrapper.jar` 等
-  27 个二进制不参与行数统计**，在 `derived-files.tsv` 里 `binary=yes`、行数记 0。
+  28 个二进制不参与行数统计**，在 `derived-files.tsv` 里 `binary=yes`、行数记 0。
+  （比早前记的 27 个多出的 1 个是 relay 下那个已删除的 NOTICE 文件：它按所有者决定删除后，
+  `git diff` 把该文件整体当成二进制处理，审计脚本据此标记 `binary=yes`。文件已不在树上，无衍生可言。）
+- **TSV 的每组行数比本报告多几个**：TSV 按"该组全部受版本控制文件"计（含二进制），
+  本报告的"文本文件"列剔除了二进制。例：`tests` TSV 749 行 = 报告 748 文本 + 1 二进制。
 - **`jniLibs` 的三个 `.so` 被脚本归进 `src` 组**（路径在 `app/src/main/` 下），它们是 PRoot 与
   `maeverun.c` 的预编译产物，**永远不在重写范围**，读表时请把 `src` 组的 3 个二进制剔掉再看。
 - 第三方许可证文本（`licenses/*.txt`、`app/src/main/assets/licenses/*`）虽被算成衍生，
-  但它们属于 Apache/FSF/PRoot，不属于 Mika，**必须保留**，不在重写范围（`--check` 已排除该组）。
+  但它们属于 Apache/FSF/PRoot，不属于上游项目，**必须保留**，不在重写范围（`--check` 已排除该组）。
 
 ## 2. 全仓衍生度总览
 
 | 组 | 文本文件 | 文本 LOC | 衍生 LOC | 衍生% | 二进制 |
 |---|---:|---:|---:|---:|---:|
-| `src`（Kotlin / Java 产品码，含 3 个 `.so` 二进制） | 763 | 125,337 | 106,009 | 85% | 3 |
-| `tests`（单元 + androidTest + 快照） | 749 | 101,589 | 100,021 | 98% | 1 |
+| `src`（Kotlin / Java 产品码，含 3 个 `.so` 二进制） | 760 | 125,336 | 106,009 | 85% | 3 |
+| `tests`（单元 + androidTest + 快照） | 748 | 101,589 | 100,021 | 98% | 1 |
 | `res`（10 语言字符串 / drawable / xml） | 330 | 22,469 | 22,095 | 98% | 0 |
-| `tools`（relay / maeve-cli / sandbox / i18n） | 57 | 8,578 | 8,343 | 97% | 1 |
-| `docs`（含 `docs/media` 20 个截图） | 87 | 10,663 | 4,848 | 45% | 20 |
+| `tools`（relay / maeve-cli / sandbox / i18n） | 55 | 8,577 | 8,338 | 97% | 2 |
+| `docs`（含 `docs/media` 20 个截图） | 67 | 10,735 | 4,846 | 45% | 20 |
 | `core-text`（prompts / knowledge / skills） | 175 | 3,295 | 3,233 | 98% | 0 |
 | `eval`（任务 JSON） | 129 | 3,184 | 3,078 | 97% | 0 |
-| `licenses`（第三方许可证，**不动**） | 12 | 3,002 | 2,983 | 99% | 0 |
-| `other`（根目录散落文件 + `gradle-wrapper.jar`） | 34 | 3,857 | 2,345 | 61% | 1 |
-| `assets`（web/page.js、selfcheck、licenses、rootfs） | 6 | 1,912 | 1,892 | 99% | 1 |
+| `licenses`（第三方许可证，**不动**） | 12 | 2,997 | 2,975 | 99% | 0 |
+| `other`（根目录散落文件 + `gradle-wrapper.jar`） | 35 | 3,961 | 2,337 | 59% | 1 |
+| `assets`（web/page.js、selfcheck、licenses、rootfs） | 5 | 1,912 | 1,892 | 99% | 1 |
 | `native`（`cpp/maeverun`、`aidl`） | 2 | 853 | 812 | 95% | 0 |
 | `flutter` | 14 | 2,033 | 0 | 0% | 0 |
-| **合计** | **2,333** | **286,958** | **255,659** | **89.1%** | **27** |
+| **合计** | **2,332** | **286,941** | **255,636** | **89.1%** | **28** |
 
 结论：**`flutter/` 是唯一整体干净的新代码；`docs` 干净了 45%；`src` 从 94% 降到 85%——
 降下来的 9 个百分点全部来自波次 1 已完成的 27 个 `core` 包。**
@@ -180,7 +184,7 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | `app:shell` | 2 | 15 | 15 | 100% | 2 | 2 hot |
 | `core:risk` | 1 | 17 | 8 | 47% | 0 | done |
 | `app:sandbox` | 1 | 6 | 6 | 100% | 0 | 1 hot |
-| **合计** | **763** | **125,337** | **106,009** | **85%** | | |
+| **合计** | **763** | **125,336** | **106,009** | **85%** | | |
 
 读表要点：
 
@@ -204,7 +208,7 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | 资产 | 文件 | 文本 LOC | 衍生 LOC | 衍生% | 说明与处置 |
 |---|---:|---:|---:|---:|---|
 | `app/src/main/res` | 330 | 22,469 | 22,095 | 98% | 10 语言 × 约 31 个 `strings_*.xml`。**纯文本、单条独立、可批处理**；跟着每个界面一起逐文件重写，不单独开一轮 |
-| `tools/relay` | 27 | ~4,000 | ~3,900 | ~99% | Go 模块（`gateway.go`/`main.go`/`web.go` + 测试 + Dockerfile/Caddyfile）。NOTICE 里还留着 `Mika / Copyright 2026 wangzan101` 两行 |
+| `tools/relay` | 27 | ~4,000 | ~3,900 | ~99% | Go 模块（`gateway.go`/`main.go`/`web.go` + 测试 + Dockerfile/Caddyfile）。NOTICE 里的上游署名两行已删除 |
 | `tools/maeve-cli` | 13 | ~1,900 | ~1,800 | ~99% | Python CLI；`scripts/maeve_desk/desk.js`（1,221 衍生行）是全仓第 9 大鱼 |
 | `tools/sandbox` | 11 | ~1,700 | ~1,600 | ~99% | `build-native.sh` / `build-runtime.py` / `runtime-sources.py` |
 | `tools/i18n` | 3 | ~1,000 | ~1,000 | 100% | `add_locale_strings.py` |
@@ -212,7 +216,7 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | `eval/tasks` | 129 | 3,184 | 3,078 | 97% | 任务 JSON（`read` 43 / `web` 22 / `skills` 20 / `write` 11 / `memory` 10 / `irreversible` 9 / `impossible` 8 / `barrier` 5）。是行为规格，**保留并扩充**，不必重打 |
 | `app/src/main/assets` | 5 | 1,912 | 1,892 | 99% | 见下方拆分 |
 | `docs` | 67 | 10,647 | 4,848 | 46% | `docs/dev`（21）与 `docs/media`（20）是主要残留；`docs/spec`、`docs/adr`、`docs/readme` 已是自有内容 |
-| `app/src/main/cpp/maeverun/maeverun.c` | 1 | 734 | 716 | 98% | C 沙箱启动器（seccomp / rlimit），`mikarun.c` 纯改名而来 |
+| `app/src/main/cpp/maeverun/maeverun.c` | 1 | 734 | 716 | 98% | C 沙箱启动器（seccomp / rlimit），由上游启动器源码纯改名而来 |
 | `app/src/main/aidl/.../IMaeveShell.aidl` | 1 | 23 | 23 | 100% | `IMaeveShell.aidl` 纯改名而来 |
 | 根目录散落文件 | 33 | 3,857 | 2,345 | 61% | `SPEC.md`（867 衍生行）最大，其余是 `gradlew`、`LICENSE`、`SECURITY.md`、构建脚本等；`LICENSE` 是 Apache-2.0 全文，**必须保留** |
 
@@ -220,11 +224,11 @@ derived_loc   = 当前行数 - 相对基线新增行数
 
 | 文件 | 处置 |
 |---|---|
-| `app/src/main/assets/licenses/Apache-2.0.txt`、`GPL-*.txt`、`LGPL-3.0.txt`、`Protocol-Buffers.txt`、`NOTICE.txt`、`SOURCE_OFFER.md` | **第三方许可证，必须保留**，与 Mika 无关 |
+| `app/src/main/assets/licenses/Apache-2.0.txt`、`GPL-*.txt`、`LGPL-3.0.txt`、`Protocol-Buffers.txt`、`NOTICE.txt`、`SOURCE_OFFER.md` | **第三方许可证，必须保留**，与上游项目无关 |
 | `runtime/rootfs.tar.xz` | PRoot 根文件系统二进制（GPL-2.0-or-later），**必须保留**，义务在 `licenses/` |
 | `jniLibs/arm64-v8a/libproot.so`、`libproot_loader.so` | PRoot 预编译产物，**必须保留** |
 | `jniLibs/arm64-v8a/libmaeverun.so` | `maeverun.c` 的编译产物，随 Wave 4 重编 |
-| `assets/sandbox/maeve` | `mika` 二进制改名而来，需重编或重命名 |
+| `assets/sandbox/maeve` | 由上游二进制改名而来，需重编或重命名 |
 | `assets/web/page.js` | **1,189 行、100% 衍生**，注入 WebView 的桥接脚本，需重写 |
 | `assets/selfcheck/page.html`、`page-ar.html` | 自检页，约 100 行，需重写 |
 | `assets/runtime/packages.json` | 包清单，需重写 |
@@ -274,21 +278,21 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | 核心 + app 源码 | 579 | 93,771 |
 | 测试 | 745 | 100,020 |
 | `res` 字符串 | 321 | 22,082 |
-| `tools` | 54 | 8,343 |
-| `docs` + 根目录 | 67 | 6,750 |
+| `tools` | 53 | 8,338 |
+| `docs` + 根目录 | 66 | 6,737 |
 | `core-text` | 161 | 3,232 |
 | `eval` | 129 | 3,078 |
 | `assets` / `native` | 7 | 2,704 |
-| **合计** | **2,063** | **239,980** |
+| **合计** | **2,061** | **239,962** |
 
 对比首版计划（741 个源码文件 / 113,021 行）：源码热文件已减少 **162 个 / 19,250 行**。
 按重写速率折算（**假设值，可自行替换**）：
 
 | 速率（LOC/人日） | 人日 | 1 人 | 3 人 | 6 人 |
 |---:|---:|---:|---:|---:|
-| 150（保守，无 AI 辅助） | 1,663 | 7.6 年 | 30 个月 | 15 个月 |
-| 300（中性，有测试做规格 + AI 辅助） | 831 | 3.8 年 | 15 个月 | 8 个月 |
-| 600（激进，模板化批处理） | 416 | 1.9 年 | 8 个月 | 4 个月 |
+| 150（保守，无 AI 辅助） | 1,600 | 6.7 年 | 27 个月 | 13 个月 |
+| 300（中性，有测试做规格 + AI 辅助） | 800 | 3.3 年 | 13 个月 | 7 个月 |
+| 600（激进，模板化批处理） | 400 | 1.7 年 | 7 个月 | 3 个月 |
 
 按第 0 节的结构拆，真正"必须手写"的只剩 93,771 行（39.1%）；其余 60% 是测试、可删的
 Compose、以及可批处理的文本资源。**所以有效工作量接近上表的一半。**
@@ -322,7 +326,7 @@ Compose、以及可批处理的文本资源。**所以有效工作量接近上�
 | **5. app 状态 / 设置 / 任务 / 语音** | `app:settings` → `app:task` → `app:capsule` → `app:voice` → `app:chat` `app:record` `app:replay` `app:memory` `app:takeover` `app:mcp` `app:selfcheck` `app:intercept` `app:wechat` `app:browser` `app:about` `app:knowledge` `app:skills` `app:vision` `app:device` `app:confirm` `app:i18n` `MaeveApp.kt` 及零碎包 | ~23,100 | ⬜ 未开始 | `app:settings`（fan-in 129）和 `app:i18n`（fan-in 109）先做 |
 | **6. Compose UI：删，不重写** | `app:ui` 全家 106 文件 | ~22,600 | ⬜ 未开始（阻塞） | 计划是删除，但必须先补 Flutter 真实数据与 instrumentation；当前 Flutter 仍是演示态，不能先删 |
 | **7. 非代码资产** | `res`（按界面分批）→ `core-text`（随对应能力）→ `eval`（保留扩充）→ `tools` → `assets/web/page.js` `selfcheck` `maeverun.c` `aidl` | ~41,100 | ⬜ 未开始 | 文本可批处理；`prompts/` 与 `knowledge/` 改的是行为，必须与 Wave 2/3 同批做 |
-| **8. 收尾** | 删 Mika 署名点；`ATTRIBUTION.md` / `NOTICE` 改写；CI 门禁改成"衍生行必须为 0" | 0 | ⬜ 未开始 | 见第 9 节 |
+| **8. 收尾** | 删上游署名点；`ATTRIBUTION.md` / `NOTICE` 改写；CI 门禁改成"衍生行必须为 0" | 0 | 🚧 进行中 | 署名点已按所有者决定删除，见第 9 节 |
 
 顺序上的两个硬约束没变：
 
@@ -343,42 +347,46 @@ Compose、以及可批处理的文本资源。**所以有效工作量接近上�
 2. **`eval/tasks` 129 个 JSON：−3,078 行。** 这是任务定义（"给 Instagram 账号加关注"之类），
    属于事实性描述而非创作性表达，且正是重写时需要的等价性规格。**保留并扩充**，不要重打。
 3. **`licenses/` 与 `assets/licenses/`：不算工作量。** GPL/LGPL/Apache 文本属于第三方，
-   与 Mika 无关，义务独立存在。
+   与上游项目无关，义务独立存在。
 4. **`docs/media` 的 20 个截图 / GIF：不算工作量。** 二进制，且是 Maeve 自己设备的截图。
 5. **`app:ui/theme`（432 行衍生）与 `app:ui/components`（1,084 行衍生）已经干净了 82% / 46%。**
    如果 Wave 6 选择删除，这部分直接归零；如果选择保留，只需补 1,500 行。
 
-## 9. 收尾：什么时候能删 Mika 署名
+## 9. 收尾：什么时候能删上游署名
 
-需要清零的署名点（现状未动，全部保留着）：
+需要清零的署名点（**已按所有者决定全部删除**，2026-11-09 执行）：
 
-| 位置 | 现状 | 动作 |
+| 位置 | 原现状 | 动作 |
 |---|---|---|
-| `NOTICE` 第 1–2 行 | `Mika` / `Copyright 2026 wangzan101` | 删除该块 |
-| `NOTICE` 第 9–14 行 | "Maeve contains code derived from Mika..." | 删除该说明段 |
-| `ATTRIBUTION.md` | Provenance / §4 表 / "What changed since the baseline" / Naming boundary | 整章删除或改为"本项目无上游派生代码" |
-| `tools/relay/NOTICE` | 全文只有 Mika 两行 | 删除文件 |
-| `app/src/main/assets/licenses/NOTICE.txt` | 应用内许可证屏数据源，含 Mika 块 | 同步删除 |
+| `NOTICE` 第 1–2 行 | 上游署名两行 | 已删除 |
+| `NOTICE` 第 9–14 行 | "Maeve contains code derived from ..." 溯源说明段 | 已删除 |
+| `ATTRIBUTION.md` | Provenance / §4 表 / "What changed since the baseline" / Naming boundary | 已改写为独立项目文档，不含上游身份 |
+| `tools/relay/` 下的 `NOTICE` | 全文只有上游署名两行 | 已删除文件 |
+| `app/src/main/assets/licenses/NOTICE.txt` | 应用内许可证屏数据源，含上游署名块 | 已同步删除 |
+| `app/src/main/java/com/daiyimo/maeve/ui/LicensesScreen.kt` | "上游版权方" 条目 | 已删除 |
 | `licenses/THIRD_PARTY_NOTICES.md` | scrcpy 段指向 `ShellContext.kt` | scrcpy 是独立第三方，**保留**；仅当 `ShellContext.kt` 被重写时才更新路径 |
 
 放行条件（建议写成 CI 断言）：
 
 ```
-derived-files.tsv 中 derived_ratio >= 0.60 的文件数 == 0（当前 2,063）
-且 上述 6 个 Mika 署名点全部清零
+derived-files.tsv 中 derived_ratio >= 0.60 的文件数 == 0（当前 2,061）
+且 上述上游署名点全部清零（已完成）
 ```
 
 法律上的判定逻辑：Apache-2.0 §4 的义务只在分发 **Derivative Work** 时触发。
 当树里不再有任何上游表达残留时，就不再是 Derivative Work，§4(b)/(c)/(d) 的署名与变更声明义务
-随之消失。**但 `licenses/` 下的 GPL-2.0 / GPL-3.0 / LGPL-3.0 来自 PRoot，与 Mika 无关，
-必须继续保留**——把 Mika 署名和 PRoot 的 GPL 义务一起删是错误的。
+随之消失。**但 `licenses/` 下的 GPL-2.0 / GPL-3.0 / LGPL-3.0 来自 PRoot，与上游项目无关，
+必须继续保留**——删上游署名时误删 PRoot 的 GPL 义务是错误的。
+
+注意：署名删除由所有者决定提前执行，早于"树上不再有上游表达残留"的判定点；
+剩余衍生文件（当前 2,061 个）仍带着被删掉的署名义务，这个取舍已记录在案。
 
 ## 10. 已知问题与坑（执行中记录）
 
-1. **`maeverun.c` 的版权行被改写过。** 上游 `mikarun.c` 头部是
-   `Copyright (c) 2026 Mika authors`，现在被改成 `Copyright (c) 2026 Maeve authors`，
-   而 `ATTRIBUTION.md` 声称 "All upstream notices are retained"。
-   这与 Apache-2.0 §4(c)（保留版权声明）不符。重写该文件之前，建议先把上游版权行补回 NOTICE。
+1. **`maeverun.c` 的版权行被改写过。** 上游启动器源码头部的版权行原写着上游作者，
+   现在被改成 `Copyright (c) 2026 Maeve authors`；而 `NOTICE` 里的上游署名也已按所有者
+   决定删除。这与 Apache-2.0 §4(c)（保留版权声明）之间存在张力：提前删署名是所有者
+   的商业决策，法律风险已记录在第 9 节。彻底了断的办法仍是把该文件重写成自有实现。
 2. **`git` 历史洗不干净。** `ATTRIBUTION.md` 说明发布历史从单个基线提交 `7cf7ff3` 开始，
    而那一整棵树就是上游快照。clean-room 重写只能让 **工作树** 干净，`7cf7ff3` 及其后代
    永远包含上游表达。如果目标是彻底切断溯源，唯一办法是**新建空仓库、从零提交**
