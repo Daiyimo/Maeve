@@ -2,6 +2,7 @@ package com.daiyimo.maeve.core.general
 
 import com.daiyimo.maeve.core.agent.DO_STEPS_TOOL
 import com.daiyimo.maeve.core.knowledge.FrontMatter
+import com.daiyimo.maeve.core.knowledge.GuideCatalog
 import com.daiyimo.maeve.core.knowledge.PERSONAL_KIND
 import com.daiyimo.maeve.core.memory.SensitiveFilter
 import com.daiyimo.maeve.core.prompt.Feedback
@@ -16,6 +17,7 @@ import com.daiyimo.maeve.core.tool.Risk
 import com.daiyimo.maeve.core.tool.ToolContext
 import com.daiyimo.maeve.core.tool.ToolDef
 import com.daiyimo.maeve.core.tool.ToolExecution
+import com.daiyimo.maeve.core.tool.ToolIndex
 import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.tool.fail
 import com.daiyimo.maeve.core.tool.ok
@@ -32,6 +34,7 @@ internal object SkillSave : AgentTool {
     override val verb = Verb.SkillSave
     override val label = "保存技能"
     override val risk = Risk.Read
+
     override val def = ToolDef("skill_save",
         Prompts.tool("skill_save"),
         mapOf(
@@ -40,6 +43,7 @@ internal object SkillSave : AgentTool {
             "version" to str("Only when changing an existing personal skill: the version skill_read returned for it."),
         ), listOf("markdown", "quote"))
 
+    /** 要有个人技能目录、技能目录、用户本次说的话,三样齐了才让写。 */
     override fun available(ctx: ToolContext) =
         ctx.config.personalSkills != null && ctx.config.skills != null && ctx.config.utterances != null
 
@@ -53,42 +57,66 @@ internal object SkillSave : AgentTool {
         if (!ctx.config.utterances!!.contains(quote)) return fail("quote_not_from_user", Feedback["skill.quote_not_from_user"])
         if (SensitiveFilter.hit(raw) != null) return fail("sensitive", Feedback["skill.sensitive"], recoverable = false)
 
-        // 出处由代码写:自学用的几行去掉,标上是用户要求写下的
-        val md = PersonalSkills.withField(
-            listOf("updates", "learned_from").fold(SkillDrafter.stripFence(raw).replace("\r\n", "\n")) { m, k -> PersonalSkills.withoutField(m, k) },
-            "source", PersonalSkill.SOURCE_USER)
-        val scriptTool = ctx.tools.nameOf(Verb.RunBundledScript)
-        SkillDrafter.validate(md, ctx.tools.names + DO_STEPS_TOOL, scriptTool, catalog.runnableScripts())?.let { problem ->
-            return fail(problem, problemText(problem))
-        }
+        val md = normalize(raw)
+        val problem = validate(ctx.tools, catalog, md)
+        if (problem != null) return fail(problem, problemText(problem))
         val name = FrontMatter.parse(md).first["name"] as String
 
-        if (catalog.items.any { it.kind != PERSONAL_KIND && it.name == name }) return fail("builtin_name", Feedback.format("skill.builtin_name", "name" to name))
-        if (store.pending().any { it.name == name }) return fail("draft_pending", Feedback.format("skill.draft_pending", "name" to name))
-
+        nameConflict(catalog, store, name)?.let { return it }
         val existing = store.get(name)
-        if (existing != null) {
-            val current = PersonalSkills.version(existing.markdown)
-            if (version == null) return fail("exists", Feedback.format("skill.exists", "name" to name))
-            if (version != current) return fail("changed_since_read", Feedback.format("skill.changed_since_read", "name" to name))
-        }
+        versionGate(existing, version, name)?.let { return it }
+
         val skill = PersonalSkill(
             name = name, markdown = md, status = SkillStatus.trial,
             learnedFrom = existing?.learnedFrom, replacesDraftOf = null,
             createdAt = existing?.createdAt ?: System.currentTimeMillis(), outcomes = emptyList(),
             source = PersonalSkill.SOURCE_USER,
         )
+        return persist(store, skill, md, name, existing != null)
+    }
+
+    /** 规整正文:去掉代码围栏、去掉自学用的几行(updates、learned_from),出处固定写成用户要求写下的。 */
+    private fun normalize(raw: String) = PersonalSkills.withField(
+        listOf("updates", "learned_from").fold(SkillDrafter.stripFence(raw).replace("\r\n", "\n")) { m, k -> PersonalSkills.withoutField(m, k) },
+        "source", PersonalSkill.SOURCE_USER,
+    )
+
+    /** 过格式/大小/工具名/脚本那道校验;通过为 null,否则返回 [SkillDrafter.validate] 的码。 */
+    private fun validate(tools: ToolIndex, catalog: GuideCatalog, md: String): String? {
+        val scriptTool = tools.nameOf(Verb.RunBundledScript)
+        return SkillDrafter.validate(md, tools.names + DO_STEPS_TOOL, scriptTool, catalog.runnableScripts())
+    }
+
+    /** 名字撞了内置技能、或有个同名的待收草稿,都不让存;返回对应的拒绝,没有冲突为 null。 */
+    private fun nameConflict(catalog: GuideCatalog, store: PersonalSkills, name: String): ToolExecution? = when {
+        catalog.items.any { it.kind != PERSONAL_KIND && it.name == name } -> fail("builtin_name", Feedback.format("skill.builtin_name", "name" to name))
+        store.pending().any { it.name == name } -> fail("draft_pending", Feedback.format("skill.draft_pending", "name" to name))
+        else -> null
+    }
+
+    /** 改已有的一份要带上读它时的版本号,且得对得上(中途被别处改过就拒);返回拒绝或 null。 */
+    private fun versionGate(existing: PersonalSkill?, version: String?, name: String): ToolExecution? {
+        if (existing == null) return null
+        val current = PersonalSkills.version(existing.markdown)
+        return when {
+            version == null -> fail("exists", Feedback.format("skill.exists", "name" to name))
+            version != current -> fail("changed_since_read", Feedback.format("skill.changed_since_read", "name" to name))
+            else -> null
+        }
+    }
+
+    /** 写进去再读回来核对,确认落盘的就是这一份;成功则回名字、动作、状态、版本。 */
+    private fun persist(store: PersonalSkills, skill: PersonalSkill, md: String, name: String, isUpdate: Boolean): ToolExecution {
         try {
             store.put(skill)
         } catch (e: Exception) {
             return fail("save_failed", Feedback["skill.save_failed"], recoverable = false)
         }
-        // 读回来核对:写进去的就是这一份,才说存下了
         val saved = store.get(name)
         if (saved?.markdown != md) return fail("save_failed", Feedback["skill.save_failed"], recoverable = false)
         return ok {
             put("name", name)
-            put("action", if (existing != null) "updated" else "created")
+            put("action", if (isUpdate) "updated" else "created")
             put("status", saved.status.name)
             put("version", PersonalSkills.version(saved.markdown))
             put("note", Feedback["skill.saved"])
