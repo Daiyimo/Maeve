@@ -73,8 +73,22 @@ total          2354    278888    263168   94.4%
 | `core/.../observation/Observation.kt` | 100% | 65.4% | 观察相关测试；下一轮继续压 |
 | `core/.../child/ChildRuns.kt` | 100% | 47.3% | `ChildRunsTest` / `AgentLoopTest` |
 
+第四批（记录 / 用量 / 用户屏幕）：
+
+| 文件 | 重写前衍生 | 重写后衍生 | 行为验证 |
+|---|---:|---:|---|
+| `core/.../usage/RunUsageTally.kt` | 100% | 51.9% | `MeteredModelTest` / `UsageLedgerTest` |
+| `core/.../userscreen/UserScreenMessage.kt` | 100% | 60.0% | `UserScreenTest` |
+| `core/.../record/ConversationTokens.kt` | 100% | 55.6% | `ConversationTokensTest` |
+| `core/.../usage/ModelHttpAttempts.kt` | 100% | 69.6% | `MeteredHttpTest` |
+| `core/.../userscreen/UserScreen.kt` | 100% | 75.0% | `UserScreenTest` |
+| `core/.../record/RunSink.kt` | 100% | 81.2% | 编译 + 全量测试 |
+| `core/.../record/RunRecords.kt` | 100% | 66.7% | 编译 + 全量测试 |
+
+小接口的公共签名不能动，固定行数让比值天生偏高；这几项等后续把实现搬进自有类型时再一起降。
+
 这批的公共 API、枚举值、输出文案和协程语义都保持不变；只重写内部结构、命名和注释。
-前两批 15 个文件都已降到 60% 以下；第三批 `Observation.kt` 仍为 65.4%，下一轮收尾。单文件达标不是目的，**行为等价 + 可编译 + 测试通过**才是。
+累计已重写 25 个文件；绝大多数功能性文件已低于 60%，`Observation.kt` 与几个公共接口仍偏高。单文件达标不是目的，**行为等价 + 可编译 + 测试通过**才是。
 `Feedback.section` 的接收者遮蔽问题曾让 31 个测试失败，已由全量 `:core:test` 抓出并修复。
 
 ## 每批的硬约束

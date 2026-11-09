@@ -9,25 +9,31 @@ object UserScreenMessage {
 
     /** 一句话拆开:[screens] 是里面带的屏幕编号(按出现先后),[words] 是附言(去掉首尾空白,没有为空串)。 */
     data class Parsed(val screens: List<String>, val words: String) {
-        val hasScreen: Boolean get() = screens.isNotEmpty()
+        val hasScreen: Boolean
+            get() = screens.isNotEmpty()
     }
 
     fun line(id: String): String {
-        require(LINE.matches("[[screen:$id]]")) { "bad screen id" }
-        return "[[screen:$id]]"
+        val rendered = "[[screen:$id]]"
+        require(LINE.matches(rendered)) { "bad screen id" }
+        return rendered
     }
 
     /** 屏幕那一行在前,附言在后;附言为空时只有那一行。 */
-    fun compose(id: String, words: String): String = listOf(line(id), words.trim()).filter(String::isNotEmpty).joinToString("\n")
+    fun compose(id: String, words: String): String {
+        val parts = listOf(line(id), words.trim())
+        return parts.filter { it.isNotEmpty() }.joinToString("\n")
+    }
 
     fun parse(text: String): Parsed {
-        val screens = mutableListOf<String>()
-        val rest = mutableListOf<String>()
-        for (l in text.lines()) {
-            val m = LINE.matchEntire(l.trim())
-            if (m != null) screens += m.groupValues[1] else rest += l
+        val screens = ArrayList<String>()
+        val words = ArrayList<String>()
+        for (line in text.lines()) {
+            val match = LINE.matchEntire(line.trim())
+            if (match == null) words += line else screens += match.groupValues[1]
         }
-        return Parsed(screens, if (screens.isEmpty()) text.trim() else rest.joinToString("\n").trim())
+        val rest = if (screens.isEmpty()) text.trim() else words.joinToString("\n").trim()
+        return Parsed(screens, rest)
     }
 
     fun has(text: String): Boolean = text.lineSequence().any { LINE.matches(it.trim()) }

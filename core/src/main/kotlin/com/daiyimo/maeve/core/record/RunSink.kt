@@ -5,11 +5,12 @@ interface RunSink {
     fun event(e: RunEvent)
 
     /** [png] 是第 [mediaId] 张存下的画面。 */
-    fun media(mediaId: Int, png: ByteArray) {}
+    fun media(mediaId: Int, png: ByteArray) = Unit
 
     companion object {
+        /** 不记录任何东西的接收方;测试和不需要记录的场景用。 */
         val NONE: RunSink = object : RunSink {
-            override fun event(e: RunEvent) {}
+            override fun event(e: RunEvent) = Unit
         }
     }
 }
