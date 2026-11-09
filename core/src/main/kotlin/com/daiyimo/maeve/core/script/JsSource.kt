@@ -1,155 +1,310 @@
 package com.daiyimo.maeve.core.script
 
 /**
- * 模型或站点命令写的 JS 源码的词法检查。
+ * 词法级的 `import` 检查：判断一段 JS 源码里有没有会被当作 `import` 使用的词。
  *
- * [usesImport]:字符串、注释、正则字面量之外有没有 `import` 这个词(动态 import 会在全局作用域里跑模块,绕开只读包装)。
- * `/` 是除号还是正则的开头,有时只看词法分不清(`)`、`}`、`++` 之后,以及 of/yield/await 这类既可能是关键字也可能是变量名的词之后):
- * 这时两种读法都走一遍,任何一种读法在代码里读到 import 都算有。读法按 (位置, `/` 的读法, 括号栈) 去重,不会成倍增长;
- * 读不通的读法(正则或字符串没合上就到行尾)作废。宁可误拦,不漏。
+ * 只看词法，不建语法树。字符串、注释、正则字面量内部出现的 `import` 不算数。
+ * 之所以连动态 `import()` 一起拦，是因为它会在全局作用域里执行模块，绕开只读包装。
+ *
+ * `/` 的身份并不总由前一个字符决定：它出现在 `)`、`}`、`++`、`--` 之后，
+ * 或出现在 `of`/`yield`/`await` 这类既可能是关键字、也可能是变量名的词之后时，
+ * 既可能开启一个正则字面量，也可能是除号。此时两种读法都保留，后续各自推进；
+ * 只要其中任一种读法在代码区读到 `import` 就返回 true。
+ *
+ * 为避免指数膨胀，读法按 (位置, `/` 的身份, 嵌套栈) 去重；同一快照只扫一遍。
+ * 读到行尾仍没有闭合的字符串或正则属于不成立的读法，直接丢弃。
+ * 整体取舍是宁可误拦，不可漏放。
  */
 object JsSource {
-    private enum class Slash { Regex, Divide, Both }
 
-    private data class State(val pos: Int, val slash: Slash, val stack: List<Char>)
+    /** 当前位置的 `/` 可以被理解成什么。 */
+    private enum class SlashRole {
+        /** 正则字面量的开头。 */
+        Pattern,
 
-    /** 之后的 `/` 一定是正则开头的关键字。 */
-    private val BEFORE_EXPRESSION = setOf("return", "typeof", "instanceof", "in", "new", "delete", "void", "throw", "case", "do", "else")
-    /** 可能是关键字也可能是变量名的词:之后的 `/` 两种读法都走。 */
-    private val EITHER = setOf("of", "yield", "await", "let", "async", "get", "set", "static")
+        /** 除法运算符。 */
+        Division,
 
+        /** 由上文无法判定，两种读法都得试。 */
+        Unresolved,
+    }
+
+    /** 一条读法在某一时刻的快照：读到哪、`/` 的身份、模板插值与花括号共用的嵌套栈。 */
+    private data class Reading(val at: Int, val slash: SlashRole, val nesting: List<Char>)
+
+    /** [Scanner] 推进一次的结果。 */
+    private sealed interface Outcome {
+        /** 读到了 import。 */
+        data object Found : Outcome
+
+        /** 这条读法走不通，或已经读完。 */
+        data object Dropped : Outcome
+
+        /** 在身份未定的 `/` 处分叉。 */
+        class Branching(val readings: List<Reading>) : Outcome
+    }
+
+    /** 这些词之后出现的 `/` 必是正则开头。 */
+    private val PATTERN_AFTER = setOf(
+        "return",
+        "typeof",
+        "instanceof",
+        "in",
+        "new",
+        "delete",
+        "void",
+        "throw",
+        "case",
+        "do",
+        "else",
+    )
+
+    /** 这些词既可能是关键字也可能是标识符，其后的 `/` 保留两种读法。 */
+    private val UNRESOLVED_AFTER = setOf("of", "yield", "await", "let", "async", "get", "set", "static")
+
+    /**
+     * [code] 的代码区里是否出现了 `import`。
+     *
+     * 字符串、注释、正则字面量里的不计；两可的 `/` 会展开成多条读法分别检查。
+     */
     fun usesImport(code: String): Boolean {
-        val seen = HashSet<State>()
-        val work = ArrayDeque<State>()
-        work += State(0, Slash.Regex, emptyList())
-        while (work.isNotEmpty()) {
-            val s = work.removeLast()
-            if (!seen.add(s)) continue
-            if (Lexer(code, s) { work += it }.run()) return true
+        val finished = HashSet<Reading>()
+        val queue = ArrayDeque<Reading>()
+        queue.addLast(Reading(at = 0, slash = SlashRole.Pattern, nesting = emptyList()))
+        while (queue.isNotEmpty()) {
+            val reading = queue.removeLast()
+            if (!finished.add(reading)) continue
+            when (val outcome = Scanner(code, reading).advance()) {
+                Outcome.Found -> return true
+                is Outcome.Branching -> queue.addAll(outcome.readings)
+                Outcome.Dropped -> Unit
+            }
         }
         return false
     }
 
-    /** 从 [start] 起读一条读法,遇到两可的 `/` 就把两种读法交给 [fork] 并停下。读到 import 返回 true。 */
-    private class Lexer(private val code: String, start: State, private val fork: (State) -> Unit) {
-        private var i = start.pos
+    /** 从一条 [Reading] 出发，沿同一套词法规则向前走。 */
+    private class Scanner(private val code: String, start: Reading) {
+        private var at = start.at
         private var slash = start.slash
-        private val stack = start.stack.toMutableList()
-        private val n = code.length
+        private val nesting = start.nesting.toMutableList()
+        private val length = code.length
 
-        fun run(): Boolean {
-            while (i < n) {
-                val c = code[i]
+        fun advance(): Outcome {
+            while (at < length) {
+                val ch = code[at]
                 when {
-                    c.isWhitespace() -> i++
-                    c == '/' && peek(1) == '/' -> { while (i < n && !lineEnd(code[i])) i++ }
-                    c == '/' && peek(1) == '*' -> { val e = code.indexOf("*/", i + 2); i = if (e < 0) n else e + 2 }
-                    c == '/' -> when (slash) {
-                        Slash.Divide -> { i++; slash = Slash.Regex }
-                        Slash.Regex -> { if (!regex()) return false }
-                        Slash.Both -> {
-                            fork(State(i, Slash.Regex, stack.toList()))
-                            fork(State(i, Slash.Divide, stack.toList()))
-                            return false
+                    ch.isWhitespace() -> at++
+
+                    ch == '/' && next(1) == '/' -> skipLineComment()
+
+                    ch == '/' && next(1) == '*' -> skipBlockComment()
+
+                    ch == '/' -> when (slash) {
+                        SlashRole.Division -> {
+                            at++
+                            slash = SlashRole.Pattern
                         }
+
+                        SlashRole.Pattern -> if (!readPattern()) return Outcome.Dropped
+
+                        SlashRole.Unresolved -> return Outcome.Branching(
+                            listOf(
+                                Reading(at, SlashRole.Pattern, nesting.toList()),
+                                Reading(at, SlashRole.Division, nesting.toList()),
+                            ),
+                        )
                     }
-                    c == '\'' || c == '"' -> { if (!string(c)) return false; slash = Slash.Divide }
-                    c == '`' -> { i++; if (!template()) return false }
-                    c == '{' -> { stack += '{'; i++; slash = Slash.Regex }
-                    c == '}' -> {
-                        i++
-                        if (stack.lastOrNull() == '`') { stack.removeAt(stack.lastIndex); if (!template()) return false }
-                        else { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex); slash = Slash.Both }
+
+                    ch == '\'' || ch == '"' -> {
+                        if (!readQuoted(ch)) return Outcome.Dropped
+                        slash = SlashRole.Division
                     }
-                    c == ')' -> { i++; slash = Slash.Both }
-                    c == ']' -> { i++; slash = Slash.Divide }
-                    (c == '+' || c == '-') && peek(1) == c -> { i += 2; slash = Slash.Both }
-                    c.isDigit() || (c == '.' && peek(1)?.isDigit() == true) -> { while (i < n && (code[i].isLetterOrDigit() || code[i] == '.' || code[i] == '_')) i++; slash = Slash.Divide }
-                    identStart(c) -> {
-                        val word = word()
-                        if (word == "import") return true
-                        slash = when (word) {
-                            in BEFORE_EXPRESSION -> Slash.Regex
-                            in EITHER -> Slash.Both
-                            else -> Slash.Divide
-                        }
+
+                    ch == '`' -> {
+                        at++
+                        if (!readTemplateRest()) return Outcome.Dropped
                     }
-                    else -> { i++; slash = Slash.Regex }
+
+                    ch == '{' -> {
+                        nesting += '{'
+                        at++
+                        slash = SlashRole.Pattern
+                    }
+
+                    ch == '}' -> if (!closeCurly()) return Outcome.Dropped
+
+                    ch == ')' -> {
+                        at++
+                        slash = SlashRole.Unresolved
+                    }
+
+                    ch == ']' -> {
+                        at++
+                        slash = SlashRole.Division
+                    }
+
+                    (ch == '+' || ch == '-') && next(1) == ch -> {
+                        at += 2
+                        slash = SlashRole.Unresolved
+                    }
+
+                    ch.isDigit() || (ch == '.' && next(1)?.isDigit() == true) -> {
+                        skipNumber()
+                        slash = SlashRole.Division
+                    }
+
+                    startsIdentifier(ch) -> if (readIdentifier()) return Outcome.Found
+
+                    else -> {
+                        at++
+                        slash = SlashRole.Pattern
+                    }
                 }
+            }
+            return Outcome.Dropped
+        }
+
+        /** 标识符；命中 `import` 返回 true，否则按关键字表定下 `/` 的默认身份。 */
+        private fun readIdentifier(): Boolean {
+            val spelling = decodeIdentifier()
+            if (spelling == "import") return true
+            slash = when {
+                spelling in PATTERN_AFTER -> SlashRole.Pattern
+                spelling in UNRESOLVED_AFTER -> SlashRole.Unresolved
+                else -> SlashRole.Division
             }
             return false
         }
 
-        private fun peek(k: Int): Char? = code.getOrNull(i + k)
-        private fun lineEnd(c: Char) = c == '\n' || c == '\r' || c == ' ' || c == ' '
-        private fun identStart(c: Char) = c == '$' || c == '_' || c == '\\' || c.isLetter()
-        private fun identPart(c: Char) = identStart(c) || c.isDigit() || c == '‌' || c == '‍'
-
-        /** 一个标识符;`\uXXXX`、`\u{…}` 转义解开后再比。 */
-        private fun word(): String {
-            val out = StringBuilder()
-            while (i < n && identPart(code[i])) {
-                if (code[i] == '\\' && peek(1) == 'u') {
-                    val braced = peek(2) == '{'
-                    val from = i + if (braced) 3 else 2
-                    val to = if (braced) code.indexOf('}', from).takeIf { it > 0 } ?: n else minOf(from + 4, n)
-                    code.substring(from, to).toIntOrNull(16)?.let { out.appendCodePoint(it) }
-                    i = if (braced) minOf(to + 1, n) else to
-                } else out.append(code[i++])
-            }
-            return out.toString()
-        }
-
-        /** 字符串字面量;到行尾还没合上(且不是续行)为 false。 */
-        private fun string(q: Char): Boolean {
-            i++
-            while (i < n) {
-                val c = code[i]
-                when {
-                    c == '\\' -> i += 2
-                    c == q -> { i++; return true }
-                    lineEnd(c) -> return false
-                    else -> i++
+        /** 标识符原文；`\uXXXX` 与 `\u{…}` 先解成对应字符再比较。 */
+        private fun decodeIdentifier(): String {
+            val spelling = StringBuilder()
+            while (at < length && continuesIdentifier(code[at])) {
+                if (code[at] == '\\' && next(1) == 'u') {
+                    val braced = next(2) == '{'
+                    val from = at + if (braced) 3 else 2
+                    val to = if (braced) {
+                        code.indexOf('}', from).takeIf { it >= 0 } ?: length
+                    } else {
+                        minOf(from + 4, length)
+                    }
+                    code.substring(from, to).toIntOrNull(16)?.let { spelling.appendCodePoint(it) }
+                    at = if (braced) minOf(to + 1, length) else to
+                } else {
+                    spelling.append(code[at])
+                    at++
                 }
             }
-            return false
+            return spelling.toString()
         }
 
-        /** 模板字符串的文字部分,从当前位置读到反引号(结束)或 `${`(压栈,回到代码)。 */
-        private fun template(): Boolean {
-            while (i < n) {
-                val c = code[i]
+        /** 引号字符串；行内没闭合（又不是续行）就算失败。 */
+        private fun readQuoted(quote: Char): Boolean {
+            at++
+            while (at < length) {
+                val ch = code[at]
                 when {
-                    c == '\\' -> i += 2
-                    c == '`' -> { i++; slash = Slash.Divide; return true }
-                    c == '$' && peek(1) == '{' -> { stack += '`'; i += 2; slash = Slash.Regex; return true }
-                    else -> i++
-                }
-            }
-            return false
-        }
-
-        /** 正则字面量(含字符类里的 `/`)和标志;到行尾还没合上为 false。 */
-        private fun regex(): Boolean {
-            i++
-            var inClass = false
-            while (i < n) {
-                val c = code[i]
-                when {
-                    lineEnd(c) -> return false
-                    c == '\\' -> i += 2
-                    c == '[' -> { inClass = true; i++ }
-                    c == ']' -> { inClass = false; i++ }
-                    c == '/' && !inClass -> {
-                        i++
-                        while (i < n && identPart(code[i])) i++
-                        slash = Slash.Divide
+                    ch == '\\' -> at += 2
+                    ch == quote -> {
+                        at++
                         return true
                     }
-                    else -> i++
+                    endsLine(ch) -> return false
+                    else -> at++
                 }
             }
             return false
         }
+
+        /** 模板字符串的文字部分；遇到 `${` 压栈并回到代码读法，遇到收尾反引号结束。 */
+        private fun readTemplateRest(): Boolean {
+            while (at < length) {
+                val ch = code[at]
+                when {
+                    ch == '\\' -> at += 2
+                    ch == '`' -> {
+                        at++
+                        slash = SlashRole.Division
+                        return true
+                    }
+                    ch == '$' && next(1) == '{' -> {
+                        nesting += '`'
+                        at += 2
+                        slash = SlashRole.Pattern
+                        return true
+                    }
+                    else -> at++
+                }
+            }
+            return false
+        }
+
+        /** 正则字面量本体与标志位；字符类里的 `/` 不算收尾，行内没闭合算失败。 */
+        private fun readPattern(): Boolean {
+            at++
+            var insideClass = false
+            while (at < length) {
+                val ch = code[at]
+                when {
+                    endsLine(ch) -> return false
+                    ch == '\\' -> at += 2
+                    ch == '[' -> {
+                        insideClass = true
+                        at++
+                    }
+                    ch == ']' -> {
+                        insideClass = false
+                        at++
+                    }
+                    ch == '/' && !insideClass -> {
+                        at++
+                        while (at < length && continuesIdentifier(code[at])) at++
+                        slash = SlashRole.Division
+                        return true
+                    }
+                    else -> at++
+                }
+            }
+            return false
+        }
+
+        /** `}`：在模板插值里就回去接着读模板文字，否则弹出普通花括号。 */
+        private fun closeCurly(): Boolean {
+            at++
+            if (nesting.lastOrNull() == '`') {
+                nesting.removeAt(nesting.lastIndex)
+                return readTemplateRest()
+            }
+            if (nesting.isNotEmpty()) nesting.removeAt(nesting.lastIndex)
+            slash = SlashRole.Unresolved
+            return true
+        }
+
+        private fun skipLineComment() {
+            while (at < length && !endsLine(code[at])) at++
+        }
+
+        private fun skipBlockComment() {
+            val close = code.indexOf("*/", at + 2)
+            at = if (close < 0) length else close + 2
+        }
+
+        private fun skipNumber() {
+            while (at < length) {
+                val ch = code[at]
+                if (!(ch.isLetterOrDigit() || ch == '.' || ch == '_')) return
+                at++
+            }
+        }
+
+        private fun next(offset: Int): Char? = code.getOrNull(at + offset)
+
+        private fun endsLine(ch: Char) = ch == '\n' || ch == '\r' || ch == '\u2028' || ch == '\u2029'
+
+        private fun startsIdentifier(ch: Char) = ch == '$' || ch == '_' || ch == '\\' || ch.isLetter()
+
+        private fun continuesIdentifier(ch: Char) =
+            startsIdentifier(ch) || ch.isDigit() || ch == '\u200C' || ch == '\u200D'
     }
 }

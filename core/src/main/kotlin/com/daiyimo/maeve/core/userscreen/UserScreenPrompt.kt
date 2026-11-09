@@ -8,67 +8,106 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * 带着用户屏幕的一句话给模型时的写法,只在这里。和相册里的图片(附件,照旧是文件)分开:
- * - 用户这句话本身写成「用户刚截下他正在看的屏幕(App,时刻),没有附言 / 附言:…」(不让截图时照实说没截到);
- * - 屏上的字和编号是另一段上下文([detail]),没有附言时再带上按屏幕猜意图的规矩;
- * - 之前几轮里的屏幕只剩一行([earlier]):App、时刻和屏上开头几个字,要再看按编号回看。
+ * 用户屏幕相关文字的出口。截图画面本身仍走附件那条路(是文件),这里只管怎么说:
+ * 发送时把 App、时刻和附言说成一句;正文列出屏上的字和位置,屏上的字按不可信内容处理;
+ * 旧轮次只留一行摘要,要细节时按编号回看。
  */
 object UserScreenPrompt {
-    /** 之前几轮里那一屏留几个字的开头。 */
+    /** 旧轮次摘要里保留的屏上字数。 */
     const val GIST_CHARS = 40
 
-    private val TIME = DateTimeFormatter.ofPattern("MMM d HH:mm", Locale.ENGLISH)
+    /** 时刻一律按英文月份写,不随系统语言变。 */
+    private const val TIME_FORMAT = "MMM d HH:mm"
+    private const val ELLIPSIS = "…"
 
-    fun time(at: Long, zone: ZoneId): String = TIME.format(Instant.ofEpochMilli(at).atZone(zone))
+    /** 屏上太短的碎片(单个字)不放进摘要。 */
+    private const val MIN_GIST_PIECE = 2
 
-    /** 用户这句话:[screen] 为 null 是截图已经不在了。 */
+    private val clock = DateTimeFormatter.ofPattern(TIME_FORMAT, Locale.ENGLISH)
+
+    fun time(at: Long, zone: ZoneId): String = clock.format(Instant.ofEpochMilli(at).atZone(zone))
+
+    /** 用户带着这一屏说话:[screen] 为 null 表示截图已经失效,只剩编号。 */
     fun said(id: String, screen: UserScreen?, words: String, zone: ZoneId): String {
-        if (screen == null) return listOf(Feedback.format("user_screen.missing", "id" to id), words).filter(String::isNotBlank).joinToString("\n")
-        val vars = arrayOf("app" to screen.app, "time" to time(screen.takenAt, zone), "words" to words)
-        return when {
-            screen.blocked && words.isEmpty() -> Feedback.format("user_screen.blocked", *vars)
-            screen.blocked -> Feedback.format("user_screen.blocked_with_words", *vars)
-            words.isEmpty() -> Feedback.format("user_screen.sent", *vars)
-            else -> Feedback.format("user_screen.sent_with_words", *vars)
+        if (screen == null) {
+            return joinNonBlank(Feedback.format("user_screen.missing", "id" to id), words)
         }
+        return Feedback.format(
+            sentenceKey(screen, words),
+            "app" to screen.app,
+            "time" to time(screen.takenAt, zone),
+            "words" to words,
+        )
     }
 
+    /** 从四种说法里挑一种:页面禁止截图、有没有附言各自分岔。 */
+    private fun sentenceKey(screen: UserScreen, words: String): String = when {
+        screen.blocked && words.isEmpty() -> "user_screen.blocked"
+        screen.blocked -> "user_screen.blocked_with_words"
+        words.isEmpty() -> "user_screen.sent"
+        else -> "user_screen.sent_with_words"
+    }
+
+    private fun joinNonBlank(first: String, second: String): String =
+        listOf(first, second).filter(String::isNotBlank).joinToString("\n")
+
     /**
-     * 这一屏的详情(上下文正文):编号、App、时刻、屏上的字(套上不可信标记:屏上的字是别人或 App 写的);
-     * [noWords] 时接上按屏幕猜意图的规矩,[askVision] 时说看不到图可以问看图模型。不让截图的页面只说截不到该怎么回。
+     * 这一屏的正文:编号、App、时刻、屏上的字。屏上的字由 App 或别人写,因此套上不可信标记;
+     * [noWords] 时补上「只有屏幕、先问一句」的规矩,[askVision] 时给出问看图模型的办法。
+     * 页面禁止截图时只说看不到、该怎么回。
      */
     fun detail(screen: UserScreen, noWords: Boolean, askVision: Boolean, zone: ZoneId): String {
         if (screen.blocked) return Feedback["user_screen.blocked_reply"]
-        val lines = if (screen.lines.isEmpty()) Feedback["user_screen.no_text"]
-            else Untrusted.wrap(screen.lines.joinToString("\n") { "(${it.x},${it.y}) ${it.text}" })
+        val text = if (screen.lines.isEmpty()) {
+            Feedback["user_screen.no_text"]
+        } else {
+            Untrusted.wrap(screen.lines.joinToString("\n") { "(${it.x},${it.y}) ${it.text}" })
+        }
         val head = Feedback.format(
-            "user_screen.detail", "id" to screen.id, "app" to screen.app,
-            "package" to (screen.packageName?.takeIf { it != screen.app }?.let { "($it)" }.orEmpty()),
-            "time" to time(screen.takenAt, zone), "lines" to lines,
+            "user_screen.detail",
+            "id" to screen.id,
+            "app" to screen.app,
+            "package" to packageNote(screen),
+            "time" to time(screen.takenAt, zone),
+            "lines" to text,
         )
-        return listOfNotNull(head, Feedback["user_screen.ask_vision"].takeIf { askVision }, Feedback["user_screen.no_words"].takeIf { noWords })
-            .joinToString("\n\n")
+        val notes = ArrayList<String>(2)
+        if (askVision) notes += Feedback["user_screen.ask_vision"]
+        if (noWords) notes += Feedback["user_screen.no_words"]
+        return (listOf(head) + notes).joinToString("\n\n")
     }
 
-    /** 之前几轮里的一屏收成一行;截图已经不在时只说不在了。 */
+    /** 包名和显示名不同时,在 App 后面补上包名。 */
+    private fun packageNote(screen: UserScreen): String {
+        val packageName = screen.packageName ?: return ""
+        return if (packageName == screen.app) "" else "($packageName)"
+    }
+
+    /** 旧轮次里的一屏压成一行;截图没了、禁止截图、没读到字各有各的说法。 */
     fun earlier(id: String, screen: UserScreen?, zone: ZoneId): String {
         if (screen == null) return Feedback.format("user_screen.missing", "id" to id)
-        val vars = arrayOf("id" to id, "app" to screen.app, "time" to time(screen.takenAt, zone))
-        if (screen.blocked) return Feedback.format("user_screen.earlier_blocked", *vars)
-        val gist = gist(screen) ?: return Feedback.format("user_screen.earlier_blank", *vars)
-        return Feedback.format("user_screen.earlier", *vars, "gist" to gist)
+        val common = arrayOf("id" to id, "app" to screen.app, "time" to time(screen.takenAt, zone))
+        if (screen.blocked) return Feedback.format("user_screen.earlier_blocked", *common)
+        val opening = gist(screen) ?: return Feedback.format("user_screen.earlier_blank", *common)
+        return Feedback.format("user_screen.earlier", *common, "gist" to opening)
     }
 
-    /** 屏上开头的几个字(跳过很短的零碎),给之前几轮那一行用;没有字为 null。 */
+    /** 屏上开头的一小段字;没有可用的字时返回 null。 */
     fun gist(screen: UserScreen): String? {
-        val text = screen.lines.map { it.text }.filter { it.length >= 2 }.joinToString(" ").ifEmpty { return null }
-        return if (text.length <= GIST_CHARS) text else text.take(GIST_CHARS) + "…"
+        val opening = screen.lines.asSequence()
+            .map { it.text }
+            .filter { it.length >= MIN_GIST_PIECE }
+            .joinToString(" ")
+        if (opening.isEmpty()) return null
+        return if (opening.length <= GIST_CHARS) opening else opening.take(GIST_CHARS) + ELLIPSIS
     }
 
-    /** 之前一轮里用户说的话:屏幕那一行换成 [earlier],附言接在后面(一行)。不带屏幕的原样返回。 */
+    /** 把旧轮次里的屏幕句压成一行:屏幕换成摘要,附言去掉换行接在后面;不带屏幕的句子原样返回。 */
     fun collapse(text: String, lookup: (String) -> UserScreen?, zone: ZoneId): String {
-        val p = UserScreenMessage.parse(text)
-        if (!p.hasScreen) return text
-        return (p.screens.map { earlier(it, lookup(it), zone) } + p.words.replace('\n', ' ')).filter(String::isNotBlank).joinToString(" ")
+        val parsed = UserScreenMessage.parse(text)
+        if (parsed.screens.isEmpty()) return text
+        val summaries = parsed.screens.map { earlier(it, lookup(it), zone) }
+        val attached = parsed.words.replace('\n', ' ')
+        return (summaries + attached).filter(String::isNotBlank).joinToString(" ")
     }
 }

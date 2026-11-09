@@ -21,7 +21,7 @@ other            33      3638      2345   64.5%
 assets            6      1912      1892   99.0%
 native            2       853       812   95.2%
 flutter          14      2033         0    0.0%
-total          2358    282153    262995   93.2%
+total          2358    282827    262470   92.8%
 ```
 
 放行条件仍是计划第 9 节：`derived_ratio >= 0.60` 的文本文件数为 0，且 6 个 Mika
@@ -88,8 +88,24 @@ total          2358    282153    262995   93.2%
 小接口的公共签名不能动，固定行数让比值天生偏高；这几项等后续把实现搬进自有类型时再一起降。
 
 这批的公共 API、枚举值、输出文案和协程语义都保持不变；只重写内部结构、命名和注释。
-累计已重写 25 个文件；绝大多数功能性文件已低于 60%，`Observation.kt` 与几个公共接口仍偏高。单文件达标不是目的，**行为等价 + 可编译 + 测试通过**才是。
+累计已重写 33 个文件；绝大多数功能性文件已低于 60%，`Observation.kt` 与几个公共接口仍偏高。单文件达标不是目的，**行为等价 + 可编译 + 测试通过**才是。
 `Feedback.section` 的接收者遮蔽问题曾让 31 个测试失败，已由全量 `:core:test` 抓出并修复。
+
+第五批（并行：用量 / 用户屏幕 / 设备 / JS 词法）：
+
+| 文件 | 重写前衍生 | 重写后衍生 | 行为验证 |
+|---|---:|---:|---|
+| `core/.../device/DeviceAccess.kt` | 100% | 19.0% | `DeviceAccessTest`（Gradle 定向 + 直接 JUnit） |
+| `core/.../device/DeviceAccessJson.kt` | 34.5% | 15.8% | `DeviceAccessTest` |
+| `core/.../script/JsSource.kt` | 100% | 15.8% | `JsSourceTest` + 差分输入 |
+| `core/.../usage/UsageLedger.kt` | 100% | 34.2% | `UsageLedgerTest` |
+| `core/.../usage/UsageQuery.kt` | 100% | 28.1% | `UsageQueryTest` |
+| `core/.../usage/MeteredModel.kt` | 100% | 45.3% | `MeteredModelTest` / `MeteredHttpTest` |
+| `core/.../userscreen/UserScreenPrompt.kt` | 100% | 33.6% | 编译 + 定向测试 |
+| `core/.../userscreen/UserScreenText.kt` | 100% | 34.0% | `UserScreenTest` |
+
+这批由 4 个并行 agent 分包完成，agent 各自做了直接编译/测试；合入后再跑 Gradle
+定向测试与全量 `:core:test`，以仓库构建为准。
 
 ## 每批的硬约束
 

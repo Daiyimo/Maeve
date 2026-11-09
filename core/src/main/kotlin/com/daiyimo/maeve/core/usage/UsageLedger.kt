@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonArray
 import kotlinx.serialization.json.addJsonObject
@@ -24,10 +23,13 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
-/** 一格的归属:哪个服务商、哪个模型、哪个用途。 */
+/** 一格地址里的静态部分:哪个服务商、哪个模型、哪个用途。 */
 data class UsageKey(val providerId: String, val model: String, val purpose: UsagePurpose)
 
-/** 一格里累计的数:输入(含缓存命中)、输出、缓存命中的 token,实际 HTTP 请求次数,其中没有对应最终用量的次数。 */
+/**
+ * 一格累计下来的量:输入(缓存命中已经算在里面)、输出、缓存命中的 token,
+ * 实际发出的 HTTP 请求次数,以及其中没拿到最终用量的那几次。
+ */
 data class UsageCounts(
     val input: Long = 0,
     val output: Long = 0,
@@ -35,40 +37,141 @@ data class UsageCounts(
     val calls: Long = 0,
     val callsWithoutUsage: Long = 0,
 ) {
-    operator fun plus(o: UsageCounts) =
-        UsageCounts(input + o.input, output + o.output, cached + o.cached, calls + o.calls, callsWithoutUsage + o.callsWithoutUsage)
+    operator fun plus(other: UsageCounts): UsageCounts = UsageCounts(
+        input = input + other.input,
+        output = output + other.output,
+        cached = cached + other.cached,
+        calls = calls + other.calls,
+        callsWithoutUsage = callsWithoutUsage + other.callsWithoutUsage,
+    )
 
     companion object {
+        /** 把一次调用的结果折成增量:[httpAttempts] 是发出去的请求数,[usage] 是最终回复报的用量。 */
         fun of(usage: Usage?, httpAttempts: Int = 1): UsageCounts {
-            val calls = httpAttempts.coerceAtLeast(0).toLong()
-            val withoutUsage = (calls - if (usage == null) 0 else 1).coerceAtLeast(0)
+            val attempted = httpAttempts.coerceAtLeast(0).toLong()
+            val answered = if (usage == null) 0L else 1L
             return UsageCounts(
-                usage?.inputTokens?.toLong() ?: 0,
-                usage?.outputTokens?.toLong() ?: 0,
-                usage?.cachedInputTokens?.toLong() ?: 0,
-                calls = calls,
-                callsWithoutUsage = withoutUsage,
+                input = usage?.inputTokens?.toLong() ?: 0L,
+                output = usage?.outputTokens?.toLong() ?: 0L,
+                cached = usage?.cachedInputTokens?.toLong() ?: 0L,
+                calls = attempted,
+                callsWithoutUsage = (attempted - answered).coerceAtLeast(0L),
             )
         }
     }
 }
 
-/** [hour] 是 UTC 整点桶:从 1970-01-01T00:00Z 起的第几个小时。 */
+/** 账本里的一行:[hour] 是 UTC 整点桶,从 1970-01-01T00:00Z 起数第几个小时。 */
 data class UsageRow(val hour: Long, val key: UsageKey, val counts: UsageCounts)
 
-/** 账本此刻的全部内容;[providerNames] 是每个服务商最近一次记账时的名字(服务商删了也留着)。 */
+/**
+ * 某一刻账本的全部内容。
+ * [providerNames] 记的是每个服务商最后一次记账时的名字;服务商后来被删了,这个名字仍然保留。
+ */
 data class UsageSnapshot(val rows: List<UsageRow>, val providerNames: Map<String, String>) {
     companion object {
         val EMPTY = UsageSnapshot(emptyList(), emptyMap())
     }
 }
 
+/** 一格的完整坐标;磁盘上按 (hour, key) 唯一。 */
+private data class UsageCell(val hour: Long, val key: UsageKey)
+
+/** [LedgerFile.decode] 的产物,还没并进账本。 */
+private class RestoredLedger(
+    val cells: Map<UsageCell, UsageCounts>,
+    val names: Map<String, String>,
+)
+
 /**
- * 本机的 token 用量账本:按 UTC 整点 × 服务商 × 模型 × 用途累计,只存在这台手机上([file],JSON)。
+ * 磁盘格式。字段名属于持久化契约,改了就再也读不出老版本写的文件。
  *
- * 记账([record])只在内存里加一笔,多个线程同时记也安全;改动后等 [flushDelayMs] 由一个后台线程整份写出
- * (先写临时文件再改名,写到一半断电不会坏掉原文件),进程被杀时最多丢掉最后这几秒。
- * 只留最近 [keepDays] 天,更早的在读入和写出时丢掉。文件读不出(损坏)时当作空账本重新开始。
+ * 布局是刻意压扁的:keys 只出现一次,rows 用下标引用它,避免每行重复服务商/模型/用途三个字符串。
+ */
+private object LedgerFile {
+    private const val FORMAT = 1
+    private const val VERSION = "version"
+    private const val NAMES = "names"
+    private const val KEYS = "keys"
+    private const val ROWS = "rows"
+    private const val PROVIDER = "provider"
+    private const val MODEL = "model"
+    private const val PURPOSE = "purpose"
+
+    fun encode(cells: Map<UsageCell, UsageCounts>, names: Map<String, String>): String {
+        val distinctKeys = cells.keys.mapTo(linkedSetOf<UsageKey>()) { cell -> cell.key }.toList()
+        val keyIndex = distinctKeys.withIndex().associate { (position, key) -> key to position }
+        return buildJsonObject {
+            put(VERSION, FORMAT)
+            putJsonObject(NAMES) {
+                names.forEach { (providerId, providerName) -> put(providerId, providerName) }
+            }
+            putJsonArray(KEYS) {
+                distinctKeys.forEach { key ->
+                    addJsonObject {
+                        put(PROVIDER, key.providerId)
+                        put(MODEL, key.model)
+                        put(PURPOSE, key.purpose.key)
+                    }
+                }
+            }
+            putJsonArray(ROWS) {
+                cells.entries.sortedBy { entry -> entry.key.hour }.forEach { (cell, counts) ->
+                    addJsonArray {
+                        add(JsonPrimitive(cell.hour))
+                        add(JsonPrimitive(keyIndex.getValue(cell.key)))
+                        add(JsonPrimitive(counts.input))
+                        add(JsonPrimitive(counts.output))
+                        add(JsonPrimitive(counts.cached))
+                        add(JsonPrimitive(counts.calls))
+                        add(JsonPrimitive(counts.callsWithoutUsage))
+                    }
+                }
+            }
+        }.toString()
+    }
+
+    /** 解析失败一律让异常冒出去,由调用方决定怎么收拾;早于 [oldestHour] 的行直接跳过。 */
+    fun decode(text: String, oldestHour: Long): RestoredLedger {
+        val root = Json.parseToJsonElement(text).jsonObject
+        val names = LinkedHashMap<String, String>()
+        root[NAMES]?.jsonObject?.forEach { (providerId, providerName) ->
+            names[providerId] = providerName.jsonPrimitive.content
+        }
+        val keys = root[KEYS]?.jsonArray.orEmpty().map { element ->
+            val fields = element.jsonObject
+            UsageKey(
+                providerId = fields.getValue(PROVIDER).jsonPrimitive.content,
+                model = fields.getValue(MODEL).jsonPrimitive.content,
+                purpose = UsagePurpose.of(fields.getValue(PURPOSE).jsonPrimitive.content),
+            )
+        }
+        val cells = HashMap<UsageCell, UsageCounts>()
+        root[ROWS]?.jsonArray.orEmpty().forEach { element ->
+            val numbers = element.jsonArray.map { number -> number.jsonPrimitive }
+            val hour = numbers[0].long
+            if (hour < oldestHour) return@forEach
+            val cell = UsageCell(hour, keys[numbers[1].int])
+            val counts = UsageCounts(
+                input = numbers[2].long,
+                output = numbers[3].long,
+                cached = numbers[4].long,
+                calls = numbers[5].long,
+                callsWithoutUsage = numbers[6].long,
+            )
+            val previous = cells[cell]
+            cells[cell] = previous?.plus(counts) ?: counts
+        }
+        return RestoredLedger(cells, names)
+    }
+}
+
+/**
+ * 本机的 token 用量账本:按 UTC 整点 × 服务商 × 模型 × 用途累计,整本只存在 [file] 这一个 JSON 文件里。
+ *
+ * [record] 只改内存,多线程并发记也不会丢;改过之后由一条后台线程在 [flushDelayMs] 毫秒后整份落盘。
+ * 落盘先写同目录的临时文件再改名覆盖,写到一半被打断也毁不掉上一份好数据;进程被杀时最多丢掉最后这一小段。
+ * 只保留最近 [keepDays] 天的桶,读入和写出两个时机都会清掉更早的。文件读不出来(损坏)就当空账本重来。
  */
 class UsageLedger(
     private val file: File,
@@ -76,135 +179,120 @@ class UsageLedger(
     private val flushDelayMs: Long = 2_000,
     private val keepDays: Int = KEEP_DAYS,
 ) : UsageSink {
-    private data class Cell(val hour: Long, val key: UsageKey)
+    private val accumulated = HashMap<UsageCell, UsageCounts>()
+    private val lastKnownNames = HashMap<String, String>()
+    private val dataLock = Any()
+    private val ioLock = Any()
+    private var unwritten = false
+    private var flushPlanned = false
 
-    private val lock = Any()
-    private val writeLock = Any()
-    private val cells = HashMap<Cell, UsageCounts>()
-    private val names = HashMap<String, String>()
-    private var dirty = false
-    private var flushQueued = false
-
-    private val writer: ScheduledExecutorService by lazy {
-        Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "usage-ledger").apply { isDaemon = true } }
+    private val flushTimer: ScheduledExecutorService by lazy {
+        Executors.newSingleThreadScheduledExecutor { task ->
+            Thread(task, "usage-ledger").apply { isDaemon = true }
+        }
     }
 
     private val _version = MutableStateFlow(0L)
-    /** 每记一笔加一;界面跟着它重新统计。 */
+
+    /** 每记下一笔就加一;界面按它触发重新统计。 */
     val version: StateFlow<Long> = _version.asStateFlow()
 
     init {
-        load()
+        restore()
     }
 
     override fun record(source: UsageSource, usage: Usage?) = record(source, usage, httpAttempts = 1)
 
     override fun record(source: UsageSource, usage: Usage?, httpAttempts: Int) {
-        // 本地组包就失败、从未发请求时,运行记录仍算逻辑调用,但用量账本没有可计的次数或 token。
+        // 请求没发出去、也没有用量:这次不构成任何可记的用量
         if (httpAttempts <= 0 && usage == null) return
-        val cell = Cell(Math.floorDiv(now(), HOUR_MS), UsageKey(source.providerId, source.model, source.purpose))
-        val counts = UsageCounts.of(usage, httpAttempts)
-        val queue = synchronized(lock) {
-            cells[cell] = (cells[cell] ?: UsageCounts()) + counts
-            if (source.providerName.isNotEmpty()) names[source.providerId] = source.providerName
-            dirty = true
-            !flushQueued.also { flushQueued = true }
+        val cell = UsageCell(hourNow(), UsageKey(source.providerId, source.model, source.purpose))
+        val increment = UsageCounts.of(usage, httpAttempts)
+        val firstOfThisBatch = synchronized(dataLock) {
+            val previous = accumulated[cell]
+            accumulated[cell] = previous?.plus(increment) ?: increment
+            if (source.providerName.isNotEmpty()) lastKnownNames[source.providerId] = source.providerName
+            unwritten = true
+            if (flushPlanned) {
+                false
+            } else {
+                flushPlanned = true
+                true
+            }
         }
         _version.update { it + 1 }
-        if (queue) writer.schedule({ runCatching { flush() } }, flushDelayMs, TimeUnit.MILLISECONDS)
+        if (firstOfThisBatch) {
+            flushTimer.schedule({ runCatching { flush() } }, flushDelayMs, TimeUnit.MILLISECONDS)
+        }
     }
 
-    fun snapshot(): UsageSnapshot = synchronized(lock) {
-        UsageSnapshot(cells.map { (c, n) -> UsageRow(c.hour, c.key, n) }, HashMap(names))
+    fun snapshot(): UsageSnapshot = synchronized(dataLock) {
+        val rows = accumulated.entries.map { (cell, counts) -> UsageRow(cell.hour, cell.key, counts) }
+        UsageSnapshot(rows, HashMap(lastKnownNames))
     }
 
-    /** 有没写出的改动就当场写出(后台线程定时调;测试和退出前也可直接调)。写失败时留着改动,下次再写。 */
+    /**
+     * 有没落盘的改动就立刻写出。后台线程会定时调,测试和退出前也可以直接调。
+     * 写失败时把改动重新标脏,留给下一次,同时把异常抛给调用方。
+     */
     fun flush() {
-        synchronized(writeLock) {
-            val text = synchronized(lock) {
-                flushQueued = false
-                if (!dirty) return
-                dirty = false
-                prune()
-                serialize()
+        synchronized(ioLock) {
+            val payload = synchronized(dataLock) {
+                flushPlanned = false
+                if (!unwritten) return
+                unwritten = false
+                discardExpired()
+                LedgerFile.encode(accumulated, lastKnownNames)
             }
             try {
-                writeAtomically(text)
-            } catch (e: Exception) {
-                synchronized(lock) { dirty = true }
-                throw e
+                replaceFile(payload)
+            } catch (failure: Exception) {
+                synchronized(dataLock) { unwritten = true }
+                throw failure
             }
         }
     }
 
-    private fun cutoffHour(): Long = Math.floorDiv(now(), HOUR_MS) - keepDays * 24L
+    private fun hourNow(): Long = Math.floorDiv(now(), HOUR_MS)
 
-    private fun prune() {
-        val cutoff = cutoffHour()
-        cells.keys.removeAll { it.hour < cutoff }
+    private fun expiryHour(): Long = hourNow() - keepDays * HOURS_PER_DAY
+
+    private fun discardExpired() {
+        val oldestKept = expiryHour()
+        accumulated.keys.retainAll { cell -> cell.hour >= oldestKept }
     }
 
-    private fun serialize(): String {
-        val keys = cells.keys.map { it.key }.distinct()
-        val index = keys.withIndex().associate { (i, k) -> k to i }
-        return buildJsonObject {
-            put("version", FORMAT)
-            putJsonObject("names") { names.forEach { (id, n) -> put(id, n) } }
-            putJsonArray("keys") {
-                keys.forEach { k -> addJsonObject { put("provider", k.providerId); put("model", k.model); put("purpose", k.purpose.key) } }
-            }
-            putJsonArray("rows") {
-                cells.entries.sortedBy { it.key.hour }.forEach { (c, n) ->
-                    addJsonArray {
-                        add(JsonPrimitive(c.hour)); add(JsonPrimitive(index.getValue(c.key)))
-                        add(JsonPrimitive(n.input)); add(JsonPrimitive(n.output)); add(JsonPrimitive(n.cached))
-                        add(JsonPrimitive(n.calls)); add(JsonPrimitive(n.callsWithoutUsage))
-                    }
-                }
-            }
-        }.toString()
-    }
-
-    private fun load() {
+    private fun restore() {
         if (!file.isFile) return
-        runCatching {
-            val root = Json.parseToJsonElement(file.readText()).jsonObject
-            root["names"]?.jsonObject?.forEach { (id, n) -> names[id] = n.jsonPrimitive.content }
-            val keys = root["keys"]?.jsonArray.orEmpty().map { e ->
-                val o = e.jsonObject
-                UsageKey(
-                    o.getValue("provider").jsonPrimitive.content, o.getValue("model").jsonPrimitive.content,
-                    UsagePurpose.of(o.getValue("purpose").jsonPrimitive.content),
-                )
+        val restored = runCatching { LedgerFile.decode(file.readText(), expiryHour()) }.getOrNull()
+        synchronized(dataLock) {
+            if (restored == null) {
+                accumulated.clear()
+                lastKnownNames.clear()
+            } else {
+                accumulated.putAll(restored.cells)
+                lastKnownNames.putAll(restored.names)
             }
-            val cutoff = cutoffHour()
-            root["rows"]?.jsonArray.orEmpty().forEach { e ->
-                val r = (e as JsonArray).map { it.jsonPrimitive }
-                val hour = r[0].long
-                if (hour < cutoff) return@forEach
-                val cell = Cell(hour, keys[r[1].int])
-                val n = UsageCounts(r[2].long, r[3].long, r[4].long, r[5].long, r[6].long)
-                cells[cell] = (cells[cell] ?: UsageCounts()) + n
-            }
-        }.onFailure {
-            cells.clear()
-            names.clear()
         }
     }
 
-    private fun writeAtomically(text: String) {
-        file.parentFile?.mkdirs()
-        val tmp = File(file.parentFile, file.name + ".tmp")
-        tmp.writeText(text)
-        if (!tmp.renameTo(file)) {
-            file.delete()
-            check(tmp.renameTo(file)) { "cannot write ${file.name}" }
-        }
+    private fun replaceFile(payload: String) {
+        val directory = file.parentFile
+        directory?.mkdirs()
+        val staging = File(directory, file.name + ".tmp")
+        staging.writeText(payload)
+        if (staging.renameTo(file)) return
+        file.delete()
+        check(staging.renameTo(file)) { "cannot write ${file.name}" }
     }
 
     companion object {
+        /** 账本保留的天数。 */
         const val KEEP_DAYS = 400
+
+        /** 一个整点桶有多少毫秒;也是 [UsageRow.hour] 的进制。 */
         const val HOUR_MS = 3_600_000L
-        private const val FORMAT = 1
+
+        private const val HOURS_PER_DAY = 24L
     }
 }

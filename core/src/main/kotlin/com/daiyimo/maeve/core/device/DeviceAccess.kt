@@ -1,151 +1,294 @@
 package com.daiyimo.maeve.core.device
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/** 主屏状态,与 Agent 的虚拟屏无关。读不到状态时由端口报错,不推定已解锁。 */
-data class DeviceState(val interactive: Boolean, val keyguardShowing: Boolean, val deviceLocked: Boolean,
-    val secure: Boolean, val helperAvailable: Boolean, val userUnlocked: Boolean) {
-    val ready: Boolean get() = interactive && !keyguardShowing && !deviceLocked && userUnlocked
+/** 主屏状态，和 Agent 的虚拟屏无关。读不到状态时由端口报错，不推定已经解锁。 */
+data class DeviceState(
+    val interactive: Boolean,
+    val keyguardShowing: Boolean,
+    val deviceLocked: Boolean,
+    val secure: Boolean,
+    val helperAvailable: Boolean,
+    val userUnlocked: Boolean,
+) {
+    /** 亮屏、无锁屏、且用户存储已解密，三者缺一不可。 */
+    val ready: Boolean
+        get() = interactive && !keyguardShowing && !deviceLocked && userUnlocked
 }
 
 enum class CredentialKind { Pin, Password }
 
-/** 凭据只在本机确定性流程内短暂存在;不提供带原文的 toString。用完擦除。 */
-class DeviceCredential(val kind: CredentialKind, val value: CharArray, val revision: String = "") : AutoCloseable {
-    override fun close() { value.fill('\u0000') }
+/**
+ * 一次性的屏幕凭据。只在本机确定性流程里短暂存在：
+ * [close] 擦除字符，[toString] 不带原文，调用方也不应把它留在别处。
+ */
+class DeviceCredential(
+    val kind: CredentialKind,
+    val value: CharArray,
+    val revision: String = "",
+) : AutoCloseable {
+    override fun close() {
+        value.fill(WIPE)
+    }
+
     override fun toString() = "DeviceCredential($kind, redacted)"
 
     companion object {
+        private const val WIPE = '\u0000'
+        private val PIN_LENGTH = 4..16
+        private val PIN_CHARS = '0'..'9'
+        private val PASSWORD_LENGTH = 4..64
+        private val PASSWORD_CHARS = ' '..'~'
+
         fun valid(kind: CredentialKind, value: CharArray): Boolean = when (kind) {
-            CredentialKind.Pin -> value.size in 4..16 && value.all { it in '0'..'9' }
-            CredentialKind.Password -> value.size in 4..64 && value.all { it in ' '..'~' }
+            CredentialKind.Pin -> value.size in PIN_LENGTH && value.all { it in PIN_CHARS }
+            CredentialKind.Password -> value.size in PASSWORD_LENGTH && value.all { it in PASSWORD_CHARS }
         }
     }
 }
 
-/** 平台适配:唤醒、显示系统凭据页、确认输入目标、输入。绝不改变系统锁屏凭据。 */
+/**
+ * 平台适配层：唤醒、显示系统凭据页、确认输入目标、输入。
+ * 绝不改变系统锁屏凭据本身。
+ */
 interface DeviceAccessPort {
     suspend fun state(): DeviceState
+
     suspend fun wake(): Boolean
+
     suspend fun dismiss(): Boolean
-    /** 安全锁屏还停在通知/指纹页时,尝试一次通用的系统导航来露出凭据页;不识别文字,不输入凭据。 */
+
+    /**
+     * 安全锁屏还停在通知/指纹页时，尝试一次通用系统导航露出凭据页；
+     * 不识别文字，也不输入凭据。默认实现表示平台没有这个能力。
+     */
     suspend fun revealCredential(): Boolean = false
+
     suspend fun credentialReady(kind: CredentialKind): Boolean
-    /** 只读识别当前唯一的系统凭据框;未知、歧义或平台不支持时返回 null,不聚焦或输入。 */
+
+    /** 只读识别当前唯一的系统凭据框；未知、歧义或平台不支持时返回 null，不聚焦也不输入。 */
     suspend fun detectedCredentialKind(): CredentialKind? = null
+
     suspend fun enter(credential: DeviceCredential): Boolean
 }
 
-/** 许可和凭据来自手机设置,电脑不能修改。输入前持久化占位,失败/取消/崩溃后不再自动重试。 */
+/**
+ * 许可和凭据来自手机设置，电脑不能修改。输入前先持久化占位；
+ * 失败、取消或崩溃后保持占位，不再自动重试。
+ */
 interface DeviceAccessStore {
     val enabled: Boolean
+
     val credentialConfigured: Boolean
+
     val attemptBlocked: Boolean
+
     fun credential(): DeviceCredential?
+
     fun beginAttempt(credential: DeviceCredential): Boolean
+
     fun completeAttempt(credential: DeviceCredential)
 }
 
-data class DeviceAccessResult(val status: String, val state: DeviceState?, val enabled: Boolean,
-    val credentialConfigured: Boolean, val attemptBlocked: Boolean,
-    val storedKind: CredentialKind? = null, val detectedKind: CredentialKind? = null)
+data class DeviceAccessResult(
+    val status: String,
+    val state: DeviceState?,
+    val enabled: Boolean,
+    val credentialConfigured: Boolean,
+    val attemptBlocked: Boolean,
+    val storedKind: CredentialKind? = null,
+    val detectedKind: CredentialKind? = null,
+)
 
-/** 整个进程共用一份。并发调用串行化,成功依据系统状态,不依据按键或命令的返回码。 */
-class DeviceAccess(private val port: DeviceAccessPort, private val store: DeviceAccessStore,
-    private val pollMs: Long = 150, private val waitMs: Long = 5_000) {
-    private val mutex = Mutex()
+/**
+ * 主屏解锁状态机。整个进程共用一份实例：串行化所有会读写系统状态的调用，
+ * 保证并发请求最多只提交一次凭据。
+ *
+ * 成败只按系统状态判定，不按键事件或 shell 命令的返回码。
+ */
+class DeviceAccess(
+    private val port: DeviceAccessPort,
+    private val store: DeviceAccessStore,
+    private val pollMs: Long = 150,
+    private val waitMs: Long = 5_000,
+) {
+    /** 在凭据框出现之前，流程要么继续，要么已经带着结果结束。 */
+    private sealed interface FieldWatch {
+        object Ready : FieldWatch
+
+        class Stopped(val result: DeviceAccessResult) : FieldWatch
+    }
+
+    private val gate = Mutex()
 
     suspend fun state(): DeviceAccessResult {
-        val s = read()
-        return result(if (s == null) "device_unavailable" else "state", s)
+        val snapshot = readState()
+        return reply(if (snapshot == null) "device_unavailable" else "state", snapshot)
     }
 
-    suspend fun wake(): DeviceAccessResult = mutex.withLock {
-        prepare()?.let { return@withLock it }
-        val before = read() ?: return@withLock result("device_unavailable")
-        if (before.interactive) return@withLock result("awake", before)
-        if (!port.wake()) return@withLock result("wake_failed", read())
-        val after = await { it.interactive }
-        result(if (after?.interactive == true) "awake" else "wake_failed", after)
+    suspend fun wake(): DeviceAccessResult = gate.withLock {
+        preflight()?.let { return@withLock it }
+
+        val before = readState() ?: return@withLock reply("device_unavailable")
+        if (before.interactive) return@withLock reply("awake", before)
+
+        if (!port.wake()) return@withLock reply("wake_failed", readState())
+        val after = pollState { it.interactive }
+        reply(if (after?.interactive == true) "awake" else "wake_failed", after)
     }
 
-    suspend fun unlock(): DeviceAccessResult = mutex.withLock {
-        prepare()?.let { return@withLock it }
-        var now = read() ?: return@withLock result("device_unavailable")
-        if (now.ready) return@withLock result("unlocked", now)
-        if (!now.interactive) {
-            if (!port.wake()) return@withLock result("wake_failed", read())
-            now = await { it.interactive } ?: return@withLock result("device_unavailable")
-            if (!now.interactive) return@withLock result("wake_failed", now)
+    suspend fun unlock(): DeviceAccessResult = gate.withLock {
+        preflight()?.let { return@withLock it }
+
+        var screen = readState() ?: return@withLock reply("device_unavailable")
+        if (screen.ready) return@withLock reply("unlocked", screen)
+
+        if (!screen.interactive) {
+            if (!port.wake()) return@withLock reply("wake_failed", readState())
+            screen = pollState { it.interactive } ?: return@withLock reply("device_unavailable")
+            if (!screen.interactive) return@withLock reply("wake_failed", screen)
         }
-        if (!store.enabled) return@withLock result("disabled", now)
-        if (!port.dismiss()) return@withLock result("dismiss_failed", read())
-        now = await { it.ready || it.secure && it.keyguardShowing } ?: return@withLock result("device_unavailable")
-        if (now.ready) return@withLock result("unlocked", now)
-        if (!now.secure) return@withLock result("unlock_failed", now)
-        if (store.attemptBlocked) return@withLock result("attempt_blocked", now)
-        val credential = store.credential() ?: return@withLock result("credential_required", now)
-        credential.use {
-            if (!DeviceCredential.valid(it.kind, it.value)) return@withLock result("credential_unavailable", now)
-            var targetReady = false
-            var revealed = false
-            var waited = 0L
-            while (!targetReady && waited < waitMs) {
-                val current = read() ?: return@withLock result("device_unavailable")
-                if (current.ready) return@withLock result("unlocked", current)
-                if (!store.enabled) return@withLock result("disabled", current)
-                if (!current.helperAvailable) return@withLock result("helper_unavailable", current)
-                targetReady = port.credentialReady(it.kind)
-                // dismiss 后先给系统凭据页一个轮询周期;仍认不出时才做一次导航,避免在已经可用的 PIN 页上多余滑动。
-                if (!targetReady && !revealed && waited >= pollMs) {
-                    revealed = true
-                    port.revealCredential()
-                }
-                if (!targetReady) { delay(pollMs); waited += pollMs }
+
+        if (!store.enabled) return@withLock reply("disabled", screen)
+        if (!port.dismiss()) return@withLock reply("dismiss_failed", readState())
+
+        screen = pollState { it.ready || (it.secure && it.keyguardShowing) }
+            ?: return@withLock reply("device_unavailable")
+        if (screen.ready) return@withLock reply("unlocked", screen)
+        if (!screen.secure) return@withLock reply("unlock_failed", screen)
+        if (store.attemptBlocked) return@withLock reply("attempt_blocked", screen)
+
+        val pending = store.credential() ?: return@withLock reply("credential_required", screen)
+        pending.use { credential ->
+            if (!DeviceCredential.valid(credential.kind, credential.value)) {
+                return@withLock reply("credential_unavailable", screen)
             }
-            if (!targetReady) {
-                val current = read() ?: return@withLock result("device_unavailable")
-                if (current.ready) return@withLock result("unlocked", current)
-                if (!store.enabled) return@withLock result("disabled", current)
-                if (!current.helperAvailable) return@withLock result("helper_unavailable", current)
-                val detected = port.detectedCredentialKind()
-                if (detected != null && detected != it.kind) {
-                    return@withLock result("credential_kind_mismatch", current, it.kind, detected)
-                }
-                return@withLock result("unsupported_keyguard", current)
+            when (val watch = watchCredentialField(credential.kind)) {
+                FieldWatch.Ready -> submit(credential)
+                is FieldWatch.Stopped -> return@withLock watch.result
             }
-            if (!store.enabled) return@withLock result("disabled", read())
-            if (!store.beginAttempt(it)) return@withLock result("attempt_blocked", read())
-            // 从此刻起中断也保留占位,不重复输入。只有系统已解锁才清掉。
-            if (!store.enabled) return@withLock result("disabled", read())
-            if (!port.enter(it)) {
-                val after = read()
-                if (after?.ready == true) { store.completeAttempt(it); return@withLock result("unlocked", after) }
-                return@withLock result("input_failed", after)
-            }
-            now = await { s -> s.ready } ?: return@withLock result("device_unavailable")
-            if (now.ready) { store.completeAttempt(it); result("unlocked", now) }
-            else result("unlock_failed", now)
         }
     }
 
-    private suspend fun prepare(): DeviceAccessResult? {
-        if (!store.enabled) return result("disabled", read())
-        val s = read() ?: return result("device_unavailable")
-        if (!s.userUnlocked) return result("first_unlock_required", s)
-        if (!s.helperAvailable) return result("helper_unavailable", s)
-        return null
-    }
-
-    private suspend fun read(): DeviceState? = try { port.state() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
-    private suspend fun await(done: (DeviceState) -> Boolean): DeviceState? {
+    /**
+     * 凭据框出现前的等待循环。每个轮询周期先重读系统状态；
+     * 已解锁、被禁用或 helper 掉线都立即结束，绝不在这些状态下继续输入。
+     */
+    private suspend fun watchCredentialField(kind: CredentialKind): FieldWatch {
+        var navigated = false
         var waited = 0L
-        var s = read()
-        while (s != null && !done(s) && waited < waitMs) { delay(pollMs); waited += pollMs; s = read() }
-        return s
+
+        while (waited < waitMs) {
+            val current = readState() ?: return FieldWatch.Stopped(reply("device_unavailable"))
+            if (current.ready) return FieldWatch.Stopped(reply("unlocked", current))
+            if (!store.enabled) return FieldWatch.Stopped(reply("disabled", current))
+            if (!current.helperAvailable) return FieldWatch.Stopped(reply("helper_unavailable", current))
+            if (port.credentialReady(kind)) return FieldWatch.Ready
+
+            // dismiss 之后先给系统一个轮询周期；仍认不出时才导航一次，
+            // 避免在已经可用的 PIN 页上做多余的滑动。
+            if (!navigated && waited >= pollMs) {
+                navigated = true
+                port.revealCredential()
+            }
+            delay(pollMs)
+            waited += pollMs
+        }
+
+        val current = readState() ?: return FieldWatch.Stopped(reply("device_unavailable"))
+        if (current.ready) return FieldWatch.Stopped(reply("unlocked", current))
+        if (!store.enabled) return FieldWatch.Stopped(reply("disabled", current))
+        if (!current.helperAvailable) return FieldWatch.Stopped(reply("helper_unavailable", current))
+
+        val detected = port.detectedCredentialKind()
+        return when {
+            detected != null && detected != kind -> FieldWatch.Stopped(
+                reply("credential_kind_mismatch", current, storedKind = kind, detectedKind = detected),
+            )
+            else -> FieldWatch.Stopped(reply("unsupported_keyguard", current))
+        }
     }
-    private fun result(status: String, s: DeviceState? = null, storedKind: CredentialKind? = null, detectedKind: CredentialKind? = null) =
-        DeviceAccessResult(status, s, store.enabled, store.credentialConfigured, store.attemptBlocked, storedKind, detectedKind)
+
+    /**
+     * 真正按键之前的所有检查都在这里。一旦 [DeviceAccessStore.beginAttempt] 成功，
+     * 后续即使失败或中断也会留下占位，只有系统确认解锁才会清除。
+     */
+    private suspend fun submit(credential: DeviceCredential): DeviceAccessResult {
+        if (!store.enabled) return reply("disabled", readState())
+        if (!store.beginAttempt(credential)) return reply("attempt_blocked", readState())
+
+        // 占位已落盘，这里再确认一次许可，避免设置刚好在这一刻被关掉。
+        if (!store.enabled) return reply("disabled", readState())
+
+        if (!port.enter(credential)) {
+            val after = readState()
+            if (after?.ready == true) {
+                store.completeAttempt(credential)
+                return reply("unlocked", after)
+            }
+            return reply("input_failed", after)
+        }
+
+        val settled = pollState { it.ready } ?: return reply("device_unavailable")
+        return if (settled.ready) {
+            store.completeAttempt(credential)
+            reply("unlocked", settled)
+        } else {
+            reply("unlock_failed", settled)
+        }
+    }
+
+    /** 解锁前的公共门槛：设置许可、用户已解锁、helper 可用。任一不满足都不碰系统界面。 */
+    private suspend fun preflight(): DeviceAccessResult? {
+        if (!store.enabled) return reply("disabled", readState())
+
+        val snapshot = readState() ?: return reply("device_unavailable")
+        return when {
+            !snapshot.userUnlocked -> reply("first_unlock_required", snapshot)
+            !snapshot.helperAvailable -> reply("helper_unavailable", snapshot)
+            else -> null
+        }
+    }
+
+    /** 读一次状态；平台异常统一折算成“读不到”，但取消必须原样向上传播。 */
+    private suspend fun readState(): DeviceState? = try {
+        port.state()
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * 先读一次，条件不满足就按 [pollMs] 继续读，最多花 [waitMs]。
+     * 返回最后一次读到的状态（可能仍不满足条件），读不到时返回 null。
+     */
+    private suspend fun pollState(until: (DeviceState) -> Boolean): DeviceState? {
+        var snapshot = readState()
+        var waited = 0L
+        while (snapshot != null && !until(snapshot) && waited < waitMs) {
+            delay(pollMs)
+            waited += pollMs
+            snapshot = readState()
+        }
+        return snapshot
+    }
+
+    private fun reply(
+        status: String,
+        state: DeviceState? = null,
+        storedKind: CredentialKind? = null,
+        detectedKind: CredentialKind? = null,
+    ) = DeviceAccessResult(
+        status = status,
+        state = state,
+        enabled = store.enabled,
+        credentialConfigured = store.credentialConfigured,
+        attemptBlocked = store.attemptBlocked,
+        storedKind = storedKind,
+        detectedKind = detectedKind,
+    )
 }
