@@ -367,7 +367,11 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
         // 上次异常退出时留下的改动(App 被静音)在这里恢复
         scope.launch { taskRecovery.recover() }
         // 上次进程被杀时没结束的运行:现在就标为中断并告知,不等任务服务起来
-        runRecovery.recover().let { if (it.isNotEmpty()) Log.w("MaeveTask", "${it.size} runs interrupted by process restart") }
+        // 恢复要读改写整份运行账本并落盘,放后台:Application.onCreate 是启动关键路径
+        scope.launch {
+            val interrupted = runRecovery.recover()
+            if (interrupted.isNotEmpty()) Log.w("MaeveTask", "${interrupted.size} runs interrupted by process restart")
+        }
         // 用户已绑定并打开微信渠道时恢复监听；服务没任务也会继续收件
         wechat.ensureRunning()
         // 先对一下设备时区:没记过就记下当前的(升级上来的用户也有基线),和记下的不同就重算当地时间计划(关着时改了时区也补上)

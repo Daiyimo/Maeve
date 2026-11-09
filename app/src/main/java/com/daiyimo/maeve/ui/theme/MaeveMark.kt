@@ -1,11 +1,5 @@
 package com.daiyimo.maeve.ui.theme
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +7,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -69,6 +65,18 @@ import kotlin.math.sin
  * | [MarkState.Playing] | 最厚处沿环流动 | 从流动位置喷出 | 正在跑任务 |
  */
 enum class MarkState { Idle, Armed, Playing }
+
+/** 流动(Playing)一圈的时间,和呼吸周期同一个量级。 */
+private const val FLOW_MS = 2400
+
+/** 呼吸的抽帧间隔:2400ms 的周期、0.86→1.0 的厚度起伏,12fps 一个周期也有 24 个采样点,
+ * 余弦曲线线性插值的误差不到幅度的 1%,肉眼与满刷新率没有区别。 */
+private const val BREATH_FRAME_MS = 100L
+
+/** 流动的抽帧间隔:比呼吸密一点,峰值绕环移动更顺。 */
+private const val FLOW_FRAME_MS = 33L
+
+private const val NANOS_PER_MS = 1_000_000L
 
 /**
  * 几何常量。Compose、启动图、胶囊全部从这里取，标志不会各长各的。
@@ -132,19 +140,24 @@ fun MaeveMark(
     val reduce = MaeveTheme.reduceMotion
     val effective = if (breathing && state == MarkState.Idle) MarkState.Armed else state
     val phase = if (effective != MarkState.Idle && !reduce) {
-        val t = rememberInfiniteTransition(label = "mark")
-        val v by t.animateFloat(
-            initialValue = 0f, targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                tween(
-                    if (effective == MarkState.Playing) 2400 else MaeveMotion.BreathMs,
-                    easing = LinearEasing,
-                ),
-                RepeatMode.Restart,
-            ),
-            label = "mark-t",
-        )
-        v
+        // 抽帧驱动的循环相位:和原来的无限过渡一样是「按周期线性走完再重来」,只是不满刷新率跑。
+        // 每一帧要重画整圈日冕加几百颗微粒,欢迎页、关于页常驻这个动画,
+        // 60/120fps 全速率跑会让什么都没做的页面也一直烧着一个核;
+        // 呼吸抽到 12fps、流动抽到 30fps,采样点仍足够密,看不出区别。
+        produceState(0f, effective) {
+            val periodMs = if (effective == MarkState.Playing) FLOW_MS else MaeveMotion.BreathMs
+            val frameMs = if (effective == MarkState.Playing) FLOW_FRAME_MS else BREATH_FRAME_MS
+            var last = -1L
+            while (true) {
+                // 跟着帧时钟走:界面不可见时没有帧,协程就地睡,不耗电也不攒相位
+                withFrameNanos { now ->
+                    if (last < 0L || now - last >= frameMs * NANOS_PER_MS) {
+                        last = now
+                        value = (now / NANOS_PER_MS % periodMs).toFloat() / periodMs
+                    }
+                }
+            }
+        }.value
     } else {
         0f
     }

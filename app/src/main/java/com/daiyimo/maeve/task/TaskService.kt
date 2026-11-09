@@ -200,7 +200,10 @@ class TaskService : Service() {
             }
         }
         // 没结束的运行在 App 启动时就处理过了;这里只补一道(进程里只做一次),并把此刻在跑的运行排除在外
-        (application as com.daiyimo.maeve.MaeveApp).runRecovery.recover(center.runs().map { RunId(it.key) }.toSet())
+        // 恢复读改写整份运行账本并落盘,onCreate 是主线程路径,放后台
+        scope.launch(Dispatchers.IO) {
+            (application as com.daiyimo.maeve.MaeveApp).runRecovery.recover(center.runs().map { RunId(it.key) }.toSet())
+        }
     }
 
     private fun waitKeyOf(intent: Intent) = intent.getIntExtra(EXTRA_WAIT_KEY, -1).takeIf { it >= 0 }

@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -87,13 +88,13 @@ class ChatViewModelTest {
 
     private fun TestScope.vm(store: ConversationStore = ConversationStore(tmp.newFolder())) =
         ChatViewModel(backgroundScope, state, stage, actions, store, appLabel = { if (it == "com.chat") "聊天" else it },
-            activities = acts, steers = steerFlow).also { runCurrent() }
+            activities = acts, steers = steerFlow, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
 
     /** 和 [vm] 一样,但能指定这块屏开没开。 */
     private fun TestScope.vmWithScreen(open: MutableStateFlow<Boolean>) =
         ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()),
             appLabel = { if (it == "com.chat") "聊天" else it }, activities = acts, steers = steerFlow,
-            screenOpen = open).also { runCurrent() }
+            screenOpen = open, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
 
     private fun TestScope.emit(s: TaskState) {
         state.value = s
@@ -238,7 +239,7 @@ class ChatViewModelTest {
         var now = 1_000L
         val screen = MutableStateFlow(false)
         val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen, clock = { now },
-            activities = acts).also { runCurrent() }
+            activities = acts, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.send("查上海到杭州的车次", ok)
         emit(TaskState.Running(1, "", "phone_launch_app", reason = "打开 12306"))
         did(1, "act", "phone_launch_app", "cn.railway")
@@ -290,7 +291,7 @@ class ChatViewModelTest {
 
     // 随调用写的进度说明优先于调用里的用意
     @Test fun liveLinePrefersNarration() = runTest {
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder())).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.send("查车次", ok)
         emit(TaskState.Running(1, "先打开 12306 看看", "phone_launch_app", reason = "打开 12306", narration = "先打开 12306 看看"))
         assertEquals("先打开 12306 看看", liveLine(vm.ui.value.exchanges.single()))
@@ -318,7 +319,7 @@ class ChatViewModelTest {
 
     // 退回一次后仍没对上的几处:结果卡片上逐条列出,不打绿勾
     @Test fun unconfirmedItemsAreListedOnTheCard() = runTest {
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder())).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.send("看价格", ok)
         emit(TaskState.Running(1, "", "phone_observe"))
         emit(TaskState.Succeeded("咖啡豆 ¥79", verified = false, note = "未确认:79", unconfirmed = listOf("79")))
@@ -330,7 +331,7 @@ class ChatViewModelTest {
 
     @Test fun phoneHintOnlyWhileTheScreenIsOpen() = runTest {
         val screen = MutableStateFlow(false)
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.send("算一下 1+1", ok)
         emit(TaskState.Running(1, "", "run_command"))
         // 没开过屏(文件、网页、纯对话的任务):不说在后台操作手机
@@ -384,7 +385,7 @@ class ChatViewModelTest {
 
     @Test fun livePreviewVisibleOnlyWhileRunning() = runTest {
         val screen = MutableStateFlow(false)
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         assertFalse(vm.ui.value.pip.visible)
         vm.send("任务", ok)
         emit(TaskState.Running(1, "", null))
@@ -413,7 +414,7 @@ class ChatViewModelTest {
 
     @Test fun pipOnlyOnceTheTaskHasAScreen() = runTest {
         val screen = MutableStateFlow(false)
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.send("打开设置看安卓版本", ok)
         assertFalse(vm.ui.value.pip.visible)
         emit(TaskState.Running(1, "phone_observe", "phone_observe"))
@@ -443,7 +444,7 @@ class ChatViewModelTest {
     }
 
     @Test fun chatOnlyTaskNeverShowsPip() = runTest {
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = MutableStateFlow(false)).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = MutableStateFlow(false), io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.send("你好", ok)
         emit(TaskState.Running(1, "phone_observe", "phone_observe"))
         emit(TaskState.Running(2, ""))
@@ -484,7 +485,7 @@ class ChatViewModelTest {
 
     @Test fun pipAutoExpandsWhenNeedsUser() = runTest {
         val screen = MutableStateFlow(false)
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.send("任务", ok)
         emit(TaskState.Running(1, "", null))
         screen.value = true
@@ -515,7 +516,7 @@ class ChatViewModelTest {
 
     @Test fun startWaitsUntilServiceFinishedPreviousTask() = runTest {
         val busy = MutableStateFlow(true)
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), busy)
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), busy, io = StandardTestDispatcher(testScheduler))
         runCurrent()
         assertTrue(vm.send("下一个", ok))
         runCurrent()
@@ -527,7 +528,7 @@ class ChatViewModelTest {
 
     @Test fun stopWhileQueuedBehindServiceCancelsTheStart() = runTest {
         val busy = MutableStateFlow(true)
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), busy)
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), busy, io = StandardTestDispatcher(testScheduler))
         runCurrent()
         assertTrue(vm.send("下一个", ok))
         runCurrent()
@@ -543,7 +544,7 @@ class ChatViewModelTest {
     // 等着服务空下来时,那条消息下面说清在等前一个任务,不像卡住了;交给服务后换成任务自己的进展
     @Test fun waitingMessageSaysItWaitsForThePreviousTask() = runTest {
         val busy = MutableStateFlow(true)
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), busy)
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), busy, io = StandardTestDispatcher(testScheduler))
         runCurrent()
         assertTrue(vm.send("下一个", ok))
         runCurrent()
@@ -561,7 +562,7 @@ class ChatViewModelTest {
     // 对话里看得到在排队;那个任务收尾后这条照常开始、做完
     private fun TestScope.raceVm(): ChatViewModel {
         val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), MutableStateFlow(false),
-            shownTask = shown, activeConversations = active).also { runCurrent() }
+            shownTask = shown, activeConversations = active, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         assertTrue(vm.send("订会议室", ok))
         assertEquals(listOf("start:订会议室"), calls)
         val mine = vm.ui.value.conversationId!!
@@ -654,7 +655,7 @@ class ChatViewModelTest {
         val store = ConversationStore(tmp.newFolder())
         val id = store.newConversation()
         store.append(id, Turn("查天气", "晴", "succeeded", runId = "r-old"))
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, endedRunId = endedRunId)
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, endedRunId = endedRunId, io = StandardTestDispatcher(testScheduler))
         runCurrent()
         vm.openConversation(id)
         assertEquals("r-old", vm.ui.value.exchanges.single().runId)
@@ -684,7 +685,7 @@ class ChatViewModelTest {
         val summarizing = MutableStateFlow<Set<String>>(emptySet())
         val store = ConversationStore(tmp.newFolder())
         val id = store.newConversation()
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, endedRunId = endedRunId, summarizing = summarizing)
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, endedRunId = endedRunId, summarizing = summarizing, io = StandardTestDispatcher(testScheduler))
         runCurrent()
         vm.openConversation(id)
         vm.send("看四个设置页", ok)
@@ -717,7 +718,7 @@ class ChatViewModelTest {
     @Test fun stoppedTurnWithoutSummaryDropsTheHint() = runTest {
         val endedRunId = MutableStateFlow<String?>(null)
         val summarizing = MutableStateFlow<Set<String>>(emptySet())
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), endedRunId = endedRunId, summarizing = summarizing)
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), endedRunId = endedRunId, summarizing = summarizing, io = StandardTestDispatcher(testScheduler))
         runCurrent()
         vm.send("看设置", ok)
         emit(TaskState.Running(1, "看看", "phone_launch_app"))
@@ -740,7 +741,7 @@ class ChatViewModelTest {
                 imported += id to uris
                 com.daiyimo.maeve.cap.sandbox.ImportResult(listOf("/workspace/inbox/报表 (1).csv" to 2048L), listOf("big.iso"))
             },
-            describeAttachments = { uris -> uris.map { PendingAttachment(it, if (it.endsWith("1")) "报表.csv" else "big.iso", 10L) } },
+            describeAttachments = { uris -> uris.map { PendingAttachment(it, if (it.endsWith("1")) "报表.csv" else "big.iso", 10L) } }, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         // 沙箱没就绪:没有附件按钮,也不收
         assertFalse(vm.ui.value.attachEnabled)
@@ -776,7 +777,7 @@ class ChatViewModelTest {
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()),
             sandboxReady = MutableStateFlow(true),
-            importAttachments = { _, _ -> com.daiyimo.maeve.cap.sandbox.ImportResult(listOf("/workspace/inbox/a.jpg" to 3L * 1024 * 1024), emptyList()) },
+            importAttachments = { _, _ -> com.daiyimo.maeve.cap.sandbox.ImportResult(listOf("/workspace/inbox/a.jpg" to 3L * 1024 * 1024), emptyList()) }, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         assertTrue(vm.toggleAttachment(PendingAttachment("content://m/1", "a.jpg", 1L)))
         assertTrue(vm.send("", ok))
@@ -788,7 +789,7 @@ class ChatViewModelTest {
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()),
             sandboxReady = MutableStateFlow(true),
-            importAttachments = { _, _ -> com.daiyimo.maeve.cap.sandbox.ImportResult(emptyList(), listOf("huge.mov")) },
+            importAttachments = { _, _ -> com.daiyimo.maeve.cap.sandbox.ImportResult(emptyList(), listOf("huge.mov")) }, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         vm.toggleAttachment(PendingAttachment("content://m/1", "huge.mov", 1L))
         vm.send("", ok)
@@ -802,7 +803,7 @@ class ChatViewModelTest {
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()),
             sandboxReady = MutableStateFlow(true),
-            describeAttachments = { uris -> uris.map { PendingAttachment(it, "p.jpg", 1L) } },
+            describeAttachments = { uris -> uris.map { PendingAttachment(it, "p.jpg", 1L) } }, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         repeat(AttachTray.LIMIT) { assertTrue(vm.toggleAttachment(PendingAttachment("content://m/$it", "p.jpg", 1L))) }
         assertFalse(vm.toggleAttachment(PendingAttachment("content://m/x", "p.jpg", 1L)))
@@ -820,7 +821,7 @@ class ChatViewModelTest {
     @Test fun sharedFilesShowOnTheLiveExchangeAndAreRestored() = runTest {
         val files = MutableStateFlow<List<com.daiyimo.maeve.chat.SharedFile>>(emptyList())
         val store = ConversationStore(tmp.newFolder())
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, sharedFiles = files).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, sharedFiles = files, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.send("导出表格", ok)
         emit(TaskState.Running(1, "整理"))
         val f = com.daiyimo.maeve.chat.SharedFile("表.xlsx", 5000, "Download/Maeve/表.xlsx", "content://media/1")
@@ -852,7 +853,7 @@ class ChatViewModelTest {
     ) = ChatViewModel(
         backgroundScope, state, stage, actions, store, serviceBusy = MutableStateFlow(true),
         parallelFlag = { true }, shownTask = shown, activeConversations = active, runGoal = { if (it == "b") "查快递" else null },
-        sharedFiles = files,
+        sharedFiles = files, io = StandardTestDispatcher(testScheduler)
     ).also { runCurrent() }
 
     private fun TestScope.show(conversationId: String, s: TaskState) {
@@ -866,7 +867,7 @@ class ChatViewModelTest {
         store.append("a", Turn("查天气", "晴", "succeeded"))
         store.append("b", Turn("订票", "好了", "succeeded"))
         val removed = mutableListOf<String>()
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, removeConversation = { removed += it; store.delete(it) }).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, removeConversation = { removed += it; store.delete(it) }, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.openConversation("a")
         assertEquals(1, vm.ui.value.exchanges.size)
 
@@ -893,7 +894,7 @@ class ChatViewModelTest {
         store.append("b", Turn("订票", "好了", "succeeded"))
         store.append("c", Turn("写周报", "好了", "succeeded"))
         var now = 1_000L
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, clock = { now }, removeConversation = { store.delete(it) }).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, clock = { now }, removeConversation = { store.delete(it) }, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         fun sections() = drawerSections(store.list(), CurrentConversation(null, false, "", ""), emptyList(), vm::runningGoal, vm.canSwitch(), 0L)
 
         vm.renameConversation("b", " 回家的票 ")
@@ -920,7 +921,7 @@ class ChatViewModelTest {
     @Test fun aDeletedConversationThatIsWrittenAgainIsListedAgain() = runTest {
         val store = ConversationStore(tmp.newFolder())
         store.append("a", Turn("查天气", "晴", "succeeded"))
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, removeConversation = { store.delete(it) }).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, removeConversation = { store.delete(it) }, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.deleteConversation("a")
         runCurrent()
         assertEquals(setOf("a"), vm.deleted.value)
@@ -1014,12 +1015,14 @@ class ChatViewModelTest {
     )
     private val items = MutableStateFlow(listOf(item("a", "用户点外卖不要香菜"), item("b", "用户喝咖啡不加糖"), item("p1", "点外卖先比价")))
 
-    private fun TestScope.vmWithHistory(): ChatViewModel {
+    private suspend fun TestScope.vmWithHistory(): ChatViewModel {
         val store = ConversationStore(tmp.newFolder())
         store.append("c1", Turn("点外卖", "已下单\n依据: 订单页", "succeeded", runId = "r1"))
-        return ChatViewModel(backgroundScope, state, stage, actions, store, runNotes = notesFlow, learning = learning, memoryItems = items).also {
-            runCurrent(); it.openConversation("c1"); runCurrent()
-        }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, runNotes = notesFlow, learning = learning, memoryItems = items, io = StandardTestDispatcher(testScheduler))
+        runCurrent()
+        vm.openConversation("c1")
+        runCurrent()
+        return vm
     }
 
     private val remembered = com.daiyimo.maeve.core.memory.MemoryNote(com.daiyimo.maeve.core.memory.NoteKind.added, "a", "t1", null)
@@ -1037,7 +1040,7 @@ class ChatViewModelTest {
         // 重新打开对话时从存下的那一轮读回(只存了种类和编号)
         val store = ConversationStore(tmp.newFolder())
         store.append("c2", Turn("点外卖", "ok", "succeeded", runId = "r2", memoryNotes = listOf(remembered), usedMemory = listOf("a")))
-        val vm2 = ChatViewModel(backgroundScope, state, stage, actions, store).also { runCurrent(); it.openConversation("c2"); runCurrent() }
+        val vm2 = ChatViewModel(backgroundScope, state, stage, actions, store, io = StandardTestDispatcher(testScheduler)).also { runCurrent(); it.openConversation("c2"); runCurrent() }
         assertEquals(listOf(remembered), vm2.ui.value.exchanges.single().memoryNotes)
     }
 
@@ -1150,7 +1153,7 @@ class ChatViewModelTest {
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), serviceBusy = MutableStateFlow(true),
             endedRunId = MutableStateFlow("r-shown-other"), endedRunIds = ended,
-            parallelFlag = { true }, shownTask = shown, activeConversations = active,
+            parallelFlag = { true }, shownTask = shown, activeConversations = active, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         vm.switchTo("a")
         assertTrue(vm.send("设置版本号", ok))
@@ -1170,7 +1173,7 @@ class ChatViewModelTest {
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), serviceBusy = MutableStateFlow(true),
             endedRunIds = MutableStateFlow(mapOf("a" to "r-a")), liveRunId = { live[it] },
-            parallelFlag = { true }, shownTask = shown, activeConversations = active,
+            parallelFlag = { true }, shownTask = shown, activeConversations = active, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         vm.switchTo("a")
         assertTrue(vm.send("设置版本号", ok))
@@ -1189,7 +1192,7 @@ class ChatViewModelTest {
         var flag = false
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()),
-            parallelFlag = { flag }, shownTask = shown, activeConversations = active,
+            parallelFlag = { flag }, shownTask = shown, activeConversations = active, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         flag = true
         assertTrue(vm.send("设置版本号", ok))
@@ -1209,7 +1212,7 @@ class ChatViewModelTest {
         var flag = false
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()),
-            parallelFlag = { flag }, shownTask = shown, activeConversations = active,
+            parallelFlag = { flag }, shownTask = shown, activeConversations = active, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         active.value = listOf("b")
         runCurrent()
@@ -1224,7 +1227,7 @@ class ChatViewModelTest {
         val screen = MutableStateFlow(true)
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), screenOpen = screen,
-            parallelFlag = { true }, shownTask = shown, activeConversations = active,
+            parallelFlag = { true }, shownTask = shown, activeConversations = active, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         vm.switchTo("a")
         // 别的对话的任务开着屏:新任务还没有屏,不出画中画
@@ -1259,7 +1262,7 @@ class ChatViewModelTest {
         val vm = ChatViewModel(
             ui, state, stage, immediate, ConversationStore(tmp.newFolder()), serviceBusy = MutableStateFlow(true),
             parallelFlag = { true }, shownTask = shown, activeConversations = active, runGoal = goals::get, runState = runStates::get,
-            sharedFiles = files,
+            sharedFiles = files, io = StandardTestDispatcher(testScheduler)
         )
         vm.switchTo("a")
         assertTrue(vm.send("第一个任务", ok))
@@ -1377,7 +1380,7 @@ class ChatViewModelTest {
 
     @Test fun withdrawingBeforeTheTaskStartsPreventsLaterDelivery() = runTest {
         val busy = MutableStateFlow(true)
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), serviceBusy = busy)
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), serviceBusy = busy, io = StandardTestDispatcher(testScheduler))
         runCurrent()
         vm.send("当前任务", ok)
         vm.send("别发这句", ok)
@@ -1488,7 +1491,7 @@ class ChatViewModelTest {
     // 原话的任务还在等服务收尾上一个时插的话:先开始原话的任务,再把插话交给它
     @Test fun steerDuringPendingStartIsSentAfterTheStart() = runTest {
         val busy = MutableStateFlow(true)
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), busy, steers = steerFlow)
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()), busy, steers = steerFlow, io = StandardTestDispatcher(testScheduler))
         runCurrent()
         assertTrue(vm.send("订会议室", ok))
         assertTrue(vm.send("要大一点的", ok))
@@ -1515,7 +1518,7 @@ class ChatViewModelTest {
 
         val busy = MutableStateFlow(true)
         calls.clear()
-        val vm2 = ChatViewModel(backgroundScope, MutableStateFlow(TaskState.Idle), stage, actions, ConversationStore(tmp.newFolder()), busy)
+        val vm2 = ChatViewModel(backgroundScope, MutableStateFlow(TaskState.Idle), stage, actions, ConversationStore(tmp.newFolder()), busy, io = StandardTestDispatcher(testScheduler))
         runCurrent()
         vm2.send("订会议室", ok)
         vm2.send("要大一点的", ok)
@@ -1646,7 +1649,7 @@ class ChatViewModelTest {
     /** 开关关着,服务的状态带着对话编号([shown])。 */
     private fun TestScope.taggedVm(store: ConversationStore, endedRunId: MutableStateFlow<String?> = MutableStateFlow(null)) = ChatViewModel(
         backgroundScope, state, stage, actions, store, endedRunId = endedRunId,
-        shownTask = shown, activeConversations = active, runGoal = { if (it == "a") "胶囊里说的" else null }, steers = steerFlow, activities = acts,
+        shownTask = shown, activeConversations = active, runGoal = { if (it == "a") "胶囊里说的" else null }, steers = steerFlow, activities = acts, io = StandardTestDispatcher(testScheduler)
     ).also { runCurrent() }
 
     /** 服务显示的任务换了状态:带编号的那份先写,和服务里一样。 */
@@ -1790,7 +1793,7 @@ class ChatViewModelTest {
 
     private fun TestScope.registryVm(store: ConversationStore, parallel: Boolean) = ChatViewModel(
         backgroundScope, state, stage, actions, store, appLabel = { if (it == "com.chat") "聊天" else it }, endedRunId = endedRun, parallelFlag = { parallel },
-        shownTask = shown, activeConversations = active, runGoal = goals::get, steers = steerFlow, activities = acts,
+        shownTask = shown, activeConversations = active, runGoal = goals::get, steers = steerFlow, activities = acts, io = StandardTestDispatcher(testScheduler)
     ).also { runCurrent() }
 
     /** 服务开始一个任务:先显示它(带编号的状态、状态),之后才登记进任务列表(对话、原话)。 */
@@ -2010,7 +2013,7 @@ class ChatViewModelTest {
         val workspace = FakeBranchWorkspace()
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, store,
-            branchWorkspace = workspace, branchTitle = { it + " · 分支" }, clock = { 123L },
+            branchWorkspace = workspace, branchTitle = { it + " · 分支" }, clock = { 123L }, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         vm.openConversation(source)
 
@@ -2032,7 +2035,7 @@ class ChatViewModelTest {
         val source = store.newConversation()
         store.append(source, Turn("帮我整理发票", "好了", "succeeded"))
         val vm = ChatViewModel(
-            backgroundScope, state, stage, actions, store, branchTitle = { it + " · 分支" },
+            backgroundScope, state, stage, actions, store, branchTitle = { it + " · 分支" }, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         vm.openConversation(source)
         val target = vm.branchFrom(0)
@@ -2046,7 +2049,7 @@ class ChatViewModelTest {
         val source = store.newConversation()
         store.append(source, Turn("一", "甲", "succeeded"))
         val activeNow = MutableStateFlow<List<String>>(emptyList())
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, activeConversations = activeNow).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, activeConversations = activeNow, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.openConversation(source)
 
         activeNow.value = listOf(source)
@@ -2071,7 +2074,7 @@ class ChatViewModelTest {
         val source = store.newConversation()
         store.append(source, Turn("一", "甲", "succeeded"))
         val workspace = FakeBranchWorkspace(BranchCopyResult(copied = 0, truncated = true))
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, branchWorkspace = workspace).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, branchWorkspace = workspace, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.openConversation(source)
 
         assertNotNull(vm.branchFrom(0))
@@ -2105,7 +2108,7 @@ class ChatViewModelTest {
         val workspace = FakeBranchWorkspace()
         val vm = ChatViewModel(
             backgroundScope, state, stage, actions, store,
-            branchWorkspace = workspace, branchTitle = { it + " · 分支" }, clock = { 7L },
+            branchWorkspace = workspace, branchTitle = { it + " · 分支" }, clock = { 7L }, io = StandardTestDispatcher(testScheduler)
         ).also { runCurrent() }
         vm.openConversation(source)
 
@@ -2128,7 +2131,7 @@ class ChatViewModelTest {
         val store = ConversationStore(tmp.newFolder())
         val source = store.newConversation()
         store.append(source, Turn("看这个\n附件:/workspace/inbox/a.pdf(1 KB)", "好", "succeeded"))
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, branchTitle = { it + " · 分支" }).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, branchTitle = { it + " · 分支" }, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.openConversation(source)
 
         val result = vm.branchBefore(0)
@@ -2148,7 +2151,7 @@ class ChatViewModelTest {
         val source = store.newConversation()
         store.append(source, Turn("一", "甲", "succeeded"))
         val activeNow = MutableStateFlow<List<String>>(emptyList())
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, activeConversations = activeNow).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, activeConversations = activeNow, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         assertNull(vm.branchTurn("r0"))
         assertNull(vm.retryTurn("u0"))
         vm.openConversation(source)
@@ -2180,7 +2183,7 @@ class ChatViewModelTest {
         val source = store.newConversation()
         store.append(source, Turn("一", "甲", "succeeded"))
         val activeNow = MutableStateFlow<List<String>>(emptyList())
-        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, activeConversations = activeNow).also { runCurrent() }
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store, activeConversations = activeNow, io = StandardTestDispatcher(testScheduler)).also { runCurrent() }
         vm.openConversation(source)
 
         activeNow.value = listOf(source)

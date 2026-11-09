@@ -457,8 +457,10 @@ class ChatViewModel(
         scope.launch {
             store.changes.collect { id ->
                 if (id == _ui.value.conversationId) syncSaved(id)
-                // 删掉的对话又有人往里存了:重新列出来
-                if (id in _deleted.value && id !in deleting && store.turns(id).isNotEmpty()) _deleted.update { it - id }
+                // 删掉的对话又有人往里存了:重新列出来。读盘走 IO:collect 是挂起函数,
+                // 每条变更处理完才收下一条,顺序和以前一致,只是不再占主线程
+                if (id in _deleted.value && id !in deleting &&
+                    withContext(io) { store.turns(id).isNotEmpty() }) _deleted.update { it - id }
             }
         }
         // 并行时只收屏上这个对话的任务的接管进度
@@ -823,12 +825,13 @@ class ChatViewModel(
      * 切到某个对话(并行时任务在跑也能切):载入它的历史;它有任务在跑就让服务显示那个任务,并接上它此刻的状态。
      * 开关关着时同 [openConversation]。
      */
-    fun switchTo(conversationId: String) {
+    suspend fun switchTo(conversationId: String) {
         refreshParallel()
         if (!parallel()) return openConversation(conversationId)
         lingerJob?.cancel()
         if (conversationId != _ui.value.conversationId) parkLive()
-        val past = saved(conversationId)
+        // 历史要全量读并解析对话文件:走 IO,点下去不至于粘一下才换屏
+        val past = withContext(io) { saved(conversationId) }
         liveIndex = -1
         // 没有任务的对话不带别的任务的接管进度
         _ui.update { ChatUi(conversationId = conversationId, exchanges = past, takeoverStage = Takeover.Stage.None) }
@@ -871,9 +874,10 @@ class ChatViewModel(
      * 对话页重新看得见时(回到前台、从别的页面回来):别处存进屏上这个对话的轮次补上;
      * 这个对话有任务在跑(从悬浮胶囊、定时任务开始的)而这里没在跟,或服务显示的换成了别的任务,就接上它。
      */
-    fun refresh() {
+    suspend fun refresh() {
         refreshParallel()
         val id = _ui.value.conversationId ?: return
+        // syncSaved 要读盘(全量读并解析对话文件);调用方在自己的协程里调,和以前的先后顺序一致
         syncSaved(id)
         if (id !in activeConversations.value || pendingStart?.isActive == true) return
         // 开关关着、这里没在跟任务时换对话要等任务结束:那时屏上这个对话的任务就是服务里唯一在跑的
@@ -888,8 +892,9 @@ class ChatViewModel(
      * 存储里这个对话变了(别处跑完存进一轮、改了某一轮):屏上按存下的那份重排。这里跟过的那几轮按运行编号认
      * (没有编号的按原话),用这里的那份(带步骤和用时),不重复;还没存进去的接在后面;正在跟的那一问一答留在最后。
      */
-    private fun syncSaved(conversationId: String) {
-        val stored = saved(conversationId)
+    private suspend fun syncSaved(conversationId: String) {
+        // 存下的那份要全量读并解析对话文件:走 IO,主线程做会让每次任务完成都掉帧
+        val stored = withContext(io) { saved(conversationId) }
         _ui.update { ui ->
             if (ui.conversationId != conversationId) return@update ui
             val live = ui.exchanges.getOrNull(liveIndex)
@@ -986,11 +991,12 @@ class ChatViewModel(
     }
 
     /** 切到某个对话;任务在跑时不切。 */
-    fun openConversation(id: String) {
+    suspend fun openConversation(id: String) {
         refreshParallel()
         if (parallel()) return switchTo(id)
         if (busy()) return
-        val past = saved(id)
+        // 历史要全量读并解析对话文件:走 IO(调用方在协程里调),点下去不至于粘一下才换屏
+        val past = withContext(io) { saved(id) }
         liveIndex = -1
         _ui.update { ChatUi(conversationId = id, exchanges = past, takeoverStage = it.takeoverStage, attachEnabled = it.attachEnabled) }
         markCurrent(CurrentChat.Open(id))
@@ -1183,8 +1189,9 @@ class ChatViewModel(
         }
         if (!s.active() && s != TaskState.Idle) {
             liveIndex = -1
-            // 这一轮可能已先一步存进对话、补到了屏上:按运行编号并成一条
-            _ui.value.conversationId?.let(::syncSaved)
+            // 这一轮可能已先一步存进对话、补到了屏上:按运行编号并成一条。
+            // syncSaved 要读盘,放后台:屏上这一问一答已经就地收尾,不等它
+            _ui.value.conversationId?.let { id -> scope.launch { syncSaved(id) } }
             if (s is TaskState.Succeeded) {
                 lingerJob = scope.launch {
                     delay(DONE_LINGER_MS)

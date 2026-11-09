@@ -53,12 +53,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -657,9 +660,14 @@ fun ChatWithDrawer(
             //   变暗由 ModalNavigationDrawer 自带的 scrim 承担；模糊一律不做。
             modifier = if (!menuOpen) Modifier else Modifier.clearAndSetSemantics {},
             drawerContent = {
-                // 只在打开时读盘;每次打开、开着时存储里有对话改过都重读一次
-                val all = remember(open, revision) { if (open) conversations() else emptyList() }
-                val stored = remember(open, revision, ui.conversationId) { if (open) ui.conversationId?.let(conversationTitle) else null }
+                // 只在打开时读盘;每次打开、开着时存储里有对话改过都重读一次。
+                // 读盘走 IO:组合期是主线程,对话多了要遍历全部对话文件,同步读会掉帧
+                val all by produceState<List<ConversationSummary>>(emptyList(), open, revision) {
+                    value = if (open) withContext(Dispatchers.IO) { conversations() } else emptyList()
+                }
+                val stored by produceState<String?>(null, open, revision, ui.conversationId) {
+                    value = if (open) withContext(Dispatchers.IO) { ui.conversationId?.let(conversationTitle) } else null
+                }
                 val last = ui.exchanges.lastOrNull()
                 val running = vm.busy()
                 val current = CurrentConversation(
@@ -688,8 +696,8 @@ fun ChatWithDrawer(
                             val id = item.id
                             when {
                                 id == null || id == ui.conversationId -> Unit
-                                item.running -> vm.switchTo(id)
-                                else -> vm.openConversation(id)
+                                item.running -> scope.launch { vm.switchTo(id) }
+                                else -> scope.launch { vm.openConversation(id) }
                             }
                         }
                     },

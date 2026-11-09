@@ -239,6 +239,8 @@ private fun MaeveRoot(store: ProviderStore, monitor: SystemStatusMonitor, activi
     val check = Prerequisites.check(status, hasMain)
     val context = LocalContext.current
     val app = context.applicationContext as MaeveApp
+    // 打开对话、刷新对话都要读盘,在界面协程里调(ViewModel 的那几个入口是挂起函数)
+    val uiScope = rememberCoroutineScope()
     // 查到的新版本:侧栏、设置首页、关于页的红点都看它
     val updateState by app.updates.state.collectAsState()
     LaunchedEffect(requestedConversation) {
@@ -303,7 +305,7 @@ private fun MaeveRoot(store: ProviderStore, monitor: SystemStatusMonitor, activi
         Route.Chat -> screenStates.SaveableStateProvider(Route.Chat.name) {
             // 对话页重新看得见(回到前台、从别的页面回来):补上别处存进来的轮次,接上别处开始的任务
             LifecycleStartEffect(Unit) {
-                app.chat.refresh()
+                uiScope.launch { app.chat.refresh() }
                 onStopOrDispose {}
             }
             ChatWithDrawer(
@@ -434,11 +436,11 @@ private fun MaeveRoot(store: ProviderStore, monitor: SystemStatusMonitor, activi
             SourceScreen(vm, back)
         }
         Route.Plans -> PlansScreen(context, onBack = back, onOpenConversation = {
-            app.chat.openConversation(it)
+            uiScope.launch { app.chat.openConversation(it) }
             nav.reset()
         })
         Route.Screens -> ScreensScreen(app.taskState, onBack = back, onOpenConversation = {
-            app.chat.openConversation(it)
+            uiScope.launch { app.chat.openConversation(it) }
             nav.reset()
         })
     }
