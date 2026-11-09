@@ -1,14 +1,15 @@
 package com.daiyimo.maeve.core.mcp
 
-import com.daiyimo.maeve.core.remote.RemoteStatus
-import com.daiyimo.maeve.core.remote.RemoteTasks
-import com.daiyimo.maeve.core.remote.RemoteTask
-import com.daiyimo.maeve.core.remote.RemoteTaskService
-import com.daiyimo.maeve.core.remote.RemoteTaskError
 import com.daiyimo.maeve.core.device.DeviceAccess
+import com.daiyimo.maeve.core.remote.RemoteStatus
+import com.daiyimo.maeve.core.remote.RemoteTask
+import com.daiyimo.maeve.core.remote.RemoteTaskError
+import com.daiyimo.maeve.core.remote.RemoteTaskService
+import com.daiyimo.maeve.core.remote.RemoteTasks
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -19,7 +20,9 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 
-/** 电脑能用的工具:只给高层的「把事交给 Maeve」,具体怎么做由手机上的 Maeve 自己决定。 */
+/**
+ * 交给电脑的高层工具:只暴露「把任务交给 Maeve」这一类动作,具体怎么在手机上完成由 Maeve 自己决定。
+ */
 class McpTaskTools(
     private val service: RemoteTaskService,
     device: DeviceAccess? = null,
@@ -28,76 +31,128 @@ class McpTaskTools(
         this(RemoteTaskService(tasks, pollMs), device)
 
     private val deviceTools = device?.let(::McpDeviceTools)
+
     class ToolError(message: String) : Exception(message)
 
     data class Tool(val name: String, val description: String, val schema: JsonObject, val readOnly: Boolean)
 
-    val tools: List<Tool> = listOf(
-        Tool(RUN, "Hand Maeve a task to do on the Android phone. Maeve runs its own agent on the phone (apps, web, files) " +
-            "and records the task in a conversation the user can see in the app. Returns a task_id right away; " +
-            "follow it with maeve_wait_task. Payments and confirmations are never approved over MCP.",
-            schema(required = listOf("goal")) {
-                putJsonObject("goal") { put("type", "string"); put("description", "What to get done, in plain words, as you would tell a person.") }
+    val tools: List<Tool> = taskTools() + deviceTools?.tools.orEmpty()
+
+    private fun taskTools(): List<Tool> = listOf(
+        Tool(
+            name = RUN,
+            description = "Hand Maeve a task to do on the Android phone. Maeve runs its own agent on the phone (apps, web, files) " +
+                "and records the task in a conversation the user can see in the app. Returns a task_id right away; " +
+                "follow it with maeve_wait_task. Payments and confirmations are never approved over MCP.",
+            schema = schema(required = listOf("goal")) {
+                putJsonObject("goal") {
+                    put("type", "string")
+                    put("description", "What to get done, in plain words, as you would tell a person.")
+                }
                 putJsonObject("request_id") {
-                    put("type", "string"); put("format", "uuid")
-                    put("description", "Choose a lowercase UUID before submitting. It is also the task_id for status after a lost reply. Reuse only for the same request.")
+                    put("type", "string")
+                    put("format", "uuid")
+                    put(
+                        "description",
+                        "Choose a lowercase UUID before submitting. It is also the task_id for status after a lost reply. Reuse only for the same request.",
+                    )
                 }
                 putJsonObject("conversation") {
                     put("type", "string")
                     put("description", "Optional: continue a conversation returned by an earlier task so Maeve keeps its context.")
                 }
-            }, readOnly = false),
-        Tool(STATUS, "Current state of a task: status, latest progress note, the question it is waiting on, or the final answer.",
-            schema(required = listOf("task_id")) { taskIdProp() }, readOnly = true),
-        Tool(WAIT, "Wait until the task's status changes or it finishes, up to timeout_s seconds " +
-            "(default $DEFAULT_WAIT_S, at most $MAX_WAIT_S), then return its state. Call again to keep waiting.",
-            schema(required = listOf("task_id")) {
+            },
+            readOnly = false,
+        ),
+        Tool(
+            name = STATUS,
+            description = "Current state of a task: status, latest progress note, the question it is waiting on, or the final answer.",
+            schema = schema(required = listOf("task_id")) { taskIdProp() },
+            readOnly = true,
+        ),
+        Tool(
+            name = WAIT,
+            description = "Wait until the task's status changes or it finishes, up to timeout_s seconds " +
+                "(default $DEFAULT_WAIT_S, at most $MAX_WAIT_S), then return its state. Call again to keep waiting.",
+            schema = schema(required = listOf("task_id")) {
                 taskIdProp()
                 putJsonObject("timeout_s") {
-                    put("type", "integer"); put("minimum", 1); put("maximum", MAX_WAIT_S)
+                    put("type", "integer")
+                    put("minimum", 1)
+                    put("maximum", MAX_WAIT_S)
                     put("description", "Longest wait in seconds.")
                 }
-            }, readOnly = true),
-        Tool(ANSWER, "Answer the question Maeve asked in this task (status waiting_for_answer). " +
-            "Cannot approve payments, confirmations or steps handed to the user; those stay on the phone.",
-            schema(required = listOf("task_id", "text")) {
+            },
+            readOnly = true,
+        ),
+        Tool(
+            name = ANSWER,
+            description = "Answer the question Maeve asked in this task (status waiting_for_answer). " +
+                "Cannot approve payments, confirmations or steps handed to the user; those stay on the phone.",
+            schema = schema(required = listOf("task_id", "text")) {
                 taskIdProp()
-                putJsonObject("text") { put("type", "string"); put("description", "The answer.") }
-            }, readOnly = false),
-        Tool(STEER, "Add instructions to a running remote task, keeping its task_id and context. " +
-            "Accepted means queued, not executed; check steers in maeve_task_status for the message_id. " +
-            "Does not answer questions, approve payments, resume paused tasks, or start a new task.",
-            schema(required = listOf("task_id", "text")) {
-                taskIdProp()
-                putJsonObject("text") { put("type", "string"); put("minLength", 1); put("maxLength", RemoteTaskService.MAX_STEER) }
-            }, readOnly = false),
-        Tool(CANCEL, "Stop a remote task.",
-            schema(required = listOf("task_id")) { taskIdProp() }, readOnly = false),
-        Tool(LIST, "Recent remote tasks, newest first.",
-            schema(required = emptyList()) {
-                putJsonObject("limit") { put("type", "integer"); put("minimum", 1); put("maximum", MAX_LIST); put("description", "How many (default $DEFAULT_LIST).") }
-            }, readOnly = true),
-    ) + deviceTools?.tools.orEmpty()
-
-    /** MCP 的工具定义(tools/list 的一项)。 */
-    fun definitions(): JsonArray = buildJsonArray {
-        tools.forEach { t ->
-            add(buildJsonObject {
-                put("name", t.name)
-                put("description", t.description)
-                put("inputSchema", t.schema)
-                putJsonObject("annotations") {
-                    put("readOnlyHint", t.readOnly)
-                    if (!t.readOnly) put("destructiveHint", t.name != ANSWER)
-                    put("openWorldHint", t.name == RUN || t.name == STEER)
+                putJsonObject("text") {
+                    put("type", "string")
+                    put("description", "The answer.")
                 }
-            })
+            },
+            readOnly = false,
+        ),
+        Tool(
+            name = STEER,
+            description = "Add instructions to a running remote task, keeping its task_id and context. " +
+                "Accepted means queued, not executed; check steers in maeve_task_status for the message_id. " +
+                "Does not answer questions, approve payments, resume paused tasks, or start a new task.",
+            schema = schema(required = listOf("task_id", "text")) {
+                taskIdProp()
+                putJsonObject("text") {
+                    put("type", "string")
+                    put("minLength", 1)
+                    put("maxLength", RemoteTaskService.MAX_STEER)
+                }
+            },
+            readOnly = false,
+        ),
+        Tool(
+            name = CANCEL,
+            description = "Stop a remote task.",
+            schema = schema(required = listOf("task_id")) { taskIdProp() },
+            readOnly = false,
+        ),
+        Tool(
+            name = LIST,
+            description = "Recent remote tasks, newest first.",
+            schema = schema(required = emptyList()) {
+                putJsonObject("limit") {
+                    put("type", "integer")
+                    put("minimum", 1)
+                    put("maximum", MAX_LIST)
+                    put("description", "How many (default $DEFAULT_LIST).")
+                }
+            },
+            readOnly = true,
+        ),
+    )
+
+    /** MCP 的工具定义,也就是 tools/list 里的一项。 */
+    fun definitions(): JsonArray = buildJsonArray {
+        tools.forEach { add(definitionOf(it)) }
+    }
+
+    private fun definitionOf(tool: Tool): JsonObject = buildJsonObject {
+        put("name", tool.name)
+        put("description", tool.description)
+        put("inputSchema", tool.schema)
+        putJsonObject("annotations") {
+            put("readOnlyHint", tool.readOnly)
+            if (!tool.readOnly) put("destructiveHint", tool.name != ANSWER)
+            put("openWorldHint", tool.name == RUN || tool.name == STEER)
         }
     }
 
     fun has(name: String) = tools.any { it.name == name }
 
-    /** 只做协议参数转换和 MCP 展示;业务规则由两个入口共用的 service 执行。 */
+    /** 这里只做协议参数转换和 MCP 展示;真正的业务规则在两个入口共用的 service 里。 */
     suspend fun call(name: String, args: JsonObject): JsonObject = try {
         when (name) {
             RUN -> {
@@ -105,70 +160,91 @@ class McpTaskTools(
                 describe(service.start(string(args, "goal").orEmpty(), optString(args, "conversation"), requestId))
             }
             STATUS -> describe(service.get(taskId(args)))
-            WAIT -> service.wait(taskId(args), optInt(args, "timeout_s") ?: DEFAULT_WAIT_S).let { r ->
+            WAIT -> {
+                val waited = service.wait(taskId(args), optInt(args, "timeout_s") ?: DEFAULT_WAIT_S)
                 buildJsonObject {
-                    describe(r.task).forEach { (k, v) -> put(k, v) }
-                    put("changed", r.changed)
+                    describe(waited.task).forEach { (key, value) -> put(key, value) }
+                    put("changed", waited.changed)
                 }
             }
             ANSWER -> buildJsonObject {
                 put("task_id", service.answer(taskId(args), string(args, "text").orEmpty()))
                 put("accepted", true)
             }
-            STEER -> service.steer(taskId(args), string(args, "text").orEmpty()).let { r -> buildJsonObject {
-                put("task_id", r.taskId); put("message_id", r.messageId); put("accepted", true)
-            } }
-            CANCEL -> service.cancel(taskId(args)).let { r -> buildJsonObject {
-                put("task_id", r.taskId); put("cancelled", r.accepted)
-                r.status?.let { put("status", it) }
-            } }
+            STEER -> {
+                val receipt = service.steer(taskId(args), string(args, "text").orEmpty())
+                buildJsonObject {
+                    put("task_id", receipt.taskId)
+                    put("message_id", receipt.messageId)
+                    put("accepted", true)
+                }
+            }
+            CANCEL -> {
+                val result = service.cancel(taskId(args))
+                buildJsonObject {
+                    put("task_id", result.taskId)
+                    put("cancelled", result.accepted)
+                    result.status?.let { put("status", it) }
+                }
+            }
             LIST -> buildJsonObject {
                 putJsonArray("tasks") {
-                    service.list(optInt(args, "limit") ?: DEFAULT_LIST).forEach { t ->
+                    service.list(optInt(args, "limit") ?: DEFAULT_LIST).forEach { task ->
                         add(buildJsonObject {
-                            put("task_id", t.id); put("status", RemoteStatus.of(t.state)); put("goal", t.goal)
-                            put("conversation", t.conversation); put("started_at_ms", t.createdAtMs)
+                            put("task_id", task.id)
+                            put("status", RemoteStatus.of(task.state))
+                            put("goal", task.goal)
+                            put("conversation", task.conversation)
+                            put("started_at_ms", task.createdAtMs)
                         })
                     }
                 }
             }
-            else -> if (deviceTools?.tools?.any { it.name == name } == true) deviceTools.call(name, args)
+            else -> {
+                if (deviceTools?.tools?.any { it.name == name } == true) deviceTools.call(name, args)
                 else throw ToolError("Unknown tool: $name")
+            }
         }
     } catch (e: RemoteTaskError) {
-        // 按错误类型换回原 MCP 客户端看到的说法(带 MCP 工具名);共用服务不包含 MCP 命令名。
-        throw ToolError(when (e) {
-            is RemoteTaskError.NoSuchTask -> "No MCP task with id ${e.id}"
-            is RemoteTaskError.BadConversation -> "conversation must be one returned by an earlier MCP task (looks like mcp-<uuid>)"
-            is RemoteTaskError.NeedsPhone -> ON_PHONE_NOTE
-            is RemoteTaskError.QuestionClosed -> "The question is no longer open; check maeve_task_status."
-            is RemoteTaskError.General -> e.message.orEmpty()
-        })
+        // 共用服务并不知道 MCP 的工具名,按错误类型换回 MCP 客户端原本看到的说法。
+        throw ToolError(translated(e))
+    }
+
+    private fun translated(error: RemoteTaskError): String = when (error) {
+        is RemoteTaskError.NoSuchTask -> "No MCP task with id ${error.id}"
+        is RemoteTaskError.BadConversation -> "conversation must be one returned by an earlier MCP task (looks like mcp-<uuid>)"
+        is RemoteTaskError.NeedsPhone -> ON_PHONE_NOTE
+        is RemoteTaskError.QuestionClosed -> "The question is no longer open; check maeve_task_status."
+        is RemoteTaskError.General -> error.message.orEmpty()
     }
 
     private fun taskId(args: JsonObject) = string(args, "task_id").orEmpty()
 
     private fun describe(task: RemoteTask): JsonObject = buildJsonObject {
-        RemoteStatus.describe(task).forEach { (k, v) -> put(k, v) }
+        RemoteStatus.describe(task).forEach { (key, value) -> put(key, value) }
         when (RemoteStatus.of(task.state)) {
             RemoteStatus.WAITING_ON_PHONE -> put("note", ON_PHONE_NOTE)
-            RemoteStatus.WAITING_FOR_ANSWER -> put("note", "Maeve is asking a question. Reply with maeve_answer; the user can also answer on the phone.")
+            RemoteStatus.WAITING_FOR_ANSWER ->
+                put("note", "Maeve is asking a question. Reply with maeve_answer; the user can also answer on the phone.")
         }
     }
 
-    private fun string(args: JsonObject, key: String): String? = when (val v = args[key]) {
+    private fun string(args: JsonObject, key: String): String? = when (val value = args[key]) {
         null, JsonNull -> null
-        is JsonPrimitive -> if (v.isString) v.content else throw ToolError("$key must be a string")
+        is JsonPrimitive -> if (value.isString) value.content else throw ToolError("$key must be a string")
         else -> throw ToolError("$key must be a string")
     }
 
     private fun optString(args: JsonObject, key: String) = string(args, key)
 
-    private fun optInt(args: JsonObject, key: String): Int? = when (val v = args[key]) {
+    private fun optInt(args: JsonObject, key: String): Int? = when (val value = args[key]) {
         null, JsonNull -> null
-        is JsonPrimitive -> if (v.isString) throw ToolError("$key must be an integer")
-            else v.intOrNull ?: v.contentOrNull?.toDoubleOrNull()?.takeIf { it % 1.0 == 0.0 && it in -1e9..1e9 }?.toInt()
-                ?: throw ToolError("$key must be an integer")
+        is JsonPrimitive -> {
+            if (value.isString) throw ToolError("$key must be an integer")
+            val whole = value.intOrNull ?: value.contentOrNull?.toDoubleOrNull()
+                ?.takeIf { it % 1.0 == 0.0 && it in -1e9..1e9 }?.toInt()
+            whole ?: throw ToolError("$key must be an integer")
+        }
         else -> throw ToolError("$key must be an integer")
     }
 
@@ -192,14 +268,17 @@ class McpTaskTools(
         fun newConversation(): String = RemoteTaskService.newConversation()
         fun isConversation(id: String): Boolean = RemoteTaskService.isConversation(id)
 
-        private fun schema(required: List<String>, props: kotlinx.serialization.json.JsonObjectBuilder.() -> Unit) = buildJsonObject {
+        private fun schema(required: List<String>, props: JsonObjectBuilder.() -> Unit) = buildJsonObject {
             put("type", "object")
             putJsonObject("properties", props)
             putJsonArray("required") { required.forEach { add(it) } }
             put("additionalProperties", false)
         }
 
-        private fun kotlinx.serialization.json.JsonObjectBuilder.taskIdProp() =
-            putJsonObject("task_id") { put("type", "string"); put("description", "The task_id returned by maeve_run_task.") }
+        private fun JsonObjectBuilder.taskIdProp() =
+            putJsonObject("task_id") {
+                put("type", "string")
+                put("description", "The task_id returned by maeve_run_task.")
+            }
     }
 }
