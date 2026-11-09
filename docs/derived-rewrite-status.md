@@ -9,24 +9,24 @@
 
 ```
 group         files       loc   derived   ratio
-src             763    124761    107043   85.8%
+src             763    125337    106009   84.6%
 tests           749    101589    100021   98.5%
 res             330     22469     22095   98.3%
 tools            57      8578      8343   97.3%
-docs             87     10663      4848   45.5%
+docs             87     10716      4848   45.2%
 core-text       175      3295      3233   98.1%
 eval            129      3184      3078   96.7%
 licenses         12      3002      2983   99.4%
-other            34      3857      2345   60.8%
+other            36      3990      2345   58.8%
 assets            6      1912      1892   99.0%
 native            2       853       812   95.2%
 flutter          14      2033         0    0.0%
-total          2358    286196    256693   89.7%
+total          2360    286958    255659   89.1%
 ```
 
-`src` 里 `derived_ratio >= 0.60` 的文本文件还有 **595** 个：`core` 240 个、`app` 353 个，
-外加 `AndroidManifest.xml`（81%）和 `baseline-prof.txt`（70%）两个散件。
-全仓不含 `licenses` 的组合计 **2,079** 个（`tests` 745、`src` 595、`res` 321、
+`src` 里 `derived_ratio >= 0.60` 的文本文件还有 **579** 个：`core/src/main` 224 个、
+`app/src/main` 355 个（含 `AndroidManifest.xml` 81% 和 `baseline-prof.txt` 70% 两个散件）。
+全仓不含 `licenses` 的组合计 **2,063** 个（`tests` 745、`src` 579、`res` 321、
 `core-text` 161、`eval` 129、`tools` 54、`docs` 51、`other` 16、`assets` 5、`native` 2）。
 
 放行条件仍是计划第 9 节：`derived_ratio >= 0.60` 的文本文件数为 0，且 6 个 Mika
@@ -37,8 +37,8 @@ total          2358    286196    256693   89.7%
 | 波次 | 范围 | 状态 | 说明 |
 |---|---|---|---|
 | 0 | 审计脚本 + 基线 | ✅ 完成 | `tooling/derived-audit.py` 可重算 `derived-files.tsv`，`--summary` / `--check` 可直接用 |
-| 1 | 词汇层与叶子 | ✅ 26/26 包完成 | 22 个叶子包 + `shell` / `adb` / `general` 收尾 + `uistate`（含 `uistate/tools`）46 文件全部 `<60%`；只剩 `core:model`（16 文件）作为通往波次 2 的桥 |
-| 2 | 核心能力层 | 🚧 进行中 | `core:cap/root` → `core:cap/mcp` → `core:cap/web`（含 cdp）→ `core:cap/sandbox` → `core:cap/phone` |
+| 1 | 词汇层与叶子 | ✅ 27/27 包完成 | 22 个叶子包 + `shell` / `adb` / `general` 收尾 + `uistate`（含 `uistate/tools`）46 文件 + `model` 16 文件，全部 `<60%` |
+| 2 | 核心能力层 | 🚧 进行中 | `core:model` 已完成；下一步 `core:cap/root` → `core:cap/mcp` → `core:cap/web`（含 cdp）→ `core:cap/sandbox` → `core:cap/phone` |
 | 3 | 智能体核心 | ⬜ 未开始 | |
 | 4 | app 能力绑定 | ⬜ 未开始 | |
 | 5 | app 状态 / 设置 / 任务 / 语音 | ⬜ 未开始 | |
@@ -213,9 +213,23 @@ total          2358    286196    256693   89.7%
 提取私有助手、长文案抽文件级 `private const val`、声明重排。`HandleObstacle` 的 feedback
 键仍以显式 `when` 分支保留字面量（`PromptLayoutTest.noOrphanFeedbackKeys` 要求）。
 
-至此 **Wave 1 全部 26 个包清零**：22 个叶子包 + `shell` / `adb` / `general` 收尾 +
-`uistate`（含 `uistate/tools`）。`core` 的 `src` 热文件从基线时的 332 降到 **240**，
-剩下的全部属于波次 2/3（`cap/*`、`agent`、`model`、`tool`、`knowledge` 等）。
+至此 **Wave 1 全部 27 个包清零**：22 个叶子包 + `shell` / `adb` / `general` 收尾 +
+`uistate`（含 `uistate/tools`）+ `model`。`core` 的 `src` 热文件从基线时的 332 降到 **224**，
+剩下的全部属于波次 2/3（`cap/*`、`agent`、`tool`、`knowledge` 等）。
+
+第十三批（`core:model`，16 文件，4 个并行 worktree）：
+
+| 分组 | 文件 | 重写后衍生 | 行为验证 |
+|---|---|---:|---|
+| a 基础类型 | ChatModel / Capabilities / Messages / ClientHeaders / ModelError / ModelJson / InferenceRequest | 35.7%–54.5% | model 包定向测试 157 个全绿 |
+| b HTTP 与错误层 | HttpSupport / ModelAccessErrors / ModelHttp / LeakedToolMarkup | 45.0%–53.4% | 同上 |
+| c Anthropic / Gemini | AnthropicModel / GeminiModel | 48.8% / 50.7% | 同上 |
+| d OpenAI / Catalog | OpenAiCompatModel / ResponsesModel / ModelCatalog | 49.6%–56.0% | 同上 |
+
+四个 worktree 文件互不重叠，合并干净；合并后全量 `:core:test` 2954 tests / 45 个已知失败，
+与基线完全一致。`core:model` 整包 3,327 行 / 1,696 衍生行（51%），热文件清零。
+`LeakedToolMarkup` 是最后一块：scan 的内联逻辑收成 `recoverDsml` / `hidePartialTail` /
+`tidyBlankLines`，DSML 开闭标记拼接收成 `dsmlOpen` / `dsmlClose`，`paramsJson` 不再重复扫两遍参数块。
 
 ## 每批的硬约束
 
@@ -228,9 +242,8 @@ total          2358    286196    256693   89.7%
 
 ## 下一批
 
-Wave 1 已清零，进入 Wave 2（核心能力层）。按计划第 7 节的顺序：
+Wave 2（核心能力层）进行中，`core:model` 已清零。按计划第 7 节的顺序：
 
-- `core:model`（16 文件）——词汇层最后一块，也是能力层的地基（所有 cap 都要过模型接口）
 - `core:cap/root`（3 文件）→ `core:cap/mcp`（7 文件）
 - `core:cap/web`（36 文件，含 `cdp` 8 个）→ `core:cap/sandbox`（10 文件）→ `core:cap/phone`（17 文件）
 - 每批同步重写对应的 `core/src/main/resources` 提示词 / 知识条目（`core-text` 161 个热文件）

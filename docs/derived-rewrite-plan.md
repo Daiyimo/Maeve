@@ -14,13 +14,13 @@
 
 当前状态（2026-11-09 全量重算，基线仍是 root commit `7cf7ff3`）：
 
-- 仓库受版本控制文件 **2,358 个**（其中 27 个二进制、2,331 个文本文件，约 **28.6 万行**）。
-- 其中 **衍生行 256,693 行，占全部文本行的 89.7%**。
-- 按"还需投入"拆开，真正必须重写的只剩 **src 里 595 个文件 / 96,501 行**：
+- 仓库受版本控制文件 **2,360 个**（其中 27 个二进制、2,333 个文本文件，约 **28.7 万行**）。
+- 其中 **衍生行 255,659 行，占全部文本行的 89.1%**。
+- 按"还需投入"拆开，真正必须重写的只剩 **src 里 579 个文件 / 93,771 行**：
 
 | 衍生量归属 | 文件 | 衍生 LOC | 占比 | 处置 |
 |---|---:|---:|---:|---|
-| 核心 + app 源码（`:core` / `:app` 的 Kotlin、Java，`ratio>=60%`） | 595 | 96,501 | 39.8% | **继续重写** |
+| 核心 + app 源码（`:core` / `:app` 的 Kotlin、Java，`ratio>=60%`） | 579 | 93,771 | 39.1% | **继续重写** |
 | 测试（单元 / androidTest / 快照，`ratio>=60%`） | 745 | 100,020 | 41.2% | 当行为规格用，随模块一起重写 |
 | `res` 字符串 / drawable / xml | 321 | 22,082 | 9.1% | 跟着每个界面逐文件重写 |
 | `tools`（relay / maeve-cli / sandbox / i18n） | 54 | 8,343 | 3.4% | 独立小模块，最后处理 |
@@ -29,10 +29,10 @@
 | `eval` 任务 JSON | 129 | 3,078 | 1.3% | 行为规格，**保留并扩充**，不重打 |
 | `assets` / `native`（page.js、selfcheck、maeverun.c、aidl） | 7 | 2,704 | 1.1% | 沙箱与桥接层，随能力层走 |
 
-- 已经重写完（全部文件 `ratio<60%`）的 **26 个 `core` 包**：`record` `trace` `gate` `mcp`
+- 已经重写完（全部文件 `ratio<60%`）的 **27 个 `core` 包**：`record` `trace` `gate` `mcp`
   `workspace` `usage` `net` `trigger` `wechat` `userscreen` `observation` `capability`
   `visual` `prompt` `settings` `device` `child` `access` `context` `script` `resource` `risk`
-  `shell` `adb` `general` `uistate`（含 `uistate/tools`）。**Wave 1 词汇层至此清零。**
+  `shell` `adb` `general` `uistate`（含 `uistate/tools`）`model`。**Wave 1 词汇层至此清零。**
 - **最大的省钱点**仍是 `app:ui` 全家 106 个 Compose 文件（22,542 衍生行）：`flutter/` 已是
   100% 自有代码，按 `FLUTTER_MIGRATION.md` 的路线这批发**删除而不是重写**。但 Flutter 目前还是
   演示态（无模型调用、无持久化、无 agent 执行），删除的前置条件没变，见第 8 节。
@@ -75,7 +75,7 @@ derived_loc   = 当前行数 - 相对基线新增行数
 
 | 组 | 文本文件 | 文本 LOC | 衍生 LOC | 衍生% | 二进制 |
 |---|---:|---:|---:|---:|---:|
-| `src`（Kotlin / Java 产品码，含 3 个 `.so` 二进制） | 763 | 124,761 | 107,043 | 86% | 3 |
+| `src`（Kotlin / Java 产品码，含 3 个 `.so` 二进制） | 763 | 125,337 | 106,009 | 85% | 3 |
 | `tests`（单元 + androidTest + 快照） | 749 | 101,589 | 100,021 | 98% | 1 |
 | `res`（10 语言字符串 / drawable / xml） | 330 | 22,469 | 22,095 | 98% | 0 |
 | `tools`（relay / maeve-cli / sandbox / i18n） | 57 | 8,578 | 8,343 | 97% | 1 |
@@ -87,10 +87,10 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | `assets`（web/page.js、selfcheck、licenses、rootfs） | 6 | 1,912 | 1,892 | 99% | 1 |
 | `native`（`cpp/maeverun`、`aidl`） | 2 | 853 | 812 | 95% | 0 |
 | `flutter` | 14 | 2,033 | 0 | 0% | 0 |
-| **合计** | **2,331** | **286,196** | **256,693** | **89.7%** | **27** |
+| **合计** | **2,333** | **286,958** | **255,659** | **89.1%** | **27** |
 
-结论：**`flutter/` 是唯一整体干净的新代码；`docs` 干净了 45%；`src` 从 94% 降到 86%——
-降下来的 8 个百分点全部来自波次 1 已完成的 26 个 `core` 包。**
+结论：**`flutter/` 是唯一整体干净的新代码；`docs` 干净了 45%；`src` 从 94% 降到 85%——
+降下来的 9 个百分点全部来自波次 1 已完成的 27 个 `core` 包。**
 
 ## 3. 源码分包清单（重写主表）
 
@@ -108,11 +108,11 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | `app:capsule` | 12 | 4,254 | 4,034 | 95% | 12 | 12 hot |
 | `app:settings` | 24 | 3,642 | 3,619 | 99% | 26 | 24 hot |
 | `core:uistate` | 46 | 5,489 | 2,983 | 54% | 21 | done |
-| `core:model` | 16 | 2,751 | 2,730 | 99% | 14 | 16 hot |
 | `core:cap/phone` | 17 | 2,682 | 2,677 | 100% | 14 | 17 hot |
 | `core:cap/mcp` | 7 | 2,059 | 2,059 | 100% | 5 | 7 hot |
 | `app:cap/sandbox` | 17 | 2,101 | 2,047 | 97% | 24 | 17 hot |
 | `app:voice` | 15 | 1,947 | 1,946 | 100% | 14 | 15 hot |
+| `core:model` | 16 | 3,327 | 1,696 | 51% | 14 | done |
 | `core:tool` | 18 | 1,530 | 1,528 | 100% | 21 | 18 hot |
 | `app:browser` | 11 | 1,432 | 1,400 | 98% | 10 | 11 hot |
 | `core:shell` | 14 | 2,481 | 1,383 | 56% | 14 | done |
@@ -180,17 +180,17 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | `app:shell` | 2 | 15 | 15 | 100% | 2 | 2 hot |
 | `core:risk` | 1 | 17 | 8 | 47% | 0 | done |
 | `app:sandbox` | 1 | 6 | 6 | 100% | 0 | 1 hot |
-| **合计** | **763** | **124,761** | **107,043** | **86%** | | |
+| **合计** | **763** | **125,337** | **106,009** | **85%** | | |
 
 读表要点：
 
-- **波次 1 已推平 26 个 `core` 包**（22 个叶子 + `shell` / `adb` / `general` + `uistate`）。
-  `core` 的 `hot` 文件从基线时的 332 降到 **240**，`app` 一个都还没动（353 hot）。
+- **波次 1 已推平 27 个 `core` 包**（22 个叶子 + `shell` / `adb` / `general` + `uistate` + `model`）。
+  `core` 的 `hot` 文件从基线时的 332 降到 **224**，`app` 一个都还没动（355 hot）。
 - **`app:ui` 是最大单一衍生块**（22,542 行、80%）：它是消费者不是地基，删它不牵连上游，
   但必须等 Flutter 接通真实数据（见第 8 节）。
 - **接下来最大的两块是 `core:agent`（37 文件、49 个测试）和 `core:cap/web`（36 文件）**，
-  `fan-out` 都很高——上层全都建在这两层的类型上。`core:model`（16 文件）是两者共同的地基，
-  放在波次 2 开头做。
+  `fan-out` 都很高——上层全都建在这两层的类型上。`core:model`（16 文件）已完成，
+  波次 2 从 `core:cap/root` 继续。
 - **测试覆盖不均**：`core:agent` 49 个、`app:cap/phone` 71 个、`app:ui` 64 个；
   而 `core:general` 只有 1 个、`app:mcp` / `core:assembly` / `core:observation` / `core:context`
   / `app:MaeveApp.kt` 是 0。0 测试的包重写前必须先补规格，否则无法验证等价性。
@@ -271,7 +271,7 @@ derived_loc   = 当前行数 - 相对基线新增行数
 
 | 归属 | 文件 | 需重表达 LOC |
 |---|---:|---:|
-| 核心 + app 源码 | 595 | 96,501 |
+| 核心 + app 源码 | 579 | 93,771 |
 | 测试 | 745 | 100,020 |
 | `res` 字符串 | 321 | 22,082 |
 | `tools` | 54 | 8,343 |
@@ -279,9 +279,9 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | `core-text` | 161 | 3,232 |
 | `eval` | 129 | 3,078 |
 | `assets` / `native` | 7 | 2,704 |
-| **合计** | **2,079** | **242,710** |
+| **合计** | **2,063** | **239,980** |
 
-对比首版计划（741 个源码文件 / 113,021 行）：源码热文件已减少 **146 个 / 16,520 行**。
+对比首版计划（741 个源码文件 / 113,021 行）：源码热文件已减少 **162 个 / 19,250 行**。
 按重写速率折算（**假设值，可自行替换**）：
 
 | 速率（LOC/人日） | 人日 | 1 人 | 3 人 | 6 人 |
@@ -290,7 +290,7 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | 300（中性，有测试做规格 + AI 辅助） | 831 | 3.8 年 | 15 个月 | 8 个月 |
 | 600（激进，模板化批处理） | 416 | 1.9 年 | 8 个月 | 4 个月 |
 
-按第 0 节的结构拆，真正"必须手写"的只剩 96,501 行（39.8%）；其余 60% 是测试、可删的
+按第 0 节的结构拆，真正"必须手写"的只剩 93,771 行（39.1%）；其余 60% 是测试、可删的
 Compose、以及可批处理的文本资源。**所以有效工作量接近上表的一半。**
 
 难度分档（按包，随进度更新）：
@@ -301,9 +301,9 @@ Compose、以及可批处理的文本资源。**所以有效工作量接近上�
 | 中（有明确接口边界） | `core:model` `core:uistate` `core:tool` `core:memory` `core:replay` `core:skills` `core:knowledge` `core:eval` `core:verify` `core:action` `core:remote` `core:oauth` `core:vision` `core:run` `core:guard` `core:assembly` `core:chatgpt` `core:selfcheck` `core:settings` `app:settings` `app:task` `app:capsule` `app:voice` `app:chat` `app:record` `app:replay` `app:memory` `app:takeover` `app:mcp` | 有测试兜底，按测试反推实现 |
 | 高（系统 / 特权 / 协议） | `core:cap/*`（CDP、无障碍、rootfs、MCP）、`app:cap/*`、`core:agent`、`app:intercept`、`app:selfcheck`、`maeverun.c`、`assets/web/page.js` | 依赖 Android 私有 API、CDP 协议、seccomp；等价性只能靠设备验证 |
 
-进度标注：低档里的 `core` 部分（observation ～ workspace 共 21 包）与中档里的 `core:uistate`、
-高档里的 `core:shell` / `core:adb` / `core:general` **已全部完成**；中档剩余的
-`core:model` `core:tool` `core:memory` `core:replay` `core:skills` `core:knowledge` `core:eval`
+进度标注：低档里的 `core` 部分（observation ～ workspace 共 21 包）、中档里的 `core:uistate`
+`core:model`、高档里的 `core:shell` / `core:adb` / `core:general` **已全部完成**；中档剩余的
+`core:tool` `core:memory` `core:replay` `core:skills` `core:knowledge` `core:eval`
 `core:verify` `core:action` `core:remote` `core:oauth` `core:vision` `core:run` `core:guard`
 `core:assembly` `core:chatgpt` `core:selfcheck` 和高档的 `core:cap/*` `core:agent` 是接下来的主战场。
 
@@ -315,8 +315,8 @@ Compose、以及可批处理的文本资源。**所以有效工作量接近上�
 | 波次 | 范围 | 衍生 LOC（源码） | 状态 | 说明 |
 |---|---|---:|---|---|
 | **0. 脚手架** | `git worktree` 固定 `7cf7ff3` 作为只读规格源；`docs/derived-files.tsv` 的生成脚本固化成 `tooling/derived-audit.py`，逐包统计固化成 `tooling/package-audit.py` | 0 | ✅ 完成 | `--summary` / `--write` / `--check` 可直接用；本表数字全部由它重算 |
-| **1. 词汇层与叶子** | `core` 下 26 个无状态 / 窄接口包 | ~18,600 | ✅ 完成 | `record` `trace` `gate` `mcp` `workspace` `usage` `net` `trigger` `wechat` `userscreen` `observation` `capability` `visual` `prompt` `settings` `device` `child` `access` `context` `script` `resource` `risk` `shell` `adb` `general` `uistate` 已全部 `<60%`；`core` 的 `src` 热文件 332 → **240** |
-| **2. 核心能力层** | `core:model` → `core:cap/root` → `core:cap/mcp` → `core:cap/web`（含 cdp）→ `core:cap/sandbox` → `core:cap/phone` | ~12,600 | 🚧 进行中 | 包内按"文件数少 + 测试多"排序；`core:model` 是词汇层最后一块，也是所有 cap 的地基 |
+| **1. 词汇层与叶子** | `core` 下 27 个无状态 / 窄接口包 | ~18,600 | ✅ 完成 | `record` `trace` `gate` `mcp` `workspace` `usage` `net` `trigger` `wechat` `userscreen` `observation` `capability` `visual` `prompt` `settings` `device` `child` `access` `context` `script` `resource` `risk` `shell` `adb` `general` `uistate` `model` 已全部 `<60%`；`core` 的 `src` 热文件 332 → **224** |
+| **2. 核心能力层** | `core:cap/root` → `core:cap/mcp` → `core:cap/web`（含 cdp）→ `core:cap/sandbox` → `core:cap/phone` | ~12,600 | 🚧 进行中 | 包内按"文件数少 + 测试多"排序；`core:model` 已随波次 1 完成，是能力层的地基 |
 | **3. 智能体核心** | `core:agent` `core:tool` `core:action` `core:knowledge` `core:skills` `core:memory` `core:verify` `core:replay` `core:eval` `core:guard` `core:remote` `core:mcp` `core:run` `core:vision` `core:selfcheck` `core:settings` `core:assembly` `core:chatgpt` `core:oauth` | ~18,200 | ⬜ 未开始 | 行为风险最高（`AgentLoop.kt` 1,039 行、49 个测试）。放在能力层之后 |
 | **4. app 能力绑定** | `app:cap/root` → `app:cap/web/cdp` → `app:cap/phone/shell/adb` → `app:cap/sandbox` → `app:cap/phone/setup` → `app:cap/phone/display` → `app:cap/phone/a11y` → `app:cap/phone/shell` → `app:cap/web` | ~18,400 | ⬜ 未开始 | 全仓最大的单一衍生块（`app:cap` 112 文件 / 18,435 行 / 99%）。无障碍服务、悬浮窗、WebView 池、shell/proot 都在这 |
 | **5. app 状态 / 设置 / 任务 / 语音** | `app:settings` → `app:task` → `app:capsule` → `app:voice` → `app:chat` `app:record` `app:replay` `app:memory` `app:takeover` `app:mcp` `app:selfcheck` `app:intercept` `app:wechat` `app:browser` `app:about` `app:knowledge` `app:skills` `app:vision` `app:device` `app:confirm` `app:i18n` `MaeveApp.kt` 及零碎包 | ~23,100 | ⬜ 未开始 | `app:settings`（fan-in 129）和 `app:i18n`（fan-in 109）先做 |
@@ -364,7 +364,7 @@ Compose、以及可批处理的文本资源。**所以有效工作量接近上�
 放行条件（建议写成 CI 断言）：
 
 ```
-derived-files.tsv 中 derived_ratio >= 0.60 的文件数 == 0（当前 2,079）
+derived-files.tsv 中 derived_ratio >= 0.60 的文件数 == 0（当前 2,063）
 且 上述 6 个 Mika 署名点全部清零
 ```
 
