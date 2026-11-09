@@ -11,14 +11,24 @@ sealed interface ConditionOutcome {
     data class Error(val reason: String) : ConditionOutcome
 
     companion object {
+        private const val MAX_EVIDENCE = 500
+
         fun parse(answer: String): ConditionOutcome {
-            val raw = answer.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-            val body = runCatching { Json.parseToJsonElement(raw) as? JsonObject }.getOrNull()
-                ?: return Error("条件检查没有返回可读取的结果")
-            val met = (body["met"] as? JsonPrimitive)?.takeUnless { it.isString }?.booleanOrNull
+            val body = decode(answer) ?: return Error("条件检查没有返回可读取的结果")
+            val flag = body["met"] as? JsonPrimitive
+            val met = flag?.takeUnless { it.isString }?.booleanOrNull
                 ?: return Error("条件检查结果缺少 met 状态")
-            val evidence = (body["evidence"] as? JsonPrimitive)?.content?.take(500)
+            val evidence = (body["evidence"] as? JsonPrimitive)?.content?.take(MAX_EVIDENCE)
             return Checked(met, evidence)
+        }
+
+        private fun decode(answer: String): JsonObject? {
+            val json = answer.trim()
+                .removePrefix("```json")
+                .removePrefix("```")
+                .removeSuffix("```")
+                .trim()
+            return runCatching { Json.parseToJsonElement(json) as? JsonObject }.getOrNull()
         }
     }
 }

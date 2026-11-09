@@ -23,32 +23,35 @@ object UrlHost {
     private val GENERIC_SECOND_LEVEL = setOf("co", "com", "net", "org", "gov", "edu", "ac", "or", "ne", "go")
 
     /** 小写 ASCII 域名(国际化域名转成 xn-- 形式),去掉端口和开头的 www.;解析不出为 null。 */
-    fun of(url: String): String? = raw(url)?.removePrefix("www.")?.ifEmpty { null }
+    fun of(url: String): String? {
+        val host = raw(url) ?: return null
+        val withoutWww = host.removePrefix("www.")
+        return withoutWww.ifEmpty { null }
+    }
 
     /**
      * 两个地址是否同一站点:主机名相同(不计 www),或同属一个能确定的可注册域名。
      * 不看协议和端口。拿不准的后缀一律判为不同站点。
      */
     fun sameSite(a: String, b: String): Boolean {
-        val ha = of(a) ?: return false
-        val hb = of(b) ?: return false
-        if (ha == hb) return true
-        val sa = registrable(ha) ?: return false
-        return sa == registrable(hb)
+        val left = of(a) ?: return false
+        val right = of(b) ?: return false
+        if (left == right) return true
+        val leftSite = registrable(left) ?: return false
+        return leftSite == registrable(right)
     }
 
     internal fun raw(url: String): String? {
-        val u = runCatching { URI(url.trim()) }.getOrNull() ?: return null
-        // 含非 ASCII 字符的主机名 URI 解析不出 host,从 authority 里取
-        val h = u.host ?: u.rawAuthority?.let(::hostOfAuthority) ?: return null
-        val ascii = runCatching { IDN.toASCII(h.trimEnd('.')) }.getOrNull()?.lowercase() ?: return null
+        val parsed = runCatching { URI(url.trim()) }.getOrNull() ?: return null
+        val host = parsed.host ?: parsed.rawAuthority?.let(::authorityHost) ?: return null
+        val ascii = runCatching { IDN.toASCII(host.trimEnd('.')) }.getOrNull()?.lowercase() ?: return null
         return ascii.ifEmpty { null }
     }
 
-    private fun hostOfAuthority(authority: String): String? {
-        val a = URLDecoder.decode(authority.substringAfterLast('@'), "UTF-8")
-        if (a.startsWith("[")) return a.substringBefore(']') + "]"
-        return a.substringBefore(':').ifEmpty { null }
+    private fun authorityHost(authority: String): String? {
+        val hostAndPort = URLDecoder.decode(authority.substringAfterLast('@'), "UTF-8")
+        if (hostAndPort.startsWith("[")) return hostAndPort.substringBefore(']') + "]"
+        return hostAndPort.substringBefore(':').ifEmpty { null }
     }
 
     /** 可注册域名(公共后缀再加一段);后缀拿不准、或主机名就是后缀本身时为 null。 */
@@ -56,14 +59,22 @@ object UrlHost {
         if (host.startsWith("[") || host.all { it.isDigit() || it == '.' }) return null
         val labels = host.split('.')
         if (labels.size < 2 || labels.any { it.isEmpty() }) return null
-        fun tail(n: Int) = labels.takeLast(n).joinToString(".")
-        val suffixLen = when {
-            tail(2) in PRIVATE_SUFFIXES || tail(2) in TWO_PART_SUFFIXES -> 2
-            labels.last().length == 2 && labels.size >= 2 &&
-                (labels[labels.size - 2].length <= 3 || labels[labels.size - 2] in GENERIC_SECOND_LEVEL) -> 2
-            else -> 1
-        }
-        if (labels.size <= suffixLen) return null
-        return tail(suffixLen + 1)
+        val suffix = suffixLength(labels)
+        if (labels.size <= suffix) return null
+        return joinTail(labels, suffix + 1)
+    }
+
+    private fun joinTail(labels: List<String>, count: Int): String {
+        val first = labels.size - count
+        return labels.subList(first, labels.size).joinToString(".")
+    }
+
+    private fun suffixLength(labels: List<String>): Int {
+        val lastTwo = labels.takeLast(2).joinToString(".")
+        if (lastTwo in TWO_PART_SUFFIXES || lastTwo in PRIVATE_SUFFIXES) return 2
+        val tld = labels.last()
+        val secondLast = labels[labels.size - 2]
+        val looksLikeCountrySuffix = tld.length == 2 && (secondLast.length <= 3 || secondLast in GENERIC_SECOND_LEVEL)
+        return if (looksLikeCountrySuffix) 2 else 1
     }
 }

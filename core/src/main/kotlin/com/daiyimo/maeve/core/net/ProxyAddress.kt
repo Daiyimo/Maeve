@@ -17,43 +17,64 @@ class ProxyAddress private constructor(
     val user: String,
     val password: String,
 ) {
-    val socks: Boolean get() = scheme == "socks5" || scheme == "socks5h"
-    val hasCredentials: Boolean get() = user.isNotEmpty()
+    val socks: Boolean
+        get() = scheme == SOCKS5 || scheme == SOCKS5H
+
+    val hasCredentials: Boolean
+        get() = user.isNotEmpty()
 
     /**
      * Maeve 自己的连接(调模型、下更新、内置浏览器)能不能走它。https 代理要先和代理本身握 TLS,
      * 这些连接用的网络库不支持,只有容器里的命令(curl 等)用得上。
      */
-    val forApp: Boolean get() = scheme != "https"
+    val forApp: Boolean
+        get() = scheme != HTTPS
 
-    fun javaProxy(): Proxy = Proxy(if (socks) Proxy.Type.SOCKS else Proxy.Type.HTTP, InetSocketAddress.createUnresolved(host, port))
+    fun javaProxy(): Proxy {
+        val kind = if (socks) Proxy.Type.SOCKS else Proxy.Type.HTTP
+        return Proxy(kind, InetSocketAddress.createUnresolved(host, port))
+    }
 
     /** 给人看的写法:协议、主机、端口,不带账号密码。 */
-    val display: String get() = "$scheme://${if (host.contains(':')) "[$host]" else host}:$port"
+    val display: String
+        get() = buildString {
+            append(scheme).append("://")
+            if (host.contains(':')) append('[').append(host).append(']') else append(host)
+            append(':').append(port)
+        }
 
     override fun toString(): String = display
 
     companion object {
-        val SCHEMES = setOf("http", "https", "socks5", "socks5h")
+        private const val HTTPS = "https"
+        private const val SOCKS5 = "socks5"
+        private const val SOCKS5H = "socks5h"
+        val SCHEMES = setOf("http", "https", SOCKS5, SOCKS5H)
 
         /** 解析代理地址;空串或写法不对为 null。 */
         fun parse(text: String): ProxyAddress? {
-            val v = text.trim()
-            if (v.isEmpty() || v.any { it.isWhitespace() }) return null
-            val u = runCatching { URI(v) }.getOrNull() ?: return null
-            val scheme = u.scheme?.lowercase() ?: return null
+            val candidate = text.trim()
+            if (candidate.isEmpty() || candidate.any(Char::isWhitespace)) return null
+            val uri = runCatching { URI(candidate) }.getOrNull() ?: return null
+            val scheme = uri.scheme?.lowercase() ?: return null
             if (scheme !in SCHEMES) return null
-            val host = u.host?.removeSurrounding("[", "]")?.takeIf { it.isNotEmpty() } ?: return null
-            if (u.port !in 1..65535) return null
-            if (!(u.rawPath.isNullOrEmpty() || u.rawPath == "/") || u.rawQuery != null || u.rawFragment != null) return null
-            val info = u.rawUserInfo.orEmpty()
-            val user = decodeCredential(info.substringBefore(':'))
-            val password = decodeCredential(info.substringAfter(':', ""))
-            return ProxyAddress(scheme, host, u.port, user, password)
+            val host = uri.host?.removeSurrounding("[", "]")?.takeIf { it.isNotEmpty() } ?: return null
+            val port = uri.port
+            if (port !in 1..65535) return null
+            if (!isBareTarget(uri)) return null
+            val info = uri.rawUserInfo.orEmpty()
+            val user = decode(info.substringBefore(':'))
+            val password = decode(info.substringAfter(':', ""))
+            return ProxyAddress(scheme, host, port, user, password)
+        }
+
+        private fun isBareTarget(uri: URI): Boolean {
+            val path = uri.rawPath
+            return (path.isNullOrEmpty() || path == "/") && uri.rawQuery == null && uri.rawFragment == null
         }
 
         // URI 中的加号是字面字符,解码时保留它。
-        private fun decodeCredential(value: String): String = URLDecoder.decode(value.replace("+", "%2B"), "UTF-8")
+        private fun decode(value: String): String = URLDecoder.decode(value.replace("+", "%2B"), "UTF-8")
 
         /** 空串(不用代理),或能解析的代理地址。 */
         fun valid(text: String): Boolean = text.isBlank() || parse(text) != null

@@ -55,6 +55,17 @@ total          2354    278888    263168   94.4%
 | `core/.../visual/FrameGrid.kt` | 100% | 38.0% | `FrameDiffTest` 5/5 |
 | `core/.../risk/Irreversible.kt` | 100% | 47.1% | 枚举 API 不变 |
 
+第二批（网络 / 触发 / 设备）：
+
+| 文件 | 重写前衍生 | 重写后衍生 | 行为验证 |
+|---|---:|---:|---|
+| `core/.../net/LocalHosts.kt` | 100% | 53.5% | `LocalHostsTest` |
+| `core/.../net/ProxyAddress.kt` | 100% | 51.2% | `ProxyAddressTest` |
+| `core/.../trigger/ConditionOutcome.kt` | 100% | 55.9% | `ConditionOutcomeTest` |
+| `core/.../trigger/ScheduleAdmin.kt` | 100% | 50.0% | `TriggerEngineTest` / `ScheduleTaskTest` |
+| `core/.../device/DeviceAccessJson.kt` | 100% | 34.5% | `DeviceAccessTest` |
+| `core/.../net/UrlHost.kt` | 100% | 57.5% | `LocalHostsTest` / guard tests |
+
 这批的公共 API、枚举值、输出文案和协程语义都保持不变；只重写内部结构、命名和注释。
 这批 9 个文件都已降到 60% 以下；但单文件达标不是目的，**行为等价 + 可编译 + 测试通过**才是。
 `Feedback.section` 的接收者遮蔽问题曾让 31 个测试失败，已由全量 `:core:test` 抓出并修复。
