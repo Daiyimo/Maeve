@@ -9,6 +9,7 @@ import com.daiyimo.maeve.core.prompt.Feedback
 import com.daiyimo.maeve.core.prompt.Prompts
 import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.core.record.RunRecords
+import com.daiyimo.maeve.core.record.RunSummary
 import com.daiyimo.maeve.core.tool.AgentTool
 import com.daiyimo.maeve.core.tool.Args
 import com.daiyimo.maeve.core.tool.Concurrency
@@ -33,11 +34,12 @@ import java.util.Locale
 const val HISTORY_READ = "history_read"
 
 /**
- * 查这个对话之前几轮的记录:不带 turn 列出之前的轮次(新的在前:第几轮、用户说了什么、结局、时刻),
- * 带 turn 读那一轮记下的东西(完整结局、Maeve 的进度说明、读到的原文),按条分页。
- * 只认本次运行开局带来的那几轮([com.daiyimo.maeve.core.run.RunSpec.priorTurns],同一个对话),只读;
- * 原文取自运行记录(落盘时已脱敏、截短),不带截图。读到的原文作为观察交给核查,回答里可以引用。
- * 只在给了运行记录、而之前有记过运行的轮次时提供。
+ * 回看本对话更早几轮留下的东西。不给 turn 时列出历史轮次(新的在前:第几轮、用户说了什么、结局、时刻);
+ * 给了 turn 就精读那一轮(完整结局、执行期间的插话、读到的原文),原文按条分页。
+ *
+ * 可见范围仅限本次运行开局时带入的轮次([com.daiyimo.maeve.core.run.RunSpec.priorTurns],同一对话),
+ * 且只读;原文来自运行记录,落盘前已脱敏截短,不含截图。读到的原文会作为观察交给核查,
+ * 因此回答里引用旧内容是有据可查的。只有当运行记录可用、且历史轮次里确实有落盘的运行时,工具才出现。
  */
 internal object HistoryRead : AgentTool {
     /** 列表最多列几轮(新的在前)。 */
@@ -50,8 +52,12 @@ internal object HistoryRead : AgentTool {
     const val OUTCOME_CHARS = 3_000
     /** 列表里用户原话、结局各留多少字。 */
     private const val GIST_CHARS = 200
+    /** 进度说明在结果里的 kind 值。 */
+    private const val KIND_NOTE = "note"
+    /** 读旧原文得来的观察,出处统一记 history。 */
+    private const val OBS_SOURCE = "history"
 
-    private val TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ENGLISH)
+    private val CLOCK = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ENGLISH)
 
     override val verb = Verb.HistoryRead
     override val risk = Risk.Read
@@ -67,104 +73,111 @@ internal object HistoryRead : AgentTool {
         ctx.config.runRecords != null && ctx.config.runSpec?.priorTurns.orEmpty().any { it.runId != null }
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
-        val turns = ctx.config.runSpec!!.priorTurns.asReversed()
+        val priorTurns = ctx.config.runSpec!!.priorTurns.asReversed()
         val records = ctx.config.runRecords!!
-        val n = a.int("turn", 1, Int.MAX_VALUE)
-        val offset = a.int("offset", 0, Int.MAX_VALUE) ?: 0
-        if (n == null) return list(turns, records)
-        val turn = turns.getOrNull(n - 1)
-            ?: return fail("turn_not_found", Feedback.format("history.turn_not_found", "count" to turns.size))
-        return read(n, turn, records, offset)
+        val turnNo = a.int("turn", 1, Int.MAX_VALUE)
+        val from = a.int("offset", 0, Int.MAX_VALUE) ?: 0
+        if (turnNo == null) return listTurns(priorTurns, records)
+        val target = priorTurns.getOrNull(turnNo - 1)
+            ?: return fail("turn_not_found", Feedback.format("history.turn_not_found", "count" to priorTurns.size))
+        return readTurn(turnNo, target, records, from)
     }
 
-    private suspend fun list(turns: List<Turn>, records: RunRecords): ToolExecution {
-        val shown = turns.take(LIST_MAX)
+    /** 列历史轮次:每轮一行摘要,能查到运行记录的才带时刻。 */
+    private suspend fun listTurns(priorTurns: List<Turn>, records: RunRecords): ToolExecution {
+        val shown = priorTurns.take(LIST_MAX)
         val zone = ZoneId.systemDefault()
-        val summaries = shown.map { t -> t.runId?.let { id -> safe(null) { records.summary(id) } } }
+        val summaries = shown.map { t -> t.runId?.let { id -> attempt(null) { records.summary(id) } } }
         return ToolExecution(okObj {
-            put("turns", JsonArray(shown.mapIndexed { i, t ->
-                val summary = summaries[i]
-                buildJsonObject {
-                    put("turn", i + 1)
-                    put("said", clip(t.userText, GIST_CHARS))
-                    put("status", t.status)
-                    put("outcome", clip(t.outcome, GIST_CHARS))
-                    summary?.let { put("time", time(it.startedAtMs, zone)) }
-                    put("recorded", summary != null)
-                }
-            }))
-            if (turns.size > shown.size) put("older", turns.size - shown.size)
+            put("turns", JsonArray(shown.mapIndexed { i, t -> turnRow(i, t, summaries[i], zone) }))
+            if (priorTurns.size > shown.size) put("older", priorTurns.size - shown.size)
         })
     }
 
-    private suspend fun read(n: Int, t: Turn, records: RunRecords, offset: Int): ToolExecution {
+    /** 一轮在列表里的样子:第几轮、用户原话、结局,查得到记录再带时刻。 */
+    private fun turnRow(index: Int, t: Turn, summary: RunSummary?, zone: ZoneId) = buildJsonObject {
+        put("turn", index + 1)
+        put("said", shorten(t.userText, GIST_CHARS))
+        put("status", t.status)
+        put("outcome", shorten(t.outcome, GIST_CHARS))
+        summary?.let { put("time", stamp(it.startedAtMs, zone)) }
+        put("recorded", summary != null)
+    }
+
+    /** 精读某一轮:结局 + 插话 + 分页的原文,并把原文转成观察交给核查。 */
+    private suspend fun readTurn(turnNo: Int, t: Turn, records: RunRecords, from: Int): ToolExecution {
         val id = t.runId
-        val summary = id?.let { safe(null) { records.summary(it) } }
-        val items = if (summary != null) items(safe(emptyList()) { records.events(id) }) else emptyList()
-        val page = mutableListOf<Item>()
-        var chars = 0
-        for (item in items.drop(offset)) {
-            if (page.isNotEmpty() && chars + item.text.length > PAGE_CHARS) break
-            page += item
-            chars += item.text.length
-        }
-        val next = offset + page.size
+        val summary = id?.let { attempt(null) { records.summary(it) } }
+        val items = if (summary != null) collect(attempt(emptyList()) { records.events(id) }) else emptyList()
+        val page = pageOf(items, from)
+        val nextOffset = from + page.size
         val content = okObj {
-            put("turn", n)
+            put("turn", turnNo)
             put("said", t.userText)
             put("status", t.status)
-            put("outcome", clip(t.outcome, OUTCOME_CHARS))
-            if (t.steers.isNotEmpty()) put("userAddedDuringTask", JsonArray(t.steers.map { JsonPrimitive(clip(it, GIST_CHARS)) }))
-            summary?.let { put("time", time(it.startedAtMs, ZoneId.systemDefault())) }
+            put("outcome", shorten(t.outcome, OUTCOME_CHARS))
+            if (t.steers.isNotEmpty()) put("userAddedDuringTask", JsonArray(t.steers.map { JsonPrimitive(shorten(it, GIST_CHARS)) }))
+            summary?.let { put("time", stamp(it.startedAtMs, ZoneId.systemDefault())) }
             put("recorded", summary != null)
             if (summary == null) put("message", Feedback["history.not_recorded"])
             else {
                 put("totalItems", items.size)
-                put("items", JsonArray(page.mapIndexed { i, item ->
-                    buildJsonObject {
-                        put("n", offset + i)
-                        put("kind", item.kind)
-                        item.where?.let { put("where", it) }
-                        put("text", if (item.untrusted) Untrusted.wrap(item.text) else item.text)
-                    }
-                }))
-                if (next < items.size) put("nextOffset", next)
+                put("items", JsonArray(page.mapIndexed { i, item -> itemRow(from + i, item) }))
+                if (nextOffset < items.size) put("nextOffset", nextOffset)
             }
         }
-        // 读到的原文交给核查:回答里用到之前几轮读到的东西时有据可查(出处另记为 history,不指回当时的画面)
-        val observations = page.mapNotNull { item ->
-            item.obsKind?.let { Observation(it, item.text, source = SOURCE, title = item.where, trust = if (item.untrusted) Trust.Untrusted else Trust.Trusted) }
-        }
-        return ToolExecution(content, observations = observations)
+        // 出处统一记 history,不指回当时的画面;回答引用旧原文时核查能对上
+        return ToolExecution(content, observations = page.mapNotNull { observationOf(it) })
     }
 
-    /** 记录里一条可读的东西:Maeve 的进度说明(note,带了调用的回复里的字),或读到的原文(观察的种类)。 */
-    private class Item(val kind: String, val text: String, val where: String?, val untrusted: Boolean, val obsKind: ObsKind?)
+    /** 从 from 起攒一页:满了就不再要,但空页时至少给一条。 */
+    private fun pageOf(items: List<HistoryEntry>, from: Int): List<HistoryEntry> {
+        val page = mutableListOf<HistoryEntry>()
+        var chars = 0
+        for (item in items.drop(from)) {
+            if (page.isNotEmpty() && chars + item.text.length > PAGE_CHARS) break
+            page += item
+            chars += item.text.length
+        }
+        return page
+    }
 
-    private fun items(events: List<RunEvent>): List<Item> {
+    /** 一条原文在结果里的样子;不可信的字包上 [Untrusted] 再交出去。 */
+    private fun itemRow(n: Int, item: HistoryEntry) = buildJsonObject {
+        put("n", n)
+        put("kind", item.kind)
+        item.where?.let { put("where", it) }
+        put("text", if (item.untrusted) Untrusted.wrap(item.text) else item.text)
+    }
+
+    /** 只有读来的原文(带观察种类)进核查; Maeve 自己的进度说明不进。 */
+    private fun observationOf(item: HistoryEntry): Observation? =
+        item.obsKind?.let { Observation(it, item.text, source = OBS_SOURCE, title = item.where, trust = if (item.untrusted) Trust.Untrusted else Trust.Trusted) }
+
+    /** 一条可读内容:Maeve 的进度说明(note,取自带调用的回复),或读到的原文(观察的种类)。 */
+    private class HistoryEntry(val kind: String, val text: String, val where: String?, val untrusted: Boolean, val obsKind: ObsKind?)
+
+    /** 从事件流里挑可读的条:去重、截短;模型回复只收真正发了调用的那些(纯回答已在 outcome 里)。 */
+    private fun collect(events: List<RunEvent>): List<HistoryEntry> {
         val seen = mutableSetOf<String>()
         return events.mapNotNull { e ->
             when (e) {
-                // 不带调用的回复就是那一轮的回答,已经在 outcome 里
                 is RunEvent.ModelReply -> e.text.trim().takeIf { e.acted && e.tool != null && it.isNotEmpty() && seen.add(it) }
-                    ?.let { Item(NOTE, clip(it, ITEM_CHARS), null, false, null) }
+                    ?.let { HistoryEntry(KIND_NOTE, shorten(it, ITEM_CHARS), null, false, null) }
                 is RunEvent.Observed -> e.text.trim().takeIf { it.isNotEmpty() && seen.add(it) }?.let {
                     val o = e.observation()
-                    Item(o.kind.wire, clip(it, ITEM_CHARS), o.title ?: o.place?.name, e.untrusted, o.kind)
+                    HistoryEntry(o.kind.wire, shorten(it, ITEM_CHARS), o.title ?: o.place?.name, e.untrusted, o.kind)
                 }
                 else -> null
             }
         }
     }
 
-    private fun time(ms: Long, zone: ZoneId) = TIME.format(Instant.ofEpochMilli(ms).atZone(zone))
+    private fun stamp(ms: Long, zone: ZoneId) = CLOCK.format(Instant.ofEpochMilli(ms).atZone(zone))
 
-    private fun clip(s: String, max: Int) = if (s.length <= max) s else s.take(max - 1) + "…"
+    private fun shorten(s: String, max: Int) = if (s.length <= max) s else s.take(max - 1) + "…"
 
-    /** 读记录出错当没有:查不到不影响任务。 */
-    private suspend fun <T> safe(fallback: T, read: suspend () -> T): T =
+    /** 读记录失败按没有处理:查不到历史不影响当前任务。 */
+    private suspend fun <T> attempt(fallback: T, read: suspend () -> T): T =
         try { read() } catch (e: CancellationException) { throw e } catch (e: Exception) { fallback }
-
-    private const val NOTE = "note"
-    private const val SOURCE = "history"
 }

@@ -15,8 +15,8 @@ import com.daiyimo.maeve.core.tool.str
 import kotlinx.serialization.json.put
 
 /**
- * 说出挡住当前 App 或网页的是什么,换回该怎么处理的下一步。
- * 只读、也不越障:它只按障碍种类给一条 feedback 提示,告诉模型该关闭、该登录还是该交给用户;
+ * 说出挡住当前 App 或网页的是什么,换回一条下一步该怎么处理的提示。
+ * 只读、也不越障:按障碍种类给一条 feedback,告诉模型该关闭、该登录还是该交给用户;
  * 属于「说的是哪块屏」的那一类通用工具([SurfaceAware])。
  */
 internal object HandleObstacle : SurfaceAware {
@@ -26,25 +26,25 @@ internal object HandleObstacle : SurfaceAware {
     override val withScreens = true
 
     override val def = ToolDef("handle_obstacle", Prompts.tool("handle_obstacle"), mapOf(
-        "kind" to str(KIND_NOTE, BARRIER_KINDS),
+        "kind" to str(KIND_DOC, BARRIER_KINDS),
         "reason" to str("What on the screen shows it."),
     ), listOf("kind"))
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
         checkSurface(a, ctx)
-        val barrier = requireBarrier(a)
+        val barrier = barrierKind(a)
         // reason 只作说明留给界面和记录,不影响给哪条提示
         a.str("reason", max = 300)
-        return ok { put("kind", barrier); put("hint", hint(barrier)) }
+        return ok { put("kind", barrier); put("hint", advice(barrier)) }
     }
 
     /** 取出并校验 kind:不在 [BARRIER_KINDS] 里当参数错,原样返回供结果回显。 */
-    private fun requireBarrier(a: Args): String = a.str("kind")!!.also { kind ->
+    private fun barrierKind(a: Args): String = a.str("kind")!!.also { kind ->
         if (kind !in BARRIER_KINDS) throw ArgError("kind", "must be one of ${BARRIER_KINDS.joinToString("|")}")
     }
 
     /** 应对提示就是 feedback 里 barrier.<kind> 那一条;kind 已校验过,只可能是 [BARRIER_KINDS] 里的几种。 */
-    private fun hint(kind: String): String = when (kind) {
+    private fun advice(kind: String): String = when (kind) {
         "popup" -> Feedback["barrier.popup"]
         "login" -> Feedback["barrier.login"]
         "captcha" -> Feedback["barrier.captcha"]
@@ -54,4 +54,4 @@ internal object HandleObstacle : SurfaceAware {
 }
 
 /** kind 参数的说明:每种障碍是什么、能不能自己关掉,写全好让模型选对种类。 */
-private const val KIND_NOTE = "What is in the way: popup = a promotion, guide or update dialog that can be closed; login = a sign-in wall; captcha = a human-verification puzzle; access_blocked = the app or site is limiting access (操作频繁, 环境异常, or a verification that keeps coming back); payment = paying, entering a password or an identity check."
+private const val KIND_DOC = "What is in the way: popup = a promotion, guide or update dialog that can be closed; login = a sign-in wall; captcha = a human-verification puzzle; access_blocked = the app or site is limiting access (操作频繁, 环境异常, or a verification that keeps coming back); payment = paying, entering a password or an identity check."

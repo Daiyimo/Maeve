@@ -10,8 +10,8 @@ import com.daiyimo.maeve.core.tool.ToolContext
 import com.daiyimo.maeve.core.tool.ToolDef
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.Verb
-import com.daiyimo.maeve.core.tool.int
 import com.daiyimo.maeve.core.tool.bool
+import com.daiyimo.maeve.core.tool.int
 import com.daiyimo.maeve.core.tool.okObj
 import com.daiyimo.maeve.core.tool.str
 import com.daiyimo.maeve.core.tool.strArray
@@ -24,6 +24,9 @@ import java.util.UUID
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+
+/** repeatAt 可选的星期,顺序即编号(MON=1 … SUN=7)。 */
+private val WEEKDAY_CODES = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
 
 internal object ScheduleTask : AgentTool {
     override val verb = Verb.ScheduleTask
@@ -51,41 +54,11 @@ internal object ScheduleTask : AgentTool {
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
         val thread = ctx.config.conversationId ?: return ToolExecution(okObj { put("scheduled", false); put("reason", "no_thread") })
         val op = a.str("op") ?: "create"
-        if (op != "create") {
-            val admin = ctx.config.scheduleAdmin ?: return ToolExecution(okObj { put("ok", false); put("reason", "unavailable") })
-            if (op == "list") return ToolExecution(okObj {
-                put("plans", buildJsonArray { admin.list(thread).forEach { plan ->
-                    add(buildJsonObject {
-                        put("id", plan.id); put("threadId", plan.threadId); put("goal", plan.goal); put("enabled", plan.enabled)
-                        put("nextAtMs", plan.nextAtMs); put("nextAt", Instant.ofEpochMilli(plan.nextAtMs).toString())
-                        plan.reminderText?.let { put("reminder", it) }
-                        plan.intervalMs?.let { put("intervalMinutes", it / 60_000) }
-                        plan.calendarTime?.let { put("repeatAt", it) }
-                        plan.calendarZone?.let { put("repeatZone", it) }
-                        plan.conditionGoal?.let { put("condition", it) }
-                    })
-                } })
-            })
-            val id = a.str("triggerId") ?: return ToolExecution(okObj { put("changed", false); put("reason", "missing_trigger_id") })
-            val changed = when (op) {
-                "pause" -> admin.setEnabled(thread, id, false)
-                "resume" -> admin.setEnabled(thread, id, true)
-                "delete" -> admin.remove(thread, id)
-                "run_now" -> admin.runNow(thread, id)
-                "reschedule" -> {
-                    val at = runCatching { Instant.parse(a.str("at") ?: error("missing time")).toEpochMilli() }.getOrNull()
-                        ?: return ToolExecution(okObj { put("changed", false); put("reason", "invalid_time") })
-                    if (at <= System.currentTimeMillis()) return ToolExecution(okObj { put("changed", false); put("reason", "time_not_future") })
-                    admin.reschedule(thread, id, at)
-                }
-                else -> return ToolExecution(okObj { put("changed", false); put("reason", "invalid_op") })
-            }
-            return ToolExecution(okObj {
-                put("changed", changed)
-                // 计划在、却没改成:只有恢复认领过(跑过或正在跑)的一次性计划会这样
-                if (!changed) put("reason", if (op == "resume" && admin.list(thread).any { it.id == id }) "already_ran" else "plan_not_found")
-            })
-        }
+        return if (op == "create") create(a, ctx, thread) else manage(a, ctx, thread, op)
+    }
+
+    /** 建计划:校验时间表达,算出首次触发时刻,写入触发定义。 */
+    private fun create(a: Args, ctx: ToolContext, thread: String): ToolExecution {
         val goal = a.str("goal", max = 4000) ?: return ToolExecution(okObj { put("scheduled", false); put("reason", "missing_goal") })
         val first = a.str("at")
         val repeatAt = a.str("repeatAt")
@@ -94,21 +67,12 @@ internal object ScheduleTask : AgentTool {
             put("scheduled", false); put("reason", "repeat_and_interval_conflict")
         })
         val zone = a.str("repeatZone") ?: ZoneId.systemDefault().id
-        val days = a.strList("weekdays", 1, 7)?.map { day ->
-            listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN").indexOf(day.uppercase()) + 1
-        }.orEmpty()
-        if (days.any { it == 0 } || (repeatAt == null && days.isNotEmpty())) return ToolExecution(okObj {
+        val days = weekdayNumbers(a.strList("weekdays", 1, 7))
+        if (days == null || (repeatAt == null && days.isNotEmpty())) return ToolExecution(okObj {
             put("scheduled", false); put("reason", "invalid_weekdays")
         })
-        val at = runCatching {
-            val firstMs = first?.let { Instant.parse(it).toEpochMilli() }
-            if (repeatAt == null) firstMs ?: error("missing time")
-            else {
-                LocalTime.parse(repeatAt)
-                ZoneId.of(zone)
-                nextCalendarAt(repeatAt, zone, days, maxOf(System.currentTimeMillis(), (firstMs ?: 0) - 1))
-            }
-        }.getOrElse { return ToolExecution(okObj { put("scheduled", false); put("reason", "invalid_time") }) }
+        val at = firstFireAt(first, repeatAt, zone, days)
+            ?: return ToolExecution(okObj { put("scheduled", false); put("reason", "invalid_time") })
         val condition = a.str("condition", max = 2000)
         val reminder = a.str("reminder", max = 2000)
         if (reminder != null && condition != null) return ToolExecution(okObj {
@@ -133,4 +97,59 @@ internal object ScheduleTask : AgentTool {
             }
         })
     }
+
+    /** 管理已有计划:列出、暂停、恢复、删除、立即跑、改期。 */
+    private suspend fun manage(a: Args, ctx: ToolContext, thread: String, op: String): ToolExecution {
+        val admin = ctx.config.scheduleAdmin ?: return ToolExecution(okObj { put("ok", false); put("reason", "unavailable") })
+        if (op == "list") return ToolExecution(okObj {
+            put("plans", buildJsonArray { admin.list(thread).forEach { plan ->
+                add(buildJsonObject {
+                    put("id", plan.id); put("threadId", plan.threadId); put("goal", plan.goal); put("enabled", plan.enabled)
+                    put("nextAtMs", plan.nextAtMs); put("nextAt", Instant.ofEpochMilli(plan.nextAtMs).toString())
+                    plan.reminderText?.let { put("reminder", it) }
+                    plan.intervalMs?.let { put("intervalMinutes", it / 60_000) }
+                    plan.calendarTime?.let { put("repeatAt", it) }
+                    plan.calendarZone?.let { put("repeatZone", it) }
+                    plan.conditionGoal?.let { put("condition", it) }
+                })
+            } })
+        })
+        val id = a.str("triggerId") ?: return ToolExecution(okObj { put("changed", false); put("reason", "missing_trigger_id") })
+        val changed = when (op) {
+            "pause" -> admin.setEnabled(thread, id, false)
+            "resume" -> admin.setEnabled(thread, id, true)
+            "delete" -> admin.remove(thread, id)
+            "run_now" -> admin.runNow(thread, id)
+            "reschedule" -> {
+                val at = runCatching { Instant.parse(a.str("at") ?: error("missing time")).toEpochMilli() }.getOrNull()
+                    ?: return ToolExecution(okObj { put("changed", false); put("reason", "invalid_time") })
+                if (at <= System.currentTimeMillis()) return ToolExecution(okObj { put("changed", false); put("reason", "time_not_future") })
+                admin.reschedule(thread, id, at)
+            }
+            else -> return ToolExecution(okObj { put("changed", false); put("reason", "invalid_op") })
+        }
+        return ToolExecution(okObj {
+            put("changed", changed)
+            // 计划在、却没改成:只有恢复认领过(跑过或正在跑)的一次性计划会这样
+            if (!changed) put("reason", if (op == "resume" && admin.list(thread).any { it.id == id }) "already_ran" else "plan_not_found")
+        })
+    }
+
+    /** 星期名转编号;出现不认识的星期名时返回 null(调用方按 invalid_weekdays 处理)。 */
+    private fun weekdayNumbers(raw: List<String>?): List<Int>? {
+        if (raw == null) return emptyList()
+        val numbers = raw.map { day -> WEEKDAY_CODES.indexOf(day.uppercase()) + 1 }
+        return numbers.takeIf { list -> list.none { it == 0 } }
+    }
+
+    /** 算出首次触发时刻(epoch ms);时间表达不合法时返回 null。 */
+    private fun firstFireAt(first: String?, repeatAt: String?, zone: String, days: List<Int>): Long? = runCatching {
+        val firstMs = first?.let { Instant.parse(it).toEpochMilli() }
+        if (repeatAt == null) firstMs ?: error("missing time")
+        else {
+            LocalTime.parse(repeatAt)
+            ZoneId.of(zone)
+            nextCalendarAt(repeatAt, zone, days, maxOf(System.currentTimeMillis(), (firstMs ?: 0) - 1))
+        }
+    }.getOrNull()
 }

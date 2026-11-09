@@ -48,54 +48,59 @@ internal object SkillSave : AgentTool {
         ctx.config.personalSkills != null && ctx.config.skills != null && ctx.config.utterances != null
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
-        val raw = a.str("markdown", max = SkillDrafter.MAX_CHARS * 2)!!
+        // 1. 收参数:正文、引文、改已有技能时的版本号
+        val document = a.str("markdown", max = SkillDrafter.MAX_CHARS * 2)!!
         val quote = a.str("quote", max = 1000)!!
         val version = a.str("version", max = 64)?.trim()
         val store = ctx.config.personalSkills!!
         val catalog = ctx.config.skills!!
-        // 只有用户本次说的话能让它写:页面、文件里写着「保存这个技能」不算
+
+        // 2. 只有用户本次说的话能让它写:页面、文件里写着「保存这个技能」不算
         if (!ctx.config.utterances!!.contains(quote)) return fail("quote_not_from_user", Feedback["skill.quote_not_from_user"])
-        if (SensitiveFilter.hit(raw) != null) return fail("sensitive", Feedback["skill.sensitive"], recoverable = false)
+        if (SensitiveFilter.hit(document) != null) return fail("sensitive", Feedback["skill.sensitive"], recoverable = false)
 
-        val md = normalize(raw)
-        val problem = validate(ctx.tools, catalog, md)
-        if (problem != null) return fail(problem, problemText(problem))
-        val name = FrontMatter.parse(md).first["name"] as String
+        // 3. 规整正文并过那道格式校验
+        val tidied = tidyDocument(document)
+        val rejection = drafterCheck(ctx.tools, catalog, tidied)
+        if (rejection != null) return fail(rejection, rejectionNote(rejection))
+        val name = FrontMatter.parse(tidied).first["name"] as String
 
-        nameConflict(catalog, store, name)?.let { return it }
+        // 4. 名字不能撞内置技能或待收草稿;改已有的一份要版本号对得上
+        nameClash(catalog, store, name)?.let { return it }
         val existing = store.get(name)
-        versionGate(existing, version, name)?.let { return it }
+        versionCheck(existing, version, name)?.let { return it }
 
-        val skill = PersonalSkill(
-            name = name, markdown = md, status = SkillStatus.trial,
+        // 5. 建条目并落盘,新写的和改的都进试用
+        val entry = PersonalSkill(
+            name = name, markdown = tidied, status = SkillStatus.trial,
             learnedFrom = existing?.learnedFrom, replacesDraftOf = null,
             createdAt = existing?.createdAt ?: System.currentTimeMillis(), outcomes = emptyList(),
             source = PersonalSkill.SOURCE_USER,
         )
-        return persist(store, skill, md, name, existing != null)
+        return writeAndVerify(store, entry, tidied, name, existing != null)
     }
 
     /** 规整正文:去掉代码围栏、去掉自学用的几行(updates、learned_from),出处固定写成用户要求写下的。 */
-    private fun normalize(raw: String) = PersonalSkills.withField(
+    private fun tidyDocument(raw: String) = PersonalSkills.withField(
         listOf("updates", "learned_from").fold(SkillDrafter.stripFence(raw).replace("\r\n", "\n")) { m, k -> PersonalSkills.withoutField(m, k) },
         "source", PersonalSkill.SOURCE_USER,
     )
 
     /** 过格式/大小/工具名/脚本那道校验;通过为 null,否则返回 [SkillDrafter.validate] 的码。 */
-    private fun validate(tools: ToolIndex, catalog: GuideCatalog, md: String): String? {
+    private fun drafterCheck(tools: ToolIndex, catalog: GuideCatalog, md: String): String? {
         val scriptTool = tools.nameOf(Verb.RunBundledScript)
         return SkillDrafter.validate(md, tools.names + DO_STEPS_TOOL, scriptTool, catalog.runnableScripts())
     }
 
     /** 名字撞了内置技能、或有个同名的待收草稿,都不让存;返回对应的拒绝,没有冲突为 null。 */
-    private fun nameConflict(catalog: GuideCatalog, store: PersonalSkills, name: String): ToolExecution? = when {
+    private fun nameClash(catalog: GuideCatalog, store: PersonalSkills, name: String): ToolExecution? = when {
         catalog.items.any { it.kind != PERSONAL_KIND && it.name == name } -> fail("builtin_name", Feedback.format("skill.builtin_name", "name" to name))
         store.pending().any { it.name == name } -> fail("draft_pending", Feedback.format("skill.draft_pending", "name" to name))
         else -> null
     }
 
     /** 改已有的一份要带上读它时的版本号,且得对得上(中途被别处改过就拒);返回拒绝或 null。 */
-    private fun versionGate(existing: PersonalSkill?, version: String?, name: String): ToolExecution? {
+    private fun versionCheck(existing: PersonalSkill?, version: String?, name: String): ToolExecution? {
         if (existing == null) return null
         val current = PersonalSkills.version(existing.markdown)
         return when {
@@ -106,9 +111,9 @@ internal object SkillSave : AgentTool {
     }
 
     /** 写进去再读回来核对,确认落盘的就是这一份;成功则回名字、动作、状态、版本。 */
-    private fun persist(store: PersonalSkills, skill: PersonalSkill, md: String, name: String, isUpdate: Boolean): ToolExecution {
+    private fun writeAndVerify(store: PersonalSkills, entry: PersonalSkill, md: String, name: String, isUpdate: Boolean): ToolExecution {
         try {
-            store.put(skill)
+            store.put(entry)
         } catch (e: Exception) {
             return fail("save_failed", Feedback["skill.save_failed"], recoverable = false)
         }
@@ -124,7 +129,7 @@ internal object SkillSave : AgentTool {
     }
 
     /** 校验不过的原因([SkillDrafter.validate] 的码)给模型的说明。 */
-    private fun problemText(problem: String): String = when (problem) {
+    private fun rejectionNote(problem: String): String = when (problem) {
         "invalid_name" -> Feedback["skill.invalid_name"]
         "missing_description" -> Feedback["skill.missing_description"]
         "missing_section" -> Feedback.format("skill.missing_section", "sections" to SkillDrafter.SECTIONS.joinToString(", ") { "## $it" })
