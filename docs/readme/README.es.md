@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 587bea3f5e22 -->
+<!-- translated-from: README.md @ 250b20e32093 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · Español
@@ -129,8 +129,7 @@ licencie bajo Apache-2.0 (inbound = outbound, §5); el proyecto upstream no tien
 
 ## Licencia y atribución
 
-Apache-2.0: consulta [LICENSE](../../LICENSE). `NOTICE` conserva literalmente
-`Mika / Copyright 2026 wangzan101`. Los componentes de terceros y GPL/LGPL se listan en
+Apache-2.0: consulta [LICENSE](../../LICENSE). `NOTICE` conserva literalmente la atribución del proyecto original. Los componentes de terceros y GPL/LGPL se listan en
 [licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md) y se incluyen en el APK.
 
 Temas sugeridos: `android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

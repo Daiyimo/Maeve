@@ -1,18 +1,18 @@
 # Attribution and provenance
 
-Maeve is an independent, Apache-2.0 Android project. Its codebase began from the Mika
-snapshot recorded below, and Apache-2.0 requires the attribution in this file and in
-`NOTICE` to be retained. This file records provenance and licence compliance; it is not a
+Maeve is an independent, Apache-2.0 Android project. Its codebase began from the upstream
+Apache-2.0 snapshot recorded below, and Apache-2.0 requires the attribution in this file
+and in `NOTICE` to be retained. This file records provenance and licence compliance; it is not a
 claim that Maeve is affiliated with, endorsed by, or maintained as a fork of the upstream
 project.
 
 ## Provenance
 
 ```text
-wangzan101/Mika            upstream, Apache-2.0, Copyright 2026 wangzan101
+upstream project           Apache-2.0, Copyright 2026 wangzan101 (see NOTICE)
         │
         ▼
-Daiyimo/Mika               working snapshot, base commit bbc8922a (2026-11-06)
+working snapshot           base commit bbc8922a (2026-11-06)
         ▼
 Daiyimo/Maeve              this repository, maintained independently
 ```
@@ -29,9 +29,9 @@ git diff "$BASE"..HEAD            # everything changed since the snapshot
 git rev-parse HEAD^{tree}         # changes with every commit; compare within one run only
 ```
 
-**This does not remove Apache-2.0 attribution.** `NOTICE` keeps
-`Mika / Copyright 2026 wangzan101` verbatim, `LICENSE` is the unmodified Apache-2.0 text, and
-the in-app licence screen still names Mika where the licence requires it. Collapsing commit
+**This does not remove Apache-2.0 attribution.** `NOTICE` keeps the original upstream
+attribution verbatim, `LICENSE` is the unmodified Apache-2.0 text, and the in-app licence
+screen links to the complete `NOTICE`. Collapsing commit
 history changes who appears as a *commit author*, not who owns the copyright.
 
 ## Apache-2.0 §4 statements
@@ -40,14 +40,14 @@ history changes who appears as a *commit author*, not who owns the copyright.
 |---|---|---|
 | 4(a) | Give recipients a copy of the License | `LICENSE` is the unmodified Apache-2.0 text. |
 | 4(b) | Modified files carry prominent change notices | See the notice below. The bulk rename is mechanical and is declared here once, with a reproducible diff. |
-| 4(c) | Retain copyright, patent, trademark and attribution notices | All upstream notices are retained; `NOTICE` keeps `Mika / Copyright 2026 wangzan101` verbatim. |
+| 4(c) | Retain copyright, patent, trademark and attribution notices | All upstream notices are retained; `NOTICE` keeps the original attribution verbatim. |
 | 4(d) | Retain attribution notices from `NOTICE` | `NOTICE` keeps the original two lines first, then an addendum. Nothing was removed or rewritten. |
-| 6 | No trademark / product-name grant | No Mika logo, icon, GIF, slogan or product name is used as Maeve's own branding. |
+| 6 | No trademark / product-name grant | No upstream logo, icon, GIF, slogan or product name is used as Maeve's own branding. |
 | 5 | Contributions | Inbound = outbound under Apache-2.0; there is no CLA or DCO. |
 
 ### Notice on modified files (§4(b))
 
-> **This codebase contains files changed from the Mika snapshot.** Maeve renamed the
+> **This codebase contains files changed from the upstream snapshot.** Maeve renamed the
 > Java/Kotlin package to `com.daiyimo.maeve`, changed the Gradle coordinates, repository URLs
 > and version, and reworked the visual system, the connection layer and the capability set.
 > The complete, per-file change record is the git history: run
@@ -65,7 +65,7 @@ central notice plus the preserved diff is the declaration of record.
 |---|---|
 | Product name / slogan | **Maeve**; slogan *She runs the loop. You keep your screen.* |
 | Release identity | `versionCode 38 / 0.1.37` → `versionCode 1 / 0.1.0-dolores`; `rootProject.name = "Maeve"` |
-| Package | `com.wangzan101.mika` → `com.daiyimo.maeve` in the renamed source tree plus the source directories |
+| Package | Upstream package identifier → `com.daiyimo.maeve` in the renamed source tree plus the source directories |
 | Repository URLs | `MaeveLinks` and `ApkIntegrity`'s derived whitelist point at `Daiyimo/Maeve`; `tools/relay/go.mod` module path updated; CLI and sandbox script paths follow the new package |
 | Repository docs | `README.md`, this file, `CONTRIBUTING.md`, `SECURITY.md`, `docs/spec/`, `docs/adr/`, CI workflow and issue template |
 | Attribution | `NOTICE` addendum; third-party notices augmented (ML Kit was previously undisclosed); GPL/LGPL texts mirrored into the APK |
@@ -77,8 +77,8 @@ The product surface uses Maeve names: `maeve_*` MCP tools, the `maeve` CLI, `Aut
 `Download/Maeve/`, `MAEVE_DISPLAY_ID` and the `maeve` sandbox client. No pre-release
 compatibility aliases are kept because there is no released binary yet.
 
-Attribution notices in `NOTICE`, `LICENSE`, the licence screen and this file are legal
-notices, not branding; they must remain.
+Attribution notices in `NOTICE`, `LICENSE`, the licence screen and source headers are
+legal notices, not branding; they must remain.
 
 ## License of this file
 

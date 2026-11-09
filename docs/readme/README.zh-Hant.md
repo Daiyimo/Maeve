@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 587bea3f5e22 -->
+<!-- translated-from: README.md @ 250b20e32093 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · 繁體中文 · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md)
@@ -119,8 +119,7 @@ Android 宿主也還沒有註冊對應的橋接處理器。[FLUTTER_MIGRATION.md
 
 ## 授權與署名
 
-Apache-2.0 —— 見 [LICENSE](../../LICENSE)。`NOTICE` 原樣保留
-`Mika / Copyright 2026 wangzan101`。第三方與 GPL/LGPL 元件列在
+Apache-2.0 —— 見 [LICENSE](../../LICENSE)。`NOTICE` 按 Apache-2.0 原樣保留上游署名。第三方與 GPL/LGPL 元件列在
 [licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md)，並鏡像進 APK。
 
 建議的話題標籤：`android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

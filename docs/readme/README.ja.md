@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 587bea3f5e22 -->
+<!-- translated-from: README.md @ 250b20e32093 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · 日本語 · [한국어](README.ko.md) · [Español](README.es.md)
@@ -126,8 +126,7 @@ Apache-2.0（inbound = outbound、§5）でライセンスすることに同意�
 
 ## ライセンスと表示
 
-Apache-2.0 — [LICENSE](../../LICENSE) を参照してください。`NOTICE` は
-`Mika / Copyright 2026 wangzan101` をそのまま保持します。第三者および GPL/LGPL コンポーネントは
+Apache-2.0 — [LICENSE](../../LICENSE) を参照してください。`NOTICE` は上流の著作者表示をそのまま保持します。第三者および GPL/LGPL コンポーネントは
 [licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md) に列挙され、APK にも同梱されます。
 
 推奨トピック：`android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

@@ -55,7 +55,7 @@
 - Kotlin 包名 `com.daiyimo.maeve`；模块内包按能力分，命名沿用现有类名，不做半程重命名。
 - `:app` 的 Kotlin 源码根是 `app/src/main/java`，不要新建平行的 `kotlin` 目录。
 - Dart 文件名用 snake_case，类型用 UpperCamelCase；设计 token 放 `flutter/lib/design/`，通用组件放 `flutter/lib/widgets/`。
-- 允许保留的历史名称（MCP 工具名、Author 序列化名、CLI 命令）不要顺手改，见 [migration.md](../spec/migration.md)。
+- 命名统一为 Maeve：MCP 工具、CLI、`Author` 序列化名、路径与环境变量都用 `maeve`，不保留历史别名；见 [ATTRIBUTION.md](../../ATTRIBUTION.md)。
 - 捕获 CancellationException 后必须重抛；不使用 GlobalScope；不在工具或 ViewModel 里加副作用捷径。
 
 ## 6. 提交格式

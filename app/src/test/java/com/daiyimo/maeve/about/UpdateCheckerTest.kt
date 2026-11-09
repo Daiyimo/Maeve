@@ -47,7 +47,7 @@ class UpdateCheckerTest {
     )
 
     private fun release(tag: String) =
-        MockResponse().setBody("""{"tag_name":"$tag","name":"Maeve $tag","body":"- 新东西","html_url":"https://github.com/wangzan101/Maeve/releases/tag/$tag","assets":[]}""")
+        MockResponse().setBody("""{"tag_name":"$tag","name":"Maeve $tag","body":"- 新东西","html_url":"https://github.com/Daiyimo/Maeve/releases/tag/$tag","assets":[]}""")
 
     @Test
     fun newerReleaseFromGitHubShowsUpdate() = runTest {

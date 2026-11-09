@@ -438,7 +438,7 @@ stateDiagram-v2
 
 `E:\project\daiyimo\Maeve` 的 remote = `https://github.com/Daiyimo/Maeve.git`。**公开历史是重写后的单基线快照**（根提交 `7cf7ff3`，见 `ATTRIBUTION.md`），不要 `git init` 或再压平；上游血缘靠 `NOTICE` 和 `ATTRIBUTION.md` 保留。
 
-**2026-11-06 实测校正**：Mika 的 `origin` 已经指向 `Daiyimo/Mika.git`（不是上游 `wangzan101/Mika`），工作副本干净（**523 个提交、tag `amoo-bridge-v1`、0 处未提交改动**），所以 v0.1 写的「`git remote rename origin upstream-fork`」不符合现状，也不需要。
+**2026-11-06 实测校正**：工作副本的 `origin` 已经指向本地镜像仓库（不是上游仓库），工作副本干净（**523 个提交、tag `amoo-bridge-v1`、0 处未提交改动**），所以 v0.1 写的「`git remote rename origin upstream-fork`」不符合现状，也不需要。
 
 M1 已按下面方式在本地完成历史镜像（只读 Maeve、不 push、完全可逆）：
 
@@ -453,7 +453,7 @@ git reset --hard maeve-local/main                      # 空仓库首次检出�
 
 ### 8.2 包名与版本
 
-- `applicationId` / `namespace`：`com.daiyimo.maeve`（**Q4 已确认，M1 已执行**：9,230 处替换 / 1,442 文件 / 8 个源码目录，脚本 `tools/maeve/rename_package.py`）。数据可重置，这次连 `namespace` 一起改干净。
+- `applicationId` / `namespace`：`com.daiyimo.maeve`（**Q4 已确认，M1 已执行**：9,230 处替换 / 1,442 文件 / 8 个源码目录，脚本已移除，见 git 历史）。数据可重置，这次连 `namespace` 一起改干净。
 - 影响面：约 1419 个文件的 package/import/AIDL/组件相对名，外加 `tools/maeve-cli/scripts/maeve_cli.py` 的 `PHONE_FILES` 与若干 docs/adb 脚本里的写死路径。`AmooSetup` 的 `$pkg` 与 FileProvider 的 `${applicationId}` 自动跟随，无需手改。
 - `MaeveLinks.kt` 五个上游 URL 与 `ApkIntegrity.kt` 的官方更新 URL 白名单必须同步改，否则自更新包全被拒。
 - `versionCode = 1`、`versionName = "0.1.0-dolores"`、`GIT_HASH` / `BETA` 保留但重设。
@@ -509,7 +509,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | Apache-2.0 §4(a) | 保留 `LICENSE` 全文 |
 | §4(b) | 修改过的文件加显著变更声明（建议统一文件头 + `ATTRIBUTION.md` 列改动范围） |
 | §4(c) | 保留版权/专利/商标/归属声明 |
-| §4(d) | **`NOTICE` 里 `Mika / Copyright 2026 wangzan101` 原样保留**，只能追加自己的 addendum；换 Logo/名字不能删原作者署名 |
+| §4(d) | **`NOTICE` 里的上游署名原样保留**，只能追加自己的 addendum；换 Logo/名字不能删原作者署名 |
 | §6 | 不授予产品名/商标使用权 ⇒ 不用 Maeve 名称与 Logo |
 | 衍生关系 | 重构 + 换名 + 换仓库**仍是衍生作品**，§4 义务不因重写而消失；README 首屏坦率注明 fork 来源是加分项 |
 | GPL/LGPL | `libproot.so` / `libmaeverun.so` / rootfs 作为独立子进程运行 = mere aggregation，不传染主体；但 APK 需附 GPL/LGPL 全文、NOTICE 逐字副本、≥3 年源码要约。当前 `assets/licenses/` 只有 `Apache-2.0.txt` 与 `Protocol-Buffers.txt` |

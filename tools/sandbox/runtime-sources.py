@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-# Copyright (c) 2026 Mika authors
+# Copyright (c) 2026 the upstream authors; see NOTICE for the full attribution
 """Collect the corresponding source for every copyleft package in the bundled runtime (for the GPL source pack).
 
 Usage:

@@ -12,7 +12,7 @@ import java.io.File
 class PackageDependencyTest {
     private val core = File("src/main/kotlin/com/daiyimo/maeve/core")
     private val app = File("../app/src/main/java/com/daiyimo/maeve")
-    private val ref = Regex("""com\.wangzan101\.maeve\.(core\.)?(cap\.([a-z0-9_]+)|assembly|uistate)\b""")
+    private val ref = Regex("""com\.daiyimo\.maeve\.(core\.)?(cap\.([a-z0-9_]+)|assembly|uistate)\b""")
 
     private class Use(val file: File, val line: Int, val text: String, val target: String)
 

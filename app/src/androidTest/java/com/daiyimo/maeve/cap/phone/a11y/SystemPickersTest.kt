@@ -19,7 +19,7 @@ class SystemPickersTest {
         val documents = pm.resolveActivity(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), 0)
             ?.activityInfo?.packageName
         assertTrue("$documents not in $pickers", documents == null || documents in pickers)
-        assertTrue(pickers.none { it == "com.android.settings" || it.startsWith("com.wangzan101") })
+        assertTrue(pickers.none { it == "com.android.settings" || it.startsWith("com.daiyimo.maeve") })
         assertTrue(SystemPickers.settingsPackage(pm) == DeviceSupport.SETTINGS)
     }
 }

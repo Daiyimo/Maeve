@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-# Copyright (c) 2026 Mika authors
+# Copyright (c) 2026 the upstream authors; see NOTICE for the full attribution
 """Assemble the runtime that ships inside the APK: the Alpine minirootfs plus pinned packages, as one .tar.xz.
 
 Nothing runs apk: packages are unpacked the way apk lays them out, and /lib/apk/db/installed is written

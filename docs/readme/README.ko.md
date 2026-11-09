@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 587bea3f5e22 -->
+<!-- translated-from: README.md @ 250b20e32093 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · 한국어 · [Español](README.es.md)
@@ -123,8 +123,7 @@ Android 호스트는 아직 브리지 핸들러를 등록하지 않습니다.
 
 ## 라이선스와 저작자 표시
 
-Apache-2.0 — [LICENSE](../../LICENSE)를 보세요. `NOTICE`는
-`Mika / Copyright 2026 wangzan101`을 그대로 유지합니다. 서드파티와 GPL/LGPL 구성 요소는
+Apache-2.0 — [LICENSE](../../LICENSE)를 보세요. `NOTICE`는 업스트림 저작자 표시를 그대로 유지합니다. 서드파티와 GPL/LGPL 구성 요소는
 [licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md)에 나열되며 APK에도 포함됩니다.
 
 권장 토픽: `android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

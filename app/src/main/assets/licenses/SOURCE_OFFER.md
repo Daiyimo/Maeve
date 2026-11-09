@@ -51,6 +51,6 @@ the in-app licence screen.
 ## Note on aggregation
 
 These programs run as separate processes launched by Maeve; they are not linked into the
-Maeve application code. Maeve itself remains an Apache-2.0 derivative work of Mika. This
+Maeve application code. Maeve itself remains an Apache-2.0 derivative work of the upstream project. This
 document makes no claim about the licence of the main work — see `LICENSE`, `NOTICE` and
 `ATTRIBUTION.md`. This is engineering bookkeeping, not legal advice.

@@ -140,8 +140,7 @@ licensed under Apache-2.0 (inbound = outbound, §5); the project has no CLA or D
 
 ## License & attribution
 
-Apache-2.0 — see [LICENSE](LICENSE). `NOTICE` retains the original
-`Mika / Copyright 2026 wangzan101` verbatim as required by Apache-2.0. Third-party and GPL/LGPL components are listed
+Apache-2.0 — see [LICENSE](LICENSE). `NOTICE` retains the original upstream attribution verbatim as required by Apache-2.0. Third-party and GPL/LGPL components are listed
 in [licenses/THIRD_PARTY_NOTICES.md](licenses/THIRD_PARTY_NOTICES.md) and mirrored into the APK.
 
 Suggested topics: `android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

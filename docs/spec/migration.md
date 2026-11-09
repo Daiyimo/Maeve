@@ -1,7 +1,7 @@
 <!-- docs-check: spans-off — Historical migration log; old names describe past states -->
 # Migration notes — M1 → M4
 
-Live status of turning `Daiyimo/Mika` into `Daiyimo/Maeve`. Update this file as each
+Live status of turning the upstream repository into `Daiyimo/Maeve`. Update this file as each
 milestone lands. See [SPEC.md](../../SPEC.md) §8–§10 for the plan and [ATTRIBUTION.md](../../ATTRIBUTION.md)
 for the Apache-2.0 change record.
 
@@ -32,7 +32,7 @@ derivation, no four launcher aliases, no `HapticEngine`, no glass surfaces.
 | Item | Result |
 |---|---|
 | App / launcher name | `app_name` → `Maeve`; `devInstall` resValue → `Maeve Dev`. |
-| Visible copy | `tools/maeve/brand_strings.py` replaced **2,360** brand tokens in XML text nodes across **310** `values*/strings*.xml` files (10 UI languages). URLs are stashed before replacement, so the 20 remaining `wangzan101/Mika` doc links stay intact. `about_author` ("Made by Wang Zan · © 2026") is preserved verbatim for Apache-2.0 §4(c)/(d). |
+| Visible copy | `tools/maeve/brand_strings.py` replaced **2,360** brand tokens in XML text nodes across **310** `values*/strings*.xml` files (10 UI languages). URLs are stashed before replacement, so the 20 remaining upstream doc links stay intact. `about_author` ("Made by Wang Zan · © 2026") is preserved verbatim for Apache-2.0 §4(c)/(d). |
 | In-app literals | `tools/maeve/brand_code.py` — whitelist-only edits in 7 files: three `R.drawable` logo references, `ApkUpdater` update title, `Diagnostics.HEADER`, `UpdateChecker` User-Agent, Gradle dev label. |
 | Hard-coded product literals | `tools/maeve/brand_literals.py` (idempotent) — **26 literals in 14 files** that never touch `strings.xml`: `AboutScreen` page title, `ChatCopy.APP_TITLE` (top app bar), `ChatDrawer` header, `TaskService` foreground-notification titles, `CapsuleContent` / `CapsuleCard*` idle + status labels, `McpServerStore` `clientName` + sign-in HTML, `RemoteTaskHub` / `AmooBridge` remote error messages, clipboard labels, `ProviderStore` default UA. |
 | Test assertions | `tools/maeve/brand_tests.py` — **26 brand tokens in 10 test files** aligned with the renamed copy; URL fixtures and `MaeveLinks`-style identifiers are protected by `Maeve(?![A-Za-z])`. |
@@ -109,7 +109,7 @@ labels / `Download/Maeve/` export path + `maeve_*` protocol aliases (M3, togethe
 ### Upstream documentation URLs (M4)
 
 About 17 files under `docs/` (plus 5 translated READMEs in `docs/readme/`) still contain
-`wangzan101/Mika` links, and `README.en.md` / `docs/README.*` still describe the upstream
+upstream links, and `README.en.md` / `docs/README.*` still describe the upstream
 product. They were **not** mechanically rewritten because:
 
 1. Some lines are attribution statements, not links — a blind replace would turn
@@ -161,7 +161,7 @@ Unit tests have a **pre-existing platform failure baseline** on Windows:
 
 | run | result |
 |---|---|
-| upstream `Daiyimo/Mika` @ `bbc8922a` | 1508 tests, **59 failed** |
+| upstream snapshot @ `bbc8922a` | 1508 tests, **59 failed** |
 | Maeve M1, first run | 1508 tests, **61 failed** |
 | Maeve M1, after fixing URL assertions | 1508 tests, **59 failed** (= baseline) |
 | Maeve M2 first cut, before aligning copy assertions | 1508 tests, **75 failed** |
@@ -179,7 +179,7 @@ same category of platform issues plus snapshot hashes that differ from the Linux
 goldens. The Linux CI job is the judge for this suite.
 
 The **2 extra failures were introduced by M1** and are fixed: `ApkIntegrityTest` and
-`MikaLinksTest` asserted hard-coded `wangzan101/Mika` URLs. They now derive the expected
+The link test asserted hard-coded upstream URLs. They now derive the expected
 URL from `MaeveLinks.RELEASES` / `MaeveLinks.NEW_ISSUE` so a future repo move cannot silently
 break them again. Fake JSON fixtures that still contain an upstream URL are deliberate —
 they are arbitrary test data, not assertions about production config.

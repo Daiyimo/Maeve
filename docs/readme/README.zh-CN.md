@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 587bea3f5e22 -->
+<!-- translated-from: README.md @ 250b20e32093 -->
 # Maeve
 
 [English](../../README.md) · 简体中文 · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md)
@@ -130,8 +130,7 @@ Flutter 外壳目前是工作台：回复是本地延时演示，对话和记忆
 
 ## 许可证与署名
 
-Apache-2.0 —— 见 [LICENSE](../../LICENSE)。`NOTICE` 原样保留
-`Mika / Copyright 2026 wangzan101`。第三方与 GPL/LGPL 组件列在
+Apache-2.0 —— 见 [LICENSE](../../LICENSE)。`NOTICE` 按 Apache-2.0 原样保留上游署名。第三方与 GPL/LGPL 组件列在
 [licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md)，并镜像进 APK。
 
 建议的话题标签：`android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

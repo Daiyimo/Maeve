@@ -521,7 +521,7 @@ class ShellParityDeviceTest {
     private fun pidOf(pkg: String): String? = sh("pidof $pkg").trim().takeIf { it.isNotEmpty() }
 
     companion object {
-        const val NO_SUCH_APP = "com.wangzan101.no.such.app"
+        const val NO_SUCH_APP = "com.daiyimo.maeve.no.such.app"
         // Display.FLAG_TRUSTED 是隐藏常量
         val DISPLAY_FLAG_TRUSTED: Int =
             runCatching { Display::class.java.getField("FLAG_TRUSTED").getInt(null) }.getOrDefault(1 shl 7)
