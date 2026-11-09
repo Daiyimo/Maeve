@@ -7,8 +7,7 @@ import java.io.File
 
 /**
  * 文档和代码不脱节:文档里反引号包着的文件路径、Kotlin 类名、工具名,必须在仓库里真的有。
- * 范围:README.md、docs/ 下全部 .md(含 docs/readme/ 里各语言的 README;docs/reference/ 除外,
- * 那是上游 Mika 的存档分析,按 ATTRIBUTION.md 保持原样)、eval/README.md、tools/sandbox/README.md。
+ * 范围:README.md、docs/ 下全部 .md(含 docs/readme/ 里各语言的 README)、eval/README.md、tools/sandbox/README.md。
  * 另外,同样这些文档里不写死会变的个数(内置知识、工具、服务商、评测题有多少),见 [docsDoNotHardCodeCounts]。
  *
  * 只检查「整段反引号内容就是一个标识符」的写法;下面这些一律不查(规则,不是白名单):

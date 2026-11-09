@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mika's task API client. Standard library only; usable outside the source tree."""
+"""Maeve's task API client. Standard library only; usable outside the source tree."""
 
 import argparse
 import contextlib
@@ -26,7 +26,7 @@ MAX_RESPONSE = 4 * 1024 * 1024
 HANDOFF = {"waiting_for_answer", "waiting_on_phone"}
 TERMINAL = {"done", "failed", "cancelled"}
 STATUSES = TERMINAL | HANDOFF | {"starting", "queued", "running", "paused"}
-RETRY_HINT = "Unlock the phone, open Mika once, then retry connect."
+RETRY_HINT = "Unlock the phone, open Maeve once, then retry connect."
 
 
 class CliError(Exception):
@@ -47,7 +47,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def clean_token(value):
     if not isinstance(value, str) or not value or not re.fullmatch(r"[A-Za-z0-9._~+/=-]+", value):
-        raise CliError("credentials", "The connection token is missing or invalid; reconnect to Mika.")
+        raise CliError("credentials", "The connection token is missing or invalid; reconnect to Maeve.")
     return value
 
 
@@ -74,7 +74,7 @@ class Client:
         req = urllib.request.Request(self.base + path, data=data, method=method, headers={
             "Authorization": "Bearer " + self.token,
             "Accept": "application/json", "Content-Type": "application/json",
-            "X-Mika-Client": "mika-cli/" + VERSION,
+            "X-Maeve-Client": "maeve-cli/" + VERSION,
         })
         try:
             with self.opener.open(req, timeout=timeout or self.timeout) as response:
@@ -106,7 +106,7 @@ class Client:
         except (urllib.error.URLError, OSError, http.client.HTTPException, ValueError):
             if mutation:
                 self.unknown(task_id)
-            raise CliError("connection", "Could not read a valid response from Mika; check the connection and run mika connect.") from None
+            raise CliError("connection", "Could not read a valid response from Maeve; check the connection and run maeve connect.") from None
         except KeyboardInterrupt:
             if mutation:
                 self.unknown(task_id)
@@ -123,12 +123,12 @@ class Client:
             info = self.request("GET")
         except CliError as exc:
             if exc.details.get("http_status") == 404:
-                raise CliError("incompatible_api", "This Mika APK does not provide task API v1. Install a build with CLI support; no MCP fallback is used.") from None
+                raise CliError("incompatible_api", "This Maeve APK does not provide task API v1. Install a build with CLI support; no MCP fallback is used.") from None
             raise
         capabilities = info.get("capabilities")
         if (type(info.get("api_version")) is not int or info["api_version"] != 1
                 or not isinstance(capabilities, list) or "tasks" not in capabilities):
-            raise CliError("incompatible_api", "The phone does not advertise a compatible Mika task API v1.")
+            raise CliError("incompatible_api", "The phone does not advertise a compatible Maeve task API v1.")
         return info
 
 
@@ -164,7 +164,7 @@ class Adb:
             raise CliError("adb", "ADB did not complete; check the selected phone's connection.") from None
         if result.returncode:
             # The official bootstrap script may print a token, including on failure.
-            raise CliError("adb", "ADB could not complete the operation. Check the selected device; open Mika and run mika connect.")
+            raise CliError("adb", "ADB could not complete the operation. Check the selected device; open Maeve and run maeve connect.")
         return result.stdout.strip()
 
     def start_server(self):
@@ -206,7 +206,7 @@ class Adb:
                 # The only phone is not ready; report its state rather than a selection problem.
                 self.device = devices[0]["device"]
             else:
-                raise CliError("device_selection", "Expected one online phone. Run mika devices and choose --device SERIAL.", devices=devices)
+                raise CliError("device_selection", "Expected one online phone. Run maeve devices and choose --device SERIAL.", devices=devices)
         listed = next((d["state"] for d in devices if d["device"] == self.device), None)
         if listed not in {None, "device"}:
             raise device_state_error(listed)
@@ -236,7 +236,7 @@ def base_url(raw):
 def progress(args, message):
     # Progress is for a person watching; stdout stays machine-readable JSON.
     if getattr(args, "progress", False):
-        print("mika: " + message, file=sys.stderr, flush=True)
+        print("maeve: " + message, file=sys.stderr, flush=True)
 
 
 @contextlib.contextmanager
@@ -265,27 +265,27 @@ def connection(args, secrets):
         except CliError as exc:
             if exc.code != "adb":
                 raise
-            raise CliError("adb", "Mika's phone bootstrap did not complete. " + RETRY_HINT) from None
+            raise CliError("adb", "Maeve's phone bootstrap did not complete. " + RETRY_HINT) from None
     try:
         info = json.loads(adb.run("shell", "cat", INFO_FILE))
         if not isinstance(info, dict):
             raise ValueError()
     except ValueError:
-        raise CliError("connection_info", "Mika's connection information is invalid. " + RETRY_HINT) from None
+        raise CliError("connection_info", "Maeve's connection information is invalid. " + RETRY_HINT) from None
     except CliError as exc:
         if exc.code != "adb":
             raise
-        raise CliError("connection_info", "Mika's connection information could not be read. " + RETRY_HINT) from None
+        raise CliError("connection_info", "Maeve's connection information could not be read. " + RETRY_HINT) from None
     token = clean_token(info.get("token"))
     secrets.append(token)
     boot = adb.run("shell", "settings", "get", "global", "boot_count")
     if not boot.isdigit() or info.get("boot") != boot:
-        raise CliError("stale_connection", "The phone has rebooted; run mika connect to obtain current connection information.")
+        raise CliError("stale_connection", "The phone has rebooted; run maeve connect to obtain current connection information.")
     if type(info.get("api_version")) is not int or info["api_version"] != 1:
-        raise CliError("incompatible_api", "This Mika APK does not advertise task API v1; install a build with CLI support.")
+        raise CliError("incompatible_api", "This Maeve APK does not advertise task API v1; install a build with CLI support.")
     port = info.get("port")
     if type(port) is not int or not 1 <= port <= 65535:
-        raise CliError("connection_info", "Mika's advertised port is invalid.")
+        raise CliError("connection_info", "Maeve's advertised port is invalid.")
     local = adb.run("forward", "tcp:0", "tcp:" + str(port))
     if not local.isascii() or not local.isdigit() or not 1 <= int(local) <= 65535:
         raise CliError("adb", "ADB did not return a valid temporary forwarding port.")
@@ -296,7 +296,7 @@ def connection(args, secrets):
         try:
             adb.run("forward", "--remove", "tcp:" + local, timeout=5)
         except CliError:
-            print("mika: could not confirm removal of the temporary ADB forward on port " + local + ".", file=sys.stderr)
+            print("maeve: could not confirm removal of the temporary ADB forward on port " + local + ".", file=sys.stderr)
 
 
 def text_input(text, filename, label):
@@ -315,21 +315,21 @@ def task_snapshot(result, client, *, mutation=False, task_id=None):
             or not isinstance(result.get("status"), str) or result["status"] not in STATUSES):
         if mutation:
             client.unknown(task_id)
-        raise CliError("protocol", "Mika returned an invalid task snapshot.")
+        raise CliError("protocol", "Maeve returned an invalid task snapshot.")
     if task_id is not None and result["task_id"] != task_id:
         if mutation:
             client.unknown(task_id)
-        raise CliError("protocol", "Mika returned a different task ID.")
+        raise CliError("protocol", "Maeve returned a different task ID.")
     return result
 
 
 def recent_tasks(client, limit):
     result = client.request("GET", "/tasks?limit=" + str(limit))
     if not isinstance(result.get("tasks"), list):
-        raise CliError("protocol", "Mika returned an invalid task list.")
+        raise CliError("protocol", "Maeve returned an invalid task list.")
     for task in result["tasks"]:
         if not isinstance(task, dict):
-            raise CliError("protocol", "Mika returned an invalid task list.")
+            raise CliError("protocol", "Maeve returned an invalid task list.")
         task_snapshot(task, client)
     return result
 
@@ -348,7 +348,7 @@ def execute(args, secrets):
         if args.action in {"answer", "steer"}:
             args.text = text_input(args.text, args.text_file, args.action)
         if hasattr(args, "task_id") and not re.fullmatch(r"[A-Za-z0-9_-]+", args.task_id):
-            raise CliError("arguments", "task_id must be an ID returned by Mika.")
+            raise CliError("arguments", "task_id must be an ID returned by Maeve.")
     if args.command == "devices":
         if args.url or args.token_file:
             raise CliError("arguments", "devices lists ADB devices; it does not use --url or --token-file.")
@@ -366,7 +366,7 @@ def execute(args, secrets):
             return {"connection": "ok", **transport, "api_version": 1, "device_state": device, "model_configuration": "unverified"}
         action = args.action
         if action == "steer" and "task_steer" not in info.get("capabilities", []):
-            raise CliError("incompatible_api", "This Mika APK does not support task steering; update the phone app.")
+            raise CliError("incompatible_api", "This Maeve APK does not support task steering; update the phone app.")
         path = "/tasks" + ("/" + args.task_id if hasattr(args, "task_id") else "")
         if action == "run":
             body = {"goal": args.goal}
@@ -433,8 +433,8 @@ def parser():
         common.add_argument(flag, help=help_text, default=argparse.SUPPRESS)
     common.add_argument("--json", action="store_true", default=argparse.SUPPRESS, help="Compact JSON output, including errors")
     common.add_argument("--request-timeout", type=request_timeout, default=argparse.SUPPRESS, help="HTTP timeout in seconds (default: 15; bounded waits get at least timeout + 5)")
-    p = Parser(prog="mika", description="Delegate tasks to Mika on Android using task API v1.", parents=[common])
-    p.add_argument("--version", action="version", version="mika " + VERSION)
+    p = Parser(prog="maeve", description="Delegate tasks to Maeve on Android using task API v1.", parents=[common])
+    p.add_argument("--version", action="version", version="maeve " + VERSION)
     sub = p.add_subparsers(dest="command", required=True)
     for name, help_text in [("connect", "Enable ADB computer access and verify task API"),
                             ("doctor", "Read connection and phone state without starting a task"),
@@ -479,17 +479,17 @@ def main(argv=None):
                 setattr(args, key, default)
         if args.command == "ui":
             if compact:
-                raise CliError("arguments", "The desk is interactive. Use mika ui without --json.")
+                raise CliError("arguments", "The desk is interactive. Use maeve ui without --json.")
             if bool(args.url) != bool(args.token_file) or (args.url and args.device):
                 raise CliError("arguments", "Choose one ADB device or use --url with --token-file.")
             if args.url:
                 base_url(args.url)
             try:
-                from mika_desk import serve
+                from maeve_desk import serve
             except ModuleNotFoundError:
-                # A copied Skill folder run as `python3 -I .../mika_cli.py` leaves this folder off sys.path.
+                # A copied Skill folder run as `python3 -I .../maeve_cli.py` leaves this folder off sys.path.
                 sys.path.append(str(Path(__file__).resolve().parent))
-                from mika_desk import serve
+                from maeve_desk import serve
             return serve(args)
         args.progress = args.command in {"devices", "connect", "doctor"}
         result = execute(args, secrets)

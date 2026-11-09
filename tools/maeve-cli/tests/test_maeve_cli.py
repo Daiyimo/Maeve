@@ -16,14 +16,14 @@ import unittest
 from unittest.mock import patch
 
 SKILL = Path(__file__).resolve().parents[1]
-SCRIPT = SKILL / "scripts/mika_cli.py"
+SCRIPT = SKILL / "scripts/maeve_cli.py"
 TOKEN = "unit-test-connection-token"
 SNAPSHOT = {"task_id": "t1", "status": "running", "conversation": "mcp-test", "goal": "example"}
 DISCOVERY = {"api_version": 1, "server_version": "test", "capabilities": ["tasks", "task_steer"]}
 
 
 def load_cli():
-    spec = importlib.util.spec_from_file_location("mika_cli_test", SCRIPT)
+    spec = importlib.util.spec_from_file_location("maeve_cli_test", SCRIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -384,7 +384,7 @@ else:
             adb, env, _, calls = self.fake_adb(server, bootstrap_exit=1)
             result, body = self.invoke("connect", "--adb", str(adb), env=env)
             self.assertEqual("adb", body["error"]["code"])
-            self.assertIn("open Mika once", body["error"]["message"])
+            self.assertIn("open Maeve once", body["error"]["message"])
             self.assertFalse(any("forward" in c for c in calls()))
 
     def test_unreadable_connection_info_asks_for_unlock_and_open(self):
@@ -392,7 +392,7 @@ else:
             adb, env, _, calls = self.fake_adb(server, cat_fails=True)
             result, body = self.invoke("doctor", "--adb", str(adb), env=env)
             self.assertEqual("connection_info", body["error"]["code"])
-            self.assertIn("open Mika once", body["error"]["message"])
+            self.assertIn("open Maeve once", body["error"]["message"])
             self.assertFalse(any("forward" in c for c in calls()))
 
     def test_unrunnable_adb_is_adb_unavailable(self):
@@ -449,8 +449,8 @@ else:
             result, body = self.invoke("connect", "--adb", str(adb), env=env)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             for line in ["starting ADB server...", "running phone bootstrap...", "contacting the phone..."]:
-                self.assertIn("mika: " + line, result.stderr)
-            self.assertNotIn("mika:", result.stdout)
+                self.assertIn("maeve: " + line, result.stderr)
+            self.assertNotIn("maeve:", result.stdout)
             result, _ = self.invoke("task", "run", "--goal", "quiet", server=server)
             self.assertEqual("", result.stderr)
 
@@ -487,7 +487,7 @@ else:
         copied = self.directory / "installed-skill"
         shutil.copytree(SKILL, copied, ignore=shutil.ignore_patterns("__pycache__", "*.egg-info", "build"))
         with api() as server:
-            result, body = self.invoke("task", "run", "--goal", "standalone", server=server, script=copied / "scripts/mika_cli.py")
+            result, body = self.invoke("task", "run", "--goal", "standalone", server=server, script=copied / "scripts/maeve_cli.py")
             self.assertEqual(0, result.returncode)
             self.assertEqual("t1", body["task_id"])
 
@@ -498,7 +498,7 @@ else:
         self.assertEqual("arguments", body["error"]["code"])
 
     def test_interrupted_mutation_is_unknown(self):
-        spec = importlib.util.spec_from_file_location("mika_cli_test", SCRIPT)
+        spec = importlib.util.spec_from_file_location("maeve_cli_test", SCRIPT)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         client = module.Client("http://127.0.0.1/api/v1", TOKEN)

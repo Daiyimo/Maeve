@@ -1,5 +1,5 @@
 ---
-name: configure-mika
+name: configure-maeve
 display: 改 Maeve 自己的设置
 description: 用户让 Maeve 改自己的设置时用它看和改;模型、Key 与删数据不在其中
 aliases: ["设置你自己", "改你的设置", "调快一点", "别静音", "换个外观"]

@@ -1,7 +1,7 @@
 """Optional browser regression, outside the default test run (its name does not match test*.py).
 
 Run it directly after `pip install playwright && playwright install chromium`:
-    python3 tools/mika/tests/browser_desk_updates.py
+    python3 tools/maeve-cli/tests/browser_desk_updates.py
 It skips when Playwright or its bundled Chromium is not installed.
 """
 
@@ -17,8 +17,8 @@ try:
 except ImportError:
     sync_playwright = None
 
-from test_mika_cli import api, DISCOVERY, SNAPSHOT, TOKEN
-from test_mika_desk import desk
+from test_maeve_cli import api, DISCOVERY, SNAPSHOT, TOKEN
+from test_maeve_desk import desk
 
 
 @contextmanager
@@ -32,7 +32,7 @@ def browser_desk(respond, locale="zh-CN"):
             except PlaywrightError as exc:
                 raise unittest.SkipTest(f"Playwright's Chromium is unavailable: {exc}")
             try:
-                # The assertions read the Chinese strings; test_mika_desk checks both languages exist.
+                # The assertions read the Chinese strings; test_maeve_desk checks both languages exist.
                 page = browser.new_page(locale=locale)
                 page.goto(url.geturl())
                 yield page, phone

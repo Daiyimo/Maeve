@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ d12900005a97 -->
+<!-- translated-from: README.md @ 587bea3f5e22 -->
 # Maeve
 
 [English](../../README.md) · 简体中文 · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md)
@@ -121,7 +121,6 @@ Flutter 外壳目前是工作台：回复是本地延时演示，对话和记忆
 | `docs/spec/` | 视觉 token、触感、bridge v3 协议、迁移记录 |
 | `docs/adr/` | 架构决策记录 |
 | `docs/dev/` | 架构、工程规范、review 记录、专题说明 |
-| `docs/reference/` | 上游 Mika 源码的分析存档（原样保留） |
 | [ATTRIBUTION.md](../../ATTRIBUTION.md) | 来源、改了什么、Apache-2.0 §4 声明 |
 
 ## 参与贡献

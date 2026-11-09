@@ -145,7 +145,7 @@ ui/theme/
   MaeveMotifs.kt      ★ 新:MazeRing / PianoRoll / calibrationCorners / hairlineLattice
   MaeveMark.kt        品牌标志=圆形迷宫;圈数随尺寸自适应
   MaeveTheme.kt       MaeveTheme / surfaces / semantic / haptics 入口
-  MikaCompat.kt       deprecated 别名层(MikaColors=MaeveColors …),旧代码零改动
+  MaeveCompat.kt       deprecated 别名层(MaeveColors=MaeveColors …),旧代码零改动
 ui/components/
   Controls.kt         开关、胶囊、按钮、分段、顶栏(含 eyebrow)、选择胶囊、微标签
   Rows.kt             分组标题(等宽大写)、列表行、行尾值(自动读数)、单选行、输入行
@@ -310,7 +310,7 @@ gradle :app:testDebugUnitTest --offline        # 全量单测
 
 - 新代码一律用 `MaeveColors` / `MaeveTheme` / `MaeveMotion` / `MaeveRadius` /
   `MaeveType`。
-- `MikaCompat.kt` 的别名是**deprecated 的过渡层**,不是新 API;旧文件慢慢改,
+- `MaeveCompat.kt` 的别名是**deprecated 的过渡层**,不是新 API;旧文件慢慢改,
   改一个删一个别名,全部清完把兼容层删掉。
 - `cardSurface(tier = GlassTier.Card)` 现在画的是纸,不是玻璃。想加玻璃只有
   `GlassTier.Chrome` 一档,而且要有「浮在滚动内容上」这个理由才用。

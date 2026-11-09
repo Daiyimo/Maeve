@@ -283,8 +283,8 @@ static int api_level(void)
 {
 #ifdef __ANDROID__
 	return android_get_device_api_level();
-#elif defined(MIKARUN_HOST_API_LEVEL)
-	return MIKARUN_HOST_API_LEVEL; /* 只用于在普通 Linux 上测退路 */
+#elif defined(MAEVERUN_HOST_API_LEVEL)
+	return MAEVERUN_HOST_API_LEVEL; /* 只用于在普通 Linux 上测退路 */
 #else
 	return 10000;
 #endif

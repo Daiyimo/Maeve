@@ -26,7 +26,7 @@
 
 | 文档 | 讲什么 |
 | --- | --- |
-| [CLI / Skill：安装、升级和卸载](computer-install.md) | 在电脑上装 `mika` 命令或 Agent 用的 Skill |
+| [CLI / Skill：安装、升级和卸载](computer-install.md) | 在电脑上装 `maeve` 命令或 Agent 用的 Skill |
 | [CLI 与 Skill：连接与任务命令](cli.md) | 连接手机、派任务、查进度、追问和插话的命令 |
 | [电脑连接（MCP）](mcp.md) | 让 MCP 客户端把任务交给 Maeve：USB、Wi-Fi / VPN、工具、安全 |
 | [用电脑上的 AI 助手安装](install-with-agent.md) | 写给电脑上的 AI 助手看的安装步骤：手机经 USB 连着电脑时，把这份交给它，它替你装好 |

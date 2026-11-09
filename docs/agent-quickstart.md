@@ -19,32 +19,32 @@ curl -s https://api.github.com/repos/Daiyimo/Maeve/releases/latest   # 取 tag_n
 ## 2. 选 CLI 还是 Skill
 
 - Agent 支持 Skill：**默认装 Skill**，它自带 CLI 脚本。
-- 否则装 CLI：`pipx install 'git+https://github.com/Daiyimo/Maeve.git@<tag>#subdirectory=tools/mika'`。
+- 否则装 CLI：`pipx install 'git+https://github.com/Daiyimo/Maeve.git@<tag>#subdirectory=tools/maeve-cli'`。
 
 ## 3. 安装 Skill
 
-`<技能目录>` 是你所用 Agent 的技能目录，按该 Agent 自己的文档确定；Skill 装在它下面的 `mika` 文件夹里。
+`<技能目录>` 是你所用 Agent 的技能目录，按该 Agent 自己的文档确定；Skill 装在它下面的 `maeve` 文件夹里。
 
 POSIX：
 
 ```sh
-curl -L -o mika.zip https://github.com/Daiyimo/Maeve/archive/refs/tags/<tag>.zip
-unzip -q mika.zip -d mika-src
-mkdir -p <技能目录> && cp -R mika-src/Maeve-<ver>/tools/mika <技能目录>/mika
-python3 <技能目录>/mika/scripts/mika_cli.py --version
+curl -L -o maeve.zip https://github.com/Daiyimo/Maeve/archive/refs/tags/<tag>.zip
+unzip -q maeve.zip -d maeve-src
+mkdir -p <技能目录> && cp -R maeve-src/Maeve-<ver>/tools/maeve-cli <技能目录>/maeve
+python3 <技能目录>/maeve/scripts/maeve_cli.py --version
 ```
 
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://github.com/Daiyimo/Maeve/archive/refs/tags/<tag>.zip -OutFile mika.zip
-Expand-Archive mika.zip -DestinationPath mika-src
+Invoke-WebRequest https://github.com/Daiyimo/Maeve/archive/refs/tags/<tag>.zip -OutFile maeve.zip
+Expand-Archive maeve.zip -DestinationPath maeve-src
 New-Item -ItemType Directory -Force "<技能目录>" | Out-Null
-Copy-Item -Recurse mika-src\Maeve-<ver>\tools\mika "<技能目录>\mika"
-py -3 "<技能目录>\mika\scripts\mika_cli.py" --version
+Copy-Item -Recurse maeve-src\Maeve-<ver>\tools\maeve "<技能目录>\maeve"
+py -3 "<技能目录>\maeve\scripts\maeve_cli.py" --version
 ```
 
-解释器：Windows 用 `py -3`，其他系统用 `python3`。下文 `mika` 在只装 Skill 时即 `python3 <技能目录>/mika/scripts/mika_cli.py`（Windows `py -3 ...`）。
+解释器：Windows 用 `py -3`，其他系统用 `python3`。下文 `maeve` 在只装 Skill 时即 `python3 <技能目录>/maeve/scripts/maeve_cli.py`（Windows `py -3 ...`）。
 
 ## 4. 连接
 
@@ -52,13 +52,13 @@ py -3 "<技能目录>\mika\scripts\mika_cli.py" --version
 
 1. USB：用已授权的 ADB。
    ```sh
-   mika devices --json
-   mika connect --device SERIAL --json
+   maeve devices --json
+   maeve connect --device SERIAL --json
    ```
    不止一台在线时问用户用哪台，之后一直用这一台。
 2. Wi-Fi / 私有 VPN：用用户给的 HTTP 地址和令牌文件路径（令牌只从文件读，不显示内容）：
    ```sh
-   mika --url http://PHONE:8765 --token-file /path/to/token doctor --json
+   maeve --url http://PHONE:8765 --token-file /path/to/token doctor --json
    ```
 
 状态 `unauthorized`：让用户在手机上允许 USB 调试。`offline`：让用户重新插拔数据线。读不到连接信息（`connection_info`）：让用户解锁手机、打开一次 Maeve，再运行 `connect`。

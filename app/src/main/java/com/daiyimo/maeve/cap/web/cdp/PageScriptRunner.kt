@@ -94,7 +94,7 @@ class PageScriptRunner(
                 return@coroutineScope ScriptRun.Failed(DEVTOOLS_UNAVAILABLE, "the page did not answer in time")
             }
 
-            // 一直挂着一个取件:脚本的 maeve 调用一条条交回来;收尾(__mikaEnd)交回 null,世界没了求值失败,都就此停
+            // 一直挂着一个取件:脚本的 maeve 调用一条条交回来;收尾(__maeveEnd)交回 null,世界没了求值失败,都就此停
             launch {
                 while (!outcome.isCompleted) {
                     val r = try {

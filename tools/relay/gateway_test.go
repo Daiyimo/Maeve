@@ -330,7 +330,7 @@ func TestCliMethodsQueryAndClientMetadataAreTransparent(t *testing.T) {
 		defer close(done)
 		for _, method := range []string{"GET", "POST", "DELETE"} {
 			request := readFrame(t, c)
-			if request.Method != method || request.Path != "/api/v1/tasks" || request.Query != "limit=2&source=remote%20test" || request.Headers["x-mika-client"] != "cli-test" || request.Headers["origin"] != "https://browser.example" {
+			if request.Method != method || request.Path != "/api/v1/tasks" || request.Query != "limit=2&source=remote%20test" || request.Headers["x-maeve-client"] != "cli-test" || request.Headers["origin"] != "https://browser.example" {
 				t.Error("CLI request changed")
 			}
 			sendFrame(t, c, frame{Type: "response", ID: request.ID, Status: 202, Body: []byte(`{"ok":true}`)})
@@ -338,7 +338,7 @@ func TestCliMethodsQueryAndClientMetadataAreTransparent(t *testing.T) {
 	}()
 	for _, method := range []string{"GET", "POST", "DELETE"} {
 		req, _ := http.NewRequest(method, f.server.URL+"/api/v1/tasks?limit=2&source=remote%20test", strings.NewReader(`{}`))
-		req.Header.Set("X-Mika-Client", "cli-test")
+		req.Header.Set("X-Maeve-Client", "cli-test")
 		req.Header.Set("Origin", "https://browser.example")
 		r, err := f.client.Do(req)
 		if err != nil {
@@ -355,7 +355,7 @@ func TestCliMethodsQueryAndClientMetadataAreTransparent(t *testing.T) {
 func TestOtherPhoneProtocolIsRejectedBeforeUpgrade(t *testing.T) {
 	f := newFixture(t)
 	f.pair(t)
-	c, r, err := websocket.Dial(context.Background(), strings.Replace(f.server.URL, "http:", "ws:", 1)+"/device", &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": []string{"Bearer " + f.device}}, Subprotocols: []string{"mika-relay.v1"}})
+	c, r, err := websocket.Dial(context.Background(), strings.Replace(f.server.URL, "http:", "ws:", 1)+"/device", &websocket.DialOptions{HTTPHeader: http.Header{"Authorization": []string{"Bearer " + f.device}}, Subprotocols: []string{"maeve-relay.v1"}})
 	if c != nil {
 		c.CloseNow()
 	}

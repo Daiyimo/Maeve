@@ -32,7 +32,7 @@ func TestWebLanguagesAndCatalogCompleteness(t *testing.T) {
 			}
 		}
 		req := httptest.NewRequest("GET", f.server.URL+"/", nil)
-		req.AddCookie(&http.Cookie{Name: "mika_language", Value: lang})
+		req.AddCookie(&http.Cookie{Name: "maeve_language", Value: lang})
 		w := httptest.NewRecorder()
 		f.g.ServeHTTP(w, req)
 		if !strings.Contains(w.Body.String(), `<html lang="`+lang+`">`) || !strings.Contains(w.Body.String(), `value="`+lang+`" selected`) {

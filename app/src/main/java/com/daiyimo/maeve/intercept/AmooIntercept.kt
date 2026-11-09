@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
  *
  * 背景:amoo(com.stepos.ailauncher)发出的消息走 AgentBus 云端优先,Maeve 这台「本机操作手」
  * 会被绕过。没有 root 改不了 amoo/AgentBus 的路由,那就从 Maeve 侧接:无障碍服务看着 amoo
- * 聊天页,用户每发一条消息,就按 MCP mika_run_task 的同一条底层路径
+ * 聊天页,用户每发一条消息,就按 MCP maeve_run_task 的同一条底层路径
  * ([RemoteTaskService.start])在 Maeve 里建一个任务,胶囊照常执行,任务页可见、可取消。
  * amoo 发往云端的消息不受影响,照常发送——Maeve 是在本机并行做一遍,不是拦路。
  *

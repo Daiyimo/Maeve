@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ d12900005a97 -->
+<!-- translated-from: README.md @ 587bea3f5e22 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · Español
@@ -120,7 +120,6 @@ ningún binario publicado.
 | `docs/spec/` | Tokens visuales, háptica, protocolo bridge v3, notas de migración |
 | `docs/adr/` | Registros de decisiones de arquitectura |
 | `docs/dev/` | Arquitectura, estándares de ingeniería, registros de revisión, notas temáticas |
-| `docs/reference/` | Análisis archivado del código de Mika upstream (sin cambios) |
 | [ATTRIBUTION.md](../../ATTRIBUTION.md) | Procedencia, qué cambió, declaraciones Apache-2.0 §4 |
 
 ## Contribuir

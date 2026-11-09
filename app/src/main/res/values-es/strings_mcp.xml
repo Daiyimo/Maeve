@@ -71,7 +71,7 @@
     <string name="stepclaw_clients">%1$d cliente(s) conectado(s), esperando la primera solicitud</string>
     <string name="stepclaw_off">No está escuchando. Activa «Wi-Fi y redes privadas» o «USB» en los ajustes avanzados de abajo: la dirección de bucle local necesita uno de los dos.</string>
     <string name="stepclaw_copy_config">Copiar configuración de la puerta de enlace</string>
-    <string name="stepclaw_new_device">¿Cambias de dispositivo o reinstalas Maeve? El puerto no cambia, pero el token se genera al azar en cada instalación: vuelve a añadirlo a mcp.servers.mika de la puerta de enlace.</string>
+    <string name="stepclaw_new_device">¿Cambias de dispositivo o reinstalas Maeve? El puerto no cambia, pero el token se genera al azar en cada instalación: vuelve a añadirlo a mcp.servers.maeve de la puerta de enlace.</string>
     <string name="amoo_page_title">Amoo</string>
     <string name="amoo_page_sub">Envia la habilidad a amoo con un toque</string>
     <string name="amoo_status_title">Conexión</string>

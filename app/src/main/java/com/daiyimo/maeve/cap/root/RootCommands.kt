@@ -89,7 +89,7 @@ class RootCommands(
     }
 
     private companion object {
-        const val MARK = "__mika_root_ok__"
+        const val MARK = "__maeve_root_ok__"
         const val MAX_BYTES = 1 shl 20
         const val GRACE_MS = 5_000L
     }

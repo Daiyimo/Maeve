@@ -63,7 +63,7 @@ func normalizeLanguage(tag string) string {
 	return "zh-Hans"
 }
 func pageLanguage(r *http.Request) string {
-	if c, err := r.Cookie("mika_language"); err == nil && translations[c.Value] != nil {
+	if c, err := r.Cookie("maeve_language"); err == nil && translations[c.Value] != nil {
 		return c.Value
 	}
 	type choice struct {
@@ -104,7 +104,7 @@ func (g *gateway) render(w http.ResponseWriter, r *http.Request, status int, mes
 	lang := pageLanguage(r)
 	data := pageData{Lang: lang, Copy: translations[lang], Message: message, Code: code, Bad: bad, Confirm: confirm}
 	data.Preference = "auto"
-	if c, err := r.Cookie("mika_language"); err == nil && translations[c.Value] != nil {
+	if c, err := r.Cookie("maeve_language"); err == nil && translations[c.Value] != nil {
 		data.Preference = c.Value
 	}
 	var b bytes.Buffer
@@ -155,7 +155,7 @@ func (g *gateway) language(w http.ResponseWriter, r *http.Request) {
 		failure(w, 400, "invalid_language")
 		return
 	}
-	cookie := &http.Cookie{Name: "mika_language", Value: lang, Path: "/", Secure: strings.HasPrefix(g.base, "https://"), HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: 365 * 24 * 60 * 60}
+	cookie := &http.Cookie{Name: "maeve_language", Value: lang, Path: "/", Secure: strings.HasPrefix(g.base, "https://"), HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: 365 * 24 * 60 * 60}
 	if lang == "auto" {
 		cookie.MaxAge = -1
 	}

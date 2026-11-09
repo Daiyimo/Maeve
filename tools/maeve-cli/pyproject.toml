@@ -3,20 +3,20 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mika-phone-cli"
+name = "maeve-phone-cli"
 version = "0.1.0"
-description = "Command-line client for Mika's Android task API"
+description = "Command-line client for Maeve's Android task API"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}
 dependencies = []
 
 [project.scripts]
-mika = "mika_cli:main"
+maeve = "maeve_cli:main"
 
 [tool.setuptools]
-py-modules = ["mika_cli"]
-packages = ["mika_desk"]
+py-modules = ["maeve_cli"]
+packages = ["maeve_desk"]
 package-dir = {"" = "scripts"}
 
 [tool.setuptools.package-data]
-mika_desk = ["*.html", "*.css", "*.js", "mika-logo.png"]
+maeve_desk = ["*.html", "*.css", "*.js", "maeve-logo.png"]

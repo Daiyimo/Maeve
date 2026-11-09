@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
-from test_mika_cli import api, DISCOVERY, SCRIPT, SNAPSHOT, TOKEN
+from test_maeve_cli import api, DISCOVERY, SCRIPT, SNAPSHOT, TOKEN
 
 
 @contextmanager
@@ -34,7 +34,7 @@ def desk(*args, env=None):
 
 def request(url, data=None, *, path="/desk", headers=None):
     origin = "http://" + url.netloc
-    request_headers = {"Origin": origin, "X-Mika-Desk": url.fragment, "Content-Type": "application/json"}
+    request_headers = {"Origin": origin, "X-Maeve-Desk": url.fragment, "Content-Type": "application/json"}
     request_headers.update(headers or {})
     conn = http.client.HTTPConnection(url.hostname, url.port, timeout=5)
     try:
@@ -119,7 +119,7 @@ class DeskTest(unittest.TestCase):
     def test_browser_session_origin_host_and_command_allowlist(self):
         with api() as phone, self.launch(phone) as url:
             command = {"action": "run", "goal": "no"}
-            for headers in [{"X-Mika-Desk": ""}, {"Origin": "https://other.invalid"}, {"Origin": "null"},
+            for headers in [{"X-Maeve-Desk": ""}, {"Origin": "https://other.invalid"}, {"Origin": "null"},
                             {"Host": "other.invalid"}, {"Content-Type": "text/plain"}]:
                 self.assertIn(request(url, command, headers=headers)[0], (403, 415))
             for data in [{**command, "url": "http://other.invalid"}, {**command, "goal_file": "/etc/hosts"},
@@ -133,15 +133,15 @@ class DeskTest(unittest.TestCase):
         with api() as phone, self.launch(phone) as url:
             # No endpoint hands out the secret, and a guessed one is refused without contacting the phone.
             for path in ["/session", "/desk"]:
-                self.assertEqual(403, request(url, {}, path=path, headers={"X-Mika-Desk": "open"})[0])
-            self.assertEqual(403, request(url, {"action": "overview"}, headers={"X-Mika-Desk": url.fragment[:-1]})[0])
+                self.assertEqual(403, request(url, {}, path=path, headers={"X-Maeve-Desk": "open"})[0])
+            self.assertEqual(403, request(url, {"action": "overview"}, headers={"X-Maeve-Desk": url.fragment[:-1]})[0])
             self.assertEqual([], phone.calls)
         result = subprocess.run([sys.executable, str(SCRIPT), "ui", "--no-open", "--port", "18765"],
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(2, result.returncode)
 
     def test_every_text_has_chinese_and_english(self):
-        desk_dir = SCRIPT.parent / "mika_desk"
+        desk_dir = SCRIPT.parent / "maeve_desk"
         script = (desk_dir / "desk.js").read_text(encoding="utf-8")
         table = script[script.index("const STRINGS = {"):script.index("\n};", script.index("const STRINGS = {"))]
         strings = dict(re.findall(r'^  (\w+): \["([^"]+)", "[^"]+"\],$', table, re.M))
@@ -171,34 +171,34 @@ class DeskTest(unittest.TestCase):
 
     def test_target_choice_is_limited_to_online_devices_and_stays_pinned(self):
         with patch.object(sys, "path", [str(SCRIPT.parent), *sys.path]):
-            import mika_desk
+            import maeve_desk
         args = Namespace(url=None, device=None, adb="adb")
         online = [{"device": "phone-a", "state": "device"}, {"device": "phone-b", "state": "device"},
                   {"device": "other", "state": "offline"}]
-        with patch.dict(os.environ, {"ANDROID_SERIAL": ""}), mika_desk.Desk(args) as server:
-            with patch.object(mika_desk.Adb, "start_server"), \
-                    patch.object(mika_desk.Adb, "devices", return_value=online) as listing:
+        with patch.dict(os.environ, {"ANDROID_SERIAL": ""}), maeve_desk.Desk(args) as server:
+            with patch.object(maeve_desk.Adb, "start_server"), \
+                    patch.object(maeve_desk.Adb, "devices", return_value=online) as listing:
                 for choice in [None, "other", "unknown"]:
-                    with self.assertRaises(mika_desk.CliError) as caught:
+                    with self.assertRaises(maeve_desk.CliError) as caught:
                         server.pin_target(choice)
                     self.assertEqual(["phone-a", "phone-b"], caught.exception.details["devices"])
                     self.assertFalse(args.device)
                 server.pin_target("phone-b")
                 listing.return_value = [online[0]]  # The chosen phone disconnected.
                 server.pin_target(None)
-                with self.assertRaises(mika_desk.CliError) as caught:
+                with self.assertRaises(maeve_desk.CliError) as caught:
                     server.pin_target("phone-a")
                 self.assertEqual("device_pinned", caught.exception.code)
                 self.assertEqual("phone-b", args.device)
 
     def test_a_lone_unready_phone_reports_its_state(self):
         with patch.object(sys, "path", [str(SCRIPT.parent), *sys.path]):
-            import mika_desk
+            import maeve_desk
         args = Namespace(url=None, device=None, adb="adb")
         with patch.dict(os.environ, {"ANDROID_SERIAL": ""}), \
-                patch.object(mika_desk.Adb, "start_server") as start, \
-                patch.object(mika_desk.Adb, "devices", return_value=[{"device": "phone-a", "state": "unauthorized"}]), \
-                mika_desk.Desk(args) as server:
+                patch.object(maeve_desk.Adb, "start_server") as start, \
+                patch.object(maeve_desk.Adb, "devices", return_value=[{"device": "phone-a", "state": "unauthorized"}]), \
+                maeve_desk.Desk(args) as server:
             worker = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
             worker.start()
             try:

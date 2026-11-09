@@ -6,7 +6,7 @@
 > **v0.2 修订摘要**：① 双路线拆成 R1 / R2a(amoo 文件桥) / R2b(电脑 MCP)，两者不可互兜底；② 「隐藏核心」由「零配置」改为「能力隐藏 + 一次性握手」；③ `:18770` 实测仅回环，WorkBuddy 需显式开局域网或 USB forward；④ 「纯本地/内置模型」改为「端侧执行 + 外部 Provider 决策」；⑤ 新增文件桥协议缺陷、StepOS 平台约束、改包名致技能失效的迁移项。详见 §12。
 > **v0.3 修订摘要**：① 修掉 v0.1 正文与 §12 的 6 处直接矛盾（技能版本、`request_id` 生成、alias 生命周期、超时终态等）；② 补纳 `step-gui-edge-资料.md` / `mobile-agent-GUI实现分析.md` / `豆包手机实现调研.md` / `gelab-zero` 本地仓库；③ 新增端侧决策后端接缝、机械后验、敏感应用清单、`SelfCheck` 验收复用 4 条 ADR；④ 把文件桥 v3 从「缺陷描述」写成可实现的 wire contract；⑤ 给出决策阻塞表，明确哪些问题不回答也能开工。详见 §13。
 > **目标仓库**：`E:\project\daiyimo\Maeve` → `https://github.com/Daiyimo/Maeve.git`（**公开历史从单基线快照 `7cf7ff3` 开始，后面是 Maeve 提交；当前分支 `master`，单一贡献者；见 `ATTRIBUTION.md`**）
-> **上游**：`E:\project\daiyimo\Mika`，Apache-2.0，Copyright 2026 wangzan101
+> **上游**：`E:\project\daiyimo\Maeve`，Apache-2.0，Copyright 2026 wangzan101
 > **设计参考**：`E:\project\daiyimo\dsh-go`（dsh-Go，AGPL-3.0）
 > **本 spec 的范围**：只定义「要做什么、为什么、做成什么样、怎么验收」。**不写代码、不搬源码、不改上游**；实现与发布动作记录见 `docs/spec/migration.md`。
 
@@ -27,7 +27,7 @@
 ### 0.1 对前期结论的两处纠偏（重要）
 
 1. **产品不是单主线 A。** 前文为收敛命名，曾把产品简化为「主线 A：不打扰的后台屏操作」。用户明确纠正：**这个 app 是两条路线**——
-   - **R1 安卓通用路线**：原 Mika 的本地路线，用户在 App 内下指令，Maeve 用无障碍 + 后台虚拟屏把活干完。
+   - **R1 安卓通用路线**：原 Maeve 的本地路线，用户在 App 内下指令，Maeve 用无障碍 + 后台虚拟屏把活干完。
    - **R2 Agent 接入路线**：连接 amoo，或通过 MCP 连接其他 agent（例：WorkBuddy），由外部大脑下指令、Maeve 提供手机执行能力。
    
    「不打扰的后台屏」仍然是两条路线**共用的执行特征**，但不再是产品的全部定义。本 spec 以双路线模型为准。
@@ -62,15 +62,15 @@ dsh-Go 的 `LICENSE` 是 **AGPL-3.0**（`ASSETS.md` 另声明名称、Logo、Dee
 | 典型场景 | 手机上直接说「把这周订单导出来」 | amoo 里说「帮我看看抖音热榜」 | WorkBuddy 在电脑上派一个手机任务 |
 | 主屏 | 不被占用 | 不被占用 | 不被占用 |
 
-**关键设计决策**：三条入口**不是三个产品、不是三套执行器**，而是「一个执行内核 + 多个入站适配器」（Mika 进程内已成立，见 §6.2；**不要外推**到 GAgent / StepBridge 等独立 App）。改造重点是**把分散的开关收敛成一个可发现的门面**，而不是复制链路。
+**关键设计决策**：三条入口**不是三个产品、不是三套执行器**，而是「一个执行内核 + 多个入站适配器」（Maeve 进程内已成立，见 §6.2；**不要外推**到 GAgent / StepBridge 等独立 App）。改造重点是**把分散的开关收敛成一个可发现的门面**，而不是复制链路。
 
 ### 1.3 「amoo 作为隐藏核心」的落地解读（v0.2 修正）
 
-v0.1 写成「零配置自动接管」，**与真机不符**。实证（`Mika/docs/dev/amoo-bridge.md:51-55,59,69-77` + §12.1 设备快照）：
+v0.1 写成「零配置自动接管」，**与真机不符**。实证（`Maeve/docs/dev/amoo-bridge.md:51-55,59,69-77` + §12.1 设备快照）：
 
-- 现状 `bridge_amoo` **默认关**，要点「开始接入」才开；关着时 Mika 不碰这个目录。
-- 文件桥只是**手机侧的一半**。amoo 侧还必须装 `mika-bridge` 技能（真机 `skill.json` = `{"skill":"mika-bridge","version":2}`）；**技能在会话启动时加载，装完要开新会话**；注入靠无障碍把说明打进 amoo 聊天页，需用户切到该页。
-- 技能里写死了信箱路径与包名。`SKILL.md` 位于 OpenClaw 微 VM 内（`~/.openclaw/workspace/skills/mika-bridge/`），**adb 从 Android 侧扫不到**（本次 `find /sdcard -iname SKILL.md` 无结果）。
+- 现状 `bridge_amoo` **默认关**，要点「开始接入」才开；关着时 Maeve 不碰这个目录。
+- 文件桥只是**手机侧的一半**。amoo 侧还必须装 `maeve-bridge` 技能（真机 `skill.json` = `{"skill":"maeve-bridge","version":2}`）；**技能在会话启动时加载，装完要开新会话**；注入靠无障碍把说明打进 amoo 聊天页，需用户切到该页。
+- 技能里写死了信箱路径与包名。`SKILL.md` 位于 OpenClaw 微 VM 内（`~/.openclaw/workspace/skills/maeve-bridge/`），**adb 从 Android 侧扫不到**（本次 `find /sdcard -iname SKILL.md` 无结果）。
 
 因此 v0.2 把「隐藏核心」重新定义为：**能力层隐藏，接入只需一次性握手**。
 
@@ -227,7 +227,7 @@ dsh-Go 用 Flutter 的 `selectionClick / lightImpact / mediumImpact / heavyImpac
 | `Heavy` 危险确认完成 | heavyImpact | `EFFECT_DOUBLE_CLICK` 或自定义 waveform | `LONG_PRESS` ×2 |
 | `Reject` 被护栏拦下（**Maeve 新增**） | — | `EFFECT_REJECT` | `REJECT` / 无 |
 
-约束：先查 `Vibrator.areEffectsSupported`；集中一个入口，禁止散落的 `performHapticFeedback`；需 `android.permission.VIBRATE`；提供设置开关「触感反馈」（dsh-Go 没有，Maeve 补上）。**收敛 Mika 现存零散用法**：`MessageMenu.kt`、`ChatDrawer.kt`、`VoiceHold.kt`、`OverlayHost.kt` 四处 `LongPress` 全部改为走 `HapticEngine`。
+约束：先查 `Vibrator.areEffectsSupported`；集中一个入口，禁止散落的 `performHapticFeedback`；需 `android.permission.VIBRATE`；提供设置开关「触感反馈」（dsh-Go 没有，Maeve 补上）。**收敛 Maeve 现存零散用法**：`MessageMenu.kt`、`ChatDrawer.kt`、`VoiceHold.kt`、`OverlayHost.kt` 四处 `LongPress` 全部改为走 `HapticEngine`。
 
 ### 4.3 反馈矩阵
 
@@ -260,8 +260,8 @@ dsh-Go 用 Flutter 的 `selectionClick / lightImpact / mediumImpact / heavyImpac
 
 | 页面 | 状态 | 说明 |
 |---|---|---|
-| 首页 / 对话 | 改造 | 沿用 Mika 单 Activity Compose `NavStack`；换成 Maeve 主题、双层母题、新反馈矩阵 |
-| **连接中枢**（新增） | **新增** | R2 的统一门面，见 §5.3；替代 Mika 里分散的 `AmooScreen` / `McpScreen` / `McpServersScreen` / `RelaySection` |
+| 首页 / 对话 | 改造 | 沿用 Maeve 单 Activity Compose `NavStack`；换成 Maeve 主题、双层母题、新反馈矩阵 |
+| **连接中枢**（新增） | **新增** | R2 的统一门面，见 §5.3；替代 Maeve 里分散的 `AmooScreen` / `McpScreen` / `McpServersScreen` / `RelaySection` |
 | 任务详情 / 运行记录 | 改造 | 增加「来源」标识（本地 / amoo / MCP:xxx）与 `RunProvenance` 可视化 |
 | 设置 · 外观 | 新增 | 六主题色 + 自定义 + 壁纸取色 + 四款桌面图标 + 三档功能图标风格 + 触感开关 |
 | 设置 · 模型与能力 | 改造 | Provider 配置、能力裁剪（按 §8.4） |
@@ -387,16 +387,16 @@ stateDiagram-v2
 
 ### 6.8 对外 MCP tool 契约
 
-| Mika 原名 | Maeve 名 | 语义 |
+| Maeve 原名 | Maeve 名 | 语义 |
 |---|---|---|
-| `mika_run_task` | `maeve_run_task` | 起任务，返回 `request_id` |
-| `mika_steer_task` | `maeve_steer_task` | 中途插话 |
-| `mika_task_status` | `maeve_task_status` | 查状态（幂等） |
-| `mika_wait_task` | `maeve_wait_task` | 阻塞等待 |
-| `mika_answer` | `maeve_answer` | 回答确认闸门 |
-| `mika_cancel_task` | `maeve_cancel_task` | 取消 |
-| `mika_list_tasks` | `maeve_list_tasks` | 列出在途/近期任务 |
-| `mika_device_state` / `mika_wake_device` / `mika_unlock_device` | `maeve_*` | 设备类工具，按请求决定是否暴露（网关默认不给） |
+| `maeve_run_task` | `maeve_run_task` | 起任务，返回 `request_id` |
+| `maeve_steer_task` | `maeve_steer_task` | 中途插话 |
+| `maeve_task_status` | `maeve_task_status` | 查状态（幂等） |
+| `maeve_wait_task` | `maeve_wait_task` | 阻塞等待 |
+| `maeve_answer` | `maeve_answer` | 回答确认闸门 |
+| `maeve_cancel_task` | `maeve_cancel_task` | 取消 |
+| `maeve_list_tasks` | `maeve_list_tasks` | 列出在途/近期任务 |
+| `maeve_device_state` / `maeve_wake_device` / `maeve_unlock_device` | `maeve_*` | 设备类工具，按请求决定是否暴露（网关默认不给） |
 
 **兼容策略**：**产品 `v0.1.0 (Dolores)`** 同时注册旧名作为 deprecated alias，保证现有 amoo skill 与已有 WorkBuddy 配置平滑迁移；`server/discover` 响应里标注 `deprecated_aliases`；**产品 `v0.2.0`** 移除 alias。`request_id` 与 `conversation` 契约不变。（v0.1 此处原写「v0.2 移除」，与 §10 M3 验收「旧 alias 仍可用」冲突，v0.3 统一为产品版本号。）
 
@@ -409,7 +409,7 @@ stateDiagram-v2
 - 认领（**v0.3 按 `AmooBridge.kt:105-132` 逐行订正**）：`in/<id>.json` → `renameTo(.claimed)` → 解析 → `RemoteTaskService.start(goal, null, requestId)`；**`requestId` 由 Maeve 侧 `UUID.randomUUID()` 生成，不是文件桥的 `id`**（v0.1 此处误写成传 `id`）。产品 `v0.1.0` 起改为 `id` 的稳定 UUIDv5 映射以获得幂等能力，见 §13.8。写回 `out/<id>.json` 用临时文件 + 原子 rename。
 - 并发：`MAX_IN_FLIGHT` 上限保持；两条路线同时在途时按 `request_id` 在 receipts 排队，不并发抢后台屏。
 - 安全：**信箱是明文的，等价于把「动手机」的能力交给任何能写该目录的应用**。产品 `v0.1.0` 至少补：请求体大小上限、`goal` 长度上限、来源目录权限检查、异常请求隔离（单个坏 JSON 不影响轮询）。更严格的签名校验列入后续版本。
-- **技能必须升级（v0.3 订正）**：v0.1 此处原写「不改 `AmooSetup` 注入的 skill 说明（SKILL_VERSION=2）」，与 §12.2⑦ 和 §12.6 直接矛盾。改包名后旧技能里的 `/sdcard/Android/media/com.wangzan101.mika/amoo/` 永久失效，因此**必须**改名 `maeve-bridge`、`SKILL_VERSION` 升 **3**、首次启动自动重注入，并把 `AMOO_PKG` / `ID_INPUT` / `ID_SEND` 改为运行时探测。MCP 侧 `mika_*` alias 只兜住电脑客户端，**兜不住文件桥**。
+- **技能必须升级（v0.3 订正）**：v0.1 此处原写「不改 `AmooSetup` 注入的 skill 说明（SKILL_VERSION=2）」，与 §12.2⑦ 和 §12.6 直接矛盾。改包名后旧技能里的 `/sdcard/Android/media/com.wangzan101.maeve/amoo/` 永久失效，因此**必须**改名 `maeve-bridge`、`SKILL_VERSION` 升 **3**、首次启动自动重注入，并把 `AMOO_PKG` / `ID_INPUT` / `ID_SEND` 改为运行时探测。MCP 侧 `maeve_*` alias 只兜住电脑客户端，**兜不住文件桥**。
 
 ### 6.10 安全与隐私边界
 
@@ -426,7 +426,7 @@ stateDiagram-v2
 ## 7. 数据与状态
 
 - 两条路线共用 `RemoteTaskReceipts`(SQLite) 与 `conversation` 命名空间；`Local` 来源也写入 receipts，便于统一「最近任务」视图，但用 `RunOrigin` 区分。
-- 新增 `ConnectionConfig`（accentSource / preset / customColor / iconVariant / tileStyle / hapticsEnabled / mcpEnabled / listenScope / unattendedAllowed），与 Mika 现有 `ThemeMode` / `McpSettings` / `FeatureFlags` 做一次迁移合并，避免继续分散。
+- 新增 `ConnectionConfig`（accentSource / preset / customColor / iconVariant / tileStyle / hapticsEnabled / mcpEnabled / listenScope / unattendedAllowed），与 Maeve 现有 `ThemeMode` / `McpSettings` / `FeatureFlags` 做一次迁移合并，避免继续分散。
 - 数据重置：新 `applicationId` ⇒ 新 UID、新 AndroidKeyStore 空间、新私有目录；API Key、ADB 配对私钥、无障碍授权、对话、记忆、技能、amoo 信箱全部不迁移，`allowBackup=false` 封死系统迁移。**首启引导需明确告知「旧版数据不会带过来」**。
 - 文案红线（来自前期 review）：禁止宣称 `on-device` / `100% local` / `offline` / 「数据不出手机」/「无需权限」/「安全隐私优先」。
 
@@ -436,26 +436,26 @@ stateDiagram-v2
 
 ### 8.1 目标目录与仓库
 
-`E:\project\daiyimo\Maeve` 的 remote = `https://github.com/Daiyimo/Maeve.git`。**公开历史是重写后的单基线快照**（根提交 `7cf7ff3`，见 `ATTRIBUTION.md`），不要 `git init` 或再压平；上游血缘靠 `NOTICE`、`ATTRIBUTION.md` 和 `docs/reference/` 保留。
+`E:\project\daiyimo\Maeve` 的 remote = `https://github.com/Daiyimo/Maeve.git`。**公开历史是重写后的单基线快照**（根提交 `7cf7ff3`，见 `ATTRIBUTION.md`），不要 `git init` 或再压平；上游血缘靠 `NOTICE` 和 `ATTRIBUTION.md` 保留。
 
 **2026-11-06 实测校正**：Mika 的 `origin` 已经指向 `Daiyimo/Mika.git`（不是上游 `wangzan101/Mika`），工作副本干净（**523 个提交、tag `amoo-bridge-v1`、0 处未提交改动**），所以 v0.1 写的「`git remote rename origin upstream-fork`」不符合现状，也不需要。
 
-M1 已按下面方式在本地完成历史镜像（只读 Mika、不 push、完全可逆）：
+M1 已按下面方式在本地完成历史镜像（只读 Maeve、不 push、完全可逆）：
 
 ```bash
 cd /e/project/daiyimo/Maeve
-git remote add mika-local "E:/project/daiyimo/Mika"   # 本地路径，仅用于灌历史
-git fetch mika-local --tags                           # M0 时的做法;该 remote 已于历史重写时移除
-git reset --hard mika-local/main                      # 空仓库首次检出，不会覆盖未跟踪的 SPEC.md / docs/reference/
+git remote add maeve-local "E:/project/daiyimo/Maeve"   # 本地路径，仅用于灌历史
+git fetch maeve-local --tags                           # M0 时的做法;该 remote 已于历史重写时移除
+git reset --hard maeve-local/main                      # 空仓库首次检出，不会覆盖未跟踪的 SPEC.md
 ```
 
-**Q6 待授权后才执行**（公开、不可逆）：确认目标仓库为空 → `git remote remove mika-local` → `git push -u origin --all` → `git push origin --tags`。若目标仓库被 GitHub 自动初始化了 README/LICENSE，`--all` 会因历史无关被拒，需先清空远端。完整前置检查见 `docs/spec/migration.md`。
+**Q6 待授权后才执行**（公开、不可逆）：确认目标仓库为空 → `git remote remove maeve-local` → `git push -u origin --all` → `git push origin --tags`。若目标仓库被 GitHub 自动初始化了 README/LICENSE，`--all` 会因历史无关被拒，需先清空远端。完整前置检查见 `docs/spec/migration.md`。
 
 ### 8.2 包名与版本
 
 - `applicationId` / `namespace`：`com.daiyimo.maeve`（**Q4 已确认，M1 已执行**：9,230 处替换 / 1,442 文件 / 8 个源码目录，脚本 `tools/maeve/rename_package.py`）。数据可重置，这次连 `namespace` 一起改干净。
-- 影响面：约 1419 个文件的 package/import/AIDL/组件相对名，外加 `tools/mika/scripts/mika_cli.py` 的 `PHONE_FILES` 与若干 docs/adb 脚本里的写死路径。`AmooSetup` 的 `$pkg` 与 FileProvider 的 `${applicationId}` 自动跟随，无需手改。
-- `MikaLinks.kt` 五个上游 URL 与 `ApkIntegrity.kt` 的官方更新 URL 白名单必须同步改，否则自更新包全被拒。
+- 影响面：约 1419 个文件的 package/import/AIDL/组件相对名，外加 `tools/maeve-cli/scripts/maeve_cli.py` 的 `PHONE_FILES` 与若干 docs/adb 脚本里的写死路径。`AmooSetup` 的 `$pkg` 与 FileProvider 的 `${applicationId}` 自动跟随，无需手改。
+- `MaeveLinks.kt` 五个上游 URL 与 `ApkIntegrity.kt` 的官方更新 URL 白名单必须同步改，否则自更新包全被拒。
 - `versionCode = 1`、`versionName = "0.1.0-dolores"`、`GIT_HASH` / `BETA` 保留但重设。
 
 ### 8.3 目录约定（文档与源码同仓）
@@ -469,7 +469,7 @@ Maeve/
 │   ├── spec/               分册（架构 / 视觉 token / 触感矩阵 / 迁移清单，按需拆分）
 │   ├── reference/          前期四份分析报告（已归档）
 │   └── dev/                amoo-bridge / amoo-intercept / remote-mcp 等开发文档
-├── app/  core/  gradle/  tools/   （后续从 Mika 迁移）
+├── app/  core/  gradle/  tools/   （后续从 Maeve 迁移）
 └── .github/                CI / issue 模板
 ```
 
@@ -510,11 +510,11 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | §4(b) | 修改过的文件加显著变更声明（建议统一文件头 + `ATTRIBUTION.md` 列改动范围） |
 | §4(c) | 保留版权/专利/商标/归属声明 |
 | §4(d) | **`NOTICE` 里 `Mika / Copyright 2026 wangzan101` 原样保留**，只能追加自己的 addendum；换 Logo/名字不能删原作者署名 |
-| §6 | 不授予产品名/商标使用权 ⇒ 不用 Mika 名称与 Logo |
+| §6 | 不授予产品名/商标使用权 ⇒ 不用 Maeve 名称与 Logo |
 | 衍生关系 | 重构 + 换名 + 换仓库**仍是衍生作品**，§4 义务不因重写而消失；README 首屏坦率注明 fork 来源是加分项 |
 | GPL/LGPL | `libproot.so` / `libmaeverun.so` / rootfs 作为独立子进程运行 = mere aggregation，不传染主体；但 APK 需附 GPL/LGPL 全文、NOTICE 逐字副本、≥3 年源码要约。当前 `assets/licenses/` 只有 `Apache-2.0.txt` 与 `Protocol-Buffers.txt` |
 | **ML Kit** | `com.google.mlkit:text-recognition:16.0.1` **完全未披露**（THIRD_PARTY_NOTICES / LicensesScreen / assets/licenses 均无），发布前必须核查条款并补齐 |
-| AGPL-3.0 参考 | 见 §0.2：只取设计决策，不复制代码与素材；`docs/reference/` 中不得放入 dsh-Go 源码 |
+| AGPL-3.0 参考 | 见 §0.2：只取设计决策，不复制代码与素材；归档分析中不得放入 dsh-Go 源码 |
 | IP 免责 | README 与关于页写明 `Not affiliated with or endorsed by HBO, Warner Bros., or Westworld` |
 | 版本代号 | `Sublime` 仅作内部 release 代号（是知名编辑器名），不得作产品名或公开商标 |
 
@@ -527,7 +527,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | **M0 Spec** | 本文件 + §13.11 决策表 | ✅ **2026-11-06 15:43 已确认**：Q1/Q4/Q6/Q8 走默认，其余按默认继续。注意 Q6 的默认值为「否（不 push）」 |
 | **M1 骨架** | 新仓库、包名、`README/FORK/NOTICE/LICENSE`、CI 全绿 | ✅ **已完成并已推送**：`com.daiyimo.maeve`、根合规文档、`NOTICE` 原署名、compliance CI job；`:core:compileKotlin :app:compileDebugKotlin` **BUILD SUCCESSFUL**；Windows 单元测试 59 例失败与上游基线一致（非回归，见 `docs/spec/migration.md`）；历史已重写为单快照，见 `ATTRIBUTION.md` |
 | **M2 视觉** | 主题系统、四款图标、玻璃材质、触感引擎、连接中枢 UI | 六套主题在浅/深下文本对比度 ≥4.5:1、非文本 ≥3:1；四款图标切换不清除已开 task；`HapticEngine` 单一入口、无散落调用；关闭触感后零反馈 |
-| **M3 双路线** | ConnectionHub + amoo 隐藏核心 + MCP `maeve_*` + 状态机 | ① 无 amoo 时本地路线完整可用 ② 写入 `in/` 能自动被消费并写回 `out/` ③ WorkBuddy 通过 `/mcp` 起任务并查到状态 ④ 两来源同时到达按 `request_id` 排队、不并发抢屏 ⑤ 撤无障碍授权后所有入站返回明确错误 ⑥ 产品 `v0.1.0` 内旧 `mika_*` alias 仍可用 ⑦ `SelfCheck` 扩展版报告全绿（§13.7） |
+| **M3 双路线** | ConnectionHub + amoo 隐藏核心 + MCP `maeve_*` + 状态机 | ① 无 amoo 时本地路线完整可用 ② 写入 `in/` 能自动被消费并写回 `out/` ③ WorkBuddy 通过 `/mcp` 起任务并查到状态 ④ 两来源同时到达按 `request_id` 排队、不并发抢屏 ⑤ 撤无障碍授权后所有入站返回明确错误 ⑥ 产品 `v0.1.0` 内旧 `maeve_*` alias 仍可用 ⑦ `SelfCheck` 扩展版报告全绿（§13.7） |
 | **M4 发布** | 合规补齐、release 签名、P0/P1 修复、v0.1.0 "Dolores" | release 包可安装可自更新；ML Kit 已披露；GPL/LGPL 全文与源码要约就位；P0 全清、P1 有结论 |
 
 ---
@@ -551,9 +551,9 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 
 | 来源 | 路径 / 链接 | 用途 | 许可证 |
 |---|---|---|---|
-| Mika 上游 | `E:\project\daiyimo\Mika` | 源码与架构基础 | Apache-2.0 |
+| Maeve 上游 | `E:\project\daiyimo\Maeve` | 源码与架构基础 | Apache-2.0 |
 | dsh-Go | `E:\project\daiyimo\dsh-go` · https://github.com/ccch1mneyyy/dsh-Go | 主题/触感/图标设计参考 | **AGPL-3.0**（只取设计决策） |
-| 前期分析（已归档到 `docs/reference/`） | `Mika-源码深度分析与Code-Review.md`、`Mika-amoo链路实现流程图解.md`、`Mika-自有产品改造与深度优化路线图.md`、`新开源项目-建仓构思与命名方案.md` | 缺陷清单、amoo 链路、合规、命名与简介 | 本项目产出 |
+| 前期分析（已归档） | `Maeve-源码深度分析与Code-Review.md`、`Maeve-amoo链路实现流程图解.md`、`Maeve-自有产品改造与深度优化路线图.md`、`新开源项目-建仓构思与命名方案.md` | 缺陷清单、amoo 链路、合规、命名与简介 | 本项目产出 |
 | IMDb Quotes | https://www.imdb.com/title/tt0475784/quotes/ | 彩蛋台词逐字核对 | 引用 |
 
 ## 附录 B · 术语
@@ -582,10 +582,10 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | 机型 / 厂商 | **PZ261A / StepX**（STEPX Neo） | `getprop ro.product.model` / `ro.product.manufacturer` |
 | 系统 | **Android 16 / API 36** / `BQ2A.260122.002-BP2A.250705.008 release-keys` | `getprop ro.build.version.*` |
 | amoo | `com.stepos.ailauncher` **1.0.1_20261024_001806**（versionCode 100010，targetSdk 36） | `dumpsys package` |
-| Mika | `com.wangzan101.mika` **0.1.37 / versionCode 38**，2026-11-05 23:13 更新 | `dumpsys package` |
+| Maeve | `com.wangzan101.maeve` **0.1.37 / versionCode 38**，2026-11-05 23:13 更新 | `dumpsys package` |
 | 关键系统包 | `com.stepos.stepclaw` / `ability` / `agentbus` / `aiengine` / `secureinput`、`io.github.shenhaostu.gagent` | `pm list packages` |
 | 运行时进程 | `openclaw_env`(root)、`ubuntu_zygote`(root)、`openclaw-gateway`(system)、`com.stepos.stepclaw`(system)、`com.stepos.ailauncher`(u0_a136) | `ps -A` |
-| 文件信箱 | `/sdcard/Android/media/com.wangzan101.mika/amoo/` 存在；`in/` 空、`out/` **10 个结果 JSON**、`skill.json` = `{"skill":"mika-bridge","version":2}` | `ls -laR` |
+| 文件信箱 | `/sdcard/Android/media/com.wangzan101.maeve/amoo/` 存在；`in/` 空、`out/` **10 个结果 JSON**、`skill.json` = `{"skill":"maeve-bridge","version":2}` | `ls -laR` |
 | MCP 端口 | `[::ffff:127.0.0.1]:18770` **LISTEN（仅回环）**；手机侧 `curl 127.0.0.1:18770/api/v1` → **HTTP 401** | `ss -lntp` / `curl` |
 | 其它监听 | 8765、18789、18790、18791、18800、8900（均回环）；13636 / 13687 / 9114 / 58800 等 | `ss -lntp` |
 | 前台 | `com.android.launcher3/QuickstepLauncher`（**amoo 不在前台**） | `dumpsys activity activities` |
@@ -603,9 +603,9 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | ② | R2 笼统称「MCP 路线」 | `amoo-bridge.md:12-17` 沙箱 `curl 127.0.0.1:18770` **exit 7**、`10.73.194.51:18770` **exit 28**、「那条路对 amoo 是死的」 | R2a(文件桥) / R2b(电脑 MCP) **必须分开**，互不可兜底 |
 | ③ | `:18770` 对外可连 | 真机 `ss` 显示仅 `[::ffff:127.0.0.1]:18770`；`amoo-connect.md:26`「需先打开电脑连接，否则 18770 没有监听」 | 默认仅回环；WorkBuddy 需**显式开局域网监听或 USB adb forward** |
 | ④ | 「纯本地 / 内置模型闭环」 | `Amoo-端侧GUI方案.md:19,219` 全离线 4B LLM / 2B VLM 决策质量不够、复杂任务失败率高；`GUI-Agent成熟实现调研.md:44-46` 模型推理先放 PC 或局域网 | **端侧执行闭环 + 外部 Provider 决策**；端侧小模型仅离线降级 |
-| ⑤ | 两路线共用一个执行内核 | Mika 进程内成立（`amoo-intercept.md:21` 同一 `RemoteTaskService.start`）；但 GAgent / StepBridge / capability-kit 是三套独立实现 | 表述**收窄到 Mika 进程内**，不外推 |
+| ⑤ | 两路线共用一个执行内核 | Maeve 进程内成立（`amoo-intercept.md:21` 同一 `RemoteTaskService.start`）；但 GAgent / StepBridge / capability-kit 是三套独立实现 | 表述**收窄到 Maeve 进程内**，不外推 |
 | ⑥ | amoo 是「沙箱里的 agent」 | `Amoo/README.md:28-33,305` 实为 system app 前端（uid 10136/10136 段，预装 vendor），真编排在 pKVM 微 VM 的 Ubuntu + OpenClaw | 修正平台模型；厂商能力受平台签名门禁约束 |
-| ⑦ | `SKILL_VERSION=2` 可沿用 | 技能写死 `/sdcard/Android/media/com.wangzan101.mika/amoo/`；改包名 = 新目录 = 技能失效；真机 amoo 已从 `1.0.0_20261002` 升到 `1.0.1_20261024`，`et_input_bar`/`btn_text_send` 写死有跨版本风险 | 升 **v3** + 自动重注入 + view id 运行时探测（§12.6） |
+| ⑦ | `SKILL_VERSION=2` 可沿用 | 技能写死 `/sdcard/Android/media/com.wangzan101.maeve/amoo/`；改包名 = 新目录 = 技能失效；真机 amoo 已从 `1.0.0_20261002` 升到 `1.0.1_20261024`，`et_input_bar`/`btn_text_send` 写死有跨版本风险 | 升 **v3** + 自动重注入 + view id 运行时探测（§12.6） |
 | ⑧ | 无 amoo 时「MCP 兜底」 | `core/cap/mcp/` 是 **outbound 客户端**，`/mcp` 是 **inbound 服务端**，两者方向相反 | Q2/Q3 必须明确方向，不能含糊写成「MCP」 |
 
 ### 12.3 文件桥协议实证与四个协议缺陷
@@ -628,7 +628,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 
 **四个协议缺陷（本次新发现，v0.1 未覆盖）**：
 
-1. **无进度心跳**：`handle()` 只在启动后写一次 `running`，直到终态 / 超时都不再更新（`AmooBridge.kt:116-132`）。技能虽写「每 2 秒读、最多 15 分钟」，但读到的永远是同一份 running；真机 5 个 `cancelled` 与文档记载「第一次 4 分钟就放弃、Mika 跑了 6 分钟」吻合。→ **每轮 1.5s 原子刷新 running，加 `step` / `updated_at` / `progress_note`**。
+1. **无进度心跳**：`handle()` 只在启动后写一次 `running`，直到终态 / 超时都不再更新（`AmooBridge.kt:116-132`）。技能虽写「每 2 秒读、最多 15 分钟」，但读到的永远是同一份 running；真机 5 个 `cancelled` 与文档记载「第一次 4 分钟就放弃、Maeve 跑了 6 分钟」吻合。→ **每轮 1.5s 原子刷新 running，加 `step` / `updated_at` / `progress_note`**。
 2. **超时不进终态**：15 分钟到点写的仍是 `status:"running"` + note `"still running after 900s..."`，而技能只把 `done/failed/cancelled` 当终态 ⇒ amoo 会一直空转。→ 超时改 **`status:"failed"` + `code:"TIMEOUT"`**（**不新增 `timeout` 状态**，终态集合保持不变；v0.2 的 §12.7 曾写「终态集合含 timeout」，v0.3 已订正）。
 3. **`note` 无结构化错误码**：真机 failed 只有中文自由文本。→ 加 `code`（`MODEL_REFUSED` / `GUARD_BLOCKED` / `TIMEOUT` / `UNAVAILABLE`），`note` 保留给人看。
 4. **明文 + 无来源校验**：`amoo-bridge.md:63-65` 已明确「等于把动手机的权限给了 amoo」；`parseAmooRequest` 手写扫描只取 `goal`。→ 保留 `goal.take(4000)`，补 body 长度上限、单请求隔离、目录属主校验。
@@ -653,18 +653,18 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 |---|---|
 | `Amoo-端侧GUI方案.md:19,139-156,184-186` | **L0 规则快轨 / L1 端侧小模型（离线降级、默认关）/ L2 云端 VLM（主力）** 分级路由；「两条都留，**共用同一套决策/结算/防循环内核**」直接支撑「一内核多入口」；全离线决策质量不够 |
 | `GUI-Agent成熟实现调研.md:44-46` | 务实形态：手机负责感知/动作/编排/规则，模型推理放 PC 或局域网；端侧 NPU 是 P2 优化 |
-| `Droidance/README.md:9-11,59-61` | 纯视觉 + 独立虚拟显示屏 Sidecar（内置 ADB 自连），与 Mika `ShellService` 虚拟屏思路互证 |
+| `Droidance/README.md:9-11,59-61` | 纯视觉 + 独立虚拟显示屏 Sidecar（内置 ADB 自连），与 Maeve `ShellService` 虚拟屏思路互证 |
 | `GAgent/app/src/main/assets/amoo/SKILL.md:26-30` | 技能写法值得借鉴思路：「只派单，不自称执行」「已有原生原子能力能办的不要走本工具」「支付/密码/删除不要派」——正是护栏的产品化措辞 |
 | `stepx-claw整理/综合版...:1577-1620` | 「登记 ≠ 启用 ≠ 调用成功」「404 ≠ 可用」；未验证清单不得写成已打通 |
 | `Stepx-NEO-amoo-capability-kit/reports/*`（16 份） | 18791 `/chat/completions` 恒 **403 / code10014**；空搜索不等于无能力；`partial/action_dispatched` 不等于业务成功 |
 
-> ⚠️ **四套同名/近名实现互不相干**：Mika 的**文件桥**、`amoobridge/` 的 **StepBridge**（本地 HTTP + 44 工具，端口写入 `status.json`）、capability-kit 的 **Mac UI 桥**（UiAutomation JAR + `127.0.0.1:18799`）、GAgent 的 **AppFunctions / ACTION_SEND 派单**。spec 只沿用 Mika 文件桥，其余仅作对照。另：`E:\project\daiyimo\amoo实机log\` 实际为空，实测证据在 `Stepx-NEO-amoo-capability-kit/reports/` 与 `Mika/docs/dev/`。
+> ⚠️ **四套同名/近名实现互不相干**：Maeve 的**文件桥**、`amoobridge/` 的 **StepBridge**（本地 HTTP + 44 工具，端口写入 `status.json`）、capability-kit 的 **Mac UI 桥**（UiAutomation JAR + `127.0.0.1:18799`）、GAgent 的 **AppFunctions / ACTION_SEND 派单**。spec 只沿用 Maeve 文件桥，其余仅作对照。另：`E:\project\daiyimo\amoo实机log\` 实际为空，实测证据在 `Stepx-NEO-amoo-capability-kit/reports/` 与 `Maeve/docs/dev/`。
 
 ### 12.6 迁移新增项（补 §8.2）
 
-1. **改 `applicationId` 会让 amoo 侧技能整体失效**：技能里写死 `/sdcard/Android/media/com.wangzan101.mika/amoo/`，新包名 = 新目录 = 旧的 `in/` 永远没人读。v0.1 必须：技能改名 `maeve-bridge`、`SKILL_VERSION` 升 **3**、首次启动检测到 amoo 时自动重注入、旧目录只读清理（不删用户数据）。
+1. **改 `applicationId` 会让 amoo 侧技能整体失效**：技能里写死 `/sdcard/Android/media/com.wangzan101.maeve/amoo/`，新包名 = 新目录 = 旧的 `in/` 永远没人读。v0.1 必须：技能改名 `maeve-bridge`、`SKILL_VERSION` 升 **3**、首次启动检测到 amoo 时自动重注入、旧目录只读清理（不删用户数据）。
 2. `AmooSetup` 的 `AMOO_PKG` / `ID_INPUT` / `ID_SEND` 改为**运行时探测 + 失败降级**；真机 amoo 已跨版本，不能假定 id 稳定。
-3. `MikaLinks` / `ApkIntegrity` / `tools/mika/scripts/mika_cli.py` 的 `PHONE_FILES` 同步改（见 §8.2）。
+3. `MaeveLinks` / `ApkIntegrity` / `tools/maeve-cli/scripts/maeve_cli.py` 的 `PHONE_FILES` 同步改（见 §8.2）。
 4. 迁移后**必须在真机重跑一次握手验证**：新会话 → 注入 v3 → 写 `in/` → 收到 `out/` 的 `done`。这是 M3 的硬验收项。
 
 ### 12.7 M3 验收新增项（补 §10）
@@ -686,7 +686,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | Q3 | 无 amoo 时模型来源优先级：外部 Provider / 局域网 PC / 端侧 L1 降级？ | L0 规则 + 外部 Provider 主力，L1 仅离线降级 |
 | Q4 | 包名 `com.daiyimo.maeve`？ | 是（会触发 §12.6 技能重注入） |
 | Q5 | 视觉是否全量（四层玻璃 + 六主题 + 四图标 + 三风格）？ | 全量 |
-| Q6 | 是否授权 `git push --all --tags`（把 Mika 全部历史推到新仓库）？ | **否，未执行** |
+| Q6 | 是否授权 `git push --all --tags`（把 Maeve 全部历史推到新仓库）？ | **否，未执行** |
 | **Q7**（新） | R1 是否要在**非 StepOS 普通 Android**上完整可用？amoo 相关能力是整体隐藏还是灰显？ | 完整可用，amoo 能力整体隐藏 |
 | **Q8**（新） | 接受「一次性握手需用户切到 amoo 聊天页」吗？若要求完全无感，只能改用 AppFunctions / 分享派单（GAgent 路线），需另评估 | 暂时接受 |
 
@@ -706,21 +706,20 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | `Stepx-NEO-amoo-capability-kit/amoo-bridge/` | Mac UI 桥（非文件桥，仅对照） | §12.5 |
 | `amoobridge/` | StepBridge 本地 HTTP 桥（仅对照） | §12.5 |
 | `Droidance/` | 纯视觉 + 独立虚拟屏 Sidecar | §12.5 |
-| `Mika/docs/dev/amoo-bridge.md` / `amoo-connect.md` / `amoo-intercept.md` / `remote-mcp.md` | 文件桥协议、被推翻的旧直连文档、截获四层闸门、Relay | §12.2、§12.3、§12.4 |
-| `Mika/app/.../intercept/AmooBridge.kt` / `AmooSetup.kt` | 协议实现与技能注入 | §12.3、§12.6 |
+| `Maeve/docs/dev/amoo-bridge.md` / `amoo-connect.md` / `amoo-intercept.md` / `remote-mcp.md` | 文件桥协议、被推翻的旧直连文档、截获四层闸门、Relay | §12.2、§12.3、§12.4 |
+| `Maeve/app/.../intercept/AmooBridge.kt` / `AmooSetup.kt` | 协议实现与技能注入 | §12.3、§12.6 |
 | **`Amoo/step-gui-edge-资料.md`**（v0.3 补） | `stepos-gui-agent` = Step-GUI Edge / GELab-Zero-4B 的厂商固化版；开源权重与六道墙、GUI-MCP 分层双栈、state compression | §13.3、§13.4、附录 D |
 | **`gelab-zero/` 本地仓库**（v0.3 补） | MIT 工程源码 + `Notice.txt` 许可清单、10 步一压真实配置、`simple_gelab_mcp_server.py` 的两个 MCP tool、`yadb` 二进制 | §13.3、§13.4 |
 | **`mobile-agent-GUI实现分析.md` / `mobile-gui拆解/`**（v0.3 补） | 动作结算三层账、三档防循环、欧氏距离 40、字节 diff 退化陷阱、同机真机验证数据 | §13.5、§13.10 |
 | **`豆包手机实现调研.md`**（v0.3 补） | 155 款 App 风控、拒绝操作应用清单、金融类限制、FLAG_SECURE 能力差距、虚拟屏崩溃历史结论 | §13.6、§13.7 |
-| **`Mika/core/selfcheck/` + `docs/dev/architecture.md:383`**（v0.3 补） | 现成「兼容性自检」：虚拟屏 / 无障碍 / 读屏 / 点按 / 持续运行 / 主屏不受打扰等 12 项，带脱敏报告 | §13.7、§13.10 |
+| **`Maeve/core/selfcheck/` + `docs/dev/architecture.md:383`**（v0.3 补） | 现成「兼容性自检」：虚拟屏 / 无障碍 / 读屏 / 点按 / 持续运行 / 主屏不受打扰等 12 项，带脱敏报告 | §13.7、§13.10 |
 
-> `docs/reference/` 下另存有本会话产出的四份前期报告（源码 review、amoo 链路图解、改造路线图、命名与简介），内容不与本章重复。
 
 ---
 
 ## 13. v0.3 修订：一致性校正、资料补纳与可执行契约
 
-> 本章基于对 `E:\project\daiyimo\Mika` 源码的逐行回读、对 `E:\project\daiyimo` 下 4 份此前未纳入资料的梳理，以及对真机 `ZYPZ261A01M68700159`（PZ261A / Android 16）连接状态的复查。**本章结论优先于前面所有章节的冲突表述**。全程只读，未改设备状态、未改上游源码、未 commit / push。
+> 本章基于对 `E:\project\daiyimo\Maeve` 源码的逐行回读、对 `E:\project\daiyimo` 下 4 份此前未纳入资料的梳理，以及对真机 `ZYPZ261A01M68700159`（PZ261A / Android 16）连接状态的复查。**本章结论优先于前面所有章节的冲突表述**。全程只读，未改设备状态、未改上游源码、未 commit / push。
 
 ### 13.1 六处一致性缺陷（本版已修）
 
@@ -751,9 +750,9 @@ v0.2 采用「正文留痕 + 末尾追加修订章」的写法，导致 v0.1 正
 | `gelab-zero/`（本地已 clone） | 仓库代码 **MIT**（`LICENSE:1-3`）；权重 **Apache-2.0**（`Notice.txt:1` + HF 元数据）；**`yadb` 二进制为 LGPL v3**（`Notice.txt:5`）；`Notice.txt` 53 KB 第三方清单；state compression 真实配置 `interval=10 / recent_window=10 / max_field_items=8`（`local_state_compress_server.py:110-148`）；`simple_gelab_mcp_server.py:30,43-49` 暴露 `list_connected_devices` / `ask_agent(device_id, task, max_steps=20)` 两个 MCP 工具 | 许可事实校正 + §13.4；`ask_agent` 是 R2b「把 GUI 能力包成 MCP tool」的现成范式 |
 | `mobile-agent-GUI实现分析.md` + `mobile-gui拆解/` | 动作结算三层账、三档防循环、坐标等价欧氏距离 ≤40（0-1000 域）、字节精确 diff 的退化陷阱；**同一台真机**的 12 项验证数据 | §13.5、§13.10 |
 | `豆包手机实现调研.md` | 155 款 App 风控抵制、官方加「拒绝操作应用清单」与金融类限制；系统签名能力（GPU buffer 直读 / INJECT_EVENTS）自研不可得 | §13.6、§13.7 |
-| `Mika/core/selfcheck/` | 现成 12 项兼容性自检 + 90s 总限 + 脱敏报告，已覆盖虚拟屏 / 无障碍 / 读屏 / 点按 / 持续运行 / 主屏不受打扰 | §13.7、§13.10 |
+| `Maeve/core/selfcheck/` | 现成 12 项兼容性自检 + 90s 总限 + 脱敏报告，已覆盖虚拟屏 / 无障碍 / 读屏 / 点按 / 持续运行 / 主屏不受打扰 | §13.7、§13.10 |
 
-> **许可证事实纠偏（重要）**：`step-gui-edge-资料.md §1.1` 里 `license: apache-2.0` 指的是 **HF 模型权重**，不是 `gelab-zero` 仓库代码（MIT）。两者不能混写。若 Maeve 未来分发 `yadb` 二进制，会触发 **LGPL v3** 义务——而 Mika 走 a11y `SET_TEXT`，本来就不必引入它（§13.5）。`Qwen3-VL-4B-Instruct` 基座许可需单独核，不得默认按 Apache-2.0 处理。
+> **许可证事实纠偏（重要）**：`step-gui-edge-资料.md §1.1` 里 `license: apache-2.0` 指的是 **HF 模型权重**，不是 `gelab-zero` 仓库代码（MIT）。两者不能混写。若 Maeve 未来分发 `yadb` 二进制，会触发 **LGPL v3** 义务——而 Maeve 走 a11y `SET_TEXT`，本来就不必引入它（§13.5）。`Qwen3-VL-4B-Instruct` 基座许可需单独核，不得默认按 Apache-2.0 处理。
 >
 > **§12.2④ 的引用需要补一层说明**：该条引的是 `Amoo-端侧GUI方案.md:19,219`（修订前正文「全离线 4B LLM / 2B VLM 质量不够」），而文档顶部 `:9` 有 2026-10-26 修订，把 L2 主力改为**本地/局域网 GELab-Zero-4B**。两者不矛盾：`:19` 说的是**手机端侧文本 4B**，`:9` 说的是 **PC/局域网 VLM 4B**。§12.2④「端侧执行 + 外部 Provider 决策」的结论不变，但 Q3 的候选后端应显式包含「局域网 PC 推理」。
 
@@ -768,17 +767,17 @@ v0.2 采用「正文留痕 + 末尾追加修订章」的写法，导致 v0.1 正
 
 ### 13.5 ADR-02 · 机械后验与防循环（对照 mobile-agent）
 
-Mika 已有 `OperationGuards` / `GuardRules` 阶梯，不必推倒重来；mobile-agent 的价值是**把「事实」与「结论」分开**这件事做得更干净。
+Maeve 已有 `OperationGuards` / `GuardRules` 阶梯，不必推倒重来；mobile-agent 的价值是**把「事实」与「结论」分开**这件事做得更干净。
 
-| mobile-agent 机制 | Mika 现状 | `v0.1.0` 建议 |
+| mobile-agent 机制 | Maeve 现状 | `v0.1.0` 建议 |
 |---|---|---|
 | `DISPATCHED → SETTLED / REJECTED / FAILED / RECOVERED` 状态账 | `ActionExecutor` 有运行记录与 `RunProvenance`，但无显式 outcome 枚举 | 补 `ActionOutcome`；明确「截图未变 ≠ 任务语义失败」 |
-| `screenshot_exactly_same`（base64 全等） | `OperationGuards.unchangedFrames`：`NO_EFFECT`→++，warn@2、stop@≥3，另有 `treeBlind` 标记 | **保留 Mika 阶梯，不照搬字节全等**；理由见下方真机反证 |
+| `screenshot_exactly_same`（base64 全等） | `OperationGuards.unchangedFrames`：`NO_EFFECT`→++，warn@2、stop@≥3，另有 `treeBlind` 标记 | **保留 Maeve 阶梯，不照搬字节全等**；理由见下方真机反证 |
 | `foreground_identity_changed`（package, activity 二元组） | `AndroidScreen.foregroundApps` 已能读顶层任务 | 把二元组变化作为 `progressVersion` 递增信号，减少误判停滞 |
 | 三档防循环：软提示 → 改写动作 → 拒绝下发 | `GuardRules.NO_EFFECT_LADDER` + `StopRules` 已有「提示 / 停止」两档 | 补中间的「改写动作」档（WAIT / BACK / 重聚焦），每档有界、以 ABORT 收尾 |
 | 动作等价：欧氏距离 ≤40（0-1000 坐标域） | 未见等价判定 | 可选；先统一坐标域再引入，避免网格量化边界误判 |
 
-> **同机真机反证（`mobile-agent-GUI实现分析.md:269-287`，设备序列号与本次一致）**：静止屏两次截图 MD5 一致，但游戏 / 动画页**每帧都不同** ⇒ 字节精确 diff 在动画页静默退化，整条「强无效果证据」链失效。另有：游戏内截图 `2670x1200` 而 `wm size` 报 `1200x2670`（坐标换算必须用**截图实际尺寸**）；Android 16 中文 `input text` 触发 `InputShellCommand.sendText` NPE，需 yadb 或 a11y `SET_TEXT`。Mika 走无障碍 `SET_TEXT`，**天然规避中文 NPE，也不必引入 LGPL 的 yadb**（§13.3）。
+> **同机真机反证（`mobile-agent-GUI实现分析.md:269-287`，设备序列号与本次一致）**：静止屏两次截图 MD5 一致，但游戏 / 动画页**每帧都不同** ⇒ 字节精确 diff 在动画页静默退化，整条「强无效果证据」链失效。另有：游戏内截图 `2670x1200` 而 `wm size` 报 `1200x2670`（坐标换算必须用**截图实际尺寸**）；Android 16 中文 `input text` 触发 `InputShellCommand.sendText` NPE，需 yadb 或 a11y `SET_TEXT`。Maeve 走无障碍 `SET_TEXT`，**天然规避中文 NPE，也不必引入 LGPL 的 yadb**（§13.3）。
 
 ### 13.6 ADR-03 · 敏感应用清单（`SensitiveAppPolicy`）
 
@@ -795,10 +794,10 @@ FLAG_SECURE 页面（银行 / 密码框）在自研 App 里读不到——豆包
 
 ### 13.7 ADR-04 · 虚拟屏结论边界 + 复用 `SelfCheck`
 
-**边界澄清（避免把别的实现的结论套到 Mika 上）**：`豆包手机实现调研.md:63` 与 `GAgent赋能Spec.md:34`、`stepx-claw整理/04-...:381,464` 记有「StepOS 往虚拟屏放 Activity 必崩 system_server（Transition NPE，5/5 复现）」。这条结论属于 **GAgent 的 `vd_*`（self-ADB / 无线调试）路线**，当时与「self-ADB 无法自连」并列，用来解释 GAgent 为什么只走 a11y 前台路线。**它不是 Mika `ShellService` 的结论**：
+**边界澄清（避免把别的实现的结论套到 Maeve 上）**：`豆包手机实现调研.md:63` 与 `GAgent赋能Spec.md:34`、`stepx-claw整理/04-...:381,464` 记有「StepOS 往虚拟屏放 Activity 必崩 system_server（Transition NPE，5/5 复现）」。这条结论属于 **GAgent 的 `vd_*`（self-ADB / 无线调试）路线**，当时与「self-ADB 无法自连」并列，用来解释 GAgent 为什么只走 a11y 前台路线。**它不是 Maeve `ShellService` 的结论**：
 
-- 本次真机 `out/` 有 4 个 `done`（含抖音热榜、微博热搜、小程序「制作推荐」），证明 Mika 的后台虚拟屏路径在这台 StepOS 设备上跑通过；
-- `Mika/docs/dev/architecture.md:148-149` 与 `ShellService.kt:1627-1645` 描述的是 `FLAG_OWN_FOCUS | FLAG_STEAL_TOP_FOCUS_DISABLED` 建屏 + shell(uid 2000) 助手进程，与 GAgent 不是同一条路。
+- 本次真机 `out/` 有 4 个 `done`（含抖音热榜、微博热搜、小程序「制作推荐」），证明 Maeve 的后台虚拟屏路径在这台 StepOS 设备上跑通过；
+- `Maeve/docs/dev/architecture.md:148-149` 与 `ShellService.kt:1627-1645` 描述的是 `FLAG_OWN_FOCUS | FLAG_STEAL_TOP_FOCUS_DISABLED` 建屏 + shell(uid 2000) 助手进程，与 GAgent 不是同一条路。
 
 **但换 `applicationId` + 新签名后必须在真机复验**：平台签名门禁、SELinux 标签、shell 助手进程绑定都可能变（§12.4、§12.6）。已列入 §13.10 的 M3 硬验收。
 
@@ -852,7 +851,7 @@ FLAG_SECURE 页面（银行 / 密码框）在自研 App 里读不到——豆包
 3. **崩溃恢复**：启动时扫描 `in/*.claimed`，超过 60s 未产生结果的写 `failed` + `code: INTERRUPTED` 并清理占位文件；不自动重跑（进程已重启，旧任务上下文已丢）。
 4. **来源与越界**：目录来自 `getExternalMediaDirs()`（属主为本 App）；校验 canonical path 仍在 root 下；单个坏 JSON / 超长 body 隔离处理，不影响本轮其余请求。
 
-> **不兼容声明**：换 `applicationId` 后，Maeve **无法读写** `/sdcard/Android/media/com.wangzan101.mika/amoo/`（外部存储按包隔离），因此 `mika-bridge` v2 技能**没有运行时兼容方案**，只能靠 §1.3 的一次性握手重注入 v3。这从传输层再次证明 C1 必须修：§6.8 的 `mika_*` MCP alias 只对电脑客户端有效。
+> **不兼容声明**：换 `applicationId` 后，Maeve **无法读写** `/sdcard/Android/media/com.wangzan101.maeve/amoo/`（外部存储按包隔离），因此 `maeve-bridge` v2 技能**没有运行时兼容方案**，只能靠 §1.3 的一次性握手重注入 v3。这从传输层再次证明 C1 必须修：§6.8 的 `maeve_*` MCP alias 只对电脑客户端有效。
 
 ### 13.9 `ConnectionHub` 数据契约（补 §6.5）
 
@@ -912,7 +911,7 @@ adb shell curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18770/api/v1
 | Q3 | 无 amoo 时模型来源优先级？ | L0 规则 + 外部 Provider 主力；L1 端侧 / 局域网 PC 仅降级或可选后端 | 否 | §13.3 补充「局域网 PC」；§13.4 预留接缝 |
 | Q4 | 包名 `com.daiyimo.maeve`？ | 是 | **是** | 触发 §12.6 技能重注入 + §13.8 v3 协议 |
 | Q5 | 视觉是否全量（四层玻璃 + 六主题 + 四图标 + 三风格）？ | 全量 | 否 | 可先做默认 `reverie` 一套，不阻塞 |
-| Q6 | 授权 `git push --all --tags`（把 Mika 全部历史推到新仓库）？ | **否，未执行** | **是** | M1 建仓必需；本轮仍未授权、未执行 |
+| Q6 | 授权 `git push --all --tags`（把 Maeve 全部历史推到新仓库）？ | **否，未执行** | **是** | M1 建仓必需；本轮仍未授权、未执行 |
 | Q7 | R1 是否要在非 StepOS 普通 Android 完整可用？ | 是，amoo 能力整体隐藏 | 否 | 用 §13.7 扩展版 `SelfCheck` 验收 |
 | Q8 | 接受「一次性握手需切到 amoo 聊天页」吗？ | 暂时接受 | **是** | 若要完全无感，只能改走 AppFunctions / 分享派单，架构另评估 |
 | **Q9**（新） | `v0.1.0` 是否预留 `DecisionBackend` 接缝（不实现端侧模型）？ | 预留，不打包权重 | 否 | §13.4 / ADR-01 |

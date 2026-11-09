@@ -71,7 +71,7 @@
     <string name="stepclaw_clients">클라이언트 %1$d 개 연결됨, 첫 요청 대기 중</string>
     <string name="stepclaw_off">대기하지 않습니다. 아래 \'고급 설정\'에서 \'Wi-Fi 및 사설 네트워크\' 또는 \'USB\'를 켜야 루프백 주소가 열립니다.</string>
     <string name="stepclaw_copy_config">게이트웨이 설정 복사</string>
-    <string name="stepclaw_new_device">기기를 바꾸거나 Maeve를 다시 설치하면 포트는 그대로지만 토큰은 새로 랜덤 생성됩니다. 새 토큰을 게이트웨이의 mcp.servers.mika에 다시 등록하세요.</string>
+    <string name="stepclaw_new_device">기기를 바꾸거나 Maeve를 다시 설치하면 포트는 그대로지만 토큰은 새로 랜덤 생성됩니다. 새 토큰을 게이트웨이의 mcp.servers.maeve에 다시 등록하세요.</string>
     <string name="amoo_page_title">Amoo</string>
     <string name="amoo_page_sub">한 번에 amoo 로 스킬 보내기</string>
     <string name="amoo_status_title">연결 상태</string>

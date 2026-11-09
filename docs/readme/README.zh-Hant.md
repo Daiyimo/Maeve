@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ d12900005a97 -->
+<!-- translated-from: README.md @ 587bea3f5e22 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · 繁體中文 · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md)
@@ -110,7 +110,6 @@ Android 宿主也還沒有註冊對應的橋接處理器。[FLUTTER_MIGRATION.md
 | `docs/spec/` | 視覺 token、觸感、bridge v3 協定、遷移記錄 |
 | `docs/adr/` | 架構決策記錄 |
 | `docs/dev/` | 架構、工程規範、review 記錄、專題說明 |
-| `docs/reference/` | 上游 Mika 原始碼的分析存檔（原樣保留） |
 | [ATTRIBUTION.md](../../ATTRIBUTION.md) | 來源、改了什麼、Apache-2.0 §4 聲明 |
 
 ## 參與貢獻

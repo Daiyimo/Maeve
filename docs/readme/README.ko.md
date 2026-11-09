@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ d12900005a97 -->
+<!-- translated-from: README.md @ 587bea3f5e22 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · 한국어 · [Español](README.es.md)
@@ -114,7 +114,6 @@ Android 호스트는 아직 브리지 핸들러를 등록하지 않습니다.
 | `docs/spec/` | 비주얼 토큰, 햅틱, bridge v3 프로토콜, 마이그레이션 노트 |
 | `docs/adr/` | 아키텍처 결정 기록 |
 | `docs/dev/` | 아키텍처, 엔지니어링 표준, 리뷰 기록, 개별 노트 |
-| `docs/reference/` | 업스트림 Maeve 소스 분석 아카이브(원문 유지) |
 | [ATTRIBUTION.md](../../ATTRIBUTION.md) | 출처, 바뀐 것, Apache-2.0 §4 진술 |
 
 ## 기여

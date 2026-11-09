@@ -71,7 +71,7 @@
     <string name="stepclaw_clients">Подключено клиентов: %1$d, ожидаем первый запрос</string>
     <string name="stepclaw_off">Не слушает. Включите «Wi-Fi и частные сети» или «USB» в расширенных настройках ниже — для адреса обратной петли нужен один из них.</string>
     <string name="stepclaw_copy_config">Скопировать конфигурацию шлюза</string>
-    <string name="stepclaw_new_device">Сменили устройство или переустановили Maeve? Порт не меняется, но токен создаётся заново при каждой установке — добавьте его в mcp.servers.mika шлюза повторно.</string>
+    <string name="stepclaw_new_device">Сменили устройство или переустановили Maeve? Порт не меняется, но токен создаётся заново при каждой установке — добавьте его в mcp.servers.maeve шлюза повторно.</string>
     <string name="amoo_page_title">Amoo</string>
     <string name="amoo_page_sub">Отправить навык в amoo одним нажатием</string>
     <string name="amoo_status_title">Соединение</string>

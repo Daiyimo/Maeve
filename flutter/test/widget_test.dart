@@ -11,8 +11,8 @@ import 'package:maeve_flutter/widgets/maeve_mark.dart';
 void main() {
   testWidgets('chat shell renders composer and greeting', (tester) async {
     await tester.pumpWidget(const MaeveApp());
-    expect(find.text('A HOST WITH A VOICE'), findsOneWidget);
-    expect(find.text('One thought, from here.'), findsOneWidget);
+    expect(find.text('有声音的宿主'), findsOneWidget);
+    expect(find.text('一个念头，从这里开始。'), findsOneWidget);
     expect(find.byKey(const ValueKey('message-input')), findsOneWidget);
     expect(find.byKey(const ValueKey('send-message')), findsOneWidget);
   });
@@ -79,21 +79,15 @@ void main() {
 
   testWidgets('drawer navigates to settings', (tester) async {
     await tester.pumpWidget(const MaeveApp());
-    await tester.tap(find.byTooltip('Open conversations'));
+    await tester.tap(find.byTooltip('打开对话'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Settings'));
+    await tester.tap(find.text('设置'));
     await tester.pumpAndSettle();
     // The top bar also shows a PREFERENCES eyebrow once the page is active.
-    expect(find.text('PREFERENCES'), findsWidgets);
-    expect(find.text('Light appearance'), findsOneWidget);
-    expect(
-      find.text('Flutter interface · Android capabilities'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('Runtime backdrop blur is disabled'),
-      findsOneWidget,
-    );
+    expect(find.text('偏好'), findsWidgets);
+    expect(find.text('浅色外观'), findsOneWidget);
+    expect(find.text('Flutter 界面 · Android 能力'), findsOneWidget);
+    expect(find.textContaining('运行时背景模糊已禁用'), findsOneWidget);
   });
 
   testWidgets('sending a message shows user and demo reply', (tester) async {
@@ -105,42 +99,42 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('send-message')));
     await tester.pump();
     expect(find.text('A test message'), findsOneWidget);
-    expect(find.text('Maeve is thinking'), findsOneWidget);
+    expect(find.text('Maeve 正在思考'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
-    expect(find.text('I have it. The next move is yours.'), findsOneWidget);
+    expect(find.text('我收到了，接下来交给你。'), findsOneWidget);
   });
 
   testWidgets('creates a new conversation from the drawer', (tester) async {
     await tester.pumpWidget(const MaeveApp());
-    await tester.tap(find.byTooltip('Open conversations'));
+    await tester.tap(find.byTooltip('打开对话'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('new-conversation')));
     await tester.pumpAndSettle();
-    expect(find.text('New conversation'), findsOneWidget);
+    expect(find.text('新对话'), findsOneWidget);
   });
 
   testWidgets('search filters the conversation list', (tester) async {
     await tester.pumpWidget(const MaeveApp());
-    await tester.tap(find.byTooltip('Open conversations'));
+    await tester.tap(find.byTooltip('打开对话'));
     await tester.pumpAndSettle();
-    expect(find.text('A new beginning'), findsOneWidget);
+    expect(find.text('新的开始'), findsOneWidget);
 
     await tester.enterText(
       find.byKey(const ValueKey('conversation-search')),
-      'calmer',
+      '安静',
     );
     await tester.pumpAndSettle();
-    expect(find.text('Build a calmer workspace'), findsOneWidget);
-    expect(find.text('A new beginning'), findsNothing);
+    expect(find.text('搭一个安静的工作台'), findsOneWidget);
+    expect(find.text('新的开始'), findsNothing);
 
     await tester.enterText(
       find.byKey(const ValueKey('conversation-search')),
       'no such conversation',
     );
     await tester.pumpAndSettle();
-    expect(find.text('No matching conversations'), findsOneWidget);
-    expect(find.text('A new beginning'), findsNothing);
+    expect(find.text('没有匹配的对话'), findsOneWidget);
+    expect(find.text('新的开始'), findsNothing);
   });
 
   testWidgets('stop action cancels the pending reply', (tester) async {
@@ -151,24 +145,24 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('send-message')));
     await tester.pump();
-    expect(find.text('Maeve is thinking'), findsOneWidget);
+    expect(find.text('Maeve 正在思考'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Stop generation'));
+    await tester.tap(find.byTooltip('停止生成'));
     await tester.pumpAndSettle();
-    expect(find.text('Maeve is thinking'), findsNothing);
+    expect(find.text('Maeve 正在思考'), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
-    expect(find.text('I have it. The next move is yours.'), findsNothing);
+    expect(find.text('我收到了，接下来交给你。'), findsNothing);
   });
 
   testWidgets('adds and deletes a memory', (tester) async {
     await tester.pumpWidget(const MaeveApp());
-    await tester.tap(find.byTooltip('Open conversations'));
+    await tester.tap(find.byTooltip('打开对话'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Memory'));
+    await tester.tap(find.text('记忆'));
     await tester.pumpAndSettle();
-    expect(find.text('Nothing saved yet'), findsOneWidget);
+    expect(find.text('还没有保存任何内容'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('add-memory')));
     await tester.pumpAndSettle();
@@ -176,15 +170,15 @@ void main() {
       find.byKey(const ValueKey('memory-input')),
       'Prefers short answers',
     );
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('保存'));
     await tester.pumpAndSettle();
     expect(find.text('Prefers short answers'), findsOneWidget);
-    expect(find.text('Nothing saved yet'), findsNothing);
+    expect(find.text('还没有保存任何内容'), findsNothing);
 
-    await tester.tap(find.byTooltip('Delete memory'));
+    await tester.tap(find.byTooltip('删除记忆'));
     await tester.pumpAndSettle();
     expect(find.text('Prefers short answers'), findsNothing);
-    expect(find.text('Nothing saved yet'), findsOneWidget);
+    expect(find.text('还没有保存任何内容'), findsOneWidget);
   });
 
   testWidgets('theme toggle switches the active brightness', (tester) async {
@@ -199,7 +193,7 @@ void main() {
 
     expect(shellBrightness(), Brightness.dark);
 
-    await tester.tap(find.byTooltip('Toggle theme'));
+    await tester.tap(find.byTooltip('切换主题'));
     await tester.pumpAndSettle();
     expect(shellBrightness(), Brightness.light);
   });
@@ -211,20 +205,20 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(const MaeveApp());
-    await tester.tap(find.byTooltip('Open conversations'));
+    await tester.tap(find.byTooltip('打开对话'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('new-conversation')), findsOneWidget);
 
-    await tester.tap(find.text('Runs'));
+    await tester.tap(find.text('运行'));
     await tester.pumpAndSettle();
-    expect(find.text('RUN HISTORY'), findsWidgets);
+    expect(find.text('运行记录'), findsWidgets);
     // Navigating closes the drawer.
     expect(find.byKey(const ValueKey('new-conversation')), findsNothing);
   });
 
   testWidgets('drawer scrim dismisses without changing page', (tester) async {
     await tester.pumpWidget(const MaeveApp());
-    await tester.tap(find.byTooltip('Open conversations'));
+    await tester.tap(find.byTooltip('打开对话'));
     await tester.pumpAndSettle();
 
     await tester.tap(
@@ -233,7 +227,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('new-conversation')), findsNothing);
-    expect(find.text('A HOST WITH A VOICE'), findsOneWidget);
+    expect(find.text('有声音的宿主'), findsOneWidget);
   });
 
   testWidgets('wide rail navigates between pages', (tester) async {
@@ -242,17 +236,17 @@ void main() {
     addTearDown(tester.view.reset);
 
     await tester.pumpWidget(const MaeveApp());
-    await tester.tap(find.byTooltip('Memory'));
+    await tester.tap(find.byTooltip('记忆'));
     await tester.pumpAndSettle();
-    expect(find.text('PERSONAL CONTEXT'), findsWidgets);
+    expect(find.text('个人上下文'), findsWidgets);
 
-    await tester.tap(find.byTooltip('Runs'));
+    await tester.tap(find.byTooltip('运行'));
     await tester.pumpAndSettle();
-    expect(find.text('RUN HISTORY'), findsWidgets);
+    expect(find.text('运行记录'), findsWidgets);
 
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byTooltip('设置'));
     await tester.pumpAndSettle();
-    expect(find.text('Light appearance'), findsOneWidget);
+    expect(find.text('浅色外观'), findsOneWidget);
   });
 
   testWidgets('switching conversation loads its own messages', (tester) async {
@@ -266,14 +260,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Only in this thread'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Open conversations'));
+    await tester.tap(find.byTooltip('打开对话'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Build a calmer workspace'));
+    await tester.tap(find.text('搭一个安静的工作台'));
     await tester.pumpAndSettle();
 
     // The greeting returns because the other conversation is still empty and
     // the previous thread's messages must not leak in.
-    expect(find.text('A HOST WITH A VOICE'), findsOneWidget);
+    expect(find.text('有声音的宿主'), findsOneWidget);
     expect(find.text('Only in this thread'), findsNothing);
   });
 }

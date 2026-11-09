@@ -38,7 +38,7 @@ amoo 跑在 stepclaw 的 OpenClaw 沙箱里，和手机上的 App 不是一个�
 
 一键接入时，Maeve 会通过无障碍把下面这段话打进 amoo 聊天框（内容来自 `AmooSetup.setupInstruction`）：
 
-> 建一个叫 mika-bridge 的技能：需要手机干活时，把 {"goal":"要做的事"} 写进
+> 建一个叫 maeve-bridge 的技能：需要手机干活时，把 {"goal":"要做的事"} 写进
 > /sdcard/Android/media/<包名>/amoo/in/<id>.json（id 用时间戳），
 > 然后每 2 秒读一次 /sdcard/Android/media/<包名>/amoo/out/<id>.json，
 > status 变成 done、failed 或 cancelled 就把 answer 原样告诉我，最多等 15 分钟。
@@ -48,7 +48,7 @@ amoo 跑在 stepclaw 的 OpenClaw 沙箱里，和手机上的 App 不是一个�
 
 ## 两个真机踩过的坑
 
-1. **技能在会话启动时加载。** 装完 `mika-bridge` 后，当前这轮对话看不到它（amoo 会直说「当前会话的技能清单是在会话启动时…」），
+1. **技能在会话启动时加载。** 装完 `maeve-bridge` 后，当前这轮对话看不到它（amoo 会直说「当前会话的技能清单是在会话启动时…」），
    要开一个新会话才会带上。实测：新会话里说「打开微信搜《三角洲行动》小程序看今天口令」，amoo 没再回「GUI 自动化暂未开放」，
    而是自己写了 `in/1793868300.json`（goal 就是那句中文任务）并开始轮询。
 2. **轮询预算要给足。** 第一次它 4 分钟就放弃并反问用户，而 Maeve 跑完微信小程序用了约 6 分钟，结果晚到。
@@ -73,7 +73,7 @@ amoo 跑在 stepclaw 的 OpenClaw 沙箱里，和手机上的 App 不是一个�
 2. 用户切到 amoo 聊天（我们没法从 App 侧拉起未导出的聊天页（`com.stepos.ailauncher.chat.activity` 下那个））；
 3. `AmooIntercept` 每次扫到 amoo 聊天页就转给 `AmooSetup.onAmooChat(root)`：
    - 用 `com.stepos.ailauncher:id/et_input_bar` 上的 `ACTION_SET_TEXT` 填入说明；
-4. 说明里让 amoo 装 `mika-bridge` 技能并**立刻跑一次**试任务（`{"goal":"只回答三个字:你好呀"}`），同时覆盖写 `skill.json`；
+4. 说明里让 amoo 装 `maeve-bridge` 技能并**立刻跑一次**试任务（`{"goal":"只回答三个字:你好呀"}`），同时覆盖写 `skill.json`；
 5. 三分钟内 `out/` 出现新的结果文件 ⇒ 卡片显示「amoo 已经会用 Maeve 干活了」；若 `skill.json` 里的版本不是当前版本，直接报失败（说明跑的还是旧技能）。盯 `out/` 而不是 `in/`：`in/` 的请求文件被桥领走后会删掉，经常看不到。
 
 两个实现细节：
@@ -83,8 +83,8 @@ amoo 跑在 stepclaw 的 OpenClaw 沙箱里，和手机上的 App 不是一个�
 
 ## 覆盖升级
 
-- 技能名固定 `mika-bridge`，路径固定 `~/.openclaw/workspace/skills/mika-bridge/SKILL.md`；说明里明确要求**整份覆盖**，禁止 `mika-bridge-2`、`mika-bridge-v2` 这类同名变体，并要求 `rm -rf` 清掉旧残留，最后只留一个目录。
-- `AmooSetup.SKILL_VERSION` 是这份说明的契约版本：改了技能口径或桥协议就 +1；每次一键接入都把它写进 SKILL.md 的 frontmatter（`version: <N>`）和 `amoo/skill.json`（`{"skill":"mika-bridge","version":<N>}`）。
+- 技能名固定 `maeve-bridge`，路径固定 `~/.openclaw/workspace/skills/maeve-bridge/SKILL.md`；说明里明确要求**整份覆盖**，禁止 `maeve-bridge-2`、`maeve-bridge-v2` 这类同名变体，并要求 `rm -rf` 清掉旧残留，最后只留一个目录。
+- `AmooSetup.SKILL_VERSION` 是这份说明的契约版本：改了技能口径或桥协议就 +1；每次一键接入都把它写进 SKILL.md 的 frontmatter（`version: <N>`）和 `amoo/skill.json`（`{"skill":"maeve-bridge","version":<N>}`）。
 - Maeve 侧读 `amoo/skill.json` 校验版本，版本对不上就报失败，不会假装接好——老用户换新 APK 后再点一次「开始接入」，能确认真的换成了新版，不用手动去沙箱里删技能。
 - 只改了技能文案（版本没动）也照样是整份覆盖，不会堆出第二份。
 

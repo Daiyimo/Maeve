@@ -71,7 +71,7 @@
     <string name="stepclaw_clients">%1$d عميل متصل، في انتظار أول طلب</string>
     <string name="stepclaw_off">لا تستمع. شغّل «Wi-Fi والشبكات الخاصة» أو «USB» من الإعدادات المتقدمة أدناه — عنوان الاسترجاع المحلي يحتاج أحدهما.</string>
     <string name="stepclaw_copy_config">نسخ إعدادات البوابة</string>
-    <string name="stepclaw_new_device">انتقلت إلى جهاز آخر أو أعدت تثبيت Maeve؟ المنفذ لا يتغيّر، لكن الرمز يُنشأ عشوائيًا عند كل تثبيت — أعد إضافته إلى mcp.servers.mika في البوابة.</string>
+    <string name="stepclaw_new_device">انتقلت إلى جهاز آخر أو أعدت تثبيت Maeve؟ المنفذ لا يتغيّر، لكن الرمز يُنشأ عشوائيًا عند كل تثبيت — أعد إضافته إلى mcp.servers.maeve في البوابة.</string>
     <string name="amoo_page_title">Amoo</string>
     <string name="amoo_page_sub">أرسل المهارة إلى amoo بلمسة</string>
     <string name="amoo_status_title">الاتصال</string>

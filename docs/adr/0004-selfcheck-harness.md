@@ -18,7 +18,7 @@ ad-hoc adb commands would be fragile and would duplicate an existing, better ins
 
 A separate historical note says "putting an Activity on a StepOS virtual display crashes
 system_server (Transition NPE, 5/5)". That finding belongs to **GAgent's `vd_*` self-ADB
-route**, not to Mika's `ShellService` (which uses `FLAG_OWN_FOCUS |
+route**, not to Maeve's `ShellService` (which uses `FLAG_OWN_FOCUS |
 FLAG_STEAL_TOP_FOCUS_DISABLED`); the real device has four successful `done` results from the
 virtual-display path. Conclusions must not be extrapolated across unrelated implementations.
 

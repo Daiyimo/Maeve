@@ -9,10 +9,10 @@ for the Apache-2.0 change record.
 
 | Item | Result |
 |---|---|
-| Upstream history | Initially fetched from `E:\project\daiyimo\Mika` (523 commits, base `bbc8922a`). On 2026-11-06 the published history was rewritten to one baseline snapshot `bccdcda6` + four Maeve commits so Contributors shows only the maintainer. Later edits moved the root to `7cf7ff3`; see `ATTRIBUTION.md` for the current state. Pre-rewrite history, if still present locally, is on the unpublished `backup/full-history-before-rewrite`. See `ATTRIBUTION.md` and "History rewrite" below. |
-| Package rename | `com.wangzan101.mika` → `com.daiyimo.maeve`: 9,230 replacements in 1,442 files + 8 source directories. 0 residual references in the source tree. |
+| Upstream history | Initially fetched from `E:\project\daiyimo\Maeve` (523 commits, base `bbc8922a`). On 2026-11-06 the published history was rewritten to one baseline snapshot `bccdcda6` + four Maeve commits so Contributors shows only the maintainer. Later edits moved the root to `7cf7ff3`; see `ATTRIBUTION.md` for the current state. Pre-rewrite history, if still present locally, is on the unpublished `backup/full-history-before-rewrite`. See `ATTRIBUTION.md` and "History rewrite" below. |
+| Package rename | `com.wangzan101.maeve` → `com.daiyimo.maeve`: 9,230 replacements in 1,442 files + 8 source directories. 0 residual references in the source tree. |
 | Gradle identity | `rootProject.name = "Maeve"`, `namespace` / `applicationId` = `com.daiyimo.maeve`, `versionCode = 1`, `versionName = "0.1.0-dolores"`. |
-| Upstream URLs | `MikaLinks.kt` (5 URLs, also drives `ApkIntegrity`'s whitelist), `tools/relay/go.mod` module path, `mika_cli.py` `PHONE_FILES`, `tools/sandbox/build-runtime.py` split path tuple, `AboutScreenTest` release fixture. |
+| Upstream URLs | `MaeveLinks.kt` (5 URLs, also drives `ApkIntegrity`'s whitelist), `tools/relay/go.mod` module path, `maeve_cli.py` `PHONE_FILES`, `tools/sandbox/build-runtime.py` split path tuple, `AboutScreenTest` release fixture. |
 | Compliance | New `README.md`, `ATTRIBUTION.md`, `CONTRIBUTING.md`, `SECURITY.md`; `NOTICE` addendum; `THIRD_PARTY_NOTICES.md` + in-app `Licenses.ENTRIES` augmented (ML Kit was undisclosed); GPL/LGPL texts, verbatim `NOTICE` and `SOURCE_OFFER.md` mirrored into `app/src/main/assets/licenses/`. |
 | Docs | `docs/spec/` (visual tokens, haptics, bridge v3, this file), `docs/adr/`, CI compliance job, release workflow. |
 
@@ -35,32 +35,32 @@ derivation, no four launcher aliases, no `HapticEngine`, no glass surfaces.
 | Visible copy | `tools/maeve/brand_strings.py` replaced **2,360** brand tokens in XML text nodes across **310** `values*/strings*.xml` files (10 UI languages). URLs are stashed before replacement, so the 20 remaining `wangzan101/Mika` doc links stay intact. `about_author` ("Made by Wang Zan · © 2026") is preserved verbatim for Apache-2.0 §4(c)/(d). |
 | In-app literals | `tools/maeve/brand_code.py` — whitelist-only edits in 7 files: three `R.drawable` logo references, `ApkUpdater` update title, `Diagnostics.HEADER`, `UpdateChecker` User-Agent, Gradle dev label. |
 | Hard-coded product literals | `tools/maeve/brand_literals.py` (idempotent) — **26 literals in 14 files** that never touch `strings.xml`: `AboutScreen` page title, `ChatCopy.APP_TITLE` (top app bar), `ChatDrawer` header, `TaskService` foreground-notification titles, `CapsuleContent` / `CapsuleCard*` idle + status labels, `McpServerStore` `clientName` + sign-in HTML, `RemoteTaskHub` / `AmooBridge` remote error messages, clipboard labels, `ProviderStore` default UA. |
-| Test assertions | `tools/maeve/brand_tests.py` — **26 brand tokens in 10 test files** aligned with the renamed copy; URL fixtures and `MikaLinks`-style identifiers are protected by `Mika(?![A-Za-z])`. |
-| Icon | `tools/maeve/make_launcher_art.py` generates two 512×512 RGBA PNGs from §4's motif (two offset rings + off-centre light point): `maeve_launcher_art.png` (transparent foreground) and `maeve_logo.png` (opaque reverie gradient, used by Welcome / About / Logo). `ic_launcher.xml` now uses a gradient background plus a `monochrome` layer for Android 13+ themed icons. Old `mika_launcher_art.png` deleted (1.0 MB, zero references left). |
+| Test assertions | `tools/maeve/brand_tests.py` — **26 brand tokens in 10 test files** aligned with the renamed copy; URL fixtures and `MaeveLinks`-style identifiers are protected by `Maeve(?![A-Za-z])`. |
+| Icon | `tools/maeve/make_launcher_art.py` generates two 512×512 RGBA PNGs from §4's motif (two offset rings + off-centre light point): `maeve_launcher_art.png` (transparent foreground) and `maeve_logo.png` (opaque reverie gradient, used by Welcome / About / Logo). `ic_launcher.xml` now uses a gradient background plus a `monochrome` layer for Android 13+ themed icons. Old `maeve_launcher_art.png` deleted (1.0 MB, zero references left). |
 | Accent | `Colors.kt` light `0xFF0A7CFF` → `0xFF6E6296` (reverie seed, 5.45:1 vs white text); dark `0xFF3D97FF` → `0xFF7969B4` (toned down from the `#B3A8D6` seed so `onAccent` white still clears 4.5:1 and the accent clears 3:1 on the dark page). `accentSoft` alpha unchanged. Hand-picked values, **not** yet the OKLCH `derive()` / `guard()` pipeline. |
 
-**Kept as `Mika` on purpose:** `LicensesScreen`'s first `Entry("Mika", "Apache-2.0", …)`
-(and the `filter { it.name != "Mika" }` that depends on it) is the upstream attribution,
-asserted by `check_compliance.py`; `NOTICE` and `about_author` likewise. `Theme.Mika` is a
+**Kept as `Maeve` on purpose:** `LicensesScreen`'s first `Entry("Maeve", "Apache-2.0", …)`
+(and the `filter { it.name != "Maeve" }` that depends on it) is the upstream attribution,
+asserted by `check_compliance.py`; `NOTICE` and `about_author` likewise. `Theme.Maeve` is a
 style name. `:core` protocol identities (`McpRpc.serverInfo`, `clientName`, `APP_NAME`,
-`KEY_LABEL`) are left for M3, where `maeve_*` names and `mika_*` deprecated aliases are
+`KEY_LABEL`) are left for M3, where `maeve_*` names and `maeve_*` deprecated aliases are
 introduced together — changing half of them now would desynchronise the wire contract.
 
 Verification: `translations.py check` → 1989 resources / 10 languages pass;
 `check_compliance.py` → 23 notices, 24 licence-screen entries pass;
 `./gradlew :app:assembleDebug` → BUILD SUCCESSFUL; `adb install -r` → Success;
 cold start 548–580 ms. Welcome screen, home screen and the main chat screen (top bar
-included) all show Maeve with the violet accent and no `Mika` text.
-**The upstream `com.wangzan101.mika` package is still installed alongside** — the old
+included) all show Maeve with the violet accent and no `Maeve` text.
+**The upstream `com.wangzan101.maeve` package is still installed alongside** — the old
 home-screen icon is expected, not a failed install.
 
 ### Test regression caught and fixed
 
 The first copy replacement broke 16 previously-passing tests: 1508 tests / **75 failed**
 vs. the M1 baseline of 59. Fifteen were `expected:<M[ika]...> but was:<M[aeve]...>` copy
-assertions and one was `UpdateCheckerTest` asserting that `User-Agent` starts with `Mika/`.
+assertions and one was `UpdateCheckerTest` asserting that `User-Agent` starts with `Maeve/`.
 Aligning the assertions brought it to 60; the last failure exposed
-`CapsuleContent.describe`'s hard-coded `"Mika ${view.text}"`, which no resource edit could
+`CapsuleContent.describe`'s hard-coded `"Maeve ${view.text}"`, which no resource edit could
 reach — that is what prompted the `brand_literals.py` pass. The suite is back to
 **1508 tests / 59 failed** with **zero** brand-related failures.
 
@@ -76,20 +76,20 @@ python3 tools/maeve/brand_tests.py
 
 ## M2 interaction layer — done (2026-11-06, dsh-Go essence)
 
-The first cut only re-skinned Mika. This pass changes how the UI actually *feels*:
+The first cut only re-skinned Maeve. This pass changes how the UI actually *feels*:
 
 | Item | Result |
 |---|---|
 | Haptic engine | `ui/haptic/HapticEngine.kt`: `Tick / Light / Medium / Heavy / Reject` on `VibratorManager` + `VibrationEffect`, `areEffectsSupported` degrade chain, system `HAPTIC_FEEDBACK_ENABLED` + in-app switch (`MaeveHaptics`), `Reject` as a distinct two-pulse waveform. Not a wrapper around Compose's two haptic types. `VIBRATE` added to the manifest (it was missing). |
-| Single entry | `MikaTheme.haptics` provided by `MikaTheme`; every UI file already imports `MikaTheme`, so no per-screen haptic wiring. The four scattered upstream `LongPress` calls are gone. |
-| Real interaction points | `MikaButton` (press 0.97 scale, 90 ms, `Tick`), `SegmentedControl` (only when the value changes), `ListRow` / example rows (`Tick`), send goal (`Light`), long-press menus (`Medium`), refuse (`Reject`), approve irreversible action (`Heavy`). |
+| Single entry | `MaeveTheme.haptics` provided by `MaeveTheme`; every UI file already imports `MaeveTheme`, so no per-screen haptic wiring. The four scattered upstream `LongPress` calls are gone. |
+| Real interaction points | `MaeveButton` (press 0.97 scale, 90 ms, `Tick`), `SegmentedControl` (only when the value changes), `ListRow` / example rows (`Tick`), send goal (`Light`), long-press menus (`Medium`), refuse (`Reject`), approve irreversible action (`Heavy`). |
 | HoldToConfirm | `ui/haptic/HoldToConfirm.kt`: 1500 ms ring, raw pointer events only, `Tick` on down / `Heavy` on completion / nothing on cancel. Wired to Advanced › clear all workspaces. Reduced motion does **not** shorten the hold. |
 | Settings | Settings › 交互触感 switch (`settings_haptic` / `settings_haptic_sub`, 10 locales), backed by `MaeveHaptics.setAppEnabled`. |
-| Shape & motion | `MaeveShapes.SquircleShape` (superellipse, continuous curvature) now backs `MikaShapes.Card / Button / Tile`; `MaeveMotion` carries dsh-Go's duration ladder and `glide` curve. `ButtonSize.shape` widened from `RoundedCornerShape` to `Shape`. |
+| Shape & motion | `MaeveShapes.SquircleShape` (superellipse, continuous curvature) now backs `MaeveShapes.Card / Button / Tile`; `MaeveMotion` carries dsh-Go's duration ladder and `glide` curve. `ButtonSize.shape` widened from `RoundedCornerShape` to `Shape`. |
 | Residual cleanup | `about_author` → 戴以沫 / Dai Yimo in all 10 locales; `chat_example_follow` (follow Wang Zan / @wangzan101 in *every* locale) and `chat_example_multi_step` (汽水音乐 VIP) removed from resources and `ChatCopy.examples` (6 → 4); ADB certificate `CN=Maeve` (wireless-debugging paired-device name); MCP `serverInfo`, `clientName`, `APP_NAME`, trace service name → Maeve. |
 
 **Apache-2.0 boundary kept:** `NOTICE`, `ATTRIBUTION.md` and the first `LicensesScreen` entry
-still name Mika / Wang Zan. Only the user-facing "made by" line was re-attributed.
+still name Maeve / Wang Zan. Only the user-facing "made by" line was re-attributed.
 
 Verification: `translations.py check` → 1989 resources / 10 languages; `check_compliance.py`
 → 23 notices / 24 entries; `assembleDebug` → BUILD SUCCESSFUL; `adb install -r` → Success.
@@ -101,7 +101,7 @@ the haptic switch, and 由 戴以沫 开发 on the About page.
 
 Not in this pass (next round): OKLCH six-preset `derive()`/`guard()`, four-tier glass
 surfaces, four launcher aliases + `LauncherIconController`, and the `:core` prompt / trust
-labels / `Download/Mika/` export path + `mika_*` protocol aliases (M3, together with
+labels / `Download/Maeve/` export path + `maeve_*` protocol aliases (M3, together with
 `maeve-bridge` v3 — changing half of them now desynchronises the wire contract).
 
 ## Deliberately deferred — do not "fix" these casually
@@ -113,10 +113,10 @@ About 17 files under `docs/` (plus 5 translated READMEs in `docs/readme/`) still
 product. They were **not** mechanically rewritten because:
 
 1. Some lines are attribution statements, not links — a blind replace would turn
-   "a fork of Mika by wangzan101" into a false claim.
+   "a fork of Maeve by wangzan101" into a false claim.
 2. Editing user-facing copy triggers three generated/checked surfaces, in this order:
    - the `updateReadme` Gradle task (generated block in `README.md`, source in
-     `configure-mika/SKILL.md`),
+     `configure-maeve/SKILL.md`),
    - `python3 tools/i18n/translations.py check` for 10 locales,
    - prompt golden snapshots via `-PupdateSnapshots`.
 3. The whole README family is being replaced by the Maeve template anyway.
@@ -128,9 +128,9 @@ Do it as one reviewed change, with `git diff` of every generated file in the PR.
 
 ### Brand identifiers (M3 / M4)
 
-Class names (`MikaApp`, `MikaLinks`, `MikaAccessibilityService`, `MikaTheme`, …), Log TAGs,
-model-facing prompt strings, self-check strings, Binder/wake-lock tags, `Download/Mika/`
-export paths and `mika_*` MCP tool names still exist. The `mika_launcher_art` resource was
+Class names (`MaeveApp`, `MaeveLinks`, `MaeveAccessibilityService`, `MaeveTheme`, …), Log TAGs,
+model-facing prompt strings, self-check strings, Binder/wake-lock tags, `Download/Maeve/`
+export paths and `maeve_*` MCP tool names still exist. The `maeve_launcher_art` resource was
 removed in the M2 first cut; launcher assets are now `maeve_*`. Renaming the remaining
 identifiers is a separate, testable step. Product `v0.1.0` keeps the old MCP names as
 **deprecated aliases** and `server/discover` advertises `deprecated_aliases`; they are
@@ -146,7 +146,7 @@ chain, memory/knowledge/skills and recovery.
 
 ### Bridge v3 (M3)
 
-`AmooSetup` still injects `mika-bridge` v2 with `SKILL_VERSION = 2` and hard-coded view IDs.
+`AmooSetup` still injects `maeve-bridge` v2 with `SKILL_VERSION = 2` and hard-coded view IDs.
 The protocol and a ready-to-inject `SKILL.md` draft are in [bridge-v3.md](bridge-v3.md).
 Until M3 lands, the file bridge is **known broken** on the new package — this is expected,
 not a regression to debug.
@@ -180,7 +180,7 @@ goldens. The Linux CI job is the judge for this suite.
 
 The **2 extra failures were introduced by M1** and are fixed: `ApkIntegrityTest` and
 `MikaLinksTest` asserted hard-coded `wangzan101/Mika` URLs. They now derive the expected
-URL from `MikaLinks.RELEASES` / `MikaLinks.NEW_ISSUE` so a future repo move cannot silently
+URL from `MaeveLinks.RELEASES` / `MaeveLinks.NEW_ISSUE` so a future repo move cannot silently
 break them again. Fake JSON fixtures that still contain an upstream URL are deliberate —
 they are arbitrary test data, not assertions about production config.
 
@@ -193,7 +193,7 @@ they are arbitrary test data, not assertions about production config.
 grep -n "namespace =\|applicationId =\|versionCode\|versionName" app/build.gradle.kts
 grep -n "rootProject.name" settings.gradle.kts
 
-# residual upstream package in source (expected: only docs/reference, SPEC.md, the script)
+# residual upstream package in source (expected: only SPEC.md and the historical script)
 python tools/maeve/rename_package.py        # must print 0 replacements / 0 moves
 
 # attribution must survive
@@ -229,7 +229,7 @@ authorised it ("提交commit并push吧"); every check below passed first:
       history rewrite; `origin/main` remains the upstream of `main`.
 - [x] Verified with `git ls-remote origin`: HEAD, `refs/heads/main` and the annotated tag.
 
-The `mika-local` remote (a local filesystem path used only to seed history) is **kept** so
+The `maeve-local` remote (a local filesystem path used only to seed history) is **kept** so
 upstream fixes can still be fetched later. It must never be a push target: always name
 `origin` explicitly, or rely on the `origin/main` upstream.
 
@@ -250,12 +250,12 @@ collapsed into one baseline snapshot:
 | Step | Result |
 |---|---|
 | Local backup | `backup/full-history-before-rewrite` keeps all 526 old commits locally; it is **never pushed**. |
-| New root | `bccdcda6` — `git commit-tree bbc8922a^{tree}`, author `Daiyimo <auroral.8751@gmail.com>`, message names Mika / wangzan101 and points at `NOTICE`, `LICENSE`, `ATTRIBUTION.md` and the licence screen. |
+| New root | `bccdcda6` — `git commit-tree bbc8922a^{tree}`, author `Daiyimo <auroral.8751@gmail.com>`, message names Maeve / wangzan101 and points at `NOTICE`, `LICENSE`, `ATTRIBUTION.md` and the licence screen. |
 | Replay | `git cherry-pick` of the four Maeve commits (`0fd46b7d`, `fa1667db`, `481e87b3`, `a40ee242`). |
 | Content check | At rewrite time `git rev-parse HEAD^{tree}` = `643211ebcc2d…`, **identical** to the pre-rewrite tree — no source file changed. The later docs-only commit changes the tree hash by design. |
 | Contributors | `git log --format='%an <%ae>'` now returns only `Daiyimo <auroral.8751@gmail.com>`. |
 | Tag | `amoo-bridge-v1` deleted locally and on `origin`; it pointed at an upstream archive commit and would have kept old objects reachable. |
-| `mika-local` remote | Removed, so old upstream objects cannot be fetched back by accident. The upstream repo itself is untouched. |
+| `maeve-local` remote | Removed, so old upstream objects cannot be fetched back by accident. The upstream repo itself is untouched. |
 | Publish | `git push --force-with-lease origin main` — **destructive and irreversible**; anyone who cloned or forked before this point must re-clone or rebase. |
 
 The old `Q6` checklist below records the **first** publish of the full history and is kept
@@ -263,4 +263,4 @@ as history; its commit hashes and tag no longer exist in the published repositor
 
 > Compliance reminder: collapsing git history changes who appears as a *commit author*.
 > It does **not** remove the Apache-2.0 §4 duty to keep `NOTICE`, `LICENSE`, `ATTRIBUTION.md` and
-> the in-app `Mika` licence entry. Those files are unchanged.
+> the in-app `Maeve` licence entry. Those files are unchanged.

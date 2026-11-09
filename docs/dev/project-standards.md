@@ -98,4 +98,4 @@ Verified: command / device / result
 
 ## 9. 已知债务
 
-见 [project-review.md](project-review.md)。当前需要知道的几件：Windows 上的核心测试有平台性失败，Linux CI 才是判据；宿主 AGP 8.7.3 用 `android.suppressUnsupportedCompileSdk=36` 接受 compileSdk 36；Flutter 外壳仍是工作台，桥接与真实模型尚未接通。
+见 [project-review.md](project-review.md)。当前需要知道的几件：Windows 上的核心测试有平台性失败，Linux CI 才是判据；宿主 AGP 8.7.3 用 `android.suppressUnsupportedCompileSdk=36` 接受 compileSdk 36；Flutter 外壳仍是工作台，聊天与模型尚未接通。用户可见文案默认中文。

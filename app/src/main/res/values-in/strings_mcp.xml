@@ -71,7 +71,7 @@
     <string name="stepclaw_clients">%1$d klien tersambung, menunggu permintaan pertama</string>
     <string name="stepclaw_off">Tidak mendengarkan. Nyalakan "Wi-Fi dan jaringan privat" atau "USB" di pengaturan lanjutan di bawah — alamat loopback memerlukan salah satunya.</string>
     <string name="stepclaw_copy_config">Salin konfigurasi gateway</string>
-    <string name="stepclaw_new_device">Pindah perangkat atau memasang ulang Maeve? Port tetap sama, tetapi token dibuat acak setiap instalasi — tambahkan lagi ke mcp.servers.mika gateway.</string>
+    <string name="stepclaw_new_device">Pindah perangkat atau memasang ulang Maeve? Port tetap sama, tetapi token dibuat acak setiap instalasi — tambahkan lagi ke mcp.servers.maeve gateway.</string>
     <string name="amoo_page_title">Amoo</string>
     <string name="amoo_page_sub">Kirim skill ke amoo sekali ketuk</string>
     <string name="amoo_status_title">Sambungan</string>

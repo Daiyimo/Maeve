@@ -131,7 +131,6 @@ prototype limit; nothing here is a released binary.
 | `docs/spec/` | Visual tokens, haptics, bridge v3 protocol, migration notes |
 | `docs/adr/` | Architecture decision records |
 | `docs/dev/` | Architecture, engineering standards, review records, topic notes |
-| `docs/reference/` | Archived historical analysis, not part of the current product |
 | [ATTRIBUTION.md](ATTRIBUTION.md) | Provenance, what changed, Apache-2.0 §4 statements |
 
 ## Contributing

@@ -1,7 +1,7 @@
 <!-- docs-check: spans-off — ADR index; type names are proposals -->
 # Architecture decision records
 
-Short, immutable records of decisions taken while turning Mika into Maeve. One file per
+Short, immutable records of decisions taken while turning Maeve into Maeve. One file per
 decision; a superseded ADR is marked **Superseded** and links to its replacement rather than
 being edited in place.
 

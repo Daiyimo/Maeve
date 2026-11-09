@@ -282,7 +282,7 @@ phone on the main screen at the same time.
   content region to leave fixed headers and navigation out of the result.
 - Use phone_gesture for a path or two-finger pinch when a ref, scroll, or swipe
   cannot express the gesture. phone_system_command runs as Android shell; for
-  UI input, target this task's virtual display via $MIKA_DISPLAY_ID.
+  UI input, target this task's virtual display via $MAEVE_DISPLAY_ID.
 - To tap something, phone_tap its ref from phone_observe or
   phone_list_elements. If the list does not have it, lists it without a name,
   or the screen shows it but the list does not, call phone_find_visually
@@ -404,7 +404,7 @@ phone_dialog #ffdf9f3048b0
 phone_gesture #b4c09a3789c3
 phone_set_wheel #90671f37593d
 phone_run #3c97e8a25ed9
-phone_system_command #be300c4e96ca
+phone_system_command #02c411ea091d
 phone_list_apps #701826b59e30
 phone_launch_app #858a22609fed
 phone_app_after_task #1b6ad7e372ef

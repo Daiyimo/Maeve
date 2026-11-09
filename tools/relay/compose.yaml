@@ -6,7 +6,7 @@ services:
       - -listen
       - 0.0.0.0:8787
       - -public-url
-      - https://${MIKA_DOMAIN:?Set MIKA_DOMAIN in .env}
+      - https://${MAEVE_DOMAIN:?Set MAEVE_DOMAIN in .env}
       - -data
       - /data/relay.json
       - -owner-key-file
@@ -21,7 +21,7 @@ services:
     image: caddy:2.11.7-alpine
     restart: unless-stopped
     environment:
-      MIKA_DOMAIN: ${MIKA_DOMAIN:?Set MIKA_DOMAIN in .env}
+      MAEVE_DOMAIN: ${MAEVE_DOMAIN:?Set MAEVE_DOMAIN in .env}
     ports:
       - "80:80"
       - "443:443"

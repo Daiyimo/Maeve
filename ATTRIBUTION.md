@@ -52,8 +52,7 @@ history changes who appears as a *commit author*, not who owns the copyright.
 > and version, and reworked the visual system, the connection layer and the capability set.
 > The complete, per-file change record is the git history: run
 > `git diff "$(git rev-list --max-parents=0 HEAD)"..HEAD` (or `git log --follow -- <file>`)
-> from the repository root. The mechanical rename is reproducible via
-> `python tools/maeve/rename_package.py --apply`.
+> from the repository root. The mechanical rename is recorded there.
 
 Files with hand-written (non-mechanical) changes additionally carry a short header comment.
 A per-file header was **not** injected into all ~1,440 mechanically renamed files: doing so
@@ -72,14 +71,14 @@ central notice plus the preserved diff is the declaration of record.
 | Attribution | `NOTICE` addendum; third-party notices augmented (ML Kit was previously undisclosed); GPL/LGPL texts mirrored into the APK |
 | UI | Flutter shell under `flutter/`; Compose surfaces retired screen by screen |
 
-## Deliberately kept for compatibility
+## Naming boundary
 
-- `mika_*` MCP tool names, the CLI `mika` command, `Author.Mika`'s serialized name and the
-  `Download/Mika/` legacy path. External clients and stored conversations depend on them;
-  new names ship as aliases where the wire contract allows.
-- Upstream media under `docs/media/` that is still referenced as historical material.
-- The archived reports in `docs/reference/` — they describe the earlier Mika-based source and
-  keep its original names on purpose.
+The product surface uses Maeve names: `maeve_*` MCP tools, the `maeve` CLI, `Author.Maeve`,
+`Download/Maeve/`, `MAEVE_DISPLAY_ID` and the `maeve` sandbox client. No pre-release
+compatibility aliases are kept because there is no released binary yet.
+
+Attribution notices in `NOTICE`, `LICENSE`, the licence screen and this file are legal
+notices, not branding; they must remain.
 
 ## License of this file
 

@@ -7,7 +7,7 @@
 
 A mobile-GUI reference implementation settles each action with cheap mechanical facts
 (`DISPATCHED → SETTLED / REJECTED / FAILED / RECOVERED`, `screenshot_exactly_same`,
-`foreground_identity_changed`) and uses three bounded anti-loop tiers. Mika already has
+`foreground_identity_changed`) and uses three bounded anti-loop tiers. Maeve already has
 `OperationGuards.unchangedFrames` (`NO_EFFECT` → counter, warn at 2, stop at ≥3),
 `GuardRules.NO_EFFECT_LADDER`, `StopRules`, `treeBlind` and `progressVersion`.
 
@@ -19,7 +19,7 @@ throws an NPE on non-ASCII `input text`, which Maeve avoids by using a11y `SET_T
 
 ## Decision
 
-1. Keep Mika's existing guard ladder. Add an explicit `ActionOutcome` enum and document
+1. Keep Maeve's existing guard ladder. Add an explicit `ActionOutcome` enum and document
    that "screen did not change" **does not** mean "task failed semantically".
 2. Use `(package, activity)` changes from `AndroidScreen.foregroundApps` as a
    `progressVersion` signal to reduce false stalls.

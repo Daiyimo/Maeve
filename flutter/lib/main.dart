@@ -58,9 +58,9 @@ class _MaeveShellState extends State<MaeveShell> {
   final searchInput = TextEditingController();
   final memoryInput = TextEditingController();
   final conversations = <Conversation>[
-    Conversation(id: 'c1', title: 'The architecture of choice'),
-    Conversation(id: 'c2', title: 'Build a calmer workspace'),
-    Conversation(id: 'c3', title: 'A new beginning'),
+    Conversation(id: 'c1', title: '选择之道'),
+    Conversation(id: 'c2', title: '搭一个安静的工作台'),
+    Conversation(id: 'c3', title: '新的开始'),
   ];
   final memories = <String>[];
 
@@ -131,13 +131,13 @@ class _MaeveShellState extends State<MaeveShell> {
           const SizedBox(height: 18),
           const MaeveMark(size: 34),
           const SizedBox(height: 28),
-          _railButton(Icons.chat_bubble_outline, 'Conversations', 0),
-          _railButton(Icons.bolt_outlined, 'Runs', 1),
-          _railButton(Icons.memory_outlined, 'Memory', 2),
+          _railButton(Icons.chat_bubble_outline, '对话', 0),
+          _railButton(Icons.bolt_outlined, '运行', 1),
+          _railButton(Icons.memory_outlined, '记忆', 2),
           const Spacer(),
-          _railButton(Icons.settings_outlined, 'Settings', 3),
+          _railButton(Icons.settings_outlined, '设置', 3),
           IconButton(
-            tooltip: 'Toggle theme',
+            tooltip: '切换主题',
             onPressed: widget.onTheme,
             icon: Icon(
               widget.themeMode == ThemeMode.light
@@ -192,7 +192,7 @@ class _MaeveShellState extends State<MaeveShell> {
                 const Spacer(),
                 if (MediaQuery.sizeOf(context).width < 900)
                   IconButton(
-                    tooltip: 'Close navigation',
+                    tooltip: '关闭导航',
                     onPressed: () => setState(() => drawer = false),
                     icon: const Icon(Icons.close),
                   ),
@@ -205,7 +205,7 @@ class _MaeveShellState extends State<MaeveShell> {
                 key: const ValueKey('new-conversation'),
                 onPressed: _newConversation,
                 icon: const Icon(Icons.add),
-                label: const Text('New conversation'),
+                label: const Text('新对话'),
               ),
             ),
             const SizedBox(height: 16),
@@ -215,18 +215,18 @@ class _MaeveShellState extends State<MaeveShell> {
               onChanged: (value) => setState(() => searchQuery = value),
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.search, size: 19),
-                hintText: 'Search conversations',
+                hintText: '搜索对话',
                 isDense: true,
               ),
             ),
             const SizedBox(height: 20),
-            Text('RECENT CONVERSATIONS', style: maeveEyebrow(context)),
+            Text('最近对话', style: maeveEyebrow(context)),
             const SizedBox(height: 8),
             Expanded(
               child: filtered.isEmpty
                   ? Center(
                       child: Text(
-                        'No matching conversations',
+                        '没有匹配的对话',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     )
@@ -274,12 +274,12 @@ class _MaeveShellState extends State<MaeveShell> {
                     ),
             ),
             const Divider(),
-            _sidebarDestination(Icons.bolt_outlined, 'Runs', 1),
-            _sidebarDestination(Icons.memory_outlined, 'Memory', 2),
-            _sidebarDestination(Icons.settings_outlined, 'Settings', 3),
+            _sidebarDestination(Icons.bolt_outlined, '运行', 1),
+            _sidebarDestination(Icons.memory_outlined, '记忆', 2),
+            _sidebarDestination(Icons.settings_outlined, '设置', 3),
             const SizedBox(height: 10),
             Text(
-              'Flutter interface · Android capabilities',
+              'Flutter 界面 · Android 能力',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -323,7 +323,7 @@ class _MaeveShellState extends State<MaeveShell> {
       children: [
         if (!wide || !drawer)
           IconButton(
-            tooltip: wide ? 'Open workspace' : 'Open conversations',
+            tooltip: wide ? '打开工作区' : '打开对话',
             onPressed: () => setState(() => drawer = !drawer),
             icon: Icon(wide ? Icons.menu_open : Icons.menu),
           ),
@@ -333,7 +333,7 @@ class _MaeveShellState extends State<MaeveShell> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                page == 0 ? 'CONVERSATION' : _pageEyebrow,
+                page == 0 ? '对话' : _pageEyebrow,
                 style: maeveEyebrow(context),
               ),
               const SizedBox(height: 2),
@@ -349,16 +349,15 @@ class _MaeveShellState extends State<MaeveShell> {
         if (page == 0)
           MaeveGlassButton(
             icon: Icons.add,
-            tooltip: 'New conversation',
+            tooltip: '新对话',
             onPressed: _newConversation,
           ),
       ],
     ),
   );
 
-  String get _pageTitle => ['Chat', 'Runs', 'Memory', 'Settings'][page];
-  String get _pageEyebrow =>
-      ['WORKSPACE', 'ACTIVITY', 'PERSONAL CONTEXT', 'PREFERENCES'][page];
+  String get _pageTitle => ['聊天', '运行', '记忆', '设置'][page];
+  String get _pageEyebrow => ['工作区', '活动', '个人上下文', '偏好'][page];
 
   Widget _chat(BuildContext context) {
     final messages = currentConversation.messages;
@@ -387,13 +386,10 @@ class _MaeveShellState extends State<MaeveShell> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'A HOST WITH A VOICE',
-                          style: maeveEyebrow(context),
-                        ),
+                        Text('有声音的宿主', style: maeveEyebrow(context)),
                         const SizedBox(height: 5),
                         Text(
-                          'One thought, from here.',
+                          '一个念头，从这里开始。',
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                       ],
@@ -403,7 +399,7 @@ class _MaeveShellState extends State<MaeveShell> {
               ),
               const SizedBox(height: 22),
               Text(
-                'Maeve is ready to shape an idea, explore a question, or help plan what comes next.',
+                'Maeve 已准备好陪你梳理想法、探索问题，或规划下一步。',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 22),
@@ -411,8 +407,8 @@ class _MaeveShellState extends State<MaeveShell> {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  _suggestion(context, 'Help me think through a decision'),
-                  _suggestion(context, 'Plan a project'),
+                  _suggestion(context, '帮我理清一个决定'),
+                  _suggestion(context, '规划一个项目'),
                 ],
               ),
             ] else ...[
@@ -489,7 +485,7 @@ class _MaeveShellState extends State<MaeveShell> {
         child: CircularProgressIndicator(strokeWidth: 2),
       ),
       const SizedBox(width: 12),
-      Text('Maeve is thinking', style: Theme.of(context).textTheme.bodySmall),
+      Text('Maeve 正在思考', style: Theme.of(context).textTheme.bodySmall),
     ],
   );
 
@@ -509,10 +505,8 @@ class _MaeveShellState extends State<MaeveShell> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 IconButton(
-                  tooltip: 'Add content',
-                  onPressed: () => _showNotice(
-                    'Attachments will be connected through the Android platform bridge.',
-                  ),
+                  tooltip: '添加内容',
+                  onPressed: () => _showNotice('附件将通过 Android 平台桥接接入。'),
                   icon: const Icon(Icons.add),
                 ),
                 Expanded(
@@ -523,7 +517,7 @@ class _MaeveShellState extends State<MaeveShell> {
                     maxLines: 6,
                     textInputAction: TextInputAction.newline,
                     decoration: const InputDecoration(
-                      hintText: 'Give Maeve something to work with…',
+                      hintText: '给 Maeve 一点可以着手的内容…',
                       border: InputBorder.none,
                       filled: false,
                     ),
@@ -536,7 +530,7 @@ class _MaeveShellState extends State<MaeveShell> {
                   icon: generating
                       ? Icons.stop_rounded
                       : Icons.arrow_upward_rounded,
-                  tooltip: generating ? 'Stop generation' : 'Send message',
+                  tooltip: generating ? '停止生成' : '发送消息',
                   prominent: true,
                   onPressed: generating ? _stopGeneration : _send,
                 ),
@@ -550,9 +544,9 @@ class _MaeveShellState extends State<MaeveShell> {
 
   Widget _runs(BuildContext context) => _pageBody(
     context,
-    eyebrow: 'RUN HISTORY',
-    title: 'Runs',
-    description: 'Agent activity and task progress will appear here.',
+    eyebrow: '运行记录',
+    title: '运行',
+    description: 'Agent 活动与任务进度会显示在这里。',
     icon: Icons.bolt_outlined,
     accent: MaeveTokens.success,
     children: [
@@ -568,18 +562,18 @@ class _MaeveShellState extends State<MaeveShell> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Ready for your first run',
+                    '可以开始第一次运行',
                     style: Theme.of(context).textTheme.titleSmall,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'No agent activity has been recorded yet.',
+                    '还没有记录任何 Agent 活动。',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],
               ),
             ),
-            Text('READY', style: maeveEyebrow(context)),
+            Text('就绪', style: maeveEyebrow(context)),
           ],
         ),
       ),
@@ -596,7 +590,7 @@ class _MaeveShellState extends State<MaeveShell> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                'Run history is a visual prototype. Persistent agent execution is not connected yet.',
+                '运行记录目前是视觉原型，尚未接入持久化执行。',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
             ),
@@ -608,14 +602,14 @@ class _MaeveShellState extends State<MaeveShell> {
 
   Widget _memory(BuildContext context) => _pageBody(
     context,
-    eyebrow: 'PERSONAL CONTEXT',
-    title: 'Memory',
-    description: 'Keep useful context close to Maeve.',
+    eyebrow: '个人上下文',
+    title: '记忆',
+    description: '把有用的上下文留在 Maeve 身边。',
     icon: Icons.memory_outlined,
     accent: Theme.of(context).colorScheme.primary,
     trailing: IconButton(
       key: const ValueKey('add-memory'),
-      tooltip: 'Add memory',
+      tooltip: '添加记忆',
       onPressed: _addMemory,
       icon: const Icon(Icons.add),
     ),
@@ -629,20 +623,17 @@ class _MaeveShellState extends State<MaeveShell> {
             children: [
               const Icon(Icons.bookmark_border, size: 25),
               const SizedBox(height: 14),
-              Text(
-                'Nothing saved yet',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('还没有保存任何内容', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 6),
               Text(
-                'Add a note to keep a useful preference or project detail in this session.',
+                '写一条便签，记住这个会话里的偏好或项目细节。',
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 18),
               OutlinedButton.icon(
                 onPressed: _addMemory,
                 icon: const Icon(Icons.add),
-                label: const Text('Add a memory'),
+                label: const Text('添加一条记忆'),
               ),
             ],
           ),
@@ -660,7 +651,7 @@ class _MaeveShellState extends State<MaeveShell> {
                   const SizedBox(width: 12),
                   Expanded(child: Text(memory)),
                   IconButton(
-                    tooltip: 'Delete memory',
+                    tooltip: '删除记忆',
                     onPressed: () => setState(() => memories.remove(memory)),
                     icon: const Icon(Icons.delete_outline),
                   ),
@@ -670,7 +661,7 @@ class _MaeveShellState extends State<MaeveShell> {
           ),
       const SizedBox(height: 12),
       Text(
-        'Memories remain in this Flutter session and are not yet stored on disk.',
+        '记忆只存在于本次 Flutter 会话，尚未写入磁盘。',
         style: Theme.of(context).textTheme.bodySmall,
       ),
     ],
@@ -678,9 +669,9 @@ class _MaeveShellState extends State<MaeveShell> {
 
   Widget _settings(BuildContext context) => _pageBody(
     context,
-    eyebrow: 'PREFERENCES',
-    title: 'Settings',
-    description: 'Shape how Maeve feels and responds.',
+    eyebrow: '偏好',
+    title: '设置',
+    description: '调整 Maeve 的观感与回应方式。',
     icon: Icons.tune_outlined,
     accent: Theme.of(context).colorScheme.primary,
     children: [
@@ -691,8 +682,8 @@ class _MaeveShellState extends State<MaeveShell> {
           type: MaterialType.transparency,
           child: SwitchListTile.adaptive(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Light appearance'),
-            subtitle: const Text('Use a cool, light workspace palette.'),
+            title: const Text('浅色外观'),
+            subtitle: const Text('使用清爽的浅色工作台配色。'),
             value: widget.themeMode == ThemeMode.light,
             onChanged: (_) => widget.onTheme(),
           ),
@@ -705,12 +696,12 @@ class _MaeveShellState extends State<MaeveShell> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('PLATFORM', style: maeveEyebrow(context)),
+            Text('平台', style: maeveEyebrow(context)),
             const SizedBox(height: 10),
-            const Text('Flutter interface · Android capabilities'),
+            const Text('Flutter 界面 · Android 能力'),
             const SizedBox(height: 8),
             Text(
-              'Glass surfaces use stable layered fills. Runtime backdrop blur is disabled because Android RenderThread instability was observed.',
+              '玻璃表面使用稳定的分层填充；运行时背景模糊已禁用，因为曾观察到 Android RenderThread 不稳定。',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -729,14 +720,11 @@ class _MaeveShellState extends State<MaeveShell> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Maeve', style: Theme.of(context).textTheme.titleSmall),
-                  Text(
-                    'A host with a voice',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
+                  Text('有声音的宿主', style: Theme.of(context).textTheme.bodySmall),
                 ],
               ),
             ),
-            const Text('UI prototype'),
+            const Text('界面原型'),
           ],
         ),
       ),
@@ -814,7 +802,7 @@ class _MaeveShellState extends State<MaeveShell> {
       responseGeneration++;
       generating = false;
       final id = 'c${++conversationSequence}';
-      conversations.insert(0, Conversation(id: id, title: 'New conversation'));
+      conversations.insert(0, Conversation(id: id, title: '新对话'));
       activeConversation = id;
       page = 0;
       drawer = false;
@@ -832,7 +820,7 @@ class _MaeveShellState extends State<MaeveShell> {
     setState(() {
       final conversation = currentConversation;
       conversation.messages.add(Message(text, isUser: true));
-      if (conversation.title == 'New conversation') {
+      if (conversation.title == '新对话') {
         conversation.title = text.length > 34
             ? '${text.substring(0, 34)}…'
             : text;
@@ -852,9 +840,7 @@ class _MaeveShellState extends State<MaeveShell> {
     if (index < 0) return;
     setState(() {
       final conversation = conversations[index];
-      conversation.messages.add(
-        Message('I have it. The next move is yours.', isUser: false),
-      );
+      conversation.messages.add(Message('我收到了，接下来交给你。', isUser: false));
       conversation.updatedAt = DateTime.now();
       generating = false;
     });
@@ -872,18 +858,18 @@ class _MaeveShellState extends State<MaeveShell> {
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add a memory'),
+        title: const Text('添加一条记忆'),
         content: TextField(
           key: const ValueKey('memory-input'),
           controller: memoryInput,
           autofocus: true,
           maxLines: 3,
-          decoration: const InputDecoration(hintText: 'Write a useful note'),
+          decoration: const InputDecoration(hintText: '写一条有用的便签'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('取消'),
           ),
           FilledButton(
             onPressed: () {
@@ -891,7 +877,7 @@ class _MaeveShellState extends State<MaeveShell> {
               if (value.isNotEmpty) setState(() => memories.insert(0, value));
               Navigator.pop(context);
             },
-            child: const Text('Save'),
+            child: const Text('保存'),
           ),
         ],
       ),
@@ -906,10 +892,10 @@ class _MaeveShellState extends State<MaeveShell> {
 
   String _relativeTime(DateTime time) {
     final difference = DateTime.now().difference(time);
-    if (difference.inMinutes < 1) return 'Just now';
-    if (difference.inHours < 1) return '${difference.inMinutes}m ago';
-    if (difference.inDays < 1) return '${difference.inHours}h ago';
-    if (difference.inDays == 1) return 'Yesterday';
-    return '${difference.inDays}d ago';
+    if (difference.inMinutes < 1) return '刚刚';
+    if (difference.inHours < 1) return '${difference.inMinutes} 分钟前';
+    if (difference.inDays < 1) return '${difference.inHours} 小时前';
+    if (difference.inDays == 1) return '昨天';
+    return '${difference.inDays} 天前';
   }
 }

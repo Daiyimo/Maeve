@@ -18,7 +18,7 @@ amoo（`com.stepos.ailauncher`，StepOS 系统签名应用）里用户发送的�
 
 ## 2. 方案
 
-Maeve 的无障碍服务持续观察 amoo 聊天页：用户每发出一条消息（输入框草稿 + 同文本气泡双重认定），就按 MCP `mika_run_task` 的同一底层路径 `RemoteTaskService.start(goal, null, requestId)` 在 Maeve 里新建一个任务，胶囊照常执行、任务页可见可取消。
+Maeve 的无障碍服务持续观察 amoo 聊天页：用户每发出一条消息（输入框草稿 + 同文本气泡双重认定），就按 MCP `maeve_run_task` 的同一底层路径 `RemoteTaskService.start(goal, null, requestId)` 在 Maeve 里新建一个任务，胶囊照常执行、任务页可见可取消。
 
 - amoo 发往云端的消息**不受影响**，照常发送——Maeve 是在本机并行做一遍，不是拦路。
 - 默认关闭。**界面上已经不再暴露这个开关**（Amoo 页现在只留「一键接入」和「连接状态」），要打开只能改 `feature_flags` 里的 `intercept_amoo`（`FeatureFlags.setInterceptAmoo`，改开关即时生效：FeatureFlags Flow）。连接电脑页也不再有 amoo 相关条目。
@@ -70,7 +70,7 @@ Maeve 的无障碍服务持续观察 amoo 聊天页：用户每发出一条消�
 
 ### 5.2 E2E 实锤（两次，均成功）
 
-流程：amoo 聊天页输入 ASCII 测试文本 → 点 `btn_text_send` → logcat 抓 `AmooIntercept` → MCP `mika_list_tasks` 验证。
+流程：amoo 聊天页输入 ASCII 测试文本 → 点 `btn_text_send` → logcat 抓 `AmooIntercept` → MCP `maeve_list_tasks` 验证。
 
 日志（`adb logcat -v time` 过滤 `AmooIntercept:I`）：
 
@@ -80,7 +80,7 @@ Maeve 的无障碍服务持续观察 amoo 聊天页：用户每发出一条消�
 11-05 11:58:00.990 I/AmooIntercept: intercepted task started: 0e9b4abb-8233-488a-af4d-cdae91fdd27a
 ```
 
-MCP 验证（`mika_list_tasks` 首条）：
+MCP 验证（`maeve_list_tasks` 首条）：
 
 ```json
 {"task_id":"0e9b4abb-8233-488a-af4d-cdae91fdd27a","status":"done",
@@ -131,7 +131,7 @@ adb logcat -d -v time | grep AmooIntercept
 adb shell am start-foreground-service -n com.daiyimo.maeve/.mcp.McpService \
   -a com.daiyimo.maeve.mcp.USB_ON
 adb forward tcp:18770 tcp:18770
-# 然后走 MCP 协议调 mika_list_tasks（JSON-RPC over TCP，Content-Length 帧）
+# 然后走 MCP 协议调 maeve_list_tasks（JSON-RPC over TCP，Content-Length 帧）
 ```
 
 预期：日志出现 `amoo task intercepted: <字符数> chars` 与 `intercepted task started: <uuid>`；MCP 列表出现同 goal、同 task_id、status 为 `done` 的任务。

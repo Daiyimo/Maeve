@@ -71,7 +71,7 @@
     <string name="stepclaw_clients">已有 %1$d 个客户端连入，等第一个请求</string>
     <string name="stepclaw_off">未监听。到下方「高级设置」打开「Wi-Fi 和私有网络」或「USB」开关，本机回环地址才会被监听。</string>
     <string name="stepclaw_copy_config">复制网关配置</string>
-    <string name="stepclaw_new_device">换设备或重装 Maeve：端口不变，但令牌会重新随机生成，需要把新令牌重新配到网关的 mcp.servers.mika。</string>
+    <string name="stepclaw_new_device">换设备或重装 Maeve：端口不变，但令牌会重新随机生成，需要把新令牌重新配到网关的 mcp.servers.maeve。</string>
     <string name="amoo_page_title">Amoo</string>
     <string name="amoo_page_sub">一键把技能发进 amoo</string>
     <string name="amoo_status_title">连接状态</string>

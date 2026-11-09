@@ -71,7 +71,7 @@
     <string name="stepclaw_clients">%1$d cliente(s) conectado(s), aguardando a primeira solicitação</string>
     <string name="stepclaw_off">Não está escutando. Ative «Wi-Fi e redes privadas» ou «USB» nas configurações avançadas abaixo — o endereço de loopback precisa de um dos dois.</string>
     <string name="stepclaw_copy_config">Copiar configuração do gateway</string>
-    <string name="stepclaw_new_device">Mudou de aparelho ou reinstalou o Maeve? A porta continua a mesma, mas o token é gerado aleatoriamente em cada instalação — adicione-o novamente em mcp.servers.mika do gateway.</string>
+    <string name="stepclaw_new_device">Mudou de aparelho ou reinstalou o Maeve? A porta continua a mesma, mas o token é gerado aleatoriamente em cada instalação — adicione-o novamente em mcp.servers.maeve do gateway.</string>
     <string name="amoo_page_title">Amoo</string>
     <string name="amoo_page_sub">Envia a skill para o amoo num toque</string>
     <string name="amoo_status_title">Ligação</string>

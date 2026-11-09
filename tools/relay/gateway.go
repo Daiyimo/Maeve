@@ -18,7 +18,7 @@ import (
 const maxBody = 1 << 20
 
 // Both ends must speak the same tunnel protocol; a phone offering another version is refused before upgrade.
-const subprotocol = "mika-relay.v2"
+const subprotocol = "maeve-relay.v2"
 
 type frame struct {
 	Type    string            `json:"type"`
@@ -350,7 +350,7 @@ func safeHeaders(h map[string]string) bool {
 }
 
 // Values are opaque to the gateway. Authentication and Origin policy belong to the phone.
-var requestHeaders = map[string]bool{"authorization": true, "origin": true, "x-mika-client": true, "content-type": true, "accept": true, "mcp-protocol-version": true, "mcp-method": true, "mcp-name": true, "mcp-session-id": true, "last-event-id": true}
+var requestHeaders = map[string]bool{"authorization": true, "origin": true, "x-maeve-client": true, "content-type": true, "accept": true, "mcp-protocol-version": true, "mcp-method": true, "mcp-name": true, "mcp-session-id": true, "last-event-id": true}
 var responseHeaders = map[string]bool{"content-type": true, "allow": true, "retry-after": true, "www-authenticate": true, "mcp-protocol-version": true}
 
 func proxyFailure(w http.ResponseWriter, r *http.Request, status int, code string) {

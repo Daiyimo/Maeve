@@ -28,16 +28,16 @@ flowchart LR
 
 安装、升级、回退和卸载见 [CLI / Skill 安装指南](computer-install.md)。CLI 与 MCP 通常二选一。手机需要 task API v1,官方 APK 从 v0.1.23 起提供。
 
-只装 Skill 时,下面的 `mika` 代表 `python3 <技能目录>/mika/scripts/mika_cli.py`（Windows 用 `py -3`）。
+只装 Skill 时,下面的 `maeve` 代表 `python3 <技能目录>/maeve/scripts/maeve_cli.py`（Windows 用 `py -3`）。
 
 ## 连接手机
 
 ADB 模式需要 Android platform-tools。数据线或已经配对并连接的无线 ADB 都可以；无线 ADB 需要这台电脑与手机完成配对、连接，并在 `adb devices` 中显示为 `device`。Maeve 在手机内为启动助手完成的配对，不等于电脑已配对；它们也不同于下面的直接局域网访问。
 
 ```bash
-mika devices --json
-mika connect --device SERIAL --json
-mika doctor --device SERIAL --json
+maeve devices --json
+maeve connect --device SERIAL --json
+maeve doctor --device SERIAL --json
 ```
 
 只有一个在线设备时可省略 `--device`;也支持已有的 ANDROID_SERIAL 环境变量。多设备不猜目标,连接失败也不切换到另一台手机。`connect` 调用 Maeve 写到手机上的官方启动脚本,打开电脑连接并启动所需助手;此动作不提交业务任务。其余命令只读取当前连接。
@@ -49,7 +49,7 @@ CLI 会处理端口转发，无需照 MCP 步骤手工转发固定端口。拔�
 也可以使用手机设置里显式开启的局域网/私有网络连接:
 
 ```bash
-mika --url http://PHONE:8765 --token-file /path/to/private-token-file doctor --json
+maeve --url http://PHONE:8765 --token-file /path/to/private-token-file doctor --json
 ```
 
 令牌文件只包含访问令牌,由用户按私有文件保存。URL 使用服务器根地址或 `/api/v1`,不要填 `/mcp`;不允许 URL 内嵌凭据。CLI 不跟随 HTTP 重定向、不使用环境中的 HTTP 代理。服务器沿用私有网络限制;局域网 HTTP 的链路本身不加密,可使用 ADB 或可信私有组网。
@@ -57,13 +57,13 @@ mika --url http://PHONE:8765 --token-file /path/to/private-token-file doctor --j
 ## 任务命令
 
 ```bash
-mika --device SERIAL task run --goal-file task.txt --json
-mika --device SERIAL task status TASK_ID --json
-mika --device SERIAL task wait TASK_ID --timeout 45 --json
-mika --device SERIAL task answer TASK_ID --text-file answer.txt --json
-mika --device SERIAL task steer TASK_ID --text "补充一下，只整理今天的消息" --json
-mika --device SERIAL task cancel TASK_ID --json
-mika --device SERIAL task list --limit 10 --json
+maeve --device SERIAL task run --goal-file task.txt --json
+maeve --device SERIAL task status TASK_ID --json
+maeve --device SERIAL task wait TASK_ID --timeout 45 --json
+maeve --device SERIAL task answer TASK_ID --text-file answer.txt --json
+maeve --device SERIAL task steer TASK_ID --text "补充一下，只整理今天的消息" --json
+maeve --device SERIAL task cancel TASK_ID --json
+maeve --device SERIAL task list --limit 10 --json
 ```
 
 简单文本也可用 `--goal` / `--text`;文件参数为 `-` 时读取标准输入。`run --conversation CONVERSATION_ID` 创建同一远程对话中的下一项任务,`answer` 只回答当前追问。保留现有对话的 mcp- 前缀以兼容已经发出的 ID;这个历史前缀不代表 CLI 走 MCP 协议。
@@ -84,7 +84,7 @@ mika --device SERIAL task list --limit 10 --json
 | 4 | 写入结果不明;可能已被手机接受,没有自动重试。 |
 | 130 | 本地读取/等待被中断,没有请求取消手机任务。 |
 
-支持 `task_recovery` 的手机会在执行前保存收件记录。新版 CLI 会在发送前生成小写 UUID，用作任务编号。自动化程序也可以先保存自己的 UUID，通过 `task run --request-id UUID --goal ...` 提交。回执丢失时，退出码 4 的错误里带有 `task_id`。重新连接同一台手机，运行 `mika task status UUID` 即可查询。若暂时返回 404，需要重试时请使用原编号、原目标及原对话参数。相同请求返回原任务，复用编号提交不同内容返回 409。CLI 不会自动重发。
+支持 `task_recovery` 的手机会在执行前保存收件记录。新版 CLI 会在发送前生成小写 UUID，用作任务编号。自动化程序也可以先保存自己的 UUID，通过 `task run --request-id UUID --goal ...` 提交。回执丢失时，退出码 4 的错误里带有 `task_id`。重新连接同一台手机，运行 `maeve task status UUID` 即可查询。若暂时返回 404，需要重试时请使用原编号、原目标及原对话参数。相同请求返回原任务，复用编号提交不同内容返回 409。CLI 不会自动重发。
 
 手机进程重启后，可用原编号读取原答复、核验状态、失败原因或取消状态。未正常收尾的任务返回 `failed` 和 `failure_kind=interrupted`。删除对话会清除对应的远程任务内容，旧编号返回 410，也不能再次启动任务。已收尾的任务记录保留 30 天、至多最近 1000 条，过后同一编号按新请求处理。升级前只在内存里的编号无法补回。在旧手机版本上，普通提交仍可用，丢回执后需要核对近期任务。显式指定 `--request-id` 会要求升级手机。
 
@@ -93,11 +93,11 @@ mika --device SERIAL task list --limit 10 --json
 ## 浏览器任务台
 
 ```bash
-mika ui                      # 打开本机浏览器里的任务台
-mika ui --device SERIAL --no-open
+maeve ui                      # 打开本机浏览器里的任务台
+maeve ui --device SERIAL --no-open
 ```
 
-`mika ui` 在 `127.0.0.1` 的随机端口起一个只给本机用的页面，用同一套任务命令派任务、看进度、回答追问、追加要求和取消，界面按浏览器语言显示简体中文或英文。链接末尾 `#` 后面是本次启动的会话密钥，浏览器不会把它发给别处；服务端还核对 Host 和 Origin，只接受固定几种操作。它是给人用的交互界面，不支持 `--json`。详见[从电脑使用 Maeve](computer.md#电脑任务台mika-ui)。
+`maeve ui` 在 `127.0.0.1` 的随机端口起一个只给本机用的页面，用同一套任务命令派任务、看进度、回答追问、追加要求和取消，界面按浏览器语言显示简体中文或英文。链接末尾 `#` 后面是本次启动的会话密钥，浏览器不会把它发给别处；服务端还核对 Host 和 Origin，只接受固定几种操作。它是给人用的交互界面，不支持 `--json`。详见[从电脑使用 Maeve](computer.md#电脑任务台maeve-ui)。
 
 ## HTTP 契约
 
@@ -121,8 +121,8 @@ mika ui --device SERIAL --no-open
 
 ```bash
 ./gradlew :core:test :core:cliTest :app:testDebugUnitTest :app:assembleDebug
-# Python 可单独运行;指定解释器可用 -PmikaPython=/path/to/python3
-python3 -m unittest discover -s tools/mika/tests -v
+# Python 可单独运行;指定解释器可用 -PmaevePython=/path/to/python3
+python3 -m unittest discover -s tools/maeve-cli/tests -v
 ```
 
 纯 JVM 测试覆盖共享服务、API/MCP 互操作、鉴权、状态与原有协议回归。`cliTest`(要 Python 3.10+,不在 `check` 里,需要时显式运行)运行真实 CLI 对 Kotlin HTTP 服务的契约测试(核对 CLI 只请求 `/api/v1`),以及假 ADB、丢响应、令牌变化、端口清理和独立 Skill 目录测试。这些都不需要真机或模型 Key。真机无线断连、手机重启和真实 Agent 执行需要另行验收,不能用这些隔离测试代替。

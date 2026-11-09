@@ -15,12 +15,12 @@
 | `flutter/` 的 README 与 pubspec 还是模板 | 已修：写清目录、命令、契约与限制 |
 | `verify.sh` 与迁移文档写死机器路径 | 已修：环境变量驱动，`cygpath`、`NO_PROXY`、缺工具可读报错 |
 | `FORK.md` / `SPEC.md` 引用不存在的历史提交 | 已修：改为当前根提交 `7cf7ff3` 与可复现命令 |
-| 文档测试把上游存档也拿来对照 | 已修：排除 `docs/reference/` |
+| 文档测试把上游存档也拿来对照 | 已修：存档已移除 |
 | 当前文档仍有旧类名、旧路径 | 已修：architecture、install、amoo 等改到现存符号 |
 | `.github` 缺 CI | 已修：core / flutter / cli / android 四个 job |
 | `docs/dev/` 堆积调试产物 | 已修：删除 uiautomator dump，截图移到 `docs/media/` 并在文档引用 |
 | `main.dart` 单文件过大 | 已修：拆出 models、bridge、mark widget；1014 → 915 行，页面仍在主文件 |
-| 品牌与上游 URL 未全量替换 | 已修：文档、prompt、eval、relay UI、自助页面；保留 `mika_*` 兼容名、CLI `mika`、上游 attribution 与 `docs/reference/` 存档 |
+| 品牌与上游 URL 未全量替换 | 已修：文档、prompt、eval、relay UI、自助页面、CLI/沙箱/MCP 命名；仅保留 NOTICE/LICENSE 必需的 Mika 署名 |
 
 ## 2. 工具链已部署并验证
 
@@ -63,18 +63,18 @@ flutter build aar --debug                     -> flutter-debug.aar, 17,676,886 b
 
 - README 的两段生成内容由 `./gradlew :core:updateReadme` 写入；5 份译文按新 README 重写，
   `##` 数量、本地图片集合和 `translated-from` 指纹都由测试守住。
-- `DocsConsistencyTest` 现在认 `fun` 声明、排除 `docs/reference/`、用正确包名
+- `DocsConsistencyTest` 现在认 `fun` 声明、用正确包名
   `com.daiyimo.maeve` 判断外部导入。
 - 历史与外部文档可以用 `<!-- docs-check: spans-off — 原因 -->` 整篇退出符号检查。当前用于
   ADR、迁移日志、haptic 契约、UI/UX 重构记录和 iOS 标准；当前状态文档不用这个标记。
-- 当前文档里的旧符号已改：architecture 的旧 Mika* 类名与主题文件、install 的服务名、
+- 当前文档里的旧符号已改：architecture 的旧 Maeve* 类名与主题文件、install 的服务名、
   amoo 的 `MaeveApp.kt`、visual-tokens 的 token 类。
 - 文档子集 14/14 通过；上游存档按 FORK.md 原样保留。
 
 品牌清扫覆盖：docs 的产品文案与仓库链接、README 生成段落、10 语言资源（`brand_strings.py`
 已 0 残留）、prompt 43 行、eval 任务、relay Web UI、自检页面，以及 `Download/Maeve/`
-导出路径。保留：`mika_*` MCP 工具名、CLI `mika`、`Author.Mika` 序列化名、`MIKA_DISPLAY_ID`、
-`/opt/mika/skills`、上游 attribution、`FORK.md`/`NOTICE`/`docs/reference/` 与历史 ADR/迁移记录。
+导出路径。命名统一为：`maeve_*` MCP 工具名、CLI `maeve`、`Author.Maeve` 序列化名、`MAEVE_DISPLAY_ID`、
+`/opt/maeve/skills`、上游 attribution、`NOTICE` 与历史 ADR/迁移记录。
 
 ## 5. 事实修正
 
@@ -87,7 +87,7 @@ git diff "$BASE"..HEAD
 ```
 
 `docs/spec/migration.md` 保留 2026-11-06 当时的重写记录，并注明后来根提交已移动。
-`tools/maeve/sync_history_docs.py` 标记为一次性历史脚本，不建议再对当前树运行。
+一次性迁移脚本已从仓库移除，历史记录保留在 `docs/spec/migration.md`。
 
 ## 6. 清理与拆分
 
@@ -109,23 +109,23 @@ git diff "$BASE"..HEAD
 | `flutter build aar --debug` | debug AAR 生成 |
 | `./gradlew :app:assembleDebug -PskipFlutterAar` | BUILD SUCCESSFUL，3m15s |
 | 删除 AAR 后 `./gradlew :app:preBuild` | 自动重建 AAR，BUILD SUCCESSFUL，1m11s |
-| `./gradlew :core:test`（全量） | 2954 tests，56 failed，3 skipped |
+| `./gradlew :core:test`（全量） | 2954 tests，45 failed，3 skipped |
 | 文档子集 | 14/14 |
 | `python tools/i18n/translations.py check` | 2005 条 / 10 种语言通过 |
 | `python -m unittest discover -s tools/i18n` | 10 tests OK |
 
-全量 `:core:test` 的 56 个失败集中在 `RootfsExtractorTest`、`ReadScriptEnforcementTest`、
+全量 `:core:test` 的 45 个失败集中在 `RootfsExtractorTest`、`ReadScriptEnforcementTest`、
 `WorkspaceFileGateTest`、`ToolDispatcherSandboxTest`、`RunMetricsStoreTest`、`RunTraceTest`、
 `FakeSandboxContractTest`、`InferenceTraceTest` 和 `SandboxPathsTest`，属于
 `docs/spec/migration.md` 记录的 Windows 平台基线（POSIX 属性、符号链接、路径分隔符和计时）。
-本轮改了 prompt 文案与快照，但失败类与品牌清扫前完全一致，没有新增；Linux CI 是最终判据。
+本轮改了 prompt 文案、CLI/沙箱路径、MCP/桥接命名与 Flutter 文案；失败类仍是同一批平台类，没有新增。Linux CI 是最终判据。
 本轮没有在 Linux 上跑。
 
 没有验证的：真机安装与 RenderThread 日志。`flutter doctor` 显示设备未授权，未做设备验收。
 
 ## 8. 仍需注意
 
-- 品牌与上游 URL 的清扫已完成；后续新增文案仍要保护 `mika_*` 兼容名、CLI `mika` 与上游 attribution。
+- 品牌清扫已完成；NOTICE/LICENSE 中的上游署名是法律声明，不是命名残留。
 - 宿主 AGP 8.7.3 官方只测到 compileSdk 35；项目依赖需要 36，已在 `gradle.properties` 用
   `android.suppressUnsupportedCompileSdk=36` 显式接受，升级 AGP 是单独的版本决策。
 - Flutter 侧仍是工作台：本地演示回复、内存会话；`maeve/ui` 只注册了 `open_settings` / `status`，聊天与模型仍未接通。

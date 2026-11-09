@@ -60,7 +60,7 @@ These come from the project code review and are easy to break accidentally:
 Text is not free-floating. Editing copy can trigger three generated/checked surfaces:
 
 1. `README.md` has generated blocks produced by the `updateReadme` Gradle task (source in
-   `core/src/main/resources/skills/configure-mika/SKILL.md`). Run `./gradlew :core:updateReadme`
+   `core/src/main/resources/skills/configure-maeve/SKILL.md`). Run `./gradlew :core:updateReadme`
    rather than editing between the markers.
 2. The translated READMEs under `docs/readme/` must be updated in the same change: each keeps
    a `translated-from` fingerprint of `README.md` and the same number of `##` sections.
@@ -78,7 +78,7 @@ Do them in that order. A PR that changes strings without the snapshots will fail
 - The body states the problem, the change, and how it was verified. The recent commits are
   the model: a short motivation paragraph, bullet points for the change, and a final
   `Verified:` line naming the commands and the device.
-- Include `file:line` references when you fix a defect — see `docs/reference/` for the style.
+- Include `file:line` references when you fix a defect.
 - PR checklist:
   - [ ] `./gradlew :app:assembleDebug` and `./gradlew :core:test` pass
   - [ ] For Flutter changes, `bash flutter/tool/verify.sh` passes

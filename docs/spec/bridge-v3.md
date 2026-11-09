@@ -17,10 +17,10 @@ over `/mcp`) is a completely separate network path; the two cannot fall back to 
 
 ## 2. Why v3 is mandatory
 
-`mika-bridge` v2 hard-codes `/sdcard/Android/media/com.wangzan101.mika/amoo/`. After the
+`maeve-bridge` v2 hard-codes `/sdcard/Android/media/com.wangzan101.maeve/amoo/`. After the
 package rename to `com.daiyimo.maeve`, external storage is scoped **per package**: Maeve
 cannot read or write the old directory at all. There is no runtime compatibility shim, and
-the `mika_*` MCP aliases kept for product `v0.1.0` only help desktop clients — they do not
+the `maeve_*` MCP aliases kept for product `v0.1.0` only help desktop clients — they do not
 help the file bridge.
 
 v3 therefore requires a **one-time handshake** (Q1 / Q8): on first launch when the agent
@@ -129,7 +129,7 @@ description: 凡是涉及手机屏幕内的操作(微信、小程序、游戏、
 
 # Maeve 文件桥 v3
 
-目录(以 Maeve 的包名为准,不要沿用旧的 mika 路径):
+目录(以 Maeve 的包名为准,不要沿用旧的 maeve 路径):
 /sdcard/Android/media/com.daiyimo.maeve/amoo/
 
 ## 派单
@@ -163,4 +163,4 @@ run one smoke test: `{"goal":"只回答三个字:你好呀"}` in a **new convers
 - [ ] A 15-min timeout yields `failed` + `TIMEOUT`, never a permanent `running`.
 - [ ] Dropping the same `id` twice creates only one task.
 - [ ] Killing the app mid-task leaves an `INTERRUPTED` result on the next launch.
-- [ ] After the package rename, no code path still reads `com.wangzan101.mika`'s mailbox.
+- [ ] After the package rename, no code path still reads `com.wangzan101.maeve`'s mailbox.

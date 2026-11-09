@@ -71,7 +71,7 @@
     <string name="stepclaw_clients">已有 %1$d 個用戶端連入，等第一個請求</string>
     <string name="stepclaw_off">未監聽。到下方「進階設定」打開「Wi-Fi 和私有網路」或「USB」開關，本機回環地址才會被監聽。</string>
     <string name="stepclaw_copy_config">複製閘道器設定</string>
-    <string name="stepclaw_new_device">換裝置或重裝 Maeve：連接埠不變，但權杖會重新隨機產生，需要把新權杖重新配到閘道器的 mcp.servers.mika。</string>
+    <string name="stepclaw_new_device">換裝置或重裝 Maeve：連接埠不變，但權杖會重新隨機產生，需要把新權杖重新配到閘道器的 mcp.servers.maeve。</string>
     <string name="amoo_page_title">Amoo</string>
     <string name="amoo_page_sub">一鍵把技能發進 amoo</string>
     <string name="amoo_status_title">連線狀態</string>

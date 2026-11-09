@@ -153,7 +153,7 @@ class BrowserScriptDeviceTest {
         assertEquals("5", v.s("total")); assertEquals("5", v.s("count")); assertEquals("苹果 3 元", v.s("first"))
         assertEquals("clicks=0", v.s("status")); assertEquals("null", v["none"].toString()); assertEquals("true", v.s("visible"))
         // 页面看不到 maeve、绑定和脚本的东西
-        assertEquals("\"undefined undefined undefined\"", page("typeof window.maeve + ' ' + typeof window.__mika + ' ' + typeof window.__mikaRun"))
+        assertEquals("\"undefined undefined undefined\"", page("typeof window.maeve + ' ' + typeof window.__maeve + ' ' + typeof window.__maeveRun"))
     }
 
     @Test

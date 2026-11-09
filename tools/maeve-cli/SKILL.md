@@ -1,25 +1,25 @@
 ---
-name: mika
-description: Delegate tasks to Mika on a connected Android phone, follow progress, add instructions to running tasks, answer task questions, and retrieve results through the bundled CLI. Requires an Android phone running Mika, reachable by USB ADB or Wi-Fi. Use when the user wants Mika to operate phone apps, browse, or work with phone files.
+name: maeve
+description: Delegate tasks to Maeve on a connected Android phone, follow progress, add instructions to running tasks, answer task questions, and retrieve results through the bundled CLI. Requires an Android phone running Maeve, reachable by USB ADB or Wi-Fi. Use when the user wants Maeve to operate phone apps, browse, or work with phone files.
 ---
 
-# Mika on your phone
+# Maeve on your phone
 
-Mika runs its own agent on Android. Give it the user's complete goal, target and constraints; it chooses the phone actions. The bundled CLI talks directly to Mika's task API. No MCP client or MCP configuration is required.
+Maeve runs its own agent on Android. Give it the user's complete goal, target and constraints; it chooses the phone actions. The bundled CLI talks directly to Maeve's task API. No MCP client or MCP configuration is required.
 
 ## Quick start / first connection
 
 Do these in order, without asking the user unless a step says so.
 
-1. Pick the command. If `mika --version` works, use `mika`. Otherwise use the bundled script (skill-dir = the folder containing this SKILL.md; Python 3.10+): POSIX `python3 <skill-dir>/scripts/mika_cli.py`, Windows `py -3 <skill-dir>\scripts\mika_cli.py`. Below, `mika` means whichever you chose.
+1. Pick the command. If `maeve --version` works, use `maeve`. Otherwise use the bundled script (skill-dir = the folder containing this SKILL.md; Python 3.10+): POSIX `python3 <skill-dir>/scripts/maeve_cli.py`, Windows `py -3 <skill-dir>\scripts\maeve_cli.py`. Below, `maeve` means whichever you chose.
 2. Use the connection method the user picked on the phone. You cannot see the phone: if the user has not said which one, ask once.
-3. USB/ADB: `mika devices --json` lists ADB phones; run `mika connect --device SERIAL --json` for the chosen one. This enables computer access through Mika's official bootstrap script. With several phones online, ask the user which one, then keep that device for the whole task.
-4. `mika doctor --device SERIAL --json` checks connection and phone state. Only then submit tasks.
+3. USB/ADB: `maeve devices --json` lists ADB phones; run `maeve connect --device SERIAL --json` for the chosen one. This enables computer access through Maeve's official bootstrap script. With several phones online, ask the user which one, then keep that device for the whole task.
+4. `maeve doctor --device SERIAL --json` checks connection and phone state. Only then submit tasks.
 
 Wi-Fi/private VPN: use `--url http://PHONE:8765 --token-file /path/to/token-file` (both from the user) instead of `--device`. Never print, read aloud or put token contents in a command, goal or reply.
 
 Notes:
-- ADB mode needs Android platform-tools; the APK must include task API v1 (an older MCP-only APK is insufficient). Humans can run `mika ui` for a local task desk; agents should use the commands below.
+- ADB mode needs Android platform-tools; the APK must include task API v1 (an older MCP-only APK is insufficient). Humans can run `maeve ui` for a local task desk; agents should use the commands below.
 
 ## Common failures
 
@@ -29,23 +29,23 @@ Notes:
 | `adb_unavailable` | Install Android platform-tools or pass `--adb PATH`. |
 | `device_selection`, `device_offline` | Run `devices`, choose `--device SERIAL`; replug or reconnect if offline. |
 | `stale_connection`, `credentials` | Phone rebooted or token changed: rerun `connect`. |
-| `connection_info` | Mika's connection information could not be read or is invalid: ask the user to unlock the phone and open Mika once, then rerun `connect`. |
-| `incompatible_api` | Update the Mika APK on the phone. |
-| `adb` / `connection` errors, phone locked | Ask the user to unlock the phone and open Mika, then rerun `connect`. |
+| `connection_info` | Maeve's connection information could not be read or is invalid: ask the user to unlock the phone and open Maeve once, then rerun `connect`. |
+| `incompatible_api` | Update the Maeve APK on the phone. |
+| `adb` / `connection` errors, phone locked | Ask the user to unlock the phone and open Maeve, then rerun `connect`. |
 
 ## Delegate and follow the task
 
 Use a UTF-8 file or stdin for goals and answers containing multiline text. Installation or connectivity does not authorize additional phone actions: preserve the user's requested scope when writing the goal.
 
 ```bash
-mika --device SERIAL task run --goal-file /path/to/goal.txt --json
-mika --device SERIAL task wait TASK_ID --timeout 45 --json
-mika --device SERIAL task status TASK_ID --json
+maeve --device SERIAL task run --goal-file /path/to/goal.txt --json
+maeve --device SERIAL task wait TASK_ID --timeout 45 --json
+maeve --device SERIAL task status TASK_ID --json
 ```
 
 For a recoverable submission, generate and save a lowercase UUID before the call and pass `--request-id UUID`. On a compatible phone this is also the task ID. The CLI generates one automatically when the phone advertises `task_recovery`.
 
-Keep the returned task ID and conversation ID. A successful submission only means that Mika accepted the task.
+Keep the returned task ID and conversation ID. A successful submission only means that Maeve accepted the task.
 
 Wait rule: call `task wait --timeout 45` (allowed 1-50) in the foreground, one call at a time, and re-check the returned state each time. A wait never cancels or resubmits; a timeout is not a failure, so never resubmit on timeout. Stop and report to the user when the task needs an answer or phone takeover, or after a reasonable budget (for example 10-15 waits, longer if progress is clearly advancing). Do not build a background polling loop.
 
@@ -58,10 +58,10 @@ Wait rule: call `task wait --timeout 45` (allowed 1-50) in the foreground, one c
 | `failed`, `cancelled` | Report the recorded outcome; do not silently start the task again. |
 
 ```bash
-mika --device SERIAL task answer TASK_ID --text-file /path/to/answer.txt --json
-mika --device SERIAL task steer TASK_ID --text-file /path/to/additional-instructions.txt --json
-mika --device SERIAL task cancel TASK_ID --json
-mika --device SERIAL task list --json
+maeve --device SERIAL task answer TASK_ID --text-file /path/to/answer.txt --json
+maeve --device SERIAL task steer TASK_ID --text-file /path/to/additional-instructions.txt --json
+maeve --device SERIAL task cancel TASK_ID --json
+maeve --device SERIAL task list --json
 ```
 
 Cancellation's `accepted: true` is an acknowledgement, not evidence of a cancelled terminal state. Query the same task to see its final state. `answer` only answers an open question; it does not redirect a running goal. To continue a completed conversation, submit a new task with `task run --conversation CONVERSATION_ID`.

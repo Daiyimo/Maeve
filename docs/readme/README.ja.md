@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ d12900005a97 -->
+<!-- translated-from: README.md @ 587bea3f5e22 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · 日本語 · [한국어](README.ko.md) · [Español](README.es.md)
@@ -116,7 +116,6 @@ Android ホストはブリッジハンドラーをまだ登録していません
 | `docs/spec/` | ビジュアルトークン、ハプティクス、bridge v3 プロトコル、移行メモ |
 | `docs/adr/` | アーキテクチャ決定記録 |
 | `docs/dev/` | アーキテクチャ、エンジニアリング標準、レビュー記録、個別メモ |
-| `docs/reference/` | 上流 Maeve ソースの分析アーカイブ（原文のまま） |
 | [ATTRIBUTION.md](../../ATTRIBUTION.md) | 来歴、変更点、Apache-2.0 §4 の声明 |
 
 ## コントリビューション
