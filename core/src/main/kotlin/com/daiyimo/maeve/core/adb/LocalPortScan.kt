@@ -60,20 +60,28 @@ class LocalPortScan(
         val deadline = now() + budgetMs
         val ports = range()
         val excluded = skip + ownPorts()
-        val found = ArrayList<AdbEndpoint>()
         var open = 0
         for (host in hosts().distinct()) {
             val left = deadline - now()
             if (left <= 0) break
-            val openPorts = scanner.openPorts(host, ports, excluded, left)
-            open += openPorts.size
-            for (port in openPorts) {
-                if (now() >= deadline) break
-                if (scanner.speaksAdbTls(host, port, probeTimeoutMs)) found += AdbEndpoint(host, port)
-            }
-            if (found.isNotEmpty()) break
+            val (openHere, adbHere) = probeHost(host, ports, excluded, left, deadline)
+            open += openHere
+            if (adbHere.isNotEmpty()) return ScanResult(adbHere, open, adbHere.size)
         }
-        return ScanResult(found, open, found.size)
+        return ScanResult(emptyList(), open, 0)
+    }
+
+    /** 一个地址上的两步:要开着的端口,再逐个发 CNXN 核对是不是 adbd;预算用完就停。 */
+    private suspend fun probeHost(
+        host: String, ports: IntRange, excluded: Set<Int>, budget: Long, deadline: Long,
+    ): Pair<Int, List<AdbEndpoint>> {
+        val openPorts = scanner.openPorts(host, ports, excluded, budget)
+        val adb = ArrayList<AdbEndpoint>()
+        for (port in openPorts) {
+            if (now() >= deadline) break
+            if (scanner.speaksAdbTls(host, port, probeTimeoutMs)) adb += AdbEndpoint(host, port)
+        }
+        return openPorts.size to adb
     }
 
     companion object {
@@ -108,74 +116,105 @@ class NioPortScanner(
 
     private fun sweep(addr: InetAddress, ports: IntRange, skip: Set<Int>, deadline: Long, active: () -> Boolean): List<Int> {
         val open = TreeSet<Int>()
-        val next = ports.iterator()
+        val pending = ports.iterator()
         Selector.open().use { selector ->
-            val startedAt = HashMap<SelectionKey, Long>()
+            val inFlight = HashMap<SelectionKey, Long>()
             try {
-                while ((next.hasNext() || startedAt.isNotEmpty()) && System.currentTimeMillis() < deadline && active()) {
-                    while (next.hasNext() && startedAt.size < concurrency) {
-                        val port = next.nextInt()
-                        if (port in skip) continue
-                        val ch = SocketChannel.open()
-                        try {
-                            ch.configureBlocking(false)
-                            if (ch.connect(InetSocketAddress(addr, port))) {
-                                if (!selfConnected(ch, port)) open += port
-                                ch.close()
-                            } else {
-                                startedAt[ch.register(selector, SelectionKey.OP_CONNECT, port)] = System.currentTimeMillis()
-                            }
-                        } catch (e: IOException) {
-                            ch.close()
-                        }
-                    }
+                while (moreToDo(pending, inFlight, deadline, active)) {
+                    fill(selector, inFlight, pending, addr, skip, open)
                     selector.select(SELECT_MS)
-                    for (key in selector.selectedKeys()) {
-                        val ch = key.channel() as SocketChannel
-                        val ok = try { ch.finishConnect() } catch (e: IOException) { false }
-                        if (ok && !selfConnected(ch, key.attachment() as Int)) open += key.attachment() as Int
-                        startedAt.remove(key)
-                        key.cancel()
-                        ch.close()
-                    }
-                    selector.selectedKeys().clear()
-                    val t = System.currentTimeMillis()
-                    val late = startedAt.filterValues { t - it > connectTimeoutMs }.keys
-                    for (key in late) {
-                        startedAt.remove(key)
-                        key.cancel()
-                        key.channel().close()
-                    }
+                    reap(selector, inFlight, open)
+                    dropStale(inFlight)
                 }
             } finally {
-                for (key in startedAt.keys) runCatching { key.channel().close() }
+                inFlight.keys.forEach { runCatching { it.channel().close() } }
             }
         }
         return open.toList()
     }
 
+    /** 还有端口要连、或在连的没完,且没超预算、协程还没被取消,就接着扫。 */
+    private fun moreToDo(pending: IntIterator, inFlight: HashMap<SelectionKey, Long>, deadline: Long, active: () -> Boolean) =
+        (pending.hasNext() || inFlight.isNotEmpty()) && System.currentTimeMillis() < deadline && active()
+
+    /** 把在连数补到 [concurrency]:握手立即成功的当场记账,其余挂到 selector 上等结果。 */
+    private fun fill(
+        selector: Selector, inFlight: HashMap<SelectionKey, Long>, pending: IntIterator,
+        addr: InetAddress, skip: Set<Int>, open: TreeSet<Int>,
+    ) {
+        while (pending.hasNext() && inFlight.size < concurrency) {
+            val port = pending.nextInt()
+            if (port in skip) continue
+            val channel = SocketChannel.open()
+            try {
+                channel.configureBlocking(false)
+                if (channel.connect(InetSocketAddress(addr, port))) {
+                    if (!selfConnected(channel, port)) open += port
+                    channel.close()
+                } else {
+                    inFlight[channel.register(selector, SelectionKey.OP_CONNECT, port)] = System.currentTimeMillis()
+                }
+            } catch (e: IOException) {
+                channel.close()
+            }
+        }
+    }
+
+    /** 收这一轮连完的:连上、且不是自己连自己的,才记进结果。 */
+    private fun reap(selector: Selector, inFlight: HashMap<SelectionKey, Long>, open: TreeSet<Int>) {
+        for (key in selector.selectedKeys()) {
+            val channel = key.channel() as SocketChannel
+            val port = key.attachment() as Int
+            val connected = try { channel.finishConnect() } catch (e: IOException) { false }
+            if (connected && !selfConnected(channel, port)) open += port
+            inFlight.remove(key)
+            key.cancel()
+            channel.close()
+        }
+        selector.selectedKeys().clear()
+    }
+
+    /** 等太久的放弃:本机连不上的端口本该立刻被拒,一直拖着的是过滤了包的对端。 */
+    private fun dropStale(inFlight: HashMap<SelectionKey, Long>) {
+        val now = System.currentTimeMillis()
+        val stale = inFlight.filterValues { now - it > connectTimeoutMs }.keys
+        for (key in stale) {
+            inFlight.remove(key)
+            key.cancel()
+            key.channel().close()
+        }
+    }
+
     /** 扫临时端口范围时,系统可能恰好给这条连接分到同一个本地端口,于是自己连上了自己。 */
-    private fun selfConnected(ch: SocketChannel, port: Int): Boolean = runCatching {
-        val s = ch.socket()
-        s.localPort == port && s.localAddress == s.inetAddress
+    private fun selfConnected(channel: SocketChannel, port: Int): Boolean = runCatching {
+        selfConnected(channel.socket(), port)
     }.getOrDefault(false)
 
+    /** 连接的本地端口正是目标端口、且本地地址就是远端地址:连上的是自己。 */
+    private fun selfConnected(socket: Socket, port: Int) =
+        socket.localPort == port && socket.localAddress == socket.inetAddress
+
     override fun speaksAdbTls(host: String, port: Int, timeoutMs: Int): Boolean = try {
+        probeAdb(host, port, timeoutMs)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        false
+    }
+
+    /** 连上后发一句 CNXN:回 STLS 的才是无线调试的 adbd,别的服务不会回。 */
+    private fun probeAdb(host: String, port: Int, timeoutMs: Int): Boolean {
         val target = AdbHosts.ownSocketAddress(host, port) ?: return false
         Socket().use { s ->
             s.connect(target, timeoutMs)
-            if (s.localPort == port && s.localAddress == s.inetAddress) return false
+            if (selfConnected(s, port)) return false
             s.soTimeout = timeoutMs
             s.getOutputStream().apply {
                 write(AdbMessage(AdbMessage.CNXN, AdbMessage.VERSION, AdbMessage.MAX_PAYLOAD, HOST_BANNER).encode())
                 flush()
             }
-            AdbMessage.read(DataInputStream(s.getInputStream()), maxData = 4096)?.command == AdbMessage.STLS
+            return AdbMessage.read(DataInputStream(s.getInputStream()), maxData = 4096)?.command == AdbMessage.STLS
         }
-    } catch (e: CancellationException) {
-        throw e
-    } catch (e: Exception) {
-        false
     }
 
     private companion object {

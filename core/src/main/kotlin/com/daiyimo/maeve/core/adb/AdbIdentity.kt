@@ -34,36 +34,48 @@ class AdbIdentity(val keyPair: KeyPair, val name: String) {
 
     /**
      * 设备 keystore 里的一行:base64(524 字节公钥结构) + 空格 + 名字。
-     * 名字里不能有空白:系统设置按空白切分这一行,名字带空格时「已配对的设备」里删不掉。
+     * 名字里的空白必须换成下划线——系统设置按空白切分这一行,带空格的名字在「已配对的设备」里删不掉。
      */
     val adbPublicKey: String by lazy {
-        Base64.getEncoder().encodeToString(AdbPublicKey.encode(publicKey)) + " " + name.replace(Regex("\\s"), "_")
+        val body = Base64.getEncoder().encodeToString(AdbPublicKey.encode(publicKey))
+        "$body ${name.replace(BLANKS, "_")}"
     }
 
     companion object {
         /** 新钥匙的公开指数:F4(65537)。读回钥匙时拿不到指数就按它补,并验证补得对。 */
         val PUBLIC_EXPONENT: BigInteger = RSAKeyGenParameterSpec.F4
 
+        private val BLANKS = Regex("\\s")
+
         fun generate(name: String): AdbIdentity {
-            val g = KeyPairGenerator.getInstance("RSA")
-            g.initialize(RSAKeyGenParameterSpec(2048, PUBLIC_EXPONENT))
-            return AdbIdentity(g.generateKeyPair(), name)
+            val generator = KeyPairGenerator.getInstance("RSA")
+            generator.initialize(RSAKeyGenParameterSpec(2048, PUBLIC_EXPONENT))
+            return AdbIdentity(generator.generateKeyPair(), name)
         }
 
         /**
          * 从存下的 PKCS#8 读回身份。不要求平台给的是带 CRT 参数的私钥:只要是 RSA 私钥就取模数,
          * 公开指数按 [publicExponent] 找。读不出抛 [AdbKeyUnreadableException]。
          */
-        fun fromPkcs8(pkcs8: ByteArray, name: String): AdbIdentity {
-            val kf = KeyFactory.getInstance("RSA")
-            val priv = try {
-                kf.generatePrivate(PKCS8EncodedKeySpec(pkcs8))
-            } catch (e: Exception) {
-                throw AdbKeyUnreadableException("stored key is not valid PKCS#8", e)
-            }
-            val rsa = priv as? RSAPrivateKey ?: throw AdbKeyUnreadableException("stored key is not RSA (${priv.javaClass.simpleName})")
-            val pub = kf.generatePublic(RSAPublicKeySpec(rsa.modulus, publicExponent(rsa, pkcs8))) as RSAPublicKey
-            return AdbIdentity(KeyPair(pub, rsa), name)
+        fun fromPkcs8(pkcs8: ByteArray, name: String): AdbIdentity = try {
+            pairUp(privateKeyOf(pkcs8), pkcs8, name)
+        } catch (e: AdbKeyUnreadableException) {
+            throw e
+        } catch (e: Exception) {
+            throw AdbKeyUnreadableException("stored key is not valid PKCS#8", e)
+        }
+
+        private fun privateKeyOf(pkcs8: ByteArray): RSAPrivateKey {
+            val parsed = KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(pkcs8))
+            return parsed as? RSAPrivateKey
+                ?: throw AdbKeyUnreadableException("stored key is not RSA (${parsed.javaClass.simpleName})")
+        }
+
+        /** 私钥只能给出模数,公钥要的公开指数单独找([publicExponent]),两者凑成一对。 */
+        private fun pairUp(private: RSAPrivateKey, pkcs8: ByteArray, name: String): AdbIdentity {
+            val factory = KeyFactory.getInstance("RSA")
+            val public = factory.generatePublic(RSAPublicKeySpec(private.modulus, publicExponent(private, pkcs8))) as RSAPublicKey
+            return AdbIdentity(KeyPair(public, private), name)
         }
 
         /**
@@ -73,15 +85,18 @@ class AdbIdentity(val keyPair: KeyPair, val name: String) {
         internal fun publicExponent(key: RSAPrivateKey, pkcs8: ByteArray): BigInteger {
             (key as? RSAPrivateCrtKey)?.publicExponent?.takeIf { it.signum() > 0 }?.let { return it }
             Pkcs8Rsa.publicExponent(pkcs8)?.takeIf { it.signum() > 0 }?.let { return it }
-            if (!signsWith(key, PUBLIC_EXPONENT)) throw AdbKeyUnreadableException("cannot recover the public exponent of the stored key")
+            if (!signsAndVerifiesWith(key, PUBLIC_EXPONENT)) {
+                throw AdbKeyUnreadableException("cannot recover the public exponent of the stored key")
+            }
             return PUBLIC_EXPONENT
         }
 
-        private fun signsWith(key: RSAPrivateKey, e: BigInteger): Boolean = runCatching {
-            val pub = KeyFactory.getInstance("RSA").generatePublic(RSAPublicKeySpec(key.modulus, e))
-            val data = "maeve-adb-key-check".toByteArray()
-            val sig = Signature.getInstance("SHA256withRSA").run { initSign(key); update(data); sign() }
-            Signature.getInstance("SHA256withRSA").run { initVerify(pub); update(data); verify(sig) }
+        /** 拿 [candidate] 当公开指数现场签一次名、再用对应的公钥验一次:对得上才敢用它补公钥。 */
+        private fun signsAndVerifiesWith(key: RSAPrivateKey, candidate: BigInteger): Boolean = runCatching {
+            val public = KeyFactory.getInstance("RSA").generatePublic(RSAPublicKeySpec(key.modulus, candidate))
+            val probe = "maeve-adb-key-check".toByteArray()
+            val signature = Signature.getInstance("SHA256withRSA").run { initSign(key); update(probe); sign() }
+            Signature.getInstance("SHA256withRSA").run { initVerify(public); update(probe); verify(signature) }
         }.getOrDefault(false)
     }
 }
@@ -122,17 +137,11 @@ class AdbIdentitySource(
 
     /** 连接用:已存的那把;一把都没有就新建并存下;存着却读不出就抛,不覆盖。 */
     @Synchronized
-    fun forConnect(): AdbIdentity = cached ?: load()
+    fun forConnect(): AdbIdentity = cached ?: acquire(replaceWhenBroken = false)
 
     /** 配对用:和 [forConnect] 同一把;只有存着的读不出时,在这里换一把新的存下(随后的配对会把它交给设备)。 */
     @Synchronized
-    fun forPairing(): AdbIdentity = cached ?: try {
-        load()
-    } catch (e: AdbKeyUnreadableException) {
-        log("replacing the unreadable adb key for a new pairing", e)
-        store.clear()
-        create()
-    }
+    fun forPairing(): AdbIdentity = cached ?: acquire(replaceWhenBroken = true)
 
     /** 解除配对:钥匙和缓存一起删掉,下次配对用新钥匙。 */
     @Synchronized
@@ -143,35 +152,50 @@ class AdbIdentitySource(
         problem = null
     }
 
-    private fun load(): AdbIdentity {
-        val bytes = try {
+    /** 取身份的唯一入口:读存储 →(没有就新建 / 读不出就按 [replaceWhenBroken] 处置)→ 缓存下来。 */
+    private fun acquire(replaceWhenBroken: Boolean): AdbIdentity {
+        val stored = try {
             store.read()
         } catch (e: AdbKeyUnreadableException) {
-            throw unreadable(e)
-        } ?: return create()
-        val id = try {
-            AdbIdentity.fromPkcs8(bytes, name())
-        } catch (e: AdbKeyUnreadableException) {
-            throw unreadable(e)
+            return recover(e, replaceWhenBroken)
         }
-        state = AdbKeyState.Loaded
-        problem = null
-        return id.also { cached = it }
+        if (stored == null) return mint()
+        return try {
+            keep(AdbIdentity.fromPkcs8(stored, name()), AdbKeyState.Loaded)
+        } catch (e: AdbKeyUnreadableException) {
+            recover(e, replaceWhenBroken)
+        }
     }
 
-    private fun create(): AdbIdentity {
-        val id = AdbIdentity.generate(name())
-        store.write(id.keyPair.private.encoded)
-        state = AdbKeyState.Created
-        problem = null
-        return id.also { cached = it }
+    /** 新建一把并存下;写存储的异常直接往上抛(存不下就不算有身份)。 */
+    private fun mint(): AdbIdentity {
+        val fresh = AdbIdentity.generate(name())
+        store.write(fresh.keyPair.private.encoded)
+        return keep(fresh, AdbKeyState.Created)
     }
 
-    private fun unreadable(e: AdbKeyUnreadableException): AdbKeyUnreadableException {
+    /** 连接撞上读不出:只记录并抛出;配对撞上:清掉坏的那把,换新的交给设备。 */
+    private fun recover(broken: AdbKeyUnreadableException, replaceWhenBroken: Boolean): AdbIdentity {
+        if (!replaceWhenBroken) throw report(broken)
+        log("replacing the unreadable adb key for a new pairing", broken)
+        store.clear()
+        return mint()
+    }
+
+    private fun report(broken: AdbKeyUnreadableException): AdbKeyUnreadableException {
         state = AdbKeyState.Unreadable
-        problem = generateSequence<Throwable>(e) { it.cause }.joinToString(" <- ") { it.message ?: it.javaClass.simpleName }.take(200)
-        log("stored adb key is unreadable; pair again to replace it", e)
-        return e
+        problem = generateSequence<Throwable>(broken) { it.cause }
+            .joinToString(" <- ") { it.message ?: it.javaClass.simpleName }
+            .take(200)
+        log("stored adb key is unreadable; pair again to replace it", broken)
+        return broken
+    }
+
+    private fun keep(identity: AdbIdentity, loaded: AdbKeyState): AdbIdentity {
+        cached = identity
+        state = loaded
+        problem = null
+        return identity
     }
 }
 
@@ -193,27 +217,36 @@ class WrappedKeyFile(private val file: File, private val wrappingKey: () -> Secr
     override fun read(): ByteArray? {
         if (!file.isFile) return null
         return try {
-            val b = file.readBytes()
-            require(b.isNotEmpty()) { "key file is empty" }
-            val ivLen = b[0].toInt() and 0xff
-            require(b.size > 1 + ivLen) { "key file is truncated" }
-            val c = Cipher.getInstance("AES/GCM/NoPadding")
-            c.init(Cipher.DECRYPT_MODE, wrappingKey(), GCMParameterSpec(128, b.copyOfRange(1, 1 + ivLen)))
-            c.doFinal(b, 1 + ivLen, b.size - 1 - ivLen)
+            unwrap(file.readBytes())
         } catch (e: Exception) {
             throw AdbKeyUnreadableException("cannot unwrap ${file.name}", e)
         }
     }
 
+    /** 拆信封并按 GCM 解:标签对不上(包装密钥换过)由 Cipher 抛异常,外层翻译成读不出。 */
+    private fun unwrap(envelope: ByteArray): ByteArray {
+        require(envelope.isNotEmpty()) { "key file is empty" }
+        val ivLength = envelope[0].toInt() and 0xff
+        require(envelope.size > 1 + ivLength) { "key file is truncated" }
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, wrappingKey(), GCMParameterSpec(128, envelope.copyOfRange(1, 1 + ivLength)))
+        return cipher.doFinal(envelope, 1 + ivLength, envelope.size - 1 - ivLength)
+    }
+
     override fun write(pkcs8: ByteArray) {
-        val c = Cipher.getInstance("AES/GCM/NoPadding")
-        c.init(Cipher.ENCRYPT_MODE, wrappingKey())
-        val iv = c.iv
-        val out = byteArrayOf(iv.size.toByte()) + iv + c.doFinal(pkcs8)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, wrappingKey())
+        val iv = cipher.iv
+        val envelope = byteArrayOf(iv.size.toByte()) + iv + cipher.doFinal(pkcs8)
+        swapIn(envelope)
+    }
+
+    /** 先写同目录临时文件再改名:半路断电也不会留下写了一半的钥匙文件。 */
+    private fun swapIn(envelope: ByteArray) {
         file.parentFile?.mkdirs()
-        val tmp = File(file.path + ".tmp")
-        tmp.writeBytes(out)
-        check(tmp.renameTo(file)) { "cannot write ${file.name}" }
+        val staged = File(file.path + ".tmp")
+        staged.writeBytes(envelope)
+        check(staged.renameTo(file)) { "cannot write ${file.name}" }
     }
 
     override fun clear() {
@@ -226,30 +259,40 @@ class WrappedKeyFile(private val file: File, private val wrappingKey: () -> Secr
  * privateKey 里是 RSAPrivateKey ::= SEQUENCE { version, modulus, publicExponent, ... }。结构不对返回 null。
  */
 internal object Pkcs8Rsa {
+    private const val SEQUENCE = 0x30
+    private const val INTEGER = 0x02
+    private const val OCTET_STRING = 0x04
+
     fun publicExponent(pkcs8: ByteArray): BigInteger? = runCatching {
-        val info = Der(pkcs8).read(0x30)
-        val inner = Der(info).apply { read(0x02); read(0x30) }.read(0x04)
-        val rsa = Der(Der(inner).read(0x30))
-        rsa.read(0x02)
-        rsa.read(0x02)
-        BigInteger(rsa.read(0x02))
+        val info = Cursor(Cursor(pkcs8).enter(SEQUENCE))
+        info.enter(INTEGER)
+        info.enter(SEQUENCE)
+        val body = info.enter(OCTET_STRING)
+        val rsa = Cursor(Cursor(body).enter(SEQUENCE))
+        rsa.enter(INTEGER)
+        rsa.enter(INTEGER)
+        BigInteger(rsa.enter(INTEGER))
     }.getOrNull()
 
-    /** 只够读上面那几层的 DER:按顺序取指定标签的内容。 */
-    private class Der(private val b: ByteArray) {
-        private var pos = 0
+    /** 只够读上面那几层的 DER:按顺序取指定标签的内容,长度支持长 form(最多 3 字节)。 */
+    private class Cursor(private val bytes: ByteArray) {
+        private var at = 0
 
-        fun read(tag: Int): ByteArray {
-            require((b[pos++].toInt() and 0xff) == tag) { "unexpected tag" }
-            var len = b[pos++].toInt() and 0xff
-            if (len >= 0x80) {
-                val n = len and 0x7f
-                require(n in 1..3) { "unsupported length" }
-                len = 0
-                repeat(n) { len = (len shl 8) or (b[pos++].toInt() and 0xff) }
-            }
-            require(pos + len <= b.size) { "truncated" }
-            return b.copyOfRange(pos, pos + len).also { pos += len }
+        fun enter(tag: Int): ByteArray {
+            require((bytes[at++].toInt() and 0xff) == tag) { "unexpected tag" }
+            val length = readLength()
+            require(at + length <= bytes.size) { "truncated" }
+            return bytes.copyOfRange(at, at + length).also { at += length }
+        }
+
+        private fun readLength(): Int {
+            val first = bytes[at++].toInt() and 0xff
+            if (first < 0x80) return first
+            val count = first and 0x7f
+            require(count in 1..3) { "unsupported length" }
+            var length = 0
+            repeat(count) { length = (length shl 8) or (bytes[at++].toInt() and 0xff) }
+            return length
         }
     }
 }
@@ -260,51 +303,77 @@ internal object Pkcs8Rsa {
  */
 object AdbPublicKey {
     private const val WORDS = 64
-    const val SIZE = 4 + 4 + WORDS * 4 * 2 + 4
+    private const val WORD_BYTES = 4
+    private const val WIDE_BYTES = 256
+
+    const val SIZE = 2 * WORD_BYTES + WORDS * WORD_BYTES * 2 + WORD_BYTES
 
     fun encode(key: RSAPublicKey): ByteArray {
-        val n = key.modulus
-        require(n.bitLength() == 2048) { "adb keys are RSA-2048" }
-        val r32 = BigInteger.ONE.shiftLeft(32)
-        val n0inv = r32 - n.mod(r32).modInverse(r32)
-        val rr = BigInteger.ONE.shiftLeft(2048 * 2).mod(n)
-        val buf = ByteBuffer.allocate(SIZE).order(ByteOrder.LITTLE_ENDIAN)
-        buf.putInt(WORDS)
-        buf.putInt(n0inv.toInt())
-        buf.put(EdPoint.toLe(n, 256))
-        buf.put(EdPoint.toLe(rr, 256))
-        buf.putInt(key.publicExponent.toInt())
-        return buf.array()
+        val modulus = key.modulus
+        require(modulus.bitLength() == 2048) { "adb keys are RSA-2048" }
+        val radix = BigInteger.ONE.shiftLeft(32)
+        val n0inv = radix - modulus.mod(radix).modInverse(radix)
+        val rr = BigInteger.ONE.shiftLeft(2048 * 2).mod(modulus)
+        return LeWriter(SIZE).apply {
+            putInt(WORDS)
+            putInt(n0inv.toInt())
+            putBytes(EdPoint.toLe(modulus, WIDE_BYTES))
+            putBytes(EdPoint.toLe(rr, WIDE_BYTES))
+            putInt(key.publicExponent.toInt())
+        }.array()
+    }
+
+    private class LeWriter(size: Int) {
+        private val buffer = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN)
+        fun putInt(value: Int) = buffer.putInt(value)
+        fun putBytes(value: ByteArray) = buffer.put(value)
+        fun array(): ByteArray = buffer.array()
     }
 }
 
 /** 最小的自签名 X.509 v3 证书(无扩展):CN=Maeve,1970-01-01 到 2099-12-31,SHA256withRSA。 */
 internal object SelfSignedCertificate {
+    private const val INTEGER = 0x02
+    private const val OCTET_STRING = 0x04
+    private const val NULL = 0x05
+    private const val OID = 0x06
+    private const val UTF8_STRING = 0x0c
+    private const val UTC_TIME = 0x17
+    private const val GENERALIZED_TIME = 0x18
+    private const val SEQUENCE = 0x30
+    private const val SET = 0x31
+    private const val BIT_STRING = 0x03
+    private const val TAGGED_0 = 0xa0
+
     private val SHA256_WITH_RSA = byteArrayOf(0x2a, 0x86.toByte(), 0x48, 0x86.toByte(), 0xf7.toByte(), 0x0d, 0x01, 0x01, 0x0b)
     private val COMMON_NAME = byteArrayOf(0x55, 0x04, 0x03)
+    private val NOT_BEFORE = "700101000000Z".toByteArray()
+    private val NOT_AFTER = "20991231235959Z".toByteArray()
+    private val SERIAL = byteArrayOf(1)
+    private val VERSION = tlv(INTEGER, byteArrayOf(2))
 
     fun create(keyPair: KeyPair): X509Certificate {
-        val algId = seq(tlv(0x06, SHA256_WITH_RSA), tlv(0x05, ByteArray(0)))
-        val name = seq(tlv(0x31, seq(tlv(0x06, COMMON_NAME), tlv(0x0c, "Maeve".toByteArray()))))
-        val validity = seq(tlv(0x17, "700101000000Z".toByteArray()), tlv(0x18, "20991231235959Z".toByteArray()))
-        val tbs = seq(
-            tlv(0xa0, tlv(0x02, byteArrayOf(2))),
-            tlv(0x02, byteArrayOf(1)),
-            algId, name, validity, name,
+        val algorithm = sequence(element(OID, SHA256_WITH_RSA), element(NULL, ByteArray(0)))
+        val issuer = sequence(element(SET, sequence(element(OID, COMMON_NAME), element(UTF8_STRING, "Maeve".toByteArray()))))
+        val validity = sequence(element(UTC_TIME, NOT_BEFORE), element(GENERALIZED_TIME, NOT_AFTER))
+        val tbs = sequence(
+            element(TAGGED_0, VERSION),
+            element(INTEGER, SERIAL),
+            algorithm, issuer, validity, issuer,
             keyPair.public.encoded,
         )
-        val sig = Signature.getInstance("SHA256withRSA").run {
+        val signature = Signature.getInstance("SHA256withRSA").run {
             initSign(keyPair.private)
             update(tbs)
             sign()
         }
-        val der = seq(tbs, algId, tlv(0x03, byteArrayOf(0) + sig))
+        val der = sequence(tbs, algorithm, element(BIT_STRING, byteArrayOf(0) + signature))
         return CertificateFactory.getInstance("X.509").generateCertificate(ByteArrayInputStream(der)) as X509Certificate
     }
 
-    private fun seq(vararg parts: ByteArray) = tlv(0x30, parts.fold(ByteArray(0)) { a, b -> a + b })
+    private fun sequence(vararg parts: ByteArray) = element(SEQUENCE, parts.fold(ByteArray(0)) { a, b -> a + b })
 
-    internal fun tlv(tag: Int, content: ByteArray): ByteArray {
+    private fun element(tag: Int, content: ByteArray): ByteArray {
         val out = ByteArrayOutputStream()
         out.write(tag)
         val n = content.size
@@ -317,4 +386,6 @@ internal object SelfSignedCertificate {
         out.write(content)
         return out.toByteArray()
     }
+
+    internal fun tlv(tag: Int, content: ByteArray): ByteArray = element(tag, content)
 }

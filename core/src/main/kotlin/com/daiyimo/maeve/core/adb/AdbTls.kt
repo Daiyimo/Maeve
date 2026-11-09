@@ -12,14 +12,14 @@ import javax.net.ssl.SSLSocket
 import javax.net.ssl.X509ExtendedKeyManager
 import javax.net.ssl.X509ExtendedTrustManager
 
-/** TLS 导出密钥(RFC 8446 §7.5)。JDK 没有公开接口,由平台提供:Android 上是 `SSLSockets.exportKeyingMaterial`。 */
+/** 导出 TLS 密钥材料(RFC 8446 §7.5);JDK 没有公开接口,由平台给出——Android 上是 `SSLSockets.exportKeyingMaterial`。 */
 fun interface KeyingMaterialExporter {
     fun export(socket: SSLSocket, label: String, length: Int): ByteArray
 }
 
 /**
- * adb 用的 TLS 1.3:双方都出示自签名证书,互不校验证书链。
- * 配对时身份由 SPAKE2 绑定到导出密钥上;连接时由设备比对我们证书里的公钥。只连本机自己的地址。
+ * adb 的 TLS 1.3 封装:两端都亮自签名证书,且互不验证对方证书链。
+ * 配对时靠 SPAKE2 把身份绑到导出密钥;连接时则由设备核对证书里的公钥。目标仅限本机地址。
  */
 class AdbTls(
     val identity: AdbIdentity,
@@ -27,61 +27,63 @@ class AdbTls(
     private val provider: Provider? = null,
 ) {
     val context: SSLContext by lazy {
-        val ctx = if (provider == null) SSLContext.getInstance("TLS") else SSLContext.getInstance("TLS", provider)
-        ctx.init(arrayOf(FixedKeyManager(identity.keyPair.private, identity.certificate)), arrayOf(TrustAll), null)
-        ctx
+        val sslContext = if (provider == null) SSLContext.getInstance("TLS") else SSLContext.getInstance("TLS", provider)
+        sslContext.init(arrayOf(FixedKeyManager(identity.keyPair.private, identity.certificate)), arrayOf(TrustAll), null)
+        sslContext
     }
 
-    /** 用调用方已核对的 [target] 新建 TCP 连接并完成 TLS 握手;不重新解析主机名。 */
+    /** 按调用方已核对的 [target] 新建 TCP 连接并完成 TLS 握手;不再重新解析主机名。 */
     fun connect(target: InetSocketAddress, timeoutMs: Int): SSLSocket {
-        val plain = Socket()
+        val socket = Socket()
         try {
-            plain.tcpNoDelay = true
-            plain.connect(target, timeoutMs)
-            plain.soTimeout = timeoutMs
-        } catch (e: Exception) {
-            plain.close()
-            throw e
+            socket.tcpNoDelay = true
+            socket.connect(target, timeoutMs)
+            socket.soTimeout = timeoutMs
+        } catch (error: Exception) {
+            socket.close()
+            throw error
         }
-        return wrap(plain, target, client = true)
+        return wrap(socket, target, client = true)
     }
 
-    /** 在已有连接上做 TLS 握手;[client] = false 只给测试里的假服务端用。 */
+    /** 在既有的 [plain] 连接上做 TLS 握手;[client] = false 仅用于测试里的假服务端。 */
     fun wrap(plain: Socket, target: InetSocketAddress, client: Boolean): SSLSocket {
-        val host = target.address?.hostAddress ?: throw IllegalArgumentException("ADB address must be resolved")
-        val s = context.socketFactory.createSocket(plain, host, target.port, true) as SSLSocket
+        val hostAddress = target.address?.hostAddress ?: throw IllegalArgumentException("ADB address must be resolved")
+        val tls = context.socketFactory.createSocket(plain, hostAddress, target.port, true) as SSLSocket
         try {
-            s.enabledProtocols = arrayOf("TLSv1.3")
-            s.useClientMode = client
-            if (!client) s.needClientAuth = true
-            s.startHandshake()
-        } catch (e: Exception) {
-            s.close()
-            throw e
+            tls.enabledProtocols = arrayOf("TLSv1.3")
+            tls.useClientMode = client
+            if (!client) tls.needClientAuth = true
+            tls.startHandshake()
+        } catch (error: Exception) {
+            tls.close()
+            throw error
         }
-        return s
+        return tls
     }
 
     fun exportKeyingMaterial(socket: SSLSocket, label: String, length: Int): ByteArray = exporter.export(socket, label, length)
 
-    private class FixedKeyManager(private val key: PrivateKey, private val cert: X509Certificate) : X509ExtendedKeyManager() {
-        override fun getClientAliases(keyType: String?, issuers: Array<out Principal>?) = arrayOf(ALIAS)
-        override fun chooseClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?) = ALIAS
-        override fun chooseEngineClientAlias(keyType: Array<out String>?, issuers: Array<out Principal>?, engine: SSLEngine?) = ALIAS
-        override fun getServerAliases(keyType: String?, issuers: Array<out Principal>?) = arrayOf(ALIAS)
+    /** 只认固定的一把钥匙和一张证书,别名一律给 [ALIAS]。 */
+    private class FixedKeyManager(private val privateKey: PrivateKey, private val certificate: X509Certificate) : X509ExtendedKeyManager() {
+        override fun getClientAliases(keyAlgorithm: String?, issuers: Array<out Principal>?) = arrayOf(ALIAS)
+        override fun chooseClientAlias(keyAlgorithms: Array<out String>?, issuers: Array<out Principal>?, socket: Socket?) = ALIAS
+        override fun chooseEngineClientAlias(keyAlgorithms: Array<out String>?, issuers: Array<out Principal>?, engine: SSLEngine?) = ALIAS
+        override fun getServerAliases(keyAlgorithm: String?, issuers: Array<out Principal>?) = arrayOf(ALIAS)
         override fun chooseServerAlias(keyType: String?, issuers: Array<out Principal>?, socket: Socket?) = ALIAS
         override fun chooseEngineServerAlias(keyType: String?, issuers: Array<out Principal>?, engine: SSLEngine?) = ALIAS
-        override fun getCertificateChain(alias: String?) = arrayOf(cert)
-        override fun getPrivateKey(alias: String?) = key
+        override fun getCertificateChain(alias: String?) = arrayOf(certificate)
+        override fun getPrivateKey(alias: String?) = privateKey
     }
 
+    /** 一律信任:证书链由 SPAKE2 / 设备端公钥比对来背书,这里不再校验。 */
     private object TrustAll : X509ExtendedTrustManager() {
-        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?, socket: Socket?) {}
-        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?, engine: SSLEngine?) {}
-        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?, socket: Socket?) {}
-        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?, engine: SSLEngine?) {}
+        override fun checkClientTrusted(certChain: Array<out X509Certificate>?, authType: String?) {}
+        override fun checkClientTrusted(certChain: Array<out X509Certificate>?, authType: String?, socket: Socket?) {}
+        override fun checkClientTrusted(certChain: Array<out X509Certificate>?, authType: String?, engine: SSLEngine?) {}
+        override fun checkServerTrusted(certChain: Array<out X509Certificate>?, authType: String?) {}
+        override fun checkServerTrusted(certChain: Array<out X509Certificate>?, authType: String?, socket: Socket?) {}
+        override fun checkServerTrusted(certChain: Array<out X509Certificate>?, authType: String?, engine: SSLEngine?) {}
         override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
     }
 

@@ -24,6 +24,9 @@ data class ConnectCandidates(
     val manual: Boolean = false,
 )
 
+/** 候选端口的来源,按尝试顺序排列;下标同时是诊断计数里的序号。 */
+private enum class PortSource { CACHE, PROPERTY, MDNS, SCAN, MANUAL }
+
 /**
  * 找本机无线调试的连接端口并连上。按顺序试,哪个连上就停:上次连上的端口、系统属性(读得到才用)、mDNS 查到的每一个、
  * 扫本机端口([scan],前面都不行时才扫)、用户在引导页填的端口([manual])。
@@ -58,57 +61,28 @@ class AdbConnectPort(
         var rejected: AdbConnectionException? = null
         val manualPort = manual()?.takeIf { it in 1..65535 }
         var scanResult: ScanResult? = null
-        fun local(vararg ports: Int?) = ports.filterNotNull().map { AdbEndpoint(localHost, it) }
-        val sources: List<suspend () -> List<AdbEndpoint>> = listOf(
-            { local(cache.load()) },
-            { local(property()) },
-            { finder.findPorts(AdbServiceTypes.CONNECT, mdnsTimeoutMs).map { AdbEndpoint(localHost, it) } },
-            {
-                if (scan == null || manualPort != null || rejected != null) emptyList() else {
-                    scanning(true)
-                    try {
-                        scan.scan(triedPorts).also { scanResult = it }.endpoints
-                    } finally {
-                        scanning(false)
-                    }
-                }
-            },
-            { local(manualPort) },
-        )
-        val counts = IntArray(sources.size)
+        val counts = IntArray(PortSource.entries.size)
         var connected = false
         try {
-            for ((i, source) in sources.withIndex()) {
+            for (source in PortSource.entries) {
                 // 读不到的来源(属性被拦、mDNS 起不来)当作没有,不算失败
                 val endpoints = try {
-                    source()
+                    fetch(source, manualPort, triedPorts, rejected) { scanResult = it }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
                     emptyList()
                 }
-                counts[i] = endpoints.size
+                counts[source.ordinal] = endpoints.size
                 for (ep in endpoints) {
                     if (ep.port !in 1..65535 || !tried.add(ep)) continue
                     triedPorts += ep.port
-                    var retried = false
-                    while (true) {
-                        try {
-                            return open(ep.host, ep.port).also { cache.save(ep.port); connected = true }
-                        } catch (e: AdbConnectionException) {
-                            // 地址策略失败不是这个端口暂时不可用:不能换端口继续,更不能稍后自动重试。
-                            if (e.reason == AdbConnectionException.Reason.NOT_LOCAL) throw e
-                            val tls = e.reason == AdbConnectionException.Reason.UNAUTHORIZED ||
-                                e.reason == AdbConnectionException.Reason.TLS_FAILED
-                            if (tls && !retried) {
-                                retried = true
-                                delay(tlsRetryDelayMs)
-                                continue
-                            }
-                            if (e.reason == AdbConnectionException.Reason.UNAUTHORIZED) rejected = e
-                            last = e
-                            break
-                        }
+                    try {
+                        return attempt(ep, open).also { cache.save(ep.port); connected = true }
+                    } catch (e: AdbConnectionException) {
+                        if (e.reason == AdbConnectionException.Reason.NOT_LOCAL) throw e
+                        if (e.reason == AdbConnectionException.Reason.UNAUTHORIZED) rejected = e
+                        last = e
                     }
                 }
             }
@@ -117,12 +91,62 @@ class AdbConnectPort(
             val s = scanResult
             report(
                 ConnectCandidates(
-                    property = counts[1], mdns = counts[2], cache = counts[0], connected = connected,
+                    property = counts[PortSource.PROPERTY.ordinal],
+                    mdns = counts[PortSource.MDNS.ordinal],
+                    cache = counts[PortSource.CACHE.ordinal],
+                    connected = connected,
                     scanned = s != null, scanOpen = s?.open ?: 0, scanAdb = s?.adb ?: 0, manual = manualPort != null,
                 ),
             )
         }
     }
+
+    /**
+     * 连一个端点。TLS 上被拒(UNAUTHORIZED、TLS_FAILED)不一定是钥匙不对:有的系统让另一个服务先接住
+     * 同一端口的第一次 TLS 握手,对谁的证书都拒,紧接着再连才落到 adbd——所以隔 [tlsRetryDelayMs] 再试一次。
+     * 其余失败原样抛给调用方记录;地址策略失败(NOT_LOCAL)必须直接穿透,不能换端口继续。
+     */
+    private suspend fun <T> attempt(ep: AdbEndpoint, open: (host: String, port: Int) -> T): T {
+        var retried = false
+        while (true) {
+            try {
+                return open(ep.host, ep.port)
+            } catch (e: AdbConnectionException) {
+                if (e.reason == AdbConnectionException.Reason.NOT_LOCAL) throw e
+                val tls = e.reason == AdbConnectionException.Reason.UNAUTHORIZED ||
+                    e.reason == AdbConnectionException.Reason.TLS_FAILED
+                if (!tls || retried) throw e
+                retried = true
+                delay(tlsRetryDelayMs)
+            }
+        }
+    }
+
+    /** 取一个来源给出的候选端口;[rejected] 是到此刻为止被设备拒过的记录,扫本机时要看它。 */
+    private suspend fun fetch(
+        source: PortSource, manualPort: Int?, triedPorts: Set<Int>, rejected: AdbConnectionException?, onScan: (ScanResult) -> Unit,
+    ): List<AdbEndpoint> = when (source) {
+        PortSource.CACHE -> local(cache.load())
+        PortSource.PROPERTY -> local(property())
+        PortSource.MDNS -> finder.findPorts(AdbServiceTypes.CONNECT, mdnsTimeoutMs).map { AdbEndpoint(localHost, it) }
+        PortSource.SCAN -> scanLocal(manualPort, rejected, triedPorts, onScan)
+        PortSource.MANUAL -> local(manualPort)
+    }
+
+    /** 扫本机是最后一招:没配扫描器、用户填了端口、或已经有端口拒了我们,都不扫。 */
+    private suspend fun scanLocal(
+        manualPort: Int?, rejected: AdbConnectionException?, triedPorts: Set<Int>, onScan: (ScanResult) -> Unit,
+    ): List<AdbEndpoint> {
+        if (scan == null || manualPort != null || rejected != null) return emptyList()
+        scanning(true)
+        try {
+            return scan.scan(triedPorts).also(onScan).endpoints
+        } finally {
+            scanning(false)
+        }
+    }
+
+    private fun local(vararg ports: Int?) = ports.filterNotNull().map { AdbEndpoint(localHost, it) }
 
     companion object {
         const val LOCALHOST = "127.0.0.1"
