@@ -1,18 +1,18 @@
 # amoo 快速连接页
 
 设置 → 常用 → **Amoo**（「手机操作」与「微信」之间；`SettingsPage.Amoo` → `app/src/main/java/com/daiyimo/maeve/ui/AmooScreen.kt`）。
-它解决的是「把 Mika 的地址发进 amoo 聊天，amoo 连不上」这件事。
+它解决的是「把 Maeve 的地址发进 amoo 聊天，amoo 连不上」这件事。
 
 ## 为什么发地址、发命令都没用
 
 amoo 是跑在本机 OpenClaw（stepclaw）网关里的助手：它的工具来自网关配置和手机端的「原子能力」白名单，
-不是通用 MCP 客户端。聊天里贴 URL 只会被当文本；贴命令行会被当 shell 尝试执行，再被 Mika 的无障碍截获成任务
+不是通用 MCP 客户端。聊天里贴 URL 只会被当文本；贴命令行会被当 shell 尝试执行，再被 Maeve 的无障碍截获成任务
 （见 `docs/dev/amoo-intercept.md`）。**它不会替人把聊天里的命令跑完再把结果贴回来**，所以这一页不再给命令。
 
 ## 页面上的三件事
 
 1. **连接状态 + 现在自检**：按钮在进程内真发一次 `GET http://127.0.0.1:18770/api/v1`（3 秒超时），
-   200 就把回包里的 `server_version` 显示成「通了 · Mika 0.1.36」，否则显示「不通 · 原因」。
+   200 就把回包里的 `server_version` 显示成「通了 · Maeve 0.1.36」，否则显示「不通 · 原因」。
    网络访问开着用网关令牌，只开 USB 时用 USB 令牌（回环口两套令牌都认，见
    `core/src/main/kotlin/com/daiyimo/maeve/core/remote/RemoteAccess.kt:48-53`）。
 2. **复制网关配置**：`McpRuntime.clientConfig(McpRuntime.url("127.0.0.1", port), token)` 的 JSON，

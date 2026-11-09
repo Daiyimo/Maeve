@@ -1,18 +1,19 @@
+<!-- docs-check: spans-off — Historical migration log; old names describe past states -->
 # Migration notes — M1 → M4
 
 Live status of turning `Daiyimo/Mika` into `Daiyimo/Maeve`. Update this file as each
-milestone lands. See [SPEC.md](../../SPEC.md) §8–§10 for the plan and [FORK.md](../../FORK.md)
+milestone lands. See [SPEC.md](../../SPEC.md) §8–§10 for the plan and [ATTRIBUTION.md](../../ATTRIBUTION.md)
 for the Apache-2.0 change record.
 
 ## M1 — done (2026-11-06)
 
 | Item | Result |
 |---|---|
-| Upstream history | Initially fetched from `E:\project\daiyimo\Mika` (523 commits, base `bbc8922a`). On 2026-11-06 the published history was rewritten to one baseline snapshot `bccdcda6` + four Maeve commits so Contributors shows only the maintainer. Pre-rewrite history is on the local, unpublished `backup/full-history-before-rewrite`. See `FORK.md` and "History rewrite" below. |
+| Upstream history | Initially fetched from `E:\project\daiyimo\Mika` (523 commits, base `bbc8922a`). On 2026-11-06 the published history was rewritten to one baseline snapshot `bccdcda6` + four Maeve commits so Contributors shows only the maintainer. Later edits moved the root to `7cf7ff3`; see `ATTRIBUTION.md` for the current state. Pre-rewrite history, if still present locally, is on the unpublished `backup/full-history-before-rewrite`. See `ATTRIBUTION.md` and "History rewrite" below. |
 | Package rename | `com.wangzan101.mika` → `com.daiyimo.maeve`: 9,230 replacements in 1,442 files + 8 source directories. 0 residual references in the source tree. |
 | Gradle identity | `rootProject.name = "Maeve"`, `namespace` / `applicationId` = `com.daiyimo.maeve`, `versionCode = 1`, `versionName = "0.1.0-dolores"`. |
 | Upstream URLs | `MikaLinks.kt` (5 URLs, also drives `ApkIntegrity`'s whitelist), `tools/relay/go.mod` module path, `mika_cli.py` `PHONE_FILES`, `tools/sandbox/build-runtime.py` split path tuple, `AboutScreenTest` release fixture. |
-| Compliance | New `README.md`, `FORK.md`, `CONTRIBUTING.md`, `SECURITY.md`; `NOTICE` addendum; `THIRD_PARTY_NOTICES.md` + in-app `Licenses.ENTRIES` augmented (ML Kit was undisclosed); GPL/LGPL texts, verbatim `NOTICE` and `SOURCE_OFFER.md` mirrored into `app/src/main/assets/licenses/`. |
+| Compliance | New `README.md`, `ATTRIBUTION.md`, `CONTRIBUTING.md`, `SECURITY.md`; `NOTICE` addendum; `THIRD_PARTY_NOTICES.md` + in-app `Licenses.ENTRIES` augmented (ML Kit was undisclosed); GPL/LGPL texts, verbatim `NOTICE` and `SOURCE_OFFER.md` mirrored into `app/src/main/assets/licenses/`. |
 | Docs | `docs/spec/` (visual tokens, haptics, bridge v3, this file), `docs/adr/`, CI compliance job, release workflow. |
 
 Reproduce the mechanical rename:
@@ -87,7 +88,7 @@ The first cut only re-skinned Mika. This pass changes how the UI actually *feels
 | Shape & motion | `MaeveShapes.SquircleShape` (superellipse, continuous curvature) now backs `MikaShapes.Card / Button / Tile`; `MaeveMotion` carries dsh-Go's duration ladder and `glide` curve. `ButtonSize.shape` widened from `RoundedCornerShape` to `Shape`. |
 | Residual cleanup | `about_author` → 戴以沫 / Dai Yimo in all 10 locales; `chat_example_follow` (follow Wang Zan / @wangzan101 in *every* locale) and `chat_example_multi_step` (汽水音乐 VIP) removed from resources and `ChatCopy.examples` (6 → 4); ADB certificate `CN=Maeve` (wireless-debugging paired-device name); MCP `serverInfo`, `clientName`, `APP_NAME`, trace service name → Maeve. |
 
-**Apache-2.0 boundary kept:** `NOTICE`, `FORK.md` and the first `LicensesScreen` entry
+**Apache-2.0 boundary kept:** `NOTICE`, `ATTRIBUTION.md` and the first `LicensesScreen` entry
 still name Mika / Wang Zan. Only the user-facing "made by" line was re-attributed.
 
 Verification: `translations.py check` → 1989 resources / 10 languages; `check_compliance.py`
@@ -172,6 +173,11 @@ The 59 are Windows-specific, not migration regressions:
 separators and filesystem-timing assertions.
 CI runs on `ubuntu-latest`, where they pass.
 
+The counts above are the pre-Flutter suite (1508 tests). After the Flutter shell and the added
+tests, a 2026-11-09 Windows run reports 2954 tests, 56 failed, 3 skipped; the failures are the
+same category of platform issues plus snapshot hashes that differ from the Linux-generated
+goldens. The Linux CI job is the judge for this suite.
+
 The **2 extra failures were introduced by M1** and are fixed: `ApkIntegrityTest` and
 `MikaLinksTest` asserted hard-coded `wangzan101/Mika` URLs. They now derive the expected
 URL from `MikaLinks.RELEASES` / `MikaLinks.NEW_ISSUE` so a future repo move cannot silently
@@ -244,7 +250,7 @@ collapsed into one baseline snapshot:
 | Step | Result |
 |---|---|
 | Local backup | `backup/full-history-before-rewrite` keeps all 526 old commits locally; it is **never pushed**. |
-| New root | `bccdcda6` — `git commit-tree bbc8922a^{tree}`, author `Daiyimo <auroral.8751@gmail.com>`, message names Mika / wangzan101 and points at `NOTICE`, `LICENSE`, `FORK.md` and the licence screen. |
+| New root | `bccdcda6` — `git commit-tree bbc8922a^{tree}`, author `Daiyimo <auroral.8751@gmail.com>`, message names Mika / wangzan101 and points at `NOTICE`, `LICENSE`, `ATTRIBUTION.md` and the licence screen. |
 | Replay | `git cherry-pick` of the four Maeve commits (`0fd46b7d`, `fa1667db`, `481e87b3`, `a40ee242`). |
 | Content check | At rewrite time `git rev-parse HEAD^{tree}` = `643211ebcc2d…`, **identical** to the pre-rewrite tree — no source file changed. The later docs-only commit changes the tree hash by design. |
 | Contributors | `git log --format='%an <%ae>'` now returns only `Daiyimo <auroral.8751@gmail.com>`. |
@@ -256,5 +262,5 @@ The old `Q6` checklist below records the **first** publish of the full history a
 as history; its commit hashes and tag no longer exist in the published repository.
 
 > Compliance reminder: collapsing git history changes who appears as a *commit author*.
-> It does **not** remove the Apache-2.0 §4 duty to keep `NOTICE`, `LICENSE`, `FORK.md` and
+> It does **not** remove the Apache-2.0 §4 duty to keep `NOTICE`, `LICENSE`, `ATTRIBUTION.md` and
 > the in-app `Mika` licence entry. Those files are unchanged.

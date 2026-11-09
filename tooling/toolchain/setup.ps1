@@ -1,0 +1,163 @@
+#requires -Version 5.1
+<#
+.SYNOPSIS
+    Install the pinned Maeve toolchain (JDK 17, Gradle 8.11.1, Flutter 3.47.7) into a
+    directory outside the repository and write env.ps1 / env.sh for this machine.
+
+.DESCRIPTION
+    Idempotent. Existing components with the right version are skipped. Downloads are
+    checked against versions.json when a SHA-256 is present.
+
+.EXAMPLE
+    pwsh tooling/toolchain/setup.ps1 -Toolchains 'E:\project\daiyimo\_toolchains' -EnvRoot 'E:\project\daiyimo\_env'
+#>
+[CmdletBinding()]
+param(
+    [string]$Toolchains,
+    [string]$EnvRoot,
+    [switch]$SkipJdk,
+    [switch]$Force
+)
+
+$ErrorActionPreference = 'Stop'
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repo = (Resolve-Path (Join-Path $here '..\..')).Path
+$parent = Split-Path $repo -Parent
+
+if (-not $Toolchains) { $Toolchains = Join-Path $parent '_toolchains' }
+if (-not $EnvRoot)    { $EnvRoot    = Join-Path $parent '_env' }
+$Toolchains = [IO.Path]::GetFullPath($Toolchains)
+$EnvRoot    = [IO.Path]::GetFullPath($EnvRoot)
+
+$versions = Get-Content -LiteralPath (Join-Path $here 'versions.json') -Raw | ConvertFrom-Json
+
+function Write-Step([string]$text) { Write-Host "== $text" -ForegroundColor Cyan }
+
+function Get-VerifiedFile {
+    param([string]$Url, [string]$Destination, [string]$Sha256)
+    New-Item -ItemType Directory -Force -Path (Split-Path $Destination) | Out-Null
+    if ((Test-Path -LiteralPath $Destination) -and -not $Force) {
+        $actual = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLower()
+        if (-not $Sha256 -or $actual -eq $Sha256) { return }
+        Write-Host "  checksum changed, re-downloading $Destination" -ForegroundColor Yellow
+    }
+    Write-Host "  downloading $Url"
+    & curl.exe -L --fail --retry 3 -o $Destination $Url
+    if ($LASTEXITCODE -ne 0) { throw "download failed: $Url" }
+    $actual = (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash.ToLower()
+    if ($Sha256 -and $actual -ne $Sha256) {
+        throw "checksum mismatch for $Destination`n  expected $Sha256`n  actual   $actual"
+    }
+}
+
+function Expand-Zip {
+    param([string]$Zip, [string]$Destination)
+    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+    Expand-Archive -LiteralPath $Zip -DestinationPath $Destination -Force
+}
+
+New-Item -ItemType Directory -Force -Path $Toolchains, $EnvRoot | Out-Null
+
+# --- JDK 17 -----------------------------------------------------------------
+$jdkDir = Join-Path $Toolchains 'jdk-17'
+if (-not $SkipJdk) {
+    Write-Step "JDK $($versions.java.version)"
+    if ($Force -or -not (Test-Path -LiteralPath (Join-Path $jdkDir 'bin\java.exe'))) {
+        $jdkZip = Join-Path $Toolchains 'temurin-17.zip'
+        Get-VerifiedFile -Url $versions.java.url -Destination $jdkZip -Sha256 $versions.java.sha256
+        $tmp = Join-Path $Toolchains '_jdk_extract'
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
+        Expand-Zip -Zip $jdkZip -Destination $tmp
+        $inner = Get-ChildItem -LiteralPath $tmp -Directory | Select-Object -First 1
+        if (-not $inner) { throw 'JDK archive did not contain a directory' }
+        if (Test-Path -LiteralPath $jdkDir) { Remove-Item -LiteralPath $jdkDir -Recurse -Force }
+        Move-Item -LiteralPath $inner.FullName -Destination $jdkDir
+        Remove-Item -LiteralPath $tmp -Recurse -Force
+    }
+} else {
+    Write-Step 'JDK skipped'
+}
+
+# --- Gradle 8.11.1 ----------------------------------------------------------
+Write-Step "Gradle $($versions.gradle.version)"
+$gradleHome = Join-Path $Toolchains "gradle-$($versions.gradle.version)"
+$gradleBat = Join-Path $gradleHome "gradle-$($versions.gradle.version)\bin\gradle.bat"
+if ($Force -or -not (Test-Path -LiteralPath $gradleBat)) {
+    $gradleZip = Join-Path $Toolchains "gradle-$($versions.gradle.version)-bin.zip"
+    Get-VerifiedFile -Url $versions.gradle.url -Destination $gradleZip -Sha256 $versions.gradle.sha256
+    Expand-Zip -Zip $gradleZip -Destination $gradleHome
+}
+
+# --- Flutter 3.47.7 ---------------------------------------------------------
+Write-Step "Flutter $($versions.flutter.version)"
+$flutterRoot = Join-Path $Toolchains 'flutter'
+if ($Force -or -not (Test-Path -LiteralPath (Join-Path $flutterRoot 'bin\flutter.bat'))) {
+    $flutterZip = Join-Path $Toolchains "flutter-$($versions.flutter.version)-stable.zip"
+    Get-VerifiedFile -Url $versions.flutter.url -Destination $flutterZip -Sha256 $versions.flutter.sha256
+    Expand-Zip -Zip $flutterZip -Destination $Toolchains
+}
+
+# --- caches -----------------------------------------------------------------
+foreach ($cache in @('gradle-home', 'pub-cache')) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $EnvRoot $cache) | Out-Null
+}
+
+# --- env files --------------------------------------------------------------
+$androidSdk = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { Join-Path $env:LOCALAPPDATA 'Android\Sdk' }
+
+$envPs1 = @"
+# Generated by tooling/toolchain/setup.ps1. Do not commit.
+`$Toolchains = '$Toolchains'
+`$EnvRoot    = '$EnvRoot'
+
+`$AndroidSdk = if (`$env:ANDROID_HOME) { `$env:ANDROID_HOME } else { Join-Path `$env:LOCALAPPDATA 'Android\Sdk' }
+
+`$env:JAVA_HOME        = Join-Path `$Toolchains 'jdk-17'
+`$env:GRADLE_USER_HOME = if (Test-Path (Join-Path `$env:USERPROFILE '.gradle')) { Join-Path `$env:USERPROFILE '.gradle' } else { Join-Path `$EnvRoot 'gradle-home' }
+`$env:PUB_CACHE        = Join-Path `$EnvRoot 'pub-cache'
+`$env:FLUTTER_ROOT     = Join-Path `$Toolchains 'flutter'
+`$env:ANDROID_HOME     = `$AndroidSdk
+`$env:ANDROID_SDK_ROOT = `$AndroidSdk
+
+`$env:NO_PROXY = '127.0.0.1,localhost,::1'
+`$env:no_proxy = `$env:NO_PROXY
+
+`$env:PATH = @(
+    (Join-Path `$env:JAVA_HOME 'bin')
+    (Join-Path `$env:FLUTTER_ROOT 'bin')
+    (Join-Path `$AndroidSdk 'platform-tools')
+    `$env:PATH
+) -join ';'
+"@
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[IO.File]::WriteAllText((Join-Path $EnvRoot 'env.ps1'), $envPs1, $utf8NoBom)
+
+$envSh = @"
+#!/usr/bin/env bash
+# Generated by tooling/toolchain/setup.ps1. Do not commit.
+TOOLCHAINS='$($Toolchains -replace '\\','/')'
+ENV_ROOT='$($EnvRoot -replace '\\','/')'
+ANDROID_SDK="`${ANDROID_HOME:-`$HOME/AppData/Local/Android/Sdk}"
+
+export JAVA_HOME="`$TOOLCHAINS/jdk-17"
+export GRADLE_USER_HOME="`$ENV_ROOT/gradle-home"
+export PUB_CACHE="`$ENV_ROOT/pub-cache"
+export FLUTTER_ROOT="`$TOOLCHAINS/flutter"
+export ANDROID_HOME="`$ANDROID_SDK"
+export ANDROID_SDK_ROOT="`$ANDROID_SDK"
+export NO_PROXY='127.0.0.1,localhost,::1'
+export no_proxy="`$NO_PROXY"
+
+to_posix() {
+  if command -v cygpath >/dev/null 2>&1; then cygpath -u "`$1"; else printf '%s' "`$1"; fi
+}
+export PATH="`$(to_posix "`$JAVA_HOME")/bin:`$(to_posix "`$FLUTTER_ROOT")/bin:`$(to_posix "`$ANDROID_HOME")/platform-tools:`$PATH"
+"@
+[IO.File]::WriteAllText((Join-Path $EnvRoot 'env.sh'), ($envSh -replace "`r`n", "`n"), $utf8NoBom)
+
+Write-Step 'done'
+Write-Host "toolchains: $Toolchains"
+Write-Host "env:        $EnvRoot\env.ps1"
+Write-Host "next:       . `"$EnvRoot\env.ps1`"; pwsh tooling/toolchain/verify.ps1 -Toolchains '$Toolchains' -EnvRoot '$EnvRoot'"
+
+exit 0

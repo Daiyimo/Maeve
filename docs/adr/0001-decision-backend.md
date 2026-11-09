@@ -1,3 +1,4 @@
+<!-- docs-check: spans-off — Proposed type names; none implemented yet -->
 # ADR-0001 · Reserve a `DecisionBackend` seam, ship no local model
 
 **Status:** Proposed · **Date:** 2026-11-06 · **Spec:** §13.4

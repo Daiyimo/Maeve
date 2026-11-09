@@ -70,7 +70,7 @@ The page has not changed, and reading it again ({{count}} times) shows nothing n
 Payment is not confirmed here: the user pays with their own hands. Open the payment page, then call hand_to_user with reason payment, giving the item, the amount shown and the address; afterwards check the order status.
 
 ## empty_screen
-Mika's screen is empty: no app is open on it yet. Start with phone_launch_app; this is not a fault.
+Maeve's screen is empty: no app is open on it yet. Start with phone_launch_app; this is not a fault.
 
 ## empty_page
 No web page is open yet. Open one with web_navigate; this is not a fault.
@@ -133,10 +133,10 @@ That app is not installed or has no launchable screen. Use phone_list_apps to fi
 The requested copy of the app could not be opened: the system kept opening a different copy (see the details). Nothing was left open as if it were the requested copy. Tell the user which copy opened instead; do not claim the requested copy is open.
 
 ## failure.copy_not_found
-There is no such copy of that app that Mika may open. Use phone_list_apps and pass a user value exactly as listed for that package, or leave user out to open the main app.
+There is no such copy of that app that Maeve may open. Use phone_list_apps and pass a user value exactly as listed for that package, or leave user out to open the main app.
 
 ## failure.app_not_in_front
-The app was started but did not come to the foreground within a few seconds, so it is not open on Mika's screen. Look at the screen before deciding: it may still be starting, or something else (a dialog, another app) is in front.
+The app was started but did not come to the foreground within a few seconds, so it is not open on Maeve's screen. Look at the screen before deciding: it may still be starting, or something else (a dialog, another app) is in front.
 
 ## failure.no_focus
 No text field is focused. Tap the field first, or pass its ref+snapshotId.
@@ -205,7 +205,7 @@ Switching between the desktop and mobile version is not available here. Continue
 Keeping a page open after the task is not available here. The page closes when the task ends; tell the user so.
 
 ## failure.users_page
-This is the user's own page in Mika's browser; it stays open after the task anyway, so there is nothing to keep.
+This is the user's own page in Maeve's browser; it stays open after the task anyway, so there is nothing to keep.
 
 ## keep_open.kept
 This page will keep running in the background after the task ends, for at most {{hours}} hours. Tell the user it stays open.
@@ -274,13 +274,13 @@ There is no open page dialog on this tab. Observe to see the page as it is now.
 The page has a dialog open and is paused, so nothing was done. Read it (it is in the screen read as dialog) and answer it with web_interact action dialog first.
 
 ## failure.page_limit
-Not done: this task has already opened as many pages on this site, or screens in this app, as Mika allows in one go (some sites and apps limit how much one visitor browses). Do not look for another way to open more pages here. Reading what is already open still works. Answer with what you have read so far and say what is still left; if the user wants you to go on, ask them with ask_user, and once they agree you can open more pages.
+Not done: this task has already opened as many pages on this site, or screens in this app, as Maeve allows in one go (some sites and apps limit how much one visitor browses). Do not look for another way to open more pages here. Reading what is already open still works. Answer with what you have read so far and say what is still left; if the user wants you to go on, ask them with ask_user, and once they agree you can open more pages.
 
 ## failure.skipped_for_new_message
 Not done: the user sent a new message before this call finished, so it stopped and nothing was done on the screen (it was only waiting, pausing before a page change or before another send or submit on the same site, or asking the vision model). Read the new message first. If this call is still needed, call it again; any pause still owed is kept first.
 
 ## failure.phone_unavailable
-Mika cannot operate phone apps right now (Mika's phone helper, set up once in Mika via Wireless debugging pairing, is not running, or Mika's accessibility service is off). Do the task with the browser or sandbox tools if they can do it; otherwise call end_not_done and tell the user what to fix.
+Maeve cannot operate phone apps right now (Maeve's phone helper, set up once in Maeve via Wireless debugging pairing, is not running, or Maeve's accessibility service is off). Do the task with the browser or sandbox tools if they can do it; otherwise call end_not_done and tell the user what to fix.
 
 ## covered_by
 The app is open, but {{pkg}} is showing on top of it (a permission dialog, an account chooser or similar). Deal with that window first; the app did launch, so do not launch it again.
@@ -289,22 +289,22 @@ The app is open, but {{pkg}} is showing on top of it (a permission dialog, an ac
 The system asked which one to open ({{pkg}} is showing the choice; chooser.options lists them, clone:true marks a clone or other-profile copy, and the screen has their refs). If the user said which one, tap that option; otherwise tap the main one. The launch goes on from your pick: do not launch the app again, that only brings the same question back.
 
 ## spill.pulled_back
-This action opened {{app}} on the user's own screen instead of Mika's (the app started it outside its own screen). Mika moved it to Mika's screen, where it is now in front. The action worked, so do not repeat it: continue in {{app}}.
+This action opened {{app}} on the user's own screen instead of Maeve's (the app started it outside its own screen). Maeve moved it to Maeve's screen, where it is now in front. The action worked, so do not repeat it: continue in {{app}}.
 
 ## spill.user_picking
-This action made the system ask, on the user's own screen, which one to open ({{app}}; chooser lists the options when they could be read). The action worked: do not repeat it, and do not try to pick for the user. Mika has asked the user to pick there, and Mika's next screen action waits until they have; its result then says what opened.
+This action made the system ask, on the user's own screen, which one to open ({{app}}; chooser lists the options when they could be read). The action worked: do not repeat it, and do not try to pick for the user. Maeve has asked the user to pick there, and Maeve's next screen action waits until they have; its result then says what opened.
 
 ## spill.picker_closed
 The user closed the system's question without picking, so nothing was opened. Decide what to do next (ask the user if unsure); do not simply repeat the action.
 
 ## spill.user_done
-{{app}} needed the user, so it stayed on their own screen; they handled it there and tapped continue. Observe Mika's screen to see where things stand before going on.
+{{app}} needed the user, so it stayed on their own screen; they handled it there and tapped continue. Observe Maeve's screen to see where things stand before going on.
 
 ## spill.user_popup
-This action opened {{app}} as a popup on the user's own screen that needs them (a sign-in, verification, account confirmation or payment step). Mika left it there on purpose: do not pull it back to Mika's screen and do not repeat the action. Call hand_to_user so the user can finish it there (reason login for a sign-in or verification, payment for a payment step), then check Mika's screen to see what came back before going on.
+This action opened {{app}} as a popup on the user's own screen that needs them (a sign-in, verification, account confirmation or payment step). Maeve left it there on purpose: do not pull it back to Maeve's screen and do not repeat the action. Call hand_to_user so the user can finish it there (reason login for a sign-in or verification, payment for a payment step), then check Maeve's screen to see what came back before going on.
 
 ## spill.in_use
-This action opened {{app}}, which the user is using on their own screen, so it opened there in front of them and Mika left it alone. Do not repeat the action. Call hand_to_user with reason other so the user can do that step there, or wait and try again later.
+This action opened {{app}}, which the user is using on their own screen, so it opened there in front of them and Maeve left it alone. Do not repeat the action. Call hand_to_user with reason other so the user can do that step there, or wait and try again later.
 
 ## profile.main_not_requested
 This is the main app, not the requested copy.
@@ -316,19 +316,19 @@ This is the copy in user {{user}}, not the requested copy (user {{wanted}}).
 inProfile other: this is the other copy of the app (clone or other profile), not the main one. If the user did not ask for that copy, go back and pick the other option.
 
 ## system_command.use_tap
-This command taps or swipes through the shell, which is not checked. phone_tap and phone_swipe do that on Mika's screen and report the effect: use them instead.
+This command taps or swipes through the shell, which is not checked. phone_tap and phone_swipe do that on Maeve's screen and report the effect: use them instead.
 
 ## system_command.use_type
 Typing through the shell is not checked and cannot enter most non-ASCII text. Use phone_type_text: tap the input box first (by ref, visibleText center or a phone_find_visually point), then type; it also works when the element list has no field. To get text into an app whose box cannot be typed into (a message, a note), use phone_share_text to that app.
 
 ## system_command.use_key
-Key presses through the shell are not checked. phone_press_key and phone_back do that on Mika's screen and report the effect: use them instead.
+Key presses through the shell are not checked. phone_press_key and phone_back do that on Maeve's screen and report the effect: use them instead.
 
 ## system_command.use_launch
 Starting activities through the shell skips the launch checks (whether it reached the front, a chooser, the user using it). Use phone_launch_app to open an app.
 
 ## system_command.use_share
-Share intents through the shell skip the launch checks. Use phone_share_text with the app's package: it opens that app's share screen with the text on Mika's screen; pick the recipient and confirm sending there.
+Share intents through the shell skip the launch checks. Use phone_share_text with the app's package: it opens that app's share screen with the text on Maeve's screen; pick the recipient and confirm sending there.
 
 ## system_command.refused
 Not run: after the first such hint, shell commands that tap, type, press keys or launch are refused in this task, and text shares always are. {{use}} Do not rewrite the command another way.
@@ -406,7 +406,7 @@ quote is not something the user said in this task. Only save what the user said 
 content or keywords contain details (names, numbers, addresses) the user did not say in this task. Save only what the user said.
 
 ## memory.sensitive
-Mika does not remember this kind of information (passwords, codes, card or ID numbers, keys).
+Maeve does not remember this kind of information (passwords, codes, card or ID numbers, keys).
 
 ## memory.full
 Memory is full; the user needs to tidy it up in settings. Continue the task.
@@ -575,7 +575,7 @@ unknown argument for {{tool}}; allowed: {{allowed}}.
 {{unknown}} To act on an element, use its ref and snapshotId from the elements of the latest screen read or of the screen in the last action result.
 
 ## own_app
-This is Mika's own screen (or opens Mika itself), and Mika does not operate itself: nothing was done. Try another way, or ask the user to handle it.
+This is Maeve's own screen (or opens Maeve itself), and Maeve does not operate itself: nothing was done. Try another way, or ask the user to handle it.
 
 ## described.ambiguous
 {{count}} elements match 「{{text}}」, so nothing was done: {{candidates}}. Use one of these refs with snapshotId {{snapshot}}, or describe it more exactly (full text, or add role).
@@ -617,7 +617,7 @@ No detailed record of this turn is kept any more (only recent tasks keep one); w
 This step changes or deletes something and needs the user's OK, but this run cannot ask the user, so it was not run. Do it another way that only reads, or tell the user what you would need to do.
 
 ## root.denied
-su refused to run the command: root access for Mika was denied or taken back in the root manager. Do not try again; tell the user, or do the task without root.
+su refused to run the command: root access for Maeve was denied or taken back in the root manager. Do not try again; tell the user, or do the task without root.
 
 ## root.no_answer
 su did not answer; a permission prompt may be waiting on the phone. Do not try again right away; tell the user, or do the task without root.

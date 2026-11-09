@@ -1,3 +1,4 @@
+<!-- docs-check: spans-off — Historical ADR; names describe the decision record -->
 # ADR-0002 · Mechanical action outcomes, but not byte-exact screenshot diff
 
 **Status:** Proposed · **Date:** 2026-11-06 · **Spec:** §13.5

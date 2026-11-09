@@ -2,9 +2,11 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:maeve_flutter/main.dart';
+import 'package:maeve_flutter/widgets/maeve_mark.dart';
 
 void main() {
   testWidgets('chat shell renders composer and greeting', (tester) async {
@@ -13,6 +15,23 @@ void main() {
     expect(find.text('One thought, from here.'), findsOneWidget);
     expect(find.byKey(const ValueKey('message-input')), findsOneWidget);
     expect(find.byKey(const ValueKey('send-message')), findsOneWidget);
+  });
+
+  test('bridge sends open_settings on the maeve/ui channel', () async {
+    final calls = <MethodCall>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(const MethodChannel('maeve/ui'), (
+      call,
+    ) async {
+      calls.add(call);
+      return null;
+    });
+
+    await MaeveBridge.openSettings();
+
+    expect(calls.map((call) => call.method), ['open_settings']);
+    messenger.setMockMethodCallHandler(const MethodChannel('maeve/ui'), null);
   });
 
   test('armed mark puts the tick inside the ring opening', () {

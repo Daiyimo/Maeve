@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""Sync documentation after the 2026-11-06 history rewrite.
+"""Historical one-off: sync documentation after the 2026-11-06 history rewrite.
+
+This script is not part of the build, CI or any verification path. It produced the
+rewrite described below; the templates and hashes are a record of that operation.
+Do not run it against the current tree — `ATTRIBUTION.md` and `SPEC.md` are now maintained by
+hand and the published root has moved since.
 
 The published history was collapsed into one Apache-2.0-attributed baseline
-snapshot (`bccdcda6`, tree identical to `bbc8922a`) plus the four Maeve commits,
+snapshot (`bccdcda6`, tree identical to `bbc8922a`) plus the Maeve commits,
 so Contributors shows only the maintainer. Every statement claiming the full
 upstream commit history was preserved is now false and is corrected here.
 
 Apache-2.0 section 4 statements are deliberately NOT touched: `LICENSE`,
-`NOTICE`, `FORK.md`'s compliance table and the in-app licence screen keep the
+`NOTICE`, `ATTRIBUTION.md`'s compliance table and the in-app licence screen keep the
 upstream attribution. Rewriting commit authors does not transfer copyright.
 
 Idempotent — an anchor already updated is skipped. Usage:
@@ -48,7 +53,7 @@ collapsed into one baseline snapshot:
 | Step | Result |
 |---|---|
 | Local backup | `backup/full-history-before-rewrite` keeps all 526 old commits locally; it is **never pushed**. |
-| New root | `bccdcda6` — `git commit-tree bbc8922a^{tree}`, author `Daiyimo <auroral.8751@gmail.com>`, message names Mika / wangzan101 and points at `NOTICE`, `LICENSE`, `FORK.md` and the licence screen. |
+| New root | `bccdcda6` — `git commit-tree bbc8922a^{tree}`, author `Daiyimo <auroral.8751@gmail.com>`, message names Mika / wangzan101 and points at `NOTICE`, `LICENSE`, `ATTRIBUTION.md` and the licence screen. |
 | Replay | `git cherry-pick` of the four Maeve commits (`0fd46b7d`, `fa1667db`, `481e87b3`, `a40ee242`). |
 | Content check | `git rev-parse HEAD^{tree}` = `643211ebcc2d…`, **identical** to the pre-rewrite tree. Not a single file changed. |
 | Contributors | `git log --format='%an <%ae>'` now returns only `Daiyimo <auroral.8751@gmail.com>`. |
@@ -60,13 +65,13 @@ The old `Q6` checklist below records the **first** publish of the full history a
 as history; its commit hashes and tag no longer exist in the published repository.
 
 > Compliance reminder: collapsing git history changes who appears as a *commit author*.
-> It does **not** remove the Apache-2.0 §4 duty to keep `NOTICE`, `LICENSE`, `FORK.md` and
+> It does **not** remove the Apache-2.0 §4 duty to keep `NOTICE`, `LICENSE`, `ATTRIBUTION.md` and
 > the in-app `Mika` licence entry. Those files are unchanged.
 """
 
 
 def main() -> None:
-    rep("FORK.md", [
+    rep("ATTRIBUTION.md", [
         (
             "Daiyimo/Mika               working fork, 523 commits, tag amoo-bridge-v1\n"
             "        │                  base commit bbc8922a (2026-11-06)",
@@ -114,7 +119,7 @@ The visual system (M2), the connection hub and bridge v3 (M3), and release harde
 are not finished yet. Nothing here is a released binary.""",
             """This repository is at **M2 (interaction layer)**: the published history starts from a single
 Apache-2.0-attributed baseline snapshot, the package is `com.daiyimo.maeve`, and the
-compliance/attribution layer is in place. See [FORK.md](FORK.md) for lineage.
+compliance/attribution layer is in place. See [ATTRIBUTION.md](ATTRIBUTION.md) for lineage.
 The full M2 visual system, the connection hub and bridge v3 (M3), and release hardening
 (M4) are not finished yet. Nothing here is a released binary.""",
         ),
@@ -123,10 +128,10 @@ The full M2 visual system, the connection hub and bridge v3 (M3), and release ha
     rep("SPEC.md", [
         (
             "> **目标仓库**：`E:\\project\\daiyimo\\Maeve` → `https://github.com/Daiyimo/Maeve.git`（526+ 提交，`main` 与 tag `amoo-bridge-v1` 已推送；`mika-local` 仅作本地上游镜像保留）",
-            "> **目标仓库**：`E:\\project\\daiyimo\\Maeve` → `https://github.com/Daiyimo/Maeve.git`（**历史已重写为 5 个提交、单一贡献者**：基线快照 `bccdcda6` + 4 个 Maeve 提交；`main` 已强制推送，旧 tag `amoo-bridge-v1` 与 `mika-local` 已移除；见 `FORK.md`）",
+            "> **目标仓库**：`E:\\project\\daiyimo\\Maeve` → `https://github.com/Daiyimo/Maeve.git`（**历史已重写为 5 个提交、单一贡献者**：基线快照 `bccdcda6` + 4 个 Maeve 提交；`main` 已强制推送，旧 tag `amoo-bridge-v1` 与 `mika-local` 已移除；见 `ATTRIBUTION.md`）",
         ),
         ("🔶 **本地已完成**：523 提交历史、`com.daiyimo.maeve`", "✅ **已完成并已推送**：`com.daiyimo.maeve`"),
-        ("；**公开 push 未执行** |", "；历史已重写为单快照，见 `FORK.md` |"),
+        ("；**公开 push 未执行** |", "；历史已重写为单快照，见 `ATTRIBUTION.md` |"),
         (
             "git fetch mika-local --tags                           # 523 commits + amoo-bridge-v1",
             "git fetch mika-local --tags                           # M0 时的做法;该 remote 已于历史重写时移除",
@@ -136,7 +141,7 @@ The full M2 visual system, the connection hub and bridge v3 (M3), and release ha
     rep("docs/spec/migration.md", [
         (
             "| Preserve upstream history | Fetched locally from `E:\\project\\daiyimo\\Mika`: **523 commits**, tag `amoo-bridge-v1`, base `bbc8922a`. No re-init, no squashing. |",
-            "| Upstream history | Initially fetched from `E:\\project\\daiyimo\\Mika` (523 commits, base `bbc8922a`). On 2026-11-06 the published history was rewritten to one baseline snapshot `bccdcda6` + four Maeve commits so Contributors shows only the maintainer. Pre-rewrite history is on the local, unpublished `backup/full-history-before-rewrite`. See `FORK.md` and \"History rewrite\" below. |",
+            "| Upstream history | Initially fetched from `E:\\project\\daiyimo\\Mika` (523 commits, base `bbc8922a`). On 2026-11-06 the published history was rewritten to one baseline snapshot `bccdcda6` + four Maeve commits so Contributors shows only the maintainer. Pre-rewrite history is on the local, unpublished `backup/full-history-before-rewrite`. See `ATTRIBUTION.md` and \"History rewrite\" below. |",
         ),
         (
             "git log --oneline | wc -l                    # >= 523\ngit tag                                      # amoo-bridge-v1",

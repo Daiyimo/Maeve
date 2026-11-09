@@ -50,6 +50,7 @@ object Licenses {
 
     val ENTRIES = listOf(
         Entry("Maeve", "Apache-2.0", "Maeve 本身,包括运行环境的启动器、其中的 maeve 命令与技能脚本。许可证全文见本页顶上。"),
+        Entry("Mika", "Apache-2.0", "Maeve 的部分代码源自 Mika,版权 2026 wangzan101;原始 NOTICE 与许可全文见本页顶部的 NOTICE。"),
         Entry("PRoot", "GPL-2.0-or-later", "运行 Python、Node 等程序用的环境,版本 5.4.0,打了一个补丁(PRoot 退出时结束所有子进程)。$GPL_SOURCE_OFFER"),
         Entry("talloc", "LGPL-3.0-or-later", "版本 2.4.3,未修改,静态链接进 PRoot 程序。可用 tools/sandbox/ 的源码与脚本重新链接。"),
         Entry("Apache Commons Compress", "Apache-2.0", "首次启动时解包自带的运行环境。Copyright 2002-2025 The Apache Software Foundation."),

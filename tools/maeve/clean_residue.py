@@ -2,7 +2,7 @@
 """Remove the upstream author's self-promotion and re-attribute the About page.
 
 * `about_author` -> 戴以沫 / Dai Yimo in all 10 UI languages. Upstream attribution is
-  NOT deleted from the project: NOTICE (verbatim), FORK.md and the first
+  NOT deleted from the project: NOTICE (verbatim), ATTRIBUTION.md and the first
   `LicensesScreen` entry still name Mika / Wang Zan, which is what Apache-2.0
   §4(c)/(d) requires. Only the user-facing "made by" line changes.
 * `chat_example_follow` (follow Wang Zan / @wangzan101 in every locale) and

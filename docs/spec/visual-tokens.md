@@ -3,8 +3,12 @@
 > Source of truth: [SPEC.md](../../SPEC.md) §2.2 and §3. This file is the hand-off between
 > design and implementation. **All values below are design decisions, not code.** dsh-Go is
 > AGPL-3.0; only its decisions (colour-derivation rules, contrast guards, motion durations)
-> may be consulted. Re-implement everything in Kotlin/Compose; copy no source, icon, font
-> or asset.
+> may be consulted. Re-implement everything in the app's own stack (Flutter now, Compose for
+> the surfaces still in service); copy no source, icon, font or asset.
+>
+> **Status (2026-11-09):** the Flutter shell implements its own tokens in
+> `flutter/lib/design/maeve_tokens.dart`; this contract remains the design reference until
+> the Flutter theme reaches parity.
 
 ## 1. Colour derivation (OKLCH)
 
@@ -51,7 +55,7 @@ Four surface tiers, each with `fill / blurSigma / saturation / hairline / rim / 
 | `pill` | 0.55 | — | — |
 
 - Only **outer** shadows; no inner glow, no elevation tint.
-- One full-screen backdrop per page; `BackdropVeil` fades only inside its band. Switching
+- One full-screen backdrop per page; the backdrop veil fades only inside its band. Switching
   tabs must not rebuild or flash the backdrop.
 - When `blurEnabled = false`, use an opaque `fallbackFill` and **do not create** a blur layer.
 - Grouped backdrop sampling: one `BackdropFilter.grouped` for a group of glass siblings.
@@ -93,8 +97,8 @@ tool cards, never launcher icons.
 ## 5. Deliverables and acceptance
 
 `ui/theme/`: `MaeveColors` (OKLCH + presets + derive/guard), `MaevePalette`,
-`MaeveSurfaces`, `MaeveShapes`, `MaeveMotion`, `MaeveSemanticColors`, `MaeveTheme`.
-`res/mipmap-anydpi-v26/`: four adaptive icons + monochrome. `LauncherIconController.kt`.
+`MaeveSurfaces`, `MaeveShapes`, `MaeveMotion`, `MaeveSemantic`, `MaeveTheme`.
+`res/mipmap-anydpi-v26/`: four adaptive icons + monochrome. `app/ui/LauncherIcon.kt`.
 
 Acceptance (M2):
 

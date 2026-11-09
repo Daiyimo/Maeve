@@ -1,0 +1,54 @@
+name: Device report
+description: Report a device, Android version or permission problem with Maeve.
+title: "[兼容性] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The app opens this template from Settings › Recovery & repair › Compatibility
+        self-check. Copy the report there and paste it below; do not paste API keys,
+        account names or private content.
+  - type: input
+    id: device
+    attributes:
+      label: Device and Android version
+      description: The model and Android release shown at the top of the self-check report.
+      placeholder: PZ261A / Android 16
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Phone control (accessibility / virtual display)
+        - Wireless debugging / shell helper
+        - Built-in browser
+        - Sandbox
+        - Model provider
+        - UI / language
+        - Something else
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Compatibility report
+      description: Paste the full text from "Copy report". It is already sanitized.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: I removed account names, API keys, phone numbers and private content.
+          required: true

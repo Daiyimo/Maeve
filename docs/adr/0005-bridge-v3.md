@@ -1,3 +1,4 @@
+<!-- docs-check: spans-off — Proposed protocol names and historical field names -->
 # ADR-0005 · `maeve-bridge` v3: heartbeat, codes, idempotency
 
 **Status:** Proposed · **Date:** 2026-11-06 · **Spec:** §13.8 · [protocol](../spec/bridge-v3.md)

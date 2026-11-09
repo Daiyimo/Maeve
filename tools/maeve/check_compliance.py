@@ -33,15 +33,16 @@ check(notice.startswith("Mika\nCopyright 2026 wangzan101"),
       "NOTICE must begin with the verbatim upstream attribution "
       "'Mika / Copyright 2026 wangzan101' (Apache-2.0 4(d))")
 
-# 2. License text and fork record.
+# 2. License text and provenance record.
 license_text = read("LICENSE")
 check("Apache License" in license_text and "Version 2.0" in license_text,
       "LICENSE is not the Apache-2.0 full text")
-read("FORK.md")
+read("ATTRIBUTION.md")
 
-# 3. README must state the fork and the IP disclaimer on the first screen.
+# 3. README must state the independent identity, attribution pointer and IP disclaimer.
 readme = read("README.md")
-check("github.com/wangzan101/Mika" in readme, "README lost the upstream fork link")
+check("independent" in readme, "README must describe Maeve as an independent project")
+check("NOTICE" in readme, "README lost the attribution pointer")
 check("not affiliated with or endorsed by HBO" in readme,
       "README lost the Westworld/HBO disclaimer")
 
@@ -54,8 +55,10 @@ names = re.findall(r'Entry\("([^"]+)"', body)
 check(len(headings) >= 16, "THIRD_PARTY_NOTICES.md looks truncated")
 for h in headings:
     check(h in names, f"third-party notice not shown in LicensesScreen: {h}")
-check(bool(names) and names[0] == "Mika",
-      "LicensesScreen must keep 'Mika' as its first entry (upstream attribution)")
+check(bool(names) and names[0] == "Maeve",
+      "LicensesScreen must show Maeve as its first entry")
+check("Mika" in names,
+      "LicensesScreen must keep the Mika attribution entry (Apache-2.0 4(d))")
 check("gpl-sources.tar.gz" in screen,
       "GPL source offer string lost from LicensesScreen")
 
@@ -77,7 +80,7 @@ check('rootProject.name = "Maeve"' in read("settings.gradle.kts"),
 check('versionName = "0.1.0-dolores"' in gradle, "release codename missing from versionName")
 
 # 7. No residual upstream package identifier in CODE/CONFIG. Markdown is excluded on
-#    purpose: FORK.md, SPEC.md and the archived reports must be able to describe the
+#    purpose: ATTRIBUTION.md, SPEC.md and the archived reports must be able to describe the
 #    upstream package name as historical fact.
 allowed = {"tools/maeve"}
 skip_dirs = {".git", "build", ".gradle", ".kotlin", ".idea", "__pycache__"}

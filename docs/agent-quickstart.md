@@ -2,16 +2,16 @@
 
 简体中文 | [English](agent-quickstart.en.md)
 
-给电脑上的 AI Agent：按下面的固定步骤安装 Mika 并连接手机，不用自己权衡方案。完整说明见[安装](computer-install.md)和[CLI](cli.md)。
+给电脑上的 AI Agent：按下面的固定步骤安装 Maeve 并连接手机，不用自己权衡方案。完整说明见[安装](computer-install.md)和[CLI](cli.md)。
 
 ## 1. 解析最新版本 tag
 
 ```sh
-curl -s https://api.github.com/repos/wangzan101/Mika/releases/latest   # 取 tag_name
+curl -s https://api.github.com/repos/Daiyimo/Maeve/releases/latest   # 取 tag_name
 ```
 
 ```powershell
-(Invoke-RestMethod https://api.github.com/repos/wangzan101/Mika/releases/latest).tag_name
+(Invoke-RestMethod https://api.github.com/repos/Daiyimo/Maeve/releases/latest).tag_name
 ```
 
 下文 `<tag>` 即该值（如 `v0.1.31`），`<ver>` 是去掉 `v` 的版本号（如 `0.1.31`）。
@@ -19,7 +19,7 @@ curl -s https://api.github.com/repos/wangzan101/Mika/releases/latest   # 取 tag
 ## 2. 选 CLI 还是 Skill
 
 - Agent 支持 Skill：**默认装 Skill**，它自带 CLI 脚本。
-- 否则装 CLI：`pipx install 'git+https://github.com/wangzan101/Mika.git@<tag>#subdirectory=tools/mika'`。
+- 否则装 CLI：`pipx install 'git+https://github.com/Daiyimo/Maeve.git@<tag>#subdirectory=tools/mika'`。
 
 ## 3. 安装 Skill
 
@@ -28,19 +28,19 @@ curl -s https://api.github.com/repos/wangzan101/Mika/releases/latest   # 取 tag
 POSIX：
 
 ```sh
-curl -L -o mika.zip https://github.com/wangzan101/Mika/archive/refs/tags/<tag>.zip
+curl -L -o mika.zip https://github.com/Daiyimo/Maeve/archive/refs/tags/<tag>.zip
 unzip -q mika.zip -d mika-src
-mkdir -p <技能目录> && cp -R mika-src/Mika-<ver>/tools/mika <技能目录>/mika
+mkdir -p <技能目录> && cp -R mika-src/Maeve-<ver>/tools/mika <技能目录>/mika
 python3 <技能目录>/mika/scripts/mika_cli.py --version
 ```
 
 Windows PowerShell：
 
 ```powershell
-Invoke-WebRequest https://github.com/wangzan101/Mika/archive/refs/tags/<tag>.zip -OutFile mika.zip
+Invoke-WebRequest https://github.com/Daiyimo/Maeve/archive/refs/tags/<tag>.zip -OutFile mika.zip
 Expand-Archive mika.zip -DestinationPath mika-src
 New-Item -ItemType Directory -Force "<技能目录>" | Out-Null
-Copy-Item -Recurse mika-src\Mika-<ver>\tools\mika "<技能目录>\mika"
+Copy-Item -Recurse mika-src\Maeve-<ver>\tools\mika "<技能目录>\mika"
 py -3 "<技能目录>\mika\scripts\mika_cli.py" --version
 ```
 
@@ -61,7 +61,7 @@ py -3 "<技能目录>\mika\scripts\mika_cli.py" --version
    mika --url http://PHONE:8765 --token-file /path/to/token doctor --json
    ```
 
-状态 `unauthorized`：让用户在手机上允许 USB 调试。`offline`：让用户重新插拔数据线。读不到连接信息（`connection_info`）：让用户解锁手机、打开一次 Mika，再运行 `connect`。
+状态 `unauthorized`：让用户在手机上允许 USB 调试。`offline`：让用户重新插拔数据线。读不到连接信息（`connection_info`）：让用户解锁手机、打开一次 Maeve，再运行 `connect`。
 
 ## 注意
 

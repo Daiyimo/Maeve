@@ -68,7 +68,7 @@ class MaeveRunDeviceTest {
     }
 
     @Test
-    fun kill9MikarunLeavesNoSleep() {
+    fun kill9MaeverunLeavesNoSleep() {
         val marker = "1003"
         val script = "setsid sleep $marker & sleep $marker"
         val p = start(launcher("--timeout", "600") + proot("/bin/sh", "-c", script))

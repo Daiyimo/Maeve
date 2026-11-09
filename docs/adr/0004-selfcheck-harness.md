@@ -1,3 +1,4 @@
+<!-- docs-check: spans-off — Historical ADR; names describe the decision record -->
 # ADR-0004 · Extend `SelfCheck` into the official acceptance harness
 
 **Status:** Proposed · **Date:** 2026-11-06 · **Spec:** §13.7

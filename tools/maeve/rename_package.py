@@ -29,7 +29,7 @@ NEW_PATH = "com/daiyimo/maeve"
 
 # Never touch git internals, build output, the migration tooling, or Maeve's own
 # documentation: those files deliberately quote the OLD package name as historical
-# fact (FORK.md, docs/spec/bridge-v3.md, ADR-0005, the archived analysis reports).
+# fact (ATTRIBUTION.md, docs/spec/bridge-v3.md, ADR-0005, the archived analysis reports).
 # Rewriting them would falsify the change record. The script must stay idempotent
 # after the docs have been added.
 SKIP_PREFIXES = (
@@ -38,7 +38,7 @@ SKIP_PREFIXES = (
     "build/", "app/build/", "core/build/",
 )
 SKIP_DIR_NAMES = {"__pycache__", ".git"}
-SKIP_FILES = {"SPEC.md", "FORK.md", "SECURITY.md", "rename_package.py"}
+SKIP_FILES = {"SPEC.md", "ATTRIBUTION.md", "SECURITY.md", "rename_package.py"}
 
 MAX_BYTES = 2 * 1024 * 1024
 

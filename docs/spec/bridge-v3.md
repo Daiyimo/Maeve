@@ -98,7 +98,7 @@ rename failure). **Every field is always present**; missing values are `null`.
 1. **Heartbeat.** Refresh `running` every 5 s, and immediately whenever status or `step`
    changes. Do not write on every 1.5 s poll — that needlessly wears external storage.
    The skill treats `now - updated_at > 30 s` as stale, waits at most 16 min; Maeve writes
-   `failed/TIMEOUT` at 15 min. This fixes the observed "amoo gives up at 4 min / Mika at 6
+   `failed/TIMEOUT` at 15 min. This fixes the observed "amoo gives up at 4 min / Maeve at 6
    min" failure mode and the 50 % cancellation rate in the sample `out/` directory.
 2. **Idempotency.** `requestId = UUIDv5(NAMESPACE_URL, "maeve:amoo:" + id)`. Replaying the
    same `in/` file yields the same task ID and receipts can deduplicate.

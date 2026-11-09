@@ -106,13 +106,13 @@ tasks.test {
     // updateReadme 先改写 README,同一次构建里测试要读改写后的
     mustRunAfter(updateReadme)
     // 循环场景的消息序列金样;-PupdateSnapshots 时重新生成(见 LoopSnapshot)
-    systemProperty("mika.snapshotDir", file("src/test/resources/loop-snapshots").absolutePath)
+    systemProperty("maeve.snapshotDir", file("src/test/resources/loop-snapshots").absolutePath)
     // 提示词表面(系统提示词、工具定义、反馈文字)的金样;同样用 -PupdateSnapshots 重新生成(见 PromptSurface)
-    systemProperty("mika.promptSurfaceDir", file("src/test/resources/prompt-surface").absolutePath)
+    systemProperty("maeve.promptSurfaceDir", file("src/test/resources/prompt-surface").absolutePath)
     val updateSnapshots = project.hasProperty("updateSnapshots")
     inputs.property("updateSnapshots", updateSnapshots)
     if (updateSnapshots) {
-        systemProperty("mika.updateSnapshots", "true")
+        systemProperty("maeve.updateSnapshots", "true")
         outputs.upToDateWhen { false }
     }
 }

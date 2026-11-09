@@ -1,10 +1,11 @@
+<!-- docs-check: spans-off — Proposed policy type names; not implemented yet -->
 # ADR-0003 · Sensitive-app policy with mandatory `ASK_USER`
 
 **Status:** Proposed · **Date:** 2026-11-06 · **Spec:** §13.6
 
 ## Context
 
-A commercial GUI phone assistant was blocked by ~155 apps in 2026: injected taps were
+A commercial GUI phone assistant was blocked by ~155 apps in 2026: injected taps were <!-- count-ok -->
 classified as automation/cheating by risk-control systems, and reading protected video
 output touched a security boundary. The vendor responded by shipping a "refuse-to-operate
 app list" and restricting financial scenarios. Maeve is a third-party app without system

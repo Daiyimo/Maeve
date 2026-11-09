@@ -1,15 +1,15 @@
-# Mika 文档
+# Maeve 文档
 
 简体中文 | [English](README.en.md)
 
-这里是 Mika 的全部文档。第一次用，按「上手」的顺序读就够了；其余的遇到再查。
+这里是 Maeve 的全部文档。第一次用，按「上手」的顺序读就够了；其余的遇到再查。
 
 ## 上手（按顺序）
 
 | 文档 | 讲什么 | 什么时候看 |
 | --- | --- | --- |
 | [模型与登录](models.md) | 添加模型服务商、用账号登录、思考强度、用自己电脑或局域网里的模型 | 装好以后第一件事 |
-| [设置手机操作](setup-guide.md) | 配对无线调试、无障碍、用电脑经 USB 启动，一步一步来 | 要 Mika 操作手机 App 时；只聊天、上网、处理文件可以跳过 |
+| [设置手机操作](setup-guide.md) | 配对无线调试、无障碍、用电脑经 USB 启动，一步一步来 | 要 Maeve 操作手机 App 时；只聊天、上网、处理文件可以跳过 |
 | [询问与自主](modes.md) | 两种模式下哪些步骤先问你 | 开始让它办正事之前 |
 
 ## 用起来
@@ -22,15 +22,15 @@
 
 ## 从电脑使用
 
-先读[从电脑使用 Mika](computer.md)：选 CLI + Skill 还是 MCP、经 USB 还是 Wi-Fi / VPN 连接。选好以后按下面对应的一份做。
+先读[从电脑使用 Maeve](computer.md)：选 CLI + Skill 还是 MCP、经 USB 还是 Wi-Fi / VPN 连接。选好以后按下面对应的一份做。
 
 | 文档 | 讲什么 |
 | --- | --- |
 | [CLI / Skill：安装、升级和卸载](computer-install.md) | 在电脑上装 `mika` 命令或 Agent 用的 Skill |
 | [CLI 与 Skill：连接与任务命令](cli.md) | 连接手机、派任务、查进度、追问和插话的命令 |
-| [电脑连接（MCP）](mcp.md) | 让 MCP 客户端把任务交给 Mika：USB、Wi-Fi / VPN、工具、安全 |
+| [电脑连接（MCP）](mcp.md) | 让 MCP 客户端把任务交给 Maeve：USB、Wi-Fi / VPN、工具、安全 |
 | [用电脑上的 AI 助手安装](install-with-agent.md) | 写给电脑上的 AI 助手看的安装步骤：手机经 USB 连着电脑时，把这份交给它，它替你装好 |
 
 ## 参与开发
 
-想贡献代码、补 App 和网站的使用知识，先读[贡献指南](../.github/CONTRIBUTING.zh-CN.md)，再看[开发文档](dev/README.md)（架构、知识格式、路线图等）。
+想贡献代码、补 App 和网站的使用知识，先读[贡献指南](../CONTRIBUTING.md)，再看[开发文档](dev/README.md)（架构、工程规范、知识格式、路线图等）。Flutter 外壳的构建与限制见 [FLUTTER_MIGRATION.md](../FLUTTER_MIGRATION.md)。

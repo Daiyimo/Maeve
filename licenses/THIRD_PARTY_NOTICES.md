@@ -256,7 +256,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   appear in this file, in `LicensesScreen.kt`, or in `app/src/main/assets/licenses/`.
 - Action required before any public release: verify the applicable terms and data-handling
   clauses, add the exact licence/notice text here and in the APK's licence screen, and
-  record the decision in `FORK.md`. Until then this entry is a **disclosure, not a clearance**.
+  record the decision in `ATTRIBUTION.md`. Until then this entry is a **disclosure, not a clearance**.
 
 ## Distribution obligations: GPL / LGPL components
 

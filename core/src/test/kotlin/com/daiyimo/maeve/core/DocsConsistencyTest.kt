@@ -7,7 +7,8 @@ import java.io.File
 
 /**
  * 文档和代码不脱节:文档里反引号包着的文件路径、Kotlin 类名、工具名,必须在仓库里真的有。
- * 范围:README.md、docs/ 下全部 .md(含 docs/readme/ 里各语言的 README)、eval/README.md、tools/sandbox/README.md。
+ * 范围:README.md、docs/ 下全部 .md(含 docs/readme/ 里各语言的 README;docs/reference/ 除外,
+ * 那是上游 Mika 的存档分析,按 ATTRIBUTION.md 保持原样)、eval/README.md、tools/sandbox/README.md。
  * 另外,同样这些文档里不写死会变的个数(内置知识、工具、服务商、评测题有多少),见 [docsDoNotHardCodeCounts]。
  *
  * 只检查「整段反引号内容就是一个标识符」的写法;下面这些一律不查(规则,不是白名单):
@@ -17,8 +18,8 @@ import java.io.File
  *  - 路径:带 / 的,只有第一段是仓库根下真有的目录或文件才查(`files/sandbox/rootfs`、`read/system` 这类是运行时产物或分类名);
  *    不带 / 的,只有代码类扩展名(kt、py、xml 等)才查,json、md、txt 这类常是运行时产物;
  *    查的时候:根目录下直接存在,或「模块/包路径/文件」的简写(`app/task/X.kt`),或中间用 ... 省略(`core/.../X.kt`),或短文件名在仓库任意位置;
- *  - 类名:大驼峰且至少两个大写字母(`Maeve` 这样的单词不当类名);在 core、app 的源码(含测试)里有 class/object/interface/typealias
- *    声明或同名文件;源码里从本仓库以外的包导入过的(安卓、JDK、库的类)不归本仓库管;
+ *  - 类名或函数名:大驼峰且至少两个大写字母(`Maeve` 这样的单词不当符号);在 core、app 的源码(含测试)里有
+ *    class/object/interface/typealias/fun 声明或同名文件;源码里从本仓库以外的包导入过的(安卓、JDK、库的类)不归本仓库管;
  *  - 工具名:只查「第一段是现有工具名的第一段」的 snake_case(`max_seconds` 这样的参数名不查),对照 [knownToolNames],
  *    那是工具注册处的名单,不是金样快照。
  */
@@ -44,7 +45,10 @@ class DocsConsistencyTest {
 
     private fun docs(): List<File> {
         val list = mutableListOf(File(root, "README.md"), File(root, "eval/README.md"), File(root, "tools/sandbox/README.md"))
-        File(root, "docs").takeIf { it.isDirectory }?.walkTopDown()?.filter { it.isFile && it.extension == "md" }?.let { list += it }
+        File(root, "docs").takeIf { it.isDirectory }?.walkTopDown()
+            // 存档的上游分析按原样保留,不拿它对照本仓库的代码;和 [skipDirs] 的意图一致
+            ?.onEnter { it.name !in skipDirs }
+            ?.filter { it.isFile && it.extension == "md" }?.let { list += it }
         return list.filter { it.isFile }
     }
 
@@ -102,21 +106,27 @@ class DocsConsistencyTest {
         else repoFiles.any { it.startsWith("$first/") && it.endsWith("/$rest") }
     }
 
-    private fun classExists(name: String): Boolean =
-        name in sourceNames || Regex("""\b(class|object|interface|typealias)\s+$name\b""").containsMatchIn(sourceText)
+    private fun symbolExists(name: String): Boolean =
+        name in sourceNames ||
+            Regex("""\b(class|object|interface|typealias|fun)\s+$name\b""").containsMatchIn(sourceText)
 
     private fun importedFromOutside(name: String): Boolean =
-        Regex("""(?m)^import\s+(?!com\.wangzan101\.maeve\.)[\w.]+\.$name\b""").containsMatchIn(sourceText)
+        Regex("""(?m)^import\s+(?!com\.daiyimo\.maeve\.)[\w.]+\.$name\b""").containsMatchIn(sourceText)
+
+    /** 历史记录、外部平台 API 或计划中的名字,写明了就整篇不查 span;理由必须写在同一行。 */
+    private val spansOff = "<!-- docs-check: spans-off"
 
     private fun problems(doc: File): List<String> {
         val rel = doc.relativeTo(root).invariantSeparatorsPath
-        return spans(doc.readText()).distinct().mapNotNull { s ->
+        val text = doc.readText()
+        if (spansOff in text) return emptyList()
+        return spans(text).distinct().mapNotNull { s ->
             if (notIdentifier.containsMatchIn(s)) return@mapNotNull null
             when {
                 isPath(s) -> if (pathExists(s)) null else "$rel: 路径 `$s` 在仓库里找不到"
                 tool.matches(s) -> if (s.substringBefore('_') !in toolPrefixes || s in toolNames) null else "$rel: 工具名 `$s` 不在现有工具里"
                 classLike.matches(s) && s.count { it.isUpperCase() } >= 2 && s.any { it.isLowerCase() } ->
-                    if (classExists(s) || importedFromOutside(s)) null else "$rel: 类名 `$s` 在 core/app 的源码里找不到"
+                    if (symbolExists(s) || importedFromOutside(s)) null else "$rel: 类名或函数名 `$s` 在 core/app 的源码里找不到"
                 else -> null
             }
         }
@@ -157,7 +167,7 @@ class DocsConsistencyTest {
         assertTrue("找不到仓库根目录(工作目录应为 core/)", File(root, "settings.gradle.kts").isFile)
         assertTrue("没找到文档", docs().size >= 5)
         assertTrue(toolNames.contains("knowledge_read"))
-        assertTrue(classExists("ToolDef"))
+        assertTrue(symbolExists("ToolDef"))
         assertTrue(spans(docs().joinToString("\n") { it.readText() }).size > 50)
     }
 

@@ -1,178 +1,135 @@
-<!-- translated-from: README.md @ 84f9797eaed8 -->
-<div align="center">
-
-<img src="../media/logo.png" alt="Mika" width="88" />
-
-# Mika
-
-**スマホの中の AI アシスタント。ひと言伝えれば、アプリやウェブを操作して用事を片づけてくれます。**
-
-作業は見えないバックグラウンド画面で進むので、その間もスマホはいつもどおり使えます。
-
-<a href="https://github.com/wangzan101/Mika/releases/latest"><img src="https://img.shields.io/badge/APK%20%E3%82%92%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89-Android%2011%2B-2ea043?style=for-the-badge&logo=android&logoColor=white" alt="APK をダウンロード" /></a>
-
-<a href="https://github.com/wangzan101/Mika/stargazers"><img src="https://img.shields.io/github/stars/wangzan101/Mika?style=flat&logo=github&label=Star&color=1f6feb" alt="stars" /></a>
-<a href="https://github.com/wangzan101/Mika/releases"><img src="https://img.shields.io/github/downloads/wangzan101/Mika/total?label=%E3%83%80%E3%82%A6%E3%83%B3%E3%83%AD%E3%83%BC%E3%83%89&color=2ea043" alt="downloads" /></a>
-<a href="https://github.com/wangzan101/Mika/releases/latest"><img src="https://img.shields.io/github/v/release/wangzan101/Mika?include_prereleases&label=%E3%83%90%E3%83%BC%E3%82%B8%E3%83%A7%E3%83%B3" alt="version" /></a>
-<a href="../../LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-lightgrey" alt="license" /></a>
+<!-- translated-from: README.md @ d12900005a97 -->
+# Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · 日本語 · [한국어](README.ko.md) · [Español](README.es.md)
 
-<sub>この日本語版は中国語（簡体字）版からの翻訳です。不自然な表現や原文とのずれに気づいたら、ぜひ PR で直してください。</sub>
+**ループは Maeve が回す。画面はあなたのもの。**
 
-<br/>
+Android のための AI エージェント。あなたが見ることのない画面で仕事を片づけるので、
+スマホはいつでもあなたのままです。
 
-<img src="../media/wechat-send-side.gif" alt="ひと言で、Mika がバックグラウンド画面で WeChat を開き、相手を探してメッセージを送る様子" width="640" />
+*Maeve は独立して保守されている Apache-2.0 プロジェクトです。第三者コードと素材の表示は [NOTICE](../../NOTICE) を参照してください。*
 
-<sub>「ファイル転送アシスタントにメッセージを送って」のひと言で：左は Mika とのチャット、右はバックグラウンド画面での一つひとつの操作（4 倍速、チャット一覧はぼかし処理済み）</sub>
+*Maeve は HBO、Warner Bros.、『ウエストワールド』とは関係がなく、推奨も受けていません。
+この名前は一般的な人名として使い、作品の設定を指しています。*
 
-</div>
+> *"Surviving is just another loop."* — Maeve Millay, 『ウエストワールド』S1E7
 
-## ひと言で、用事がひとつ片づく
+リリースコードネーム：**Dolores** · `v0.1.0` · [SPEC.md](../../SPEC.md)
 
-<table>
-<tr>
-<td align="center" width="33%"><img src="../media/wechat-group.gif" width="230" alt="WeChat のグループを読み通して、今日の話題をまとめる" /><br/><b>「グループで今日なにを話してたかまとめて」</b><br/><sub>バックグラウンドで履歴を読み通してから要約</sub></td>
-<td align="center" width="33%"><img src="../media/amazon-cart.gif" width="230" alt="通販サイトで充電器を選んでカートに入れる" /><br/><b>「30 ドル以内で星 4.5 以上の充電器」</b><br/><sub>選んでカートに入れ、決済の手前で止まる</sub></td>
-<td align="center" width="33%"><img src="../media/xhs-summary.gif" width="230" alt="あるクリエイターの最近の投稿をまとめる" /><br/><b>「このクリエイターの最近の投稿をまとめて」</b><br/><sub>アプリを開いて一件ずつ読み、整理する</sub></td>
-</tr>
-</table>
-
-<details>
-<summary>ほかのデモ</summary>
-
-<table>
-<tr>
-<td align="center" width="33%"><img src="../media/boss-greet.gif" width="230" alt="求人サイトで 3 件の求人に挨拶を送る" /><br/>求人サイトで 3 件の求人に挨拶を送る</td>
-<td align="center" width="33%"><img src="../media/google-flights.gif" width="230" alt="いちばん安い直行便を探す" /><br/>サンフランシスコ発ニューヨーク行きの最安直行便を探す</td>
-<td align="center" width="33%"><img src="../media/hacker-news.gif" width="230" alt="トップ 5 件の記事とスコアを読み上げる" /><br/>ニュースサイトのトップ 5 件を読み上げる</td>
-</tr>
-<tr>
-<td align="center"><img src="../media/job-greet.jpg" width="230" alt="求人を探して挨拶を送る" /><br/>求人を探して挨拶を送る</td>
-<td align="center"><img src="../media/music-vip.jpg" width="230" alt="広告を見て音楽アプリの特典をもらう" /><br/>広告を見て音楽アプリの特典をもらう</td>
-<td align="center"><img src="../media/food-order.jpg" width="230" alt="割引条件を満たすようにデリバリーを注文し、支払い前に確認する" /><br/>割引を組み合わせてデリバリーを注文、支払い前に確認</td>
-</tr>
-</table>
-
-</details>
-
-<sub>デモに出てくる WeChat はメッセージアプリ、小紅書（RED）はライフスタイル系の SNS です。Mika は特定のアプリ専用ではなく、スマホに入っているどのアプリやサイトでも使えます。</sub>
-
-## Mika を選ぶ理由
-
-| | |
-|---|---|
-| 📱 **画面を取られない** | 別のバックグラウンド画面でアプリを開き、タップ、入力、スクロールをこなします。その間もスマホは普段どおり。様子を見たいときは小さなプレビューをタップ |
-| 🧩 **どのアプリでも使える** | 人と同じように画面を見てボタンを探すので、アプリ側の API も事前の対応作業もいりません |
-| 🌐 **ウェブページからそのまま頼める** | 内蔵ブラウザで見ているページに向かってひと言いえば、そのページ上で作業します。ページに触れればすぐ止まります |
-| 🧠 **使うほど賢くなる** | 伝えた好みを覚え、うまくいった作業は自動でスキルにまとめて、次からはより速く確実に |
-| 🔒 **データはスマホの中だけ** | Mika のサーバーはありません。自分のモデル API キーを使うか、ChatGPT・xAI・OpenRouter のアカウントでログイン |
-| 🆓 **オープンソースで無料** | Apache-2.0、コードはすべて公開 |
-
-## 3 ステップで始める
-
-1. **インストール**：[Releases](https://github.com/wangzan101/Mika/releases/latest) から APK をダウンロード。
-2. **モデルをつなぐ**：設定 › モデル でプロバイダーを選んで API キーを入力するか、アカウントでログイン（[モデルとログイン](../models.en.md)）。
-3. **スマホのアプリを操作させたいとき**：設定の「Set up phone control」ウィザードに沿って、ワイヤレスデバッグを一度だけペアリング（[セットアップガイド](../setup-guide.en.md)）。チャット、ウェブ、ファイル処理だけならこの手順は不要です。
-
-あとは話しかけるだけ：「明日の朝 9:40 と 10:00 にアラームをセットして」「毎朝 8 時に天気を見て、雨のときだけ教えて」。
-
-> 💡 パソコンが手元にあるなら、この一文をパソコンの AI エージェントに送れば、代わりにセットアップしてくれます：<br/>
-> `https://github.com/wangzan101/Mika/blob/main/docs/install-with-agent.en.md の手順に従って、USB で接続している Android スマホに Mika をインストールしてください。`
+---
 
 ## できること
 
-| | |
+やってほしいことを伝えるだけ。Maeve は隠れたバックグラウンド画面を開き、画面を読み、
+アプリとウェブを操作して仕事を終わらせます。メイン画面は奪いません。
+
+- **スマホはあなたのまま。** 作業は別の仮想ディスプレイで進み、あなたはスクロールも視聴も入力も続けられます。
+- **いつでも割り込み、いつでも引き継ぎ。** 実行中に要件を足せますし、自分で操作することもできます。
+- **取り返しのつかないことは先に確認。** 支払い、削除、送信は確認ゲートを通ります。
+- **覚えています。** 好みや繰り返す手順はメモリとスキルになり、次回は速くなります。
+
+<details>
+<summary>アプリとウェブサイトの内蔵ナレッジ（未収録のアプリも使えます）</summary>
+
+一覧は `./gradlew updateReadme` が生成し、[英語 README](../../README.md) と
+[簡体字中国語 README](README.zh-CN.md) の折りたたみにあります。
+
+</details>
+
+<details>
+<summary>モデルプロバイダーのプリセット</summary>
+
+プリセット一覧も `./gradlew updateReadme` が生成します。[英語 README](../../README.md) を参照してください。
+キーを入れずに ChatGPT（Plus / Pro）、xAI / Grok、OpenRouter のアカウントでサインインすることもできます。
+
+</details>
+
+## 2 つの入口
+
+Maeve の実行カーネルは 1 つで、タスクの受け口が 2 つあります。どちらも同じ Agent ループと
+同じガードチェーンを通ります。リモートのタスクは、別に作られた弱い実装ではありません。
+
+| 経路 | 入口 | 典型的な使い方 |
+|---|---|---|
+| **R1 · 端末内** | Maeve 自身のチャット UI | スマホで直接頼む。アクセシビリティとバックグラウンド仮想ディスプレイが仕事をする。 |
+| **R2 · 別の Agent から駆動** | `/mcp` へのインバウンド MCP、または一部のシステム級 Agent ランタイムが使う端末内ファイルブリッジ | パソコンのアシスタントや端末上の Agent にタスクを任せ、結果を読み戻す。 |
+
+R1 に相棒の端末は不要です。R2 は任意で既定はオフですが、端末内ファイルブリッジの層だけは
+一度設定すればその後は邪魔をしません。2 つのリモート経路は**互換ではありません**。MCP は
+ネットワークサービスで、ファイルブリッジはサンドボックス内の Agent ランタイムが
+スマホの loopback ポートに届かない場合のためにあります。
+
+## 必要なもの
+
+- Android 11（API 30）以降。バックグラウンド画面は Android 14 以降が最も安定します。
+- **ADB またはワイヤレスデバッグの一度きりの許可。** 仮想ディスプレイは `shell` 権限で動く
+  ヘルパープロセスが作り、画面の読み取りはアクセシビリティサービス経由です。ゼロ権限の方法はありません。
+- **自分の LLM プロバイダー。** Maeve は端末で実行しますが、計画にはモデルが必要です。
+  エンドポイントとキーは設定で指定します。モデルの重みは同梱しません。
+- R2 を使う場合のみ：同じネットワークのパソコン、または USB `adb forward`。
+
+ネットワーク設定は今のところ平文 HTTP を許可しています。信頼できるエンドポイントと
+自分で管理するネットワークを使ってください。確認ゲートを包括的なプライバシー保証と
+みなさないでください。
+
+## ソースからビルド
+
+```bash
+git clone https://github.com/Daiyimo/Maeve.git
+cd Maeve
+./gradlew :app:assembleDebug
+```
+
+リポジトリには Gradle モジュールが 2 つと、埋め込みの Flutter モジュールが 1 つあります。
+
+| パス | 内容 |
 |---|---|
-| **アプリを操作** | 長いリストやチャット履歴を読む、タップや入力、アプリへのテキスト共有。ログイン、認証コード、支払いはあなたに任せます |
-| **ウェブを使う** | ログイン状態を保つ PC 版の内蔵ブラウザで、ページを読み、ダウンロードやアップロードも。ページ送りはペースを守り、ブロックされたらあなたに渡します |
-| **いま見ている画面** | フローティングカプセルをダブルタップすると、見ている画面を Mika に送れます：「これなんて返せばいい？」「メモしておいて」 |
-| **時間と条件** | 「明日の朝 9 時にリマインドして」「毎週金曜にこれをやって」。時間になると元の会話の中で実行します |
-| **いつでも口をはさめる、止められる** | 作業中でも話しかけて要望を足せます。まだ取り込まれていないものは長押しで取り消しや編集も可能。止めたときはどこまで進んだかを伝え、「続けて」でそこから再開します |
-| **押して話す** | 入力欄を押したまま話すと文字が入り、直してから送れます。フローティングカプセルは長押しで話し、指を離すとそのまま送信。端末の音声認識を使い、ない場合はプロバイダーの音声モデルを選べます |
-| **ファイルと計算** | 会話ごとに Linux サンドボックスがあり、Python、Node、シェルで送ったファイルを処理します（arm64） |
-| **パソコンからも使える** | パソコンの AI ツールから CLI + Skill または MCP で Mika に作業を頼めます（[パソコンから Mika を使う](../computer.en.md)） |
+| `:core` | 純粋な JVM Kotlin。Agent ループ、ツール、コンテキスト、ガード、ナレッジとスキル。 |
+| `:app` | Android ホスト。アクセシビリティ、仮想ディスプレイ、shell ヘルパー、WebView、サンドボックス、権限、および現役の Compose 画面。 |
+| `flutter/` | Compose UI を置き換えつつある Flutter シェル。`settings.gradle.kts` は Gradle モジュールとして含めず、`:app` がビルド済みの debug AAR を取り込みます。 |
 
-初期設定は**確認モード**です。お金がかかること（注文、支払い）だけは先に確認し、それ以外は最後までこなします。**自律モード**に切り替えることもできます。詳しくは[確認モードと自律モード](../modes.en.md)へ。
+AAR がないと Android ホストはコンパイルできません。Flutter モジュールのビルドが
+`flutter/` の下に `flutter-debug.aar` を書き出し、生成ディレクトリはリポジトリに入りません。
+先に Flutter モジュールをビルドしてからアプリを組み立ててください。ツールチェーン、キャッシュ、プロキシの落とし穴は
+[FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md) に記録されています。
 
-それぞれの使い方や細かい点は[機能の詳細](../features.en.md)をご覧ください。
+リリース署名、R8、CI は [M4](../../SPEC.md#10-里程碑与验收) の作業です。
 
-<details>
-<summary>使い方の知識が用意されているアプリとサイト（載っていないものも普通に使えます）</summary>
+## 現在の状態
 
-一覧は英語版 README の [What it can do](../../README.md#what-it-can-do) にあり、内蔵の知識に合わせて自動で更新されます。
+リポジトリは **M2（インタラクション層）** にあり、UI は Compose から Flutter シェルへ
+移行中です。公開履歴は Apache-2.0 の表示を含む単一のベースラインスナップショットから始まり、
+パッケージ名は `com.daiyimo.maeve`、コンプライアンスと表示の層は整っています。
+経緯は [ATTRIBUTION.md](../../ATTRIBUTION.md) を参照してください。
 
-</details>
+M2 の視覚システム全体、接続ハブと bridge v3（M3）、リリース強化（M4）は未完了です。
+Flutter シェルはワークベンチで、返信はローカルの遅延デモ、会話とメモリはプロセスメモリだけ、
+Android ホストはブリッジハンドラーをまだ登録していません。
+[FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md) に原型の制限がすべて並んでいます。
+ここにはリリース済みのバイナリはありません。
 
-<details>
-<summary>対応しているモデルプロバイダー</summary>
-
-内蔵のプロバイダープリセットと、「Custom」で接続できる API の種類は、英語版 README の [What it can do](../../README.md#what-it-can-do) に一覧があり、コードに合わせて自動で更新されます。
-
-API キーなしで、ChatGPT（Plus / Pro）、xAI / Grok、OpenRouter のアカウントでログインすることもできます。モデルの追加手順や、各サービスでログインするときの注意点は[モデルとログイン](../models.en.md)にまとめています。
-
-</details>
-
-## 対応スマホ
-
-| | 必要な環境 |
+| 場所 | 内容 |
 |---|---|
-| チャット、ウェブ、ファイル | Android 11 以降 |
-| スマホのアプリ操作 | Android 12 以降。**Android 14 以降を推奨**（バックグラウンド画面が独自のフォーカスを持つので、メイン画面での入力を邪魔しません） |
-| Linux サンドボックス | arm64 端末 |
+| [SPEC.md](../../SPEC.md) | 製品定義、アーキテクチャ、移行、コンプライアンス、マイルストーン |
+| [FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md) | Flutter シェル、モジュールビルド、ツールチェーン、制限と検証 |
+| `docs/spec/` | ビジュアルトークン、ハプティクス、bridge v3 プロトコル、移行メモ |
+| `docs/adr/` | アーキテクチャ決定記録 |
+| `docs/dev/` | アーキテクチャ、エンジニアリング標準、レビュー記録、個別メモ |
+| `docs/reference/` | 上流 Maeve ソースの分析アーカイブ（原文のまま） |
+| [ATTRIBUTION.md](../../ATTRIBUTION.md) | 来歴、変更点、Apache-2.0 §4 の声明 |
 
-自分のスマホで動くか不安なら、設定 › 復旧と修復 › **互換性セルフチェック** を実行してください。1 分ほどで 12 項目を確認でき、結果はワンタップで[私たちに送れます](https://github.com/wangzan101/Mika/issues/new?template=device-report.yml)。
+## コントリビューション
 
-## プライバシーと安全
+[CONTRIBUTING.md](../../CONTRIBUTING.md) を参照してください。コントリビュートすると、
+Apache-2.0（inbound = outbound、§5）でライセンスすることに同意したものとみなされます。
+上流プロジェクトには CLA も DCO もありません。
 
-- **Mika のサーバーはありません**：話した内容や画面の内容は、あなたが設定したモデルプロバイダーにだけ送られます。
-- API キーと記憶は暗号化してスマホに保存。会話と実行記録は端末内だけに残り、アップデートの確認で接続するのは GitHub だけです。
-- 他社のアプリやサイトを自動で操作すると、その利用規約に反する場合があります。ご自身で判断してください。大事な用事は確認モードで行い、結果を確かめてください。詳しくは[免責事項](../disclaimer.en.md)へ。
+## ライセンスと表示
 
-<details>
-<summary><b>よくある質問</b></summary>
+Apache-2.0 — [LICENSE](../../LICENSE) を参照してください。`NOTICE` は
+`Mika / Copyright 2026 wangzan101` をそのまま保持します。第三者および GPL/LGPL コンポーネントは
+[licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md) に列挙され、APK にも同梱されます。
 
-**ワイヤレスデバッグが勝手にオフになる？** Android は Wi-Fi を切り替えたときや再起動したときにオフにします。許可しておけば Mika が自分でオンに戻します。それでもつながらなければ、「Set up phone control」に戻ってペアリングし直してください。
-
-**ワイヤレスデバッグの項目が見つからない？** 項目そのものがないスマホもあります。その場合はパソコンから USB 経由でスマホアシスタントを起動できます。[セットアップガイド](../setup-guide.en.md)を参照してください。
-
-**読み取れない、キャプチャできない画面がある？** 支払いやパスワード入力などの画面はスクリーンショットが禁止されているので、Mika はあなたに操作を代わってもらいます。
-
-**自分のパソコンで動かしているモデルは使える？** 使えます。プロバイダーで「Custom」を選び、ローカルネットワーク上のアドレスを入力してください。
-
-**アプリは日本語に対応している？** はい。画面は日本語のほか英語、アラビア語、簡体字中国語、繁体字中国語、韓国語、スペイン語、ポルトガル語、ロシア語、インドネシア語に対応し、システムの言語に合わせて切り替わります（設定 › 言語 でも変更可）。Mika には日本語で話しかけて大丈夫です。内蔵のアプリ・サイト知識は中国語で書かれていますが、モデルは問題なく読めます。
-
-**アップデートはどこから？** このリポジトリの [Releases](https://github.com/wangzan101/Mika/releases) だけで公開しています。アプリの「Mika について › アップデートを確認」からもそのまま更新できます。
-
-ほかの質問と回答は [FAQ](../faq.en.md) にあります。
-
-</details>
-
-## コミュニティと貢献
-
-- **ドキュメント**：すべてのドキュメントとおすすめの読む順番は[ドキュメント一覧](../README.en.md)へ
-- **コミュニティ**：[X のグループチャット](https://x.com/i/chat/group_join/g2116926829198246025/48B52j5svL)に参加できます。WeChat で作者に連絡するには、アプリの 「Mika について › 作者に連絡」 にある QR コードを読み取ってください（友達申請に「Mika」と書いてください）
-- **作者をフォロー**：X [@wangzan101](https://x.com/wangzan101)
-- **問題を報告**：[Issue を作成](https://github.com/wangzan101/Mika/issues/new/choose)。アプリの 「Mika について › フィードバックを送信」 から診断情報を添えられます
-- **貢献する**：アプリやサイトの使い方の知識を書き足す（プレーンテキストで、コードは不要）、またはコードで貢献。[コントリビューションガイド](../../.github/CONTRIBUTING.md)をご覧ください
-
-## Star History
-
-<a href="https://star-history.com/#wangzan101/Mika&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=wangzan101/Mika&type=Date&theme=dark&v=20261104-2107" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=wangzan101/Mika&type=Date&v=20261104-2107" width="600" />
-  </picture>
-</a>
-
-## コントリビューター
-
-Mika に関わってくれたすべての方に感謝します：
-
-<a href="https://github.com/wangzan101/Mika/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=wangzan101/Mika&max=100&columns=12" alt="Contributors" />
-</a>
-
-## ライセンス
-
-[Apache-2.0](../../LICENSE) · [NOTICE](../../NOTICE) · [サードパーティコンポーネント](../../licenses/THIRD_PARTY_NOTICES.md)
+推奨トピック：`android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`
+`kotlin` `jetpack-compose` `flutter` `apache-2.0`。

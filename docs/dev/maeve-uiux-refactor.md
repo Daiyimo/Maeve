@@ -1,3 +1,4 @@
+<!-- docs-check: spans-off — Historical Compose component names, some already removed -->
 # Maeve UI/UX 重构说明 · v0.4「全站毛玻璃」
 
 > **v0.4 是按用户明确要求做的方向反转。** v0.3 走的是「一个彩色 + 零投影 + 只留输入栏一处玻璃」,
@@ -649,3 +650,16 @@ bash tooling/smoke.sh <设备序列号>
 ```
 
 全量单测 1520 个、失败 59 个，与基线一致。
+
+## 验收截图
+
+以下截图来自 Compose 时期的重构验收，保留作对照。Flutter 外壳的截图在
+[FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md)。
+
+- 新对话：![新对话](../media/ui/shot_new_chat.png)
+- 侧栏：![侧栏](../media/ui/shot_new_drawer.png)
+- 设置：![设置](../media/ui/shot_new_settings.png)
+- 运行过程：![运行过程](../media/ui/shot_now.png)
+- 选择器：![选择器](../media/ui/shot_picker.png)
+- 配置模型：![配置模型](../media/ui/shot_setup_model.png)
+- 欢迎页：![欢迎页](../media/ui/shot_welcome.png)

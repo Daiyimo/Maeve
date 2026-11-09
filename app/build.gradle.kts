@@ -80,6 +80,45 @@ kotlin {
     jvmToolchain(17)
 }
 
+// Flutter 外壳的 debug AAR 由这个任务生成,干净 clone 直接汇编 :app 也不必先手工跑 Flutter。
+// 工具链从 FLUTTER_ROOT(或 PATH)来;版本和安装方式见 tooling/toolchain/README.md。
+val flutterRootDir: String? = System.getenv("FLUTTER_ROOT")?.takeIf { it.isNotBlank() }
+val isWindowsHost: Boolean = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
+val flutterExecutable: String = if (flutterRootDir != null) {
+    File(flutterRootDir, if (isWindowsHost) "bin/flutter.bat" else "bin/flutter").absolutePath
+} else if (isWindowsHost) {
+    "flutter.bat"
+} else {
+    "flutter"
+}
+val flutterDebugAar = rootProject.layout.projectDirectory.file(
+    "flutter/.android/Flutter/build/outputs/aar/flutter-debug.aar"
+)
+val flutterBuildAar by tasks.registering(Exec::class) {
+    group = "build"
+    description = "构建 :app 使用的 Flutter debug AAR(flutter build aar --debug)。"
+    workingDir(rootProject.file("flutter"))
+    commandLine(flutterExecutable, "build", "aar", "--debug")
+    inputs.files(
+        rootProject.fileTree("flutter/lib"),
+        rootProject.file("flutter/pubspec.yaml"),
+        rootProject.file("flutter/pubspec.lock"),
+    ).withPropertyName("flutterShellInputs")
+    outputs.file(flutterDebugAar)
+    doFirst {
+        val executable = File(flutterExecutable)
+        if (executable.isAbsolute && !executable.exists()) {
+            throw GradleException(
+                "找不到 Flutter:$flutterExecutable。设置 FLUTTER_ROOT,或把 flutter 放进 PATH;" +
+                    "工具链标准见 tooling/toolchain/README.md。",
+            )
+        }
+    }
+}
+if (!providers.gradleProperty("skipFlutterAar").isPresent) {
+    tasks.named("preBuild").configure { dependsOn(flutterBuildAar) }
+}
+
 // Flutter AAR 的传递依赖不在仓库声明里,只能按本地缓存的具体文件引入。
 // 缓存根目录从 Gradle 实际的 GRADLE_USER_HOME 推导,搬家后不用改这个文件。
 val gradleCacheRoot: File = run {

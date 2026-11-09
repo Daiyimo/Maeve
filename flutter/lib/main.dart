@@ -1,11 +1,13 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import 'design/maeve_tokens.dart';
+import 'models/conversation.dart';
 import 'widgets/glass_surface.dart';
+import 'widgets/maeve_mark.dart';
+
+export 'bridge/maeve_bridge.dart';
 
 void main() => runApp(const MaeveApp());
 
@@ -35,22 +37,6 @@ class _MaeveAppState extends State<MaeveApp> {
   );
 }
 
-class _Conversation {
-  _Conversation({required this.id, required this.title, DateTime? updatedAt})
-    : updatedAt = updatedAt ?? DateTime.now();
-
-  final String id;
-  String title;
-  DateTime updatedAt;
-  final List<_Message> messages = [];
-}
-
-class _Message {
-  _Message(this.text, {required this.isUser});
-  final String text;
-  final bool isUser;
-}
-
 class MaeveShell extends StatefulWidget {
   const MaeveShell({super.key, required this.onTheme, this.themeMode});
   final VoidCallback onTheme;
@@ -71,16 +57,16 @@ class _MaeveShellState extends State<MaeveShell> {
   final input = TextEditingController();
   final searchInput = TextEditingController();
   final memoryInput = TextEditingController();
-  final conversations = <_Conversation>[
-    _Conversation(id: 'c1', title: 'The architecture of choice'),
-    _Conversation(id: 'c2', title: 'Build a calmer workspace'),
-    _Conversation(id: 'c3', title: 'A new beginning'),
+  final conversations = <Conversation>[
+    Conversation(id: 'c1', title: 'The architecture of choice'),
+    Conversation(id: 'c2', title: 'Build a calmer workspace'),
+    Conversation(id: 'c3', title: 'A new beginning'),
   ];
   final memories = <String>[];
 
   // Falls back to the newest conversation so a stale id cannot break the build
   // once conversations become deletable.
-  _Conversation get currentConversation => conversations.firstWhere(
+  Conversation get currentConversation => conversations.firstWhere(
     (conversation) => conversation.id == activeConversation,
     orElse: () => conversations.first,
   );
@@ -828,7 +814,7 @@ class _MaeveShellState extends State<MaeveShell> {
       responseGeneration++;
       generating = false;
       final id = 'c${++conversationSequence}';
-      conversations.insert(0, _Conversation(id: id, title: 'New conversation'));
+      conversations.insert(0, Conversation(id: id, title: 'New conversation'));
       activeConversation = id;
       page = 0;
       drawer = false;
@@ -845,7 +831,7 @@ class _MaeveShellState extends State<MaeveShell> {
     final conversationId = activeConversation;
     setState(() {
       final conversation = currentConversation;
-      conversation.messages.add(_Message(text, isUser: true));
+      conversation.messages.add(Message(text, isUser: true));
       if (conversation.title == 'New conversation') {
         conversation.title = text.length > 34
             ? '${text.substring(0, 34)}…'
@@ -867,7 +853,7 @@ class _MaeveShellState extends State<MaeveShell> {
     setState(() {
       final conversation = conversations[index];
       conversation.messages.add(
-        _Message('I have it. The next move is yours.', isUser: false),
+        Message('I have it. The next move is yours.', isUser: false),
       );
       conversation.updatedAt = DateTime.now();
       generating = false;
@@ -926,89 +912,4 @@ class _MaeveShellState extends State<MaeveShell> {
     if (difference.inDays == 1) return 'Yesterday';
     return '${difference.inDays}d ago';
   }
-}
-
-class MaeveMark extends StatelessWidget {
-  const MaeveMark({super.key, required this.size, this.state = MarkState.idle});
-  final double size;
-  final MarkState state;
-
-  @override
-  Widget build(BuildContext context) => CustomPaint(
-    size: Size.square(size),
-    painter: MaeveMarkPainter(
-      Theme.of(context).colorScheme.onSurface,
-      Theme.of(context).scaffoldBackgroundColor,
-      armed: state == MarkState.armed,
-    ),
-  );
-}
-
-enum MarkState { idle, armed }
-
-/// Public so tests can record the draw calls for each mark state.
-@visibleForTesting
-class MaeveMarkPainter extends CustomPainter {
-  const MaeveMarkPainter(this.color, this.background, {this.armed = false});
-  final Color color;
-  final Color background;
-  final bool armed;
-
-  static const arcStart = -.6;
-  static const arcSweep = 4.4;
-  static const fillRatio = .67;
-
-  /// Direction of the middle of the ring opening when armed.
-  static double get gapDirection =>
-      arcStart + arcSweep + (2 * math.pi - arcSweep) / 2;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final radius = size.shortestSide * .3;
-    final stroke = size.shortestSide * .045;
-    final outline = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
-      ..strokeCap = StrokeCap.round;
-    if (armed) {
-      // The eclipse ring opens into an arc once Maeve is ready to work. The
-      // tick sits in the middle of that opening, outside the inner disk.
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius),
-        arcStart,
-        arcSweep,
-        false,
-        outline,
-      );
-      final direction = Offset(math.cos(gapDirection), math.sin(gapDirection));
-      canvas.drawLine(
-        center + direction * (radius * .9),
-        center + direction * (radius * fillRatio),
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = stroke,
-      );
-    } else {
-      canvas.drawCircle(center, radius, outline);
-    }
-    canvas.drawCircle(center, radius * fillRatio, Paint()..color = color);
-    canvas.drawCircle(center, radius * .4, Paint()..color = background);
-  }
-
-  @override
-  bool shouldRepaint(covariant MaeveMarkPainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.background != background ||
-      oldDelegate.armed != armed;
-}
-
-class MaeveBridge {
-  static const methods = MethodChannel('maeve/ui');
-  static const events = EventChannel('maeve/ui/events');
-  static Future<void> openSettings() => methods.invokeMethod('open_settings');
-  static Stream<dynamic> get status => events.receiveBroadcastStream();
 }

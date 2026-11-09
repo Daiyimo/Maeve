@@ -1,3 +1,4 @@
+<!-- docs-check: spans-off — Android and Compose haptic API names used as counter-examples -->
 # Haptic engine — M2 implementation contract
 
 > Source of truth: [SPEC.md](../../SPEC.md) §4. dsh-Go is a Flutter app using
@@ -64,7 +65,7 @@ unattended mode.
 
 ## 4. Consolidating the upstream calls
 
-Mika scatters four `LongPress` feedback calls. All must route through `HapticEngine`:
+Maeve scatters four `LongPress` feedback calls. All must route through `HapticEngine`:
 
 | File | Current |
 |---|---|
@@ -81,7 +82,7 @@ that module is removed entirely, its entry disappears with it. Otherwise fix it 
 - [x] A repo-wide search finds **no** `performHapticFeedback` / `LocalHapticFeedback` /
       `HapticFeedbackType` / `HapticFeedbackConstants` outside `HapticEngine` itself.
       The four upstream call sites (`MessageMenu`, `ChatDrawer`, `VoiceHold`, `OverlayHost`)
-      now route through `MikaTheme.haptics`.
+      now route through `MaeveTheme.haptics`.
 - [x] With the Settings switch off: zero emissions — `HapticEngineTest.disabledEngineEmitsNothing`
       and `refreshPicksUpHapticSettingChanges` use a `FakeActuator`.
 - [x] Without effect support: no crash, no exception, silent degrade —
@@ -96,7 +97,7 @@ that module is removed entirely, its entry disappears with it. Otherwise fix it 
 
 Implementation: `ui/haptic/HapticEngine.kt`, `ui/haptic/HoldToConfirm.kt`,
 `ui/theme/MaeveMotion.kt`, `ui/theme/MaeveShapes.kt`, `ui/theme/Tokens.kt`,
-`ui/theme/Theme.kt` (`MikaTheme.haptics`), `ui/components/Controls.kt` (press scale + Tick),
+`ui/theme/Theme.kt` (`MaeveTheme.haptics`), `ui/components/Controls.kt` (press scale + Tick),
 `ui/components/Rows.kt`, `ui/ChatScreen.kt` (send `Light`, refuse `Reject`, approve `Heavy`,
 example rows `Tick`), `ui/AdvancedSection.kt` (clear-all hold), `ui/SettingsScreen.kt`
 (Settings › Haptic feedback switch), `AndroidManifest.xml` (`VIBRATE`).

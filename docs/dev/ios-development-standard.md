@@ -1,3 +1,4 @@
+<!-- docs-check: spans-off — SwiftUI and Apple API names, not repository symbols -->
 # Maeve iOS 开发标准
 
 > 目标平台：iOS 26 及后续版本

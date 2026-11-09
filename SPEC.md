@@ -5,7 +5,7 @@
 > **日期**：2026-11-06（v0.2 真机实证与资料校正 → v0.3 一致性修订 + 资料补纳 + 可执行契约）
 > **v0.2 修订摘要**：① 双路线拆成 R1 / R2a(amoo 文件桥) / R2b(电脑 MCP)，两者不可互兜底；② 「隐藏核心」由「零配置」改为「能力隐藏 + 一次性握手」；③ `:18770` 实测仅回环，WorkBuddy 需显式开局域网或 USB forward；④ 「纯本地/内置模型」改为「端侧执行 + 外部 Provider 决策」；⑤ 新增文件桥协议缺陷、StepOS 平台约束、改包名致技能失效的迁移项。详见 §12。
 > **v0.3 修订摘要**：① 修掉 v0.1 正文与 §12 的 6 处直接矛盾（技能版本、`request_id` 生成、alias 生命周期、超时终态等）；② 补纳 `step-gui-edge-资料.md` / `mobile-agent-GUI实现分析.md` / `豆包手机实现调研.md` / `gelab-zero` 本地仓库；③ 新增端侧决策后端接缝、机械后验、敏感应用清单、`SelfCheck` 验收复用 4 条 ADR；④ 把文件桥 v3 从「缺陷描述」写成可实现的 wire contract；⑤ 给出决策阻塞表，明确哪些问题不回答也能开工。详见 §13。
-> **目标仓库**：`E:\project\daiyimo\Maeve` → `https://github.com/Daiyimo/Maeve.git`（**历史已重写为单基线快照 + Maeve 提交、单一贡献者**：基线快照 `bccdcda6` + 4 个 Maeve 提交；`main` 已强制推送，旧 tag `amoo-bridge-v1` 与 `mika-local` 已移除；见 `FORK.md`）
+> **目标仓库**：`E:\project\daiyimo\Maeve` → `https://github.com/Daiyimo/Maeve.git`（**公开历史从单基线快照 `7cf7ff3` 开始，后面是 Maeve 提交；当前分支 `master`，单一贡献者；见 `ATTRIBUTION.md`**）
 > **上游**：`E:\project\daiyimo\Mika`，Apache-2.0，Copyright 2026 wangzan101
 > **设计参考**：`E:\project\daiyimo\dsh-go`（dsh-Go，AGPL-3.0）
 > **本 spec 的范围**：只定义「要做什么、为什么、做成什么样、怎么验收」。**不写代码、不搬源码、不改上游**；实现与发布动作记录见 `docs/spec/migration.md`。
@@ -436,7 +436,7 @@ stateDiagram-v2
 
 ### 8.1 目标目录与仓库
 
-`E:\project\daiyimo\Maeve` 的 remote = `https://github.com/Daiyimo/Maeve.git`。**保留上游 git 历史**（blame 链即天然归属），不要复制文件后重新 `git init`。
+`E:\project\daiyimo\Maeve` 的 remote = `https://github.com/Daiyimo/Maeve.git`。**公开历史是重写后的单基线快照**（根提交 `7cf7ff3`，见 `ATTRIBUTION.md`），不要 `git init` 或再压平；上游血缘靠 `NOTICE`、`ATTRIBUTION.md` 和 `docs/reference/` 保留。
 
 **2026-11-06 实测校正**：Mika 的 `origin` 已经指向 `Daiyimo/Mika.git`（不是上游 `wangzan101/Mika`），工作副本干净（**523 个提交、tag `amoo-bridge-v1`、0 处未提交改动**），所以 v0.1 写的「`git remote rename origin upstream-fork`」不符合现状，也不需要。
 
@@ -464,7 +464,7 @@ git reset --hard mika-local/main                      # 空仓库首次检出，
 Maeve/
 ├── SPEC.md                 本文件
 ├── README.md               （后续阶段产出，见附录 E 模板）
-├── FORK.md / NOTICE / LICENSE / THIRD_PARTY_NOTICES.md
+├── ATTRIBUTION.md / NOTICE / LICENSE / THIRD_PARTY_NOTICES.md
 ├── docs/
 │   ├── spec/               分册（架构 / 视觉 token / 触感矩阵 / 迁移清单，按需拆分）
 │   ├── reference/          前期四份分析报告（已归档）
@@ -507,7 +507,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | 项 | 要求 |
 |---|---|
 | Apache-2.0 §4(a) | 保留 `LICENSE` 全文 |
-| §4(b) | 修改过的文件加显著变更声明（建议统一文件头 + `FORK.md` 列改动范围） |
+| §4(b) | 修改过的文件加显著变更声明（建议统一文件头 + `ATTRIBUTION.md` 列改动范围） |
 | §4(c) | 保留版权/专利/商标/归属声明 |
 | §4(d) | **`NOTICE` 里 `Mika / Copyright 2026 wangzan101` 原样保留**，只能追加自己的 addendum；换 Logo/名字不能删原作者署名 |
 | §6 | 不授予产品名/商标使用权 ⇒ 不用 Mika 名称与 Logo |
@@ -525,7 +525,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | 阶段 | 产出 | 验收标准（可测） |
 |---|---|---|
 | **M0 Spec** | 本文件 + §13.11 决策表 | ✅ **2026-11-06 15:43 已确认**：Q1/Q4/Q6/Q8 走默认，其余按默认继续。注意 Q6 的默认值为「否（不 push）」 |
-| **M1 骨架** | 新仓库、包名、`README/FORK/NOTICE/LICENSE`、CI 全绿 | ✅ **已完成并已推送**：`com.daiyimo.maeve`、根合规文档、`NOTICE` 原署名、compliance CI job；`:core:compileKotlin :app:compileDebugKotlin` **BUILD SUCCESSFUL**；Windows 单元测试 59 例失败与上游基线一致（非回归，见 `docs/spec/migration.md`）；历史已重写为单快照，见 `FORK.md` |
+| **M1 骨架** | 新仓库、包名、`README/FORK/NOTICE/LICENSE`、CI 全绿 | ✅ **已完成并已推送**：`com.daiyimo.maeve`、根合规文档、`NOTICE` 原署名、compliance CI job；`:core:compileKotlin :app:compileDebugKotlin` **BUILD SUCCESSFUL**；Windows 单元测试 59 例失败与上游基线一致（非回归，见 `docs/spec/migration.md`）；历史已重写为单快照，见 `ATTRIBUTION.md` |
 | **M2 视觉** | 主题系统、四款图标、玻璃材质、触感引擎、连接中枢 UI | 六套主题在浅/深下文本对比度 ≥4.5:1、非文本 ≥3:1；四款图标切换不清除已开 task；`HapticEngine` 单一入口、无散落调用；关闭触感后零反馈 |
 | **M3 双路线** | ConnectionHub + amoo 隐藏核心 + MCP `maeve_*` + 状态机 | ① 无 amoo 时本地路线完整可用 ② 写入 `in/` 能自动被消费并写回 `out/` ③ WorkBuddy 通过 `/mcp` 起任务并查到状态 ④ 两来源同时到达按 `request_id` 排队、不并发抢屏 ⑤ 撤无障碍授权后所有入站返回明确错误 ⑥ 产品 `v0.1.0` 内旧 `mika_*` alias 仍可用 ⑦ `SelfCheck` 扩展版报告全绿（§13.7） |
 | **M4 发布** | 合规补齐、release 签名、P0/P1 修复、v0.1.0 "Dolores" | release 包可安装可自更新；ML Kit 已披露；GPL/LGPL 全文与源码要约就位；P0 全清、P1 有结论 |
@@ -918,7 +918,7 @@ adb shell curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18770/api/v1
 | **Q9**（新） | `v0.1.0` 是否预留 `DecisionBackend` 接缝（不实现端侧模型）？ | 预留，不打包权重 | 否 | §13.4 / ADR-01 |
 | **Q10**（新） | 是否把 `SelfCheck` 扩展为 M3/M4 官方验收 harness？ | 是 | 否 | §13.7 / ADR-04 |
 
-**无需等待即可开工的事项**（与上述阻塞项无耦合）：`docs/design/tokens.md` 与视觉 token、合规补齐（ML Kit 披露、GPL/LGPL 全文与源码要约、`NOTICE` addendum）、README / FORK.md 文案（附录 E 模板）、P0/P1 缺陷修复、`HapticEngine` 单入口改造、文件桥 v3 协议实现（用 `<applicationId>` 运行时取值，不依赖 Q4 的具体包名）、`SensitiveAppPolicy` 数据结构。
+**无需等待即可开工的事项**（与上述阻塞项无耦合）：`docs/design/tokens.md` 与视觉 token、合规补齐（ML Kit 披露、GPL/LGPL 全文与源码要约、`NOTICE` addendum）、README / ATTRIBUTION.md 文案（附录 E 模板）、P0/P1 缺陷修复、`HapticEngine` 单入口改造、文件桥 v3 协议实现（用 `<applicationId>` 运行时取值，不依赖 Q4 的具体包名）、`SensitiveAppPolicy` 数据结构。
 
 ---
 
