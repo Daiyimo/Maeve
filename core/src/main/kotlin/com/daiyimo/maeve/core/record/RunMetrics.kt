@@ -3,26 +3,33 @@ package com.daiyimo.maeve.core.record
 import kotlinx.serialization.Serializable
 
 /**
- * 一次运行的小结,全部由运行记录里的事件算出(纯函数,见 [of]),落盘后不随事件清理而丢(见 [RunMetricsStore])。
- * 时间都从 [RunEvent.TaskStarted] 算起:之前的准备(载入知识、连手机)不计。
+ * 一次运行的量化小结。所有字段都能仅凭运行事件重新算出([of]),写入后独立于
+ * 事件文件保留([RunMetricsStore]),因此事件被清理也不影响历史统计。
  *
- * - [totalMs]:开始到 [RunEvent.TaskEnded];没结束的([ended] 为 false)到最后一个事件。
- * - [firstFeedbackMs]:开始到用户第一次看到这次运行的实际进展——最早一条真执行了的模型回复到手([RunEvent.ModelReply.repliedAtMs],
- *   旧记录用它的 [RunEvent.atMs]):这时界面显示它的进度说明、要做的事或回答;或最早一条活动(回放不经模型时,第一步做完)。
- *   改派掉的轻量模型回复不算(用户看不到);回答逐段显示时第一段字会更早,没记录,不算。两样都没有为 null。
- * - [modelCalls]:模型回复事件数,即主循环的请求次数(含改派掉的轻量模型回复,[lightCalls] 是其中轻量模型的);
- *   [callsWithoutUsage] 是其中服务商没报用量的。token 是这些回复的用量之和([inputTokens] 含 [cachedTokens])。
- * - [allCalls] 等:运行期间经计量的全部外层逻辑调用([RunEvent.ModelCalls],含旁路调用和外层重试);
- *   [allHttpCalls] 是实际 HTTP 请求数(另含适配器内部重发),旧记录没有这项时为 null。
- * - [modelMs]:各次回复的请求耗时之和(最后一次请求发出到收完);之前失败的请求和退避另记在 [retryWaitMs]。
- * - [observeMs] / [actMs]:顶层工具调用(模型直接调的、回放的)的执行耗时,按执行入口给活动定的种类分:风险为只读的是读
- *   (读屏、读网页、列元素、截图、查资料……),其余是操作(点、输入、滑、打开 App……)。一批动作、页面脚本的外层调用里,
- *   子步中的读计入读、其余计入操作,不重复计;没有活动的控制类调用(等待、问用户、请确认、交给用户、说做不成)不算读也不算操作。
- *   [uiWaitMs] 是等界面的时间:单个工具里端口等界面稳定的部分(端口能报时才有,仍算在那次读或操作里),
- *   加上一批动作里各步做完后按条件等界面的时间——后者和单独调等待工具一样不算操作,落在 [otherMs] 里。
- * - [otherMs]:总时长减模型、读、操作,剩下的是等用户、重试退避、控制类调用、核查与其他开销。
- * - [steps]:主循环走到第几轮(真执行了的回复里最大的步号);[observeCalls] / [actCalls] 是读、操作各做了几次(含子步)。
- * - [outcome]:[RunEvent.TaskEnded.outcome],没结束为 unfinished;[failKind] 是失败的类别;[judged] 是交出回答后另判的结局。
+ * 时间零点取 [RunEvent.TaskStarted],此前加载知识、连接设备等准备不算:
+ *
+ * - [totalMs]:到 [RunEvent.TaskEnded];未结束的运行算到最后一个事件。
+ * - [firstFeedbackMs]:到用户第一次看见实际进展——最早一条真正执行的模型回复
+ *   到达([RunEvent.ModelReply.repliedAtMs],旧记录退化为它的 [RunEvent.atMs]),
+ *   或最早一条活动记录(回放不经过模型时,第一步完成)。被改派掉的轻量模型
+ *   回复用户看不到,不计;回答分段显示时首段没有单独事件,也不计。
+ * - [modelCalls]:模型回复条数,即主循环请求次数;其中轻量模型回复计入
+ *   [lightCalls],服务商没报用量的计入 [callsWithoutUsage]。[inputTokens]
+ *   已经包含 [cachedTokens]。
+ * - [allCalls] 等:运行期间全部经计量的外层逻辑调用([RunEvent.ModelCalls]),
+ *   含旁路调用与外层重试;[allHttpCalls] 是实际 HTTP 请求数,旧记录没有则为空。
+ * - [modelMs]:各次回复的请求耗时之和;[retryWaitMs] 单独存失败请求与退避。
+ * - [observeMs]/[actMs]:顶层工具调用的执行耗时。只读类动作(读屏、读网页、
+ *   列元素、截图、查资料)算观察,其余算操作。一批动作或页面脚本的外层调用
+ *   里,子步中的读计入观察,其余计入操作,不重复计;没有活动的控制类调用
+ *   (等待、问用户、请确认、交给用户、说做不成)两边都不算。[uiWaitMs] 是
+ *   显式等待界面的时间:单个工具里端口报告的稳定等待(仍属于那次读或操作),
+ *   加上一批动作中按条件等界面的时间;后者落在 [otherMs],不算操作。
+ * - [otherMs]:总时长减去模型、观察、操作,即等用户、退避、控制调用、核查等。
+ * - [steps]:真正执行的回复中的最大步号;[observeCalls]/[actCalls] 是读、操作
+ *   各发生几次,含子步。
+ * - [outcome]:结束事件的结论,未结束为 unfinished;[failKind] 是失败类别;
+ *   [judged] 是交付回答后另判的结局。
  */
 @Serializable
 data class RunMetrics(
@@ -54,126 +61,158 @@ data class RunMetrics(
     val failKind: String? = null,
     val judged: String? = null,
 ) {
+    /** 既不属于模型、观察,也不属于操作的时间;不会为负。 */
     val otherMs: Long get() = (totalMs - modelMs - observeMs - actMs).coerceAtLeast(0)
 
-    /** 输入加输出(缓存命中含在输入里)。 */
+    /** 输入加输出(缓存命中已经含在输入里)。 */
     val tokens: Long get() = inputTokens + outputTokens
 
-    /** 办成了:报了成功(含没能核实的),交出回答后也没判成只办了一部分或办不到。 */
-    val succeeded: Boolean get() = outcome in SUCCESS && judged !in NOT_DONE
+    /** 是否办成:结束结论成功(未核实也算),且事后判定没有说只办到一部分或办不到。 */
+    val succeeded: Boolean get() = outcome in SUCCESS_OUTCOMES && judged !in INCOMPLETE_JUDGMENTS
 
     /**
-     * 按事件顺序累计;[build] 随时可调。运行记录的写线程用它边写边算,不必在收尾时重读整份记录。
-     * 只留每个工具结果的几项数字,不留原文。
+     * 按事件顺序累计,随时可以 [build]。运行记录写线程用它边写边算,
+     * 收尾时不必重读整份记录。内部只保留工具时间数字与活动的种类,不存原文。
      */
     class Builder(private val runId: String = "") {
-        private class Tool(val step: Int, val source: String, val callId: String?, val durationMs: Long, val waitMs: Long)
+        private data class ToolSpan(
+            val step: Int,
+            val source: String,
+            val callId: String?,
+            val durationMs: Long,
+            val waitMs: Long,
+        )
 
-        private var goal = ""
-        private var started: Long? = null
-        private var last = 0L
-        private var ended: RunEvent.TaskEnded? = null
-        private var firstFeedback: Long? = null
-        private var calls = 0
-        private var light = 0
-        private var noUsage = 0
-        private var input = 0L
-        private var output = 0L
-        private var cached = 0L
-        private var all: RunEvent.ModelCalls? = null
-        private var modelMs = 0L
-        private var retryMs = 0L
-        private var steps = 0
-        private var judged: String? = null
-        private val tools = mutableListOf<Tool>()
-        /** (来源, 步, 调用 id) → 活动种类(observe / act)。 */
-        private val kinds = HashMap<Triple<String, Int, String?>, String>()
+        /** (来源, 步号, 调用 id) 定位一次工具调用;活动记录给出它是读还是操作。 */
+        private data class CallKey(val source: String, val step: Int, val callId: String?)
+
+        private var startedAt: Long? = null
+        private var latestAt = 0L
+        private var goalText = ""
+        private var finished: RunEvent.TaskEnded? = null
+        private var firstFeedbackAt: Long? = null
+        private var replyCount = 0
+        private var lightReplyCount = 0
+        private var noUsageReplies = 0
+        private var inputTotal = 0L
+        private var outputTotal = 0L
+        private var cachedTotal = 0L
+        private var allCallsEvent: RunEvent.ModelCalls? = null
+        private var modelTime = 0L
+        private var retryTime = 0L
+        private var highestStep = 0
+        private var judgedOutcome: String? = null
+        private val toolSpans = mutableListOf<ToolSpan>()
+        private val activityKinds = HashMap<CallKey, String>()
 
         fun add(e: RunEvent) {
-            last = maxOf(last, e.atMs)
+            latestAt = maxOf(latestAt, e.atMs)
             when (e) {
-                is RunEvent.TaskStarted -> if (started == null) { started = e.atMs; goal = e.goal.take(GOAL_MAX) }
-                is RunEvent.ModelReply -> {
-                    calls++
-                    if (e.role == ROLE_LIGHT || !e.acted) light++
-                    if (e.inputTokens == null && e.outputTokens == null) noUsage++
-                    input += e.inputTokens ?: 0
-                    output += e.outputTokens ?: 0
-                    cached += e.cachedTokens ?: 0
-                    modelMs += e.latencyMs.coerceAtLeast(0)
-                    retryMs += e.retryWaitMs.coerceAtLeast(0)
-                    if (e.acted) {
-                        steps = maxOf(steps, e.step)
-                        feedback(e.repliedAtMs ?: e.atMs)
-                    }
-                }
-                is RunEvent.ToolResult -> tools += Tool(e.step, e.source, e.callId, e.durationMs.coerceAtLeast(0), e.waitMs.coerceAtLeast(0))
-                is RunEvent.Activity -> {
-                    kinds[Triple(e.source, e.step, e.callId)] = e.kind
-                    feedback(e.atMs)
-                }
-                is RunEvent.TaskEnded -> if (ended == null) ended = e
-                is RunEvent.ModelCalls -> all = e
-                is RunEvent.OutcomeJudged -> judged = e.outcome
+                is RunEvent.TaskStarted -> onTaskStarted(e)
+                is RunEvent.ModelReply -> onModelReply(e)
+                is RunEvent.ToolResult -> toolSpans += ToolSpan(
+                    step = e.step,
+                    source = e.source,
+                    callId = e.callId,
+                    durationMs = e.durationMs.coerceAtLeast(0),
+                    waitMs = e.waitMs.coerceAtLeast(0),
+                )
+                is RunEvent.Activity -> onActivity(e)
+                is RunEvent.TaskEnded -> if (finished == null) finished = e
+                is RunEvent.ModelCalls -> allCallsEvent = e
+                is RunEvent.OutcomeJudged -> judgedOutcome = e.outcome
                 else -> Unit
             }
         }
 
-        private fun feedback(at: Long) {
-            if (firstFeedback == null || at < firstFeedback!!) firstFeedback = at
+        private fun onTaskStarted(e: RunEvent.TaskStarted) {
+            if (startedAt != null) return
+            startedAt = e.atMs
+            goalText = e.goal.take(GOAL_MAX)
         }
 
-        /** 没有开始事件(记录开了却没跑起来)时为 null。 */
+        private fun onModelReply(e: RunEvent.ModelReply) {
+            replyCount++
+            if (e.role == LIGHT_ROLE || !e.acted) lightReplyCount++
+            if (e.inputTokens == null && e.outputTokens == null) noUsageReplies++
+            inputTotal += e.inputTokens ?: 0
+            outputTotal += e.outputTokens ?: 0
+            cachedTotal += e.cachedTokens ?: 0
+            modelTime += e.latencyMs.coerceAtLeast(0)
+            retryTime += e.retryWaitMs.coerceAtLeast(0)
+            if (!e.acted) return
+            highestStep = maxOf(highestStep, e.step)
+            markFeedback(e.repliedAtMs ?: e.atMs)
+        }
+
+        private fun onActivity(e: RunEvent.Activity) {
+            activityKinds[CallKey(e.source, e.step, e.callId)] = e.kind
+            markFeedback(e.atMs)
+        }
+
+        private fun markFeedback(at: Long) {
+            val previous = firstFeedbackAt
+            if (previous == null || at < previous) firstFeedbackAt = at
+        }
+
+        /** 没有开始事件(记录创建了却没跑起来)时返回 null。 */
         fun build(): RunMetrics? {
-            val start = started ?: return null
-            val end = ended
-            val kindOf = { t: Tool -> kinds[Triple(t.source, t.step, t.callId)] }
-            val (top, nested) = tools.partition { it.source !in NESTED }
-            var observe = 0L
-            var act = 0L
-            for (t in top) {
-                val kind = kindOf(t)
-                val inner = nested.filter { it.step == t.step }
-                // 外层调用的耗时已含子步:子步里的读计入读,余下的算操作
-                val innerObserve = inner.filter { kindOf(it) == OBSERVE }.sumOf { it.durationMs }.coerceAtMost(t.durationMs)
+            val start = startedAt ?: return null
+            val end = finished
+            val kindOf = { span: ToolSpan ->
+                activityKinds[CallKey(span.source, span.step, span.callId)]
+            }
+            val (outer, nested) = toolSpans.partition { it.source !in NESTED_SOURCES }
+            var observeTime = 0L
+            var actTime = 0L
+            for (span in outer) {
+                val kind = kindOf(span)
+                val children = nested.filter { it.step == span.step }
+                // 外层调用耗时已包含子步;先把子步里的读挑出来,剩下的才归操作
+                val nestedObserve = children
+                    .filter { kindOf(it) == READ_KIND }
+                    .sumOf { it.durationMs }
+                    .coerceAtMost(span.durationMs)
                 when {
-                    kind == OBSERVE -> observe += t.durationMs
-                    // 外层调用记的 waitMs 是子步之后按条件等界面的时间,不在子步里,也不算操作
-                    inner.isNotEmpty() -> { observe += innerObserve; act += (t.durationMs - innerObserve - t.waitMs).coerceAtLeast(0) }
-                    // 为节奏补的停留(waitMs)算等待,不算操作
-                    kind != null -> act += (t.durationMs - t.waitMs).coerceAtLeast(0)
+                    kind == READ_KIND -> observeTime += span.durationMs
+                    children.isNotEmpty() -> {
+                        observeTime += nestedObserve
+                        actTime += (span.durationMs - nestedObserve - span.waitMs).coerceAtLeast(0)
+                    }
+                    // 外层 waitMs 是子步之后按条件等界面的时间,不属于操作
+                    kind != null -> actTime += (span.durationMs - span.waitMs).coerceAtLeast(0)
                     else -> Unit
                 }
             }
-            val counted = kinds.values
+            val kinds = activityKinds.values
             return RunMetrics(
                 runId = runId,
-                goal = goal,
+                goal = goalText,
                 startedAtMs = start,
-                totalMs = ((end?.atMs ?: last) - start).coerceAtLeast(0),
+                totalMs = ((end?.atMs ?: latestAt) - start).coerceAtLeast(0),
                 ended = end != null,
-                firstFeedbackMs = firstFeedback?.let { (it - start).coerceAtLeast(0) },
-                modelCalls = calls,
-                lightCalls = light,
-                callsWithoutUsage = noUsage,
-                inputTokens = input,
-                outputTokens = output,
-                cachedTokens = cached,
-                allCalls = all?.calls,
-                allHttpCalls = all?.httpCalls,
-                allInputTokens = all?.inputTokens,
-                allOutputTokens = all?.outputTokens,
-                modelMs = modelMs,
-                retryWaitMs = retryMs,
-                observeMs = observe,
-                actMs = act,
-                uiWaitMs = top.sumOf { it.waitMs },
-                observeCalls = counted.count { it == OBSERVE },
-                actCalls = counted.count { it == ACT },
-                steps = steps,
+                firstFeedbackMs = firstFeedbackAt?.let { (it - start).coerceAtLeast(0) },
+                modelCalls = replyCount,
+                lightCalls = lightReplyCount,
+                callsWithoutUsage = noUsageReplies,
+                inputTokens = inputTotal,
+                outputTokens = outputTotal,
+                cachedTokens = cachedTotal,
+                allCalls = allCallsEvent?.calls,
+                allHttpCalls = allCallsEvent?.httpCalls,
+                allInputTokens = allCallsEvent?.inputTokens,
+                allOutputTokens = allCallsEvent?.outputTokens,
+                modelMs = modelTime,
+                retryWaitMs = retryTime,
+                observeMs = observeTime,
+                actMs = actTime,
+                uiWaitMs = outer.sumOf { it.waitMs },
+                observeCalls = kinds.count { it == READ_KIND },
+                actCalls = kinds.count { it == ACT_KIND },
+                steps = highestStep,
                 outcome = end?.outcome ?: UNFINISHED,
                 failKind = end?.kind,
-                judged = judged,
+                judged = judgedOutcome,
             )
         }
     }
@@ -181,22 +220,28 @@ data class RunMetrics(
     companion object {
         const val UNFINISHED = "unfinished"
         const val GOAL_MAX = 80
-        private const val OBSERVE = "observe"
-        private const val ACT = "act"
-        private const val ROLE_LIGHT = "light"
-        /** 包在外层调用里的子步:一批动作里的一步、页面脚本里的一个动作。 */
-        private val NESTED = setOf("batch", "script")
-        private val SUCCESS = setOf("succeeded", "unverified")
-        private val NOT_DONE = setOf("partial", "not_possible")
+        private const val READ_KIND = "observe"
+        private const val ACT_KIND = "act"
+        private const val LIGHT_ROLE = "light"
 
-        /** 一次运行的小结;没有开始事件时为 null。 */
-        fun of(events: List<RunEvent>, runId: String = ""): RunMetrics? = Builder(runId).apply { events.forEach(::add) }.build()
+        /** 包在外层调用里的子步:一批动作中的一步,或页面脚本里的一个动作。 */
+        private val NESTED_SOURCES = setOf("batch", "script")
+        private val SUCCESS_OUTCOMES = setOf("succeeded", "unverified")
+        private val INCOMPLETE_JUDGMENTS = setOf("partial", "not_possible")
+
+        /** 一次运行的小结;没有开始事件时为空。 */
+        fun of(events: List<RunEvent>, runId: String = ""): RunMetrics? {
+            val builder = Builder(runId)
+            for (event in events) builder.add(event)
+            return builder.build()
+        }
     }
 }
 
 /**
- * 多次运行的汇总([of]):办成率、用时与第一次反馈的中位数、平均来回次数与 token,以及时间的去向(各项之和占总时长之和)。
- * 第一次反馈只在有这一项的运行里取中位数;一次都没有为 null。
+ * 多次运行的汇总。计算成功率、用时与首次反馈的中位数、平均模型往返次数和
+ * token,并给出时间去向(各项是各次之和,与总时长之和同口径)。首次反馈只在
+ * 有这项数据的运行里取中位数;一次都没有则为空。
  */
 data class RunStats(
     val runs: Int,
@@ -228,12 +273,12 @@ data class RunStats(
             otherMs = runs.sumOf { it.otherMs },
         )
 
-        /** 中位数;偶数个取中间两个的平均(向下取整)。空表为 null。 */
+        /** 中位数;偶数个取中间两个的平均并向下取整,空表为空。 */
         fun median(xs: List<Long>): Long? {
             if (xs.isEmpty()) return null
-            val s = xs.sorted()
-            val m = s.size / 2
-            return if (s.size % 2 == 1) s[m] else (s[m - 1] + s[m]) / 2
+            val sorted = xs.sorted()
+            val middle = sorted.size / 2
+            return if (sorted.size % 2 == 1) sorted[middle] else (sorted[middle - 1] + sorted[middle]) / 2
         }
     }
 }

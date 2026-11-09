@@ -2,6 +2,8 @@ package com.daiyimo.maeve.core.workspace
 
 import java.io.Closeable
 import java.io.File
+import java.io.FilterInputStream
+import java.io.FilterOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -10,33 +12,42 @@ import java.nio.channels.Channels
 import java.util.UUID
 
 /**
- * 宿主侧进出沙箱目录(工作区、技能目录、根文件系统)的文件都过这一道。
+ * 宿主侧进出沙箱目录(工作区、技能目录、根文件系统)的文件都要过这道门。
  *
- * 沙箱里的命令和 Maeve 是同一个用户,随时能把文件或目录换成符号链接、硬链接或 FIFO,所以「先按路径检查、再按路径使用」
- * 挡不住。这里每一段都相对上一段已经打开的目录句柄打开、不跟随链接;最后的文件只打开一次,在句柄上核实
- * (实际位置仍在根目录里、是普通文件、只有一个硬链接),之后的读写都在这同一个句柄上。删除也先这样核实。
+ * 沙箱里的命令和 Maeve 是同一个用户,随时能把文件或目录换成符号链接、硬链接或 FIFO,所以「先按路径检查、
+ * 再按路径使用」挡不住。这里每一段都相对上一段已经打开的目录句柄打开、不跟随链接;最后的文件只打开一次,
+ * 再在句柄上核实(实际位置仍在根目录里、是普通文件、只有一个硬链接),之后的读写都落在同一句柄上。删除也先这样核实。
  *
- * [rel] 是根目录下的相对路径(`/` 分隔);`..`、空字节一律算越界。错误都抛 [SandboxError],消息里不带宿主路径。
+ * [rel] 是根目录下的相对路径(用 `/` 分隔);`..` 和空字节一律算越界。所有错误都抛 [SandboxError],
+ * 消息里不带宿主路径。
  */
 class WorkspaceFileGate(private val sys: FdSys) {
 
-    /** 读:普通文件、只有一个硬链接;[under] 给出时文件必须直接在 `<root>/<under>/` 里。 */
-    fun openRead(root: File, rel: String, under: String? = null): GatedFile = open(root, rel, under, OpenHow.READ, createDirs = false)
+    /** 读:必须是普通文件、只有一个硬链接;给了 [under] 时还必须正好在 `<root>/<under>/` 里。 */
+    fun openRead(root: File, rel: String, under: String? = null): GatedFile =
+        openVerified(root, rel, under, OpenHow.READ, createDirs = false)
 
-    /** 新建(已有同名的报 file_exists,从不覆盖);缺的目录逐段建。 */
-    fun createNew(root: File, rel: String, under: String? = null): GatedFile = open(root, rel, under, OpenHow.CREATE_NEW, createDirs = true)
+    /** 新建(同名已存在就报 file_exists,从不覆盖);缺的目录逐段补上。 */
+    fun createNew(root: File, rel: String, under: String? = null): GatedFile =
+        openVerified(root, rel, under, OpenHow.CREATE_NEW, createDirs = true)
 
-    /** 写:没有就建;已有的核实后才截断([append] 时接着写),所以截断不到链进来的别的文件。 */
+    /** 写:没有就建;已有的核实之后才截断([append] 时接着末尾写),所以截断不到链进来的别处文件。 */
     fun openWrite(root: File, rel: String, append: Boolean): GatedFile {
-        val g = open(root, rel, null, if (append) OpenHow.APPEND else OpenHow.WRITE, createDirs = true)
-        if (!append) try { g.truncate() } catch (e: IOException) { g.close(); throw e }
-        return g
+        val handle = openVerified(root, rel, null, if (append) OpenHow.APPEND else OpenHow.WRITE, createDirs = true)
+        if (append) return handle
+        try {
+            handle.truncate()
+        } catch (e: IOException) {
+            handle.close()
+            throw e
+        }
+        return handle
     }
 
-    /** 在 `<root>/<dir>/` 里新建 [name];重名时依次试「name (2).ext」……,至多 [max] 个。返回实际名字与句柄。 */
+    /** 在 `<root>/<dir>/` 下新建 [name];重名就依次试「name (2).ext」……,最多 [max] 个。 */
     fun createNumbered(root: File, dir: String, name: String, max: Int = 999): Pair<String, GatedFile> {
-        for (n in 1..max) {
-            val candidate = numbered(name, n)
+        for (attempt in 1..max) {
+            val candidate = numbered(name, attempt)
             try {
                 return candidate to createNew(root, "$dir/$candidate", under = dir)
             } catch (e: SandboxError) {
@@ -46,176 +57,235 @@ class WorkspaceFileGate(private val sys: FdSys) {
         throw SandboxError(FILE_EXISTS, "Too many files with this name.", recoverable = true)
     }
 
-    /** 核实是普通文件后才删。 */
+    /** 核实是普通文件之后才删。 */
     fun delete(root: File, rel: String, under: String? = null) {
-        open(root, rel, under, OpenHow.READ, createDirs = false).use { it.delete() }
+        openVerified(root, rel, under, OpenHow.READ, createDirs = false).use { it.delete() }
     }
 
-    /** 建好目录(逐段,不跟随链接)。 */
+    /** 逐段建目录,全程不跟随链接。 */
     fun mkdirs(root: File, rel: String) {
-        anchored(root, segments(rel), create = true) { _, _ -> }
+        withAnchored(root, segments(rel), create = true) { _, _ -> }
     }
 
-    /** 目录里的名字;目录不存在为空。 */
+    /** 列目录里的名字;目录不存在时返回空表。 */
     fun list(root: File, rel: String): List<String> = try {
-        anchored(root, segments(rel), create = false) { _, d -> sys.list(d) }
+        withAnchored(root, segments(rel), create = false) { _, dir -> sys.list(dir) }
     } catch (e: SandboxError) {
         if (e.code == FILE_NOT_FOUND) emptyList() else throw e
     }
 
     /**
-     * 整个换掉 [rel]:在同一目录里写好一份新的再改名盖上。原来那一项是链接、FIFO 或硬链接都只是被换掉,不会写进它指向的东西。
+     * 整个替换 [rel]:先在同一目录里写好一份新的,再改名盖上去。原来那一项无论是链接、FIFO 还是硬链接,
+     * 都只是被换掉,不会被写穿到它指向的东西。
      */
     fun replace(root: File, rel: String, bytes: ByteArray, mode: Int = 420 /* 0644 */) {
-        val segs = segments(rel)
-        if (segs.isEmpty()) throw outside()
-        anchored(root, segs.dropLast(1), create = true) { rootReal, dir ->
-            val tmp = ".maeve-new-" + UUID.randomUUID()
-            val f = file(dir, tmp, OpenHow.CREATE_NEW)
+        val parts = segments(rel)
+        if (parts.isEmpty()) throw outsideWorkspace()
+        withAnchored(root, parts.dropLast(1), create = true) { rootReal, parent ->
+            val staging = ".maeve-new-" + UUID.randomUUID()
+            val temp = openChild(parent, staging, OpenHow.CREATE_NEW)
             try {
-                f.use {
-                    verify(it, rootReal, dir, tmp)
-                    val buf = ByteBuffer.wrap(bytes)
-                    while (buf.hasRemaining()) it.channel().write(buf)
-                    sys.chmod(it, mode)
+                temp.use { fd ->
+                    verifyHandle(fd, rootReal, parent, staging)
+                    writeFully(fd, bytes)
+                    sys.chmod(fd, mode)
                 }
-                sys.rename(dir, tmp, segs.last())
+                sys.rename(parent, staging, parts.last())
             } catch (e: Exception) {
-                runCatching { sys.remove(dir, tmp) }
+                runCatching { sys.remove(parent, staging) }
                 throw e
             }
         }
     }
 
-    /** 让 [rel] 成为指向 [target] 的符号链接(已是就不动);原来那一项整个换掉。 */
+    /** 让 [rel] 指向 [target](已经是就不动);原来那一项整个换掉。 */
     fun symlink(root: File, rel: String, target: String) {
-        val segs = segments(rel)
-        if (segs.isEmpty()) throw outside()
-        anchored(root, segs.dropLast(1), create = true) { _, dir ->
-            if (sys.readlink(dir, segs.last()) == target) return@anchored
-            val tmp = ".maeve-link-" + UUID.randomUUID()
-            sys.symlink(dir, tmp, target)
-            try { sys.rename(dir, tmp, segs.last()) } catch (e: Exception) { runCatching { sys.remove(dir, tmp) }; throw e }
+        val parts = segments(rel)
+        if (parts.isEmpty()) throw outsideWorkspace()
+        withAnchored(root, parts.dropLast(1), create = true) { _, parent ->
+            if (sys.readlink(parent, parts.last()) == target) return@withAnchored
+            val staging = ".maeve-link-" + UUID.randomUUID()
+            sys.symlink(parent, staging, target)
+            try {
+                sys.rename(parent, staging, parts.last())
+            } catch (e: Exception) {
+                runCatching { sys.remove(parent, staging) }
+                throw e
+            }
         }
     }
 
     /**
-     * 删掉 `<root>/<rel>` 整棵树:每一层都相对上一层的句柄打开、不跟随链接,链接只删链接本身。
+     * 删掉 `<root>/<rel>` 整棵树:每一层都相对上一层的句柄打开、不跟随链接,链接只删链接本身;
      * 删的过程中被换成链接的目录不会被跟进去。只读目录先改成可写。
      */
     fun deleteTree(root: File, rel: String) {
-        val segs = segments(rel)
-        if (segs.isEmpty()) throw outside()
+        val parts = segments(rel)
+        if (parts.isEmpty()) throw outsideWorkspace()
         try {
-            anchored(root, segs.dropLast(1), create = false) { rootReal, dir -> removeEntry(dir, segs.last(), rootReal, 0) }
+            withAnchored(root, parts.dropLast(1), create = false) { rootReal, parent ->
+                eraseEntry(parent, parts.last(), rootReal, 0)
+            }
         } catch (e: SandboxError) {
             if (e.code != FILE_NOT_FOUND) throw e
         }
     }
 
-    private fun removeEntry(dir: OpenFd, name: String, rootReal: String, depth: Int) {
-        val st = sys.lstat(dir, name) ?: return
-        if (st.kind == FdStat.Kind.DIR) {
-            if (depth > MAX_DEPTH) throw IOException("directory tree too deep to delete")
-            val sub = try { sys.openDir(dir, name, create = false) } catch (e: FdSysException) { null }
-            if (sub != null) sub.use {
-                // 删的过程中被挪到根目录外面的,不跟着删
-                if (!inside(it.realPath(), rootReal)) return
-                runCatching { sys.chmod(it, 448 /* 0700 */) }
-                for (child in sys.list(it)) removeEntry(it, child, rootReal, depth + 1)
-            }
-        }
-        try { sys.remove(dir, name) } catch (e: FdSysException) { if (e.kind != FdSysException.Kind.NOT_FOUND) throw e }
-    }
+    /**
+     * 根目录句柄逐段下到目标目录,再在句柄上把最后一项核一遍。所有中间句柄都在出错时关掉,
+     * 返回的 [GatedFile] 自己负责关目标目录句柄。
+     */
+    private fun openVerified(root: File, rel: String, under: String?, how: OpenHow, createDirs: Boolean): GatedFile {
+        val parts = segments(rel)
+        if (parts.isEmpty()) throw notARegularFile()
+        if (under != null && parts.dropLast(1) != segments(under)) throw outsideWorkspace()
 
-    private fun open(root: File, rel: String, under: String?, how: OpenHow, createDirs: Boolean): GatedFile {
-        val segs = segments(rel)
-        if (segs.isEmpty()) throw notAFile()
-        if (under != null && segs.dropLast(1) != segments(under)) throw outside()
-        val rootFd = openRoot(root)
+        val rootHandle = openRoot(root)
         val rootReal: String
-        val dir: OpenFd
+        val parent: OpenFd
         try {
-            rootReal = rootFd.realPath()
-            dir = walk(rootFd, segs.dropLast(1), createDirs)
+            rootReal = rootHandle.realPath()
+            parent = descend(rootHandle, parts.dropLast(1), createDirs)
         } catch (e: Exception) {
-            rootFd.close()
+            rootHandle.close()
             throw e
         }
-        // 之后 dir 归 GatedFile 关;dir 不是根目录本身时根目录句柄这里就关
-        if (dir !== rootFd) rootFd.close()
+        // parent 就是根目录本身时,根句柄归 GatedFile 关;否则这里先关
+        if (parent !== rootHandle) rootHandle.close()
         try {
-            if (under != null && dir.realPath() != rootReal.trimEnd('/') + "/" + segments(under).joinToString("/")) throw outside()
-            val f = file(dir, segs.last(), how)
+            if (under != null && parent.realPath() != anchoredUnder(rootReal, under)) throw outsideWorkspace()
+            val fd = openChild(parent, parts.last(), how)
             try {
-                return GatedFile(sys, dir, f, segs.last(), verify(f, rootReal, dir, segs.last()))
+                return GatedFile(sys, parent, fd, parts.last(), verifyHandle(fd, rootReal, parent, parts.last()))
             } catch (e: Exception) {
-                f.close()
+                fd.close()
                 throw e
             }
         } catch (e: Exception) {
-            dir.close()
+            parent.close()
             throw e
         }
     }
 
-    /** 根目录句柄 → 逐段打开到 [segs] 指的目录;中间的句柄用完即关。 */
-    private fun walk(rootFd: OpenFd, segs: List<String>, create: Boolean): OpenFd {
-        var cur = rootFd
-        for (s in segs) {
-            val next = try { sys.openDir(cur, s, create) } catch (e: FdSysException) {
-                if (cur !== rootFd) cur.close()
-                throw map(e, dirStep = true)
+    /** 从根句柄逐段走到 [parts] 指的目录;中途的句柄用完就关,返回的那个由调用方关。 */
+    private fun descend(rootHandle: OpenFd, parts: List<String>, create: Boolean): OpenFd {
+        var current = rootHandle
+        for (part in parts) {
+            val next = try {
+                sys.openDir(current, part, create)
+            } catch (e: FdSysException) {
+                if (current !== rootHandle) current.close()
+                throw translate(e, folderStep = true)
             }
-            if (cur !== rootFd) cur.close()
-            cur = next
+            if (current !== rootHandle) current.close()
+            current = next
         }
-        return cur
+        return current
     }
 
-    private fun <T> anchored(root: File, segs: List<String>, create: Boolean, block: (String, OpenFd) -> T): T {
-        val rootFd = openRoot(root)
+    /** 在 [root] 下打开 [parts] 指的目录后执行 [action],句柄由这里负责关。 */
+    private fun <R> withAnchored(root: File, parts: List<String>, create: Boolean, action: (String, OpenFd) -> R): R {
+        val rootHandle = openRoot(root)
         try {
-            val rootReal = rootFd.realPath()
-            val dir = walk(rootFd, segs, create)
+            val rootReal = rootHandle.realPath()
+            val target = descend(rootHandle, parts, create)
             try {
-                if (!inside(dir.realPath(), rootReal) && dir !== rootFd) throw outside()
-                return block(rootReal, dir)
+                if (!inside(target.realPath(), rootReal) && target !== rootHandle) throw outsideWorkspace()
+                return action(rootReal, target)
             } finally {
-                if (dir !== rootFd) dir.close()
+                if (target !== rootHandle) target.close()
             }
         } finally {
-            rootFd.close()
+            rootHandle.close()
         }
     }
 
-    private fun openRoot(root: File): OpenFd = try { sys.openRoot(root) } catch (e: FdSysException) { throw map(e, dirStep = true) }
-
-    private fun file(dir: OpenFd, name: String, how: OpenHow): OpenFd =
-        try { sys.openFile(dir, name, how) } catch (e: FdSysException) { throw map(e, dirStep = false) }
-
-    /** 在句柄上核实:实际位置就是打开它的那个目录里的那个名字、在根目录里;普通文件;只有一个硬链接。 */
-    private fun verify(f: OpenFd, rootReal: String, dir: OpenFd, name: String): FdStat {
-        val real = f.realPath()
-        if (!inside(real, rootReal) || real != dir.realPath().trimEnd('/') + "/" + name) throw outside()
-        val st = f.stat()
-        if (st.kind != FdStat.Kind.FILE) throw notAFile()
-        if (st.nlink != 1L) throw SandboxError(LINKED_FILE, "The file has more than one hard link, so Maeve does not use it; copy it (cp) and use the copy.", recoverable = true)
-        return st
+    private fun eraseEntry(parent: OpenFd, name: String, rootReal: String, depth: Int) {
+        val entry = sys.lstat(parent, name) ?: return
+        if (entry.kind == FdStat.Kind.DIR) {
+            if (depth > MAX_DEPTH) throw IOException("directory tree too deep to delete")
+            val child = try {
+                sys.openDir(parent, name, create = false)
+            } catch (e: FdSysException) {
+                null
+            }
+            if (child != null) child.use {
+                // 删除途中被挪到根目录外面的,不跟着删
+                if (!inside(it.realPath(), rootReal)) return
+                runCatching { sys.chmod(it, 448 /* 0700 */) }
+                for (nested in sys.list(it)) eraseEntry(it, nested, rootReal, depth + 1)
+            }
+        }
+        try {
+            sys.remove(parent, name)
+        } catch (e: FdSysException) {
+            if (e.kind != FdSysException.Kind.NOT_FOUND) throw e
+        }
     }
 
-    private fun map(e: FdSysException, dirStep: Boolean): SandboxError = when (e.kind) {
-        FdSysException.Kind.NOT_FOUND -> SandboxError(FILE_NOT_FOUND, "The file does not exist.", recoverable = true)
-        FdSysException.Kind.EXISTS -> SandboxError(FILE_EXISTS, "A file with this name already exists.", recoverable = true)
-        FdSysException.Kind.NOT_DIR -> SandboxError(FILE_NOT_FOUND, "A folder on this path is not a folder.", recoverable = true)
+    private fun openRoot(root: File): OpenFd = try {
+        sys.openRoot(root)
+    } catch (e: FdSysException) {
+        throw translate(e, folderStep = true)
+    }
+
+    private fun openChild(parent: OpenFd, name: String, how: OpenHow): OpenFd = try {
+        sys.openFile(parent, name, how)
+    } catch (e: FdSysException) {
+        throw translate(e, folderStep = false)
+    }
+
+    /** 只信句柄:真实位置就是打开它的那个目录里的这个名字、且在根目录内;普通文件;硬链接数为 1。 */
+    private fun verifyHandle(fd: OpenFd, rootReal: String, parent: OpenFd, name: String): FdStat {
+        val actual = fd.realPath()
+        if (!inside(actual, rootReal)) throw outsideWorkspace()
+        if (actual != parent.realPath().trimEnd('/') + "/" + name) throw outsideWorkspace()
+        val info = fd.stat()
+        if (info.kind != FdStat.Kind.FILE) throw notARegularFile()
+        if (info.nlink != 1L) {
+            throw SandboxError(
+                LINKED_FILE,
+                "The file has more than one hard link, so Maeve does not use it; copy it (cp) and use the copy.",
+                recoverable = true,
+            )
+        }
+        return info
+    }
+
+    private fun translate(e: FdSysException, folderStep: Boolean): SandboxError = when (e.kind) {
+        FdSysException.Kind.NOT_FOUND ->
+            SandboxError(FILE_NOT_FOUND, "The file does not exist.", recoverable = true)
+        FdSysException.Kind.EXISTS ->
+            SandboxError(FILE_EXISTS, "A file with this name already exists.", recoverable = true)
+        FdSysException.Kind.NOT_DIR ->
+            SandboxError(FILE_NOT_FOUND, "A folder on this path is not a folder.", recoverable = true)
         FdSysException.Kind.LINK ->
-            if (dirStep) SandboxError(NOT_A_FILE, "A folder on this path is a link; Maeve's file tools do not follow links. Use the real path.", recoverable = true)
-            else notAFile()
-        FdSysException.Kind.NOT_FILE -> notAFile()
+            if (folderStep) {
+                SandboxError(
+                    NOT_A_FILE,
+                    "A folder on this path is a link; Maeve's file tools do not follow links. Use the real path.",
+                    recoverable = true,
+                )
+            } else {
+                notARegularFile()
+            }
+        FdSysException.Kind.NOT_FILE -> notARegularFile()
     }
 
-    private fun outside() = SandboxError(OUTSIDE, "The file is outside the allowed folder.", recoverable = true)
-    private fun notAFile() = SandboxError(NOT_A_FILE, "Not a regular file (a directory, link or special file).", recoverable = true)
+    private fun outsideWorkspace() =
+        SandboxError(OUTSIDE, "The file is outside the allowed folder.", recoverable = true)
+
+    private fun notARegularFile() =
+        SandboxError(NOT_A_FILE, "Not a regular file (a directory, link or special file).", recoverable = true)
+
+    /** `<root>/<under>/` 的期望真实路径。 */
+    private fun anchoredUnder(rootReal: String, under: String): String =
+        rootReal.trimEnd('/') + "/" + segments(under).joinToString("/")
+
+    private fun writeFully(fd: OpenFd, bytes: ByteArray) {
+        val buffer = ByteBuffer.wrap(bytes)
+        while (buffer.hasRemaining()) fd.channel().write(buffer)
+    }
 
     companion object {
         const val FILE_NOT_FOUND = "file_not_found"
@@ -225,26 +295,31 @@ class WorkspaceFileGate(private val sys: FdSys) {
         const val OUTSIDE = "path_outside_workspace"
         private const val MAX_DEPTH = 256
 
-        /** 根目录下的各段;`..`、空字节越界。 */
+        /** 把根目录下的相对路径拆成各段;`..` 或空字节都算越界。 */
         fun segments(rel: String): List<String> {
-            if ('\u0000' in rel) throw SandboxError(OUTSIDE, "The path is not allowed.", recoverable = true)
-            return rel.split('/').filter { it.isNotEmpty() && it != "." }.onEach {
-                if (it == "..") throw SandboxError(OUTSIDE, "The path is not allowed.", recoverable = true)
+            if ('\u0000' in rel) throw rejectedPath()
+            val parts = rel.split('/').filter { it.isNotEmpty() && it != "." }
+            for (part in parts) {
+                if (part == "..") throw rejectedPath()
             }
+            return parts
         }
 
-        /** 「a.csv」→「a (2).csv」;没有扩展名的直接加在后面。 */
+        /** 「a.csv」→「a (2).csv」;没有扩展名的直接把编号接在后面。 */
         fun numbered(name: String, n: Int): String {
             if (n <= 1) return name
             val dot = name.lastIndexOf('.')
             return if (dot > 0) "${name.substring(0, dot)} ($n)${name.substring(dot)}" else "$name ($n)"
         }
 
-        internal fun inside(path: String, root: String): Boolean = path == root || path.startsWith(root.trimEnd('/') + "/")
+        internal fun inside(path: String, root: String): Boolean =
+            path == root || path.startsWith(root.trimEnd('/') + "/")
+
+        private fun rejectedPath() = SandboxError(OUTSIDE, "The path is not allowed.", recoverable = true)
     }
 }
 
-/** 过了 [WorkspaceFileGate] 核实的一个文件;读写都在这个句柄上。[stat] 是核实时的。 */
+/** 经 [WorkspaceFileGate] 核实过的一个文件;读写都落在同一个句柄上,[stat] 是核实那一刻的。 */
 class GatedFile internal constructor(
     private val sys: FdSys,
     private val dir: OpenFd,
@@ -256,44 +331,57 @@ class GatedFile internal constructor(
 
     fun channel() = fd.channel()
 
-    /** 从头读(或从当前位置);关掉流不关句柄。 */
-    fun input(): InputStream = object : java.io.FilterInputStream(Channels.newInputStream(fd.channel())) { override fun close() = Unit }
+    /** 从当前位置读;关掉流不会关句柄。 */
+    fun input(): InputStream = UnclosableInput(Channels.newInputStream(fd.channel()))
 
-    fun output(): OutputStream = object : java.io.FilterOutputStream(Channels.newOutputStream(fd.channel())) {
-        override fun write(b: ByteArray, off: Int, len: Int) = out.write(b, off, len)
-        override fun close() = flush()
-    }
+    /** 往当前位置写;关掉流只是冲刷,不关句柄。 */
+    fun output(): OutputStream = FlushOnlyOutput(Channels.newOutputStream(fd.channel()))
 
     /** 从 [offset] 起读至多 [len] 字节,读到文件末尾为止。 */
     fun read(offset: Long, len: Int): ByteArray {
-        val buf = ByteBuffer.allocate(len)
-        var pos = offset
-        while (buf.hasRemaining()) {
-            val n = fd.channel().read(buf, pos)
-            if (n < 0) break
-            pos += n
+        val buffer = ByteBuffer.allocate(len)
+        var position = offset
+        while (buffer.hasRemaining()) {
+            val count = fd.channel().read(buffer, position)
+            if (count < 0) break
+            position += count
         }
-        return buf.array().copyOf(buf.position())
+        return buffer.array().copyOf(buffer.position())
     }
 
     fun write(bytes: ByteArray) {
-        val buf = ByteBuffer.wrap(bytes)
-        while (buf.hasRemaining()) fd.channel().write(buf)
+        val buffer = ByteBuffer.wrap(bytes)
+        while (buffer.hasRemaining()) fd.channel().write(buffer)
     }
 
     fun currentSize(): Long = fd.channel().size()
 
     internal fun truncate() = fd.truncate(0)
 
-    /** 删掉这个文件:目录里这个名字仍是同一个文件(设备号+inode)才删,换成了别的就不动。 */
+    /** 删除这个文件:目录里那一项仍是同一个文件(设备号 + inode)才删,换成了别的就不动。 */
     fun delete() {
-        val now = sys.lstat(dir, name) ?: return
-        if (now.dev != stat.dev || now.ino != stat.ino || now.kind != FdStat.Kind.FILE) return
-        try { sys.remove(dir, name) } catch (e: FdSysException) { if (e.kind != FdSysException.Kind.NOT_FOUND) throw e }
+        val current = sys.lstat(dir, name) ?: return
+        if (current.dev != stat.dev || current.ino != stat.ino || current.kind != FdStat.Kind.FILE) return
+        try {
+            sys.remove(dir, name)
+        } catch (e: FdSysException) {
+            if (e.kind != FdSysException.Kind.NOT_FOUND) throw e
+        }
     }
 
     override fun close() {
         runCatching { fd.close() }
         runCatching { dir.close() }
+    }
+
+    /** 关流不关底层句柄:句柄的寿命归 [GatedFile]。 */
+    private class UnclosableInput(source: InputStream) : FilterInputStream(source) {
+        override fun close() = Unit
+    }
+
+    /** 关流只冲刷,不关底层句柄。 */
+    private class FlushOnlyOutput(sink: OutputStream) : FilterOutputStream(sink) {
+        override fun write(bytes: ByteArray, offset: Int, length: Int) = out.write(bytes, offset, length)
+        override fun close() = flush()
     }
 }

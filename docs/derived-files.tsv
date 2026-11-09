@@ -29,7 +29,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 672	src	app/src/main/java/com/daiyimo/maeve/ui/UsageScreen.kt	710	38	37	0.946	no
 649	src	app/src/main/java/com/daiyimo/maeve/ui/BrowserPageAsk.kt	719	70	67	0.903	no
 644	src	app/src/main/java/com/daiyimo/maeve/ui/PhoneSetupScreen.kt	734	90	67	0.877	no
-632	src	core/src/main/kotlin/com/daiyimo/maeve/core/gate/IrreversibleDetector.kt	632	0	0	1.000	no
 623	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/ScreenSession.kt	627	4	4	0.994	no
 615	core-text	core/src/main/resources/prompts/feedback/tools.md	632	17	17	0.973	no
 613	src	app/src/main/java/com/daiyimo/maeve/ui/VoiceHold.kt	646	33	31	0.949	no
@@ -142,7 +141,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 331	src	core/src/main/kotlin/com/daiyimo/maeve/core/model/ResponsesModel.kt	332	1	1	0.997	no
 331	tests	core/src/test/kotlin/com/daiyimo/maeve/core/skills/SkillDrafterTest.kt	331	0	0	1.000	no
 327	src	app/src/main/java/com/daiyimo/maeve/takeover/Takeover.kt	327	0	0	1.000	no
-327	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/RunTrace.kt	345	18	18	0.948	no
 327	tests	core/src/test/kotlin/com/daiyimo/maeve/core/verify/VerifierTest.kt	327	0	0	1.000	no
 326	other	core/src/chatgptCheck/kotlin/com/daiyimo/maeve/core/chatgpt/check/ChatGptSignInCheck.kt	333	7	7	0.979	no
 323	src	app/src/main/java/com/daiyimo/maeve/record/RunStore.kt	324	1	1	0.997	no
@@ -153,7 +151,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 319	src	app/src/main/java/com/daiyimo/maeve/cap/phone/a11y/ScreenReader.kt	319	0	0	1.000	no
 319	src	app/src/main/java/com/daiyimo/maeve/cap/phone/setup/BuiltinShellManager.kt	322	3	3	0.991	no
 319	src	core/src/main/kotlin/com/daiyimo/maeve/core/adb/AdbIdentity.kt	320	1	1	0.997	no
-316	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunEvent.kt	316	0	0	1.000	no
 316	src	core/src/main/kotlin/com/daiyimo/maeve/core/verify/Verifier.kt	317	1	1	0.997	no
 315	tests	core/src/test/kotlin/com/daiyimo/maeve/core/adb/AdbConnectionTest.kt	315	0	0	1.000	no
 313	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/ScreenPort.kt	315	2	2	0.994	no
@@ -181,7 +178,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 295	tests	app/src/test/java/com/daiyimo/maeve/voice/HoldToTalkTest.kt	295	0	0	1.000	no
 295	tests	core/src/test/kotlin/com/daiyimo/maeve/core/tool/BrowserScriptTest.kt	295	0	0	1.000	no
 294	src	app/src/main/java/com/daiyimo/maeve/ui/McpScreen.kt	324	30	30	0.907	no
-294	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/WorkspaceFileGate.kt	299	5	5	0.983	no
 293	tests	core/src/test/kotlin/com/daiyimo/maeve/core/tool/ToolDispatcherInteractTest.kt	293	0	0	1.000	no
 291	src	core/src/main/kotlin/com/daiyimo/maeve/core/eval/EvalReport.kt	292	1	1	0.997	no
 291	tests	core/src/test/kotlin/com/daiyimo/maeve/core/cap/sandbox/RootfsExtractorTest.kt	292	1	1	0.997	no
@@ -193,6 +189,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 285	tests	core/src/test/kotlin/com/daiyimo/maeve/core/verify/EvidenceLedgerTest.kt	285	0	0	1.000	no
 284	src	app/src/main/java/com/daiyimo/maeve/task/TriggerRuntime.kt	292	8	8	0.973	no
 284	src	app/src/main/java/com/daiyimo/maeve/ui/SpeechModelScreen.kt	298	14	14	0.953	no
+281	src	core/src/main/kotlin/com/daiyimo/maeve/core/gate/IrreversibleDetector.kt	794	513	351	0.354	no
 281	src	core/src/main/kotlin/com/daiyimo/maeve/core/shell/PhoneSetupFlow.kt	284	3	3	0.989	no
 279	src	app/src/main/java/com/daiyimo/maeve/ui/components/Controls.kt	501	222	88	0.557	no
 279	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/web/NetworkLedger.kt	279	0	0	1.000	no
@@ -258,8 +255,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 240	src	core/src/main/kotlin/com/daiyimo/maeve/core/shell/HelperHandoff.kt	260	20	20	0.923	no
 239	src	app/src/main/java/com/daiyimo/maeve/cap/web/cdp/DesktopProfile.kt	241	2	2	0.992	no
 239	src	app/src/main/java/com/daiyimo/maeve/task/TaskRecovery.kt	253	14	14	0.945	no
-239	src	core/src/main/kotlin/com/daiyimo/maeve/core/gate/ConfirmationGate.kt	239	0	0	1.000	no
-239	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunMetrics.kt	239	0	0	1.000	no
 238	tests	app/src/test/java/com/daiyimo/maeve/settings/ReasoningSettingsTest.kt	238	0	0	1.000	no
 238	tests	core/src/test/kotlin/com/daiyimo/maeve/core/gate/ConfirmationGateTest.kt	238	0	0	1.000	no
 238	tests	core/src/test/kotlin/com/daiyimo/maeve/core/replay/ReplayerTest.kt	238	0	0	1.000	no
@@ -299,7 +294,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 219	tests	core/src/test/kotlin/com/daiyimo/maeve/core/agent/PromptSurfaceFeedback.kt	219	0	0	1.000	no
 218	src	app/src/main/java/com/daiyimo/maeve/ui/AdvancedSection.kt	242	24	20	0.901	no
 218	src	app/src/main/java/com/daiyimo/maeve/ui/components/Rows.kt	277	59	36	0.787	no
-218	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/TraceFiles.kt	237	19	19	0.920	no
 218	tests	core/src/test/kotlin/com/daiyimo/maeve/core/cap/web/ElementProbeTest.kt	218	0	0	1.000	no
 218	tests	core/src/test/kotlin/com/daiyimo/maeve/core/uistate/RefStabilizerTest.kt	218	0	0	1.000	no
 217	src	app/src/main/java/com/daiyimo/maeve/ui/theme/MaeveIcons.kt	267	50	4	0.813	no
@@ -319,7 +313,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 213	tests	core/src/test/kotlin/com/daiyimo/maeve/core/tool/ToolDispatcherAccuracyTest.kt	213	0	0	1.000	no
 212	tests	app/src/test/java/com/daiyimo/maeve/task/AppMuterTest.kt	214	2	2	0.991	no
 212	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/phone/PhoneRun.kt	212	0	0	1.000	no
-212	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/Redactor.kt	213	1	1	0.995	no
 211	tests	app/src/androidTest/java/com/daiyimo/maeve/cap/web/CdpInputDeviceTest.kt	211	0	0	1.000	no
 211	res	app/src/main/res/values-ar/strings_models.xml	211	0	0	1.000	no
 210	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/web/cdp/WebSocket.kt	210	0	0	1.000	no
@@ -350,6 +343,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 200	tests	core/src/test/kotlin/com/daiyimo/maeve/core/usage/MeteredHttpTest.kt	203	3	3	0.985	no
 199	res	app/src/main/res/values-es/strings_models.xml	199	0	0	1.000	no
 199	tests	app/src/test/java/com/daiyimo/maeve/cap/phone/setup/PairingNoticeTest.kt	201	2	2	0.990	no
+199	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/RunTrace.kt	468	269	146	0.425	no
 199	tests	core/src/test/kotlin/com/daiyimo/maeve/core/tool/ToolDispatcherFrameTest.kt	199	0	0	1.000	no
 199	docs	docs/setup-guide.en.md	275	76	76	0.724	no
 198	src	core/src/main/kotlin/com/daiyimo/maeve/core/knowledge/AppKnowledgeLearning.kt	199	1	1	0.995	no
@@ -376,6 +370,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 191	res	app/src/main/res/values-ja/strings_models.xml	191	0	0	1.000	no
 191	src	core/src/main/kotlin/com/daiyimo/maeve/core/assembly/TaskTools.kt	197	6	6	0.970	no
 191	src	core/src/main/kotlin/com/daiyimo/maeve/core/model/LeakedToolMarkup.kt	191	0	0	1.000	no
+191	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunEvent.kt	502	311	125	0.380	no
 191	tests	core/src/test/kotlin/com/daiyimo/maeve/core/eval/TaskSetTest.kt	192	1	1	0.995	no
 191	tests	core/src/test/kotlin/com/daiyimo/maeve/core/uistate/ActionEffectTest.kt	191	0	0	1.000	no
 190	src	app/src/main/java/com/daiyimo/maeve/ui/PlansScreen.kt	207	17	17	0.918	no
@@ -444,7 +439,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 173	tests	app/src/test/java/com/daiyimo/maeve/cap/phone/a11y/InjectedGesturesTest.kt	173	0	0	1.000	no
 172	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/phone/PhoneAutomationTools.kt	172	0	0	1.000	no
 172	tests	core/src/test/kotlin/com/daiyimo/maeve/core/tool/OpenLinkTest.kt	172	0	0	1.000	no
-171	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/TracePayload.kt	171	0	0	1.000	no
 171	tests	core/src/test/kotlin/com/daiyimo/maeve/core/knowledge/AppKnowledgeLearningTest.kt	171	0	0	1.000	no
 171	tests	core/src/test/kotlin/com/daiyimo/maeve/core/tool/ToolDispatcherStableRefTest.kt	171	0	0	1.000	no
 171	tests	core/src/test/kotlin/com/daiyimo/maeve/core/tool/ToolDispatcherVisionTest.kt	171	0	0	1.000	no
@@ -496,6 +490,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 158	tests	app/src/androidTest/java/com/daiyimo/maeve/eval/EvalProbes.kt	160	2	2	0.988	no
 158	src	app/src/main/java/com/daiyimo/maeve/voice/PcmRecorder.kt	158	0	0	1.000	no
 158	src	core/src/main/kotlin/com/daiyimo/maeve/core/adb/AdbHosts.kt	158	0	0	1.000	no
+158	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/WorkspaceFileGate.kt	387	229	141	0.408	no
 158	tests	core/src/test/kotlin/com/daiyimo/maeve/core/knowledge/KnowledgeStoreTest.kt	158	0	0	1.000	no
 157	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/web/PageDwell.kt	157	0	0	1.000	no
 156	tests	app/src/androidTest/java/com/daiyimo/maeve/cap/web/WebFilesTest.kt	157	1	1	0.994	no
@@ -544,7 +539,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 147	tests	app/src/test/java/com/daiyimo/maeve/browser/SiteLooksTest.kt	147	0	0	1.000	no
 147	src	core/src/main/kotlin/com/daiyimo/maeve/core/replay/Route.kt	147	0	0	1.000	no
 147	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/ScreenContext.kt	148	1	1	0.993	no
-147	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/FdSys.kt	147	0	0	1.000	no
 146	src	app/src/main/java/com/daiyimo/maeve/task/RemoteTaskHub.kt	148	2	2	0.986	no
 146	src	core/src/main/kotlin/com/daiyimo/maeve/core/general/LookupTools.kt	146	0	0	1.000	no
 146	tests	core/src/test/kotlin/com/daiyimo/maeve/core/agent/AgentLoopUserScreenTest.kt	146	0	0	1.000	no
@@ -578,6 +572,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 139	tests	core/src/test/kotlin/com/daiyimo/maeve/core/prompt/PromptLayoutTest.kt	139	0	0	1.000	no
 139	tools	tools/sandbox/patches/proot-0003-arm64-new-path-syscalls.patch	139	0	0	1.000	no
 138	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/web/cdp/CdpCommands.kt	138	0	0	1.000	no
+138	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/TraceFiles.kt	297	159	99	0.465	no
 138	tests	core/src/test/kotlin/com/daiyimo/maeve/core/cap/phone/WheelDragsTest.kt	138	0	0	1.000	no
 138	tests	core/src/test/kotlin/com/daiyimo/maeve/core/cap/web/SettlePolicyTest.kt	138	0	0	1.000	no
 138	tests	core/src/test/kotlin/com/daiyimo/maeve/core/tool/ToolDispatcherRecallTest.kt	138	0	0	1.000	no
@@ -600,7 +595,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 133	src	app/src/main/java/com/daiyimo/maeve/confirm/ConfirmationNotifier.kt	134	1	1	0.993	no
 133	src	core/src/main/kotlin/com/daiyimo/maeve/core/general/ScheduleTask.kt	136	3	3	0.978	no
 133	src	core/src/main/kotlin/com/daiyimo/maeve/core/shell/WirelessDebuggingAutoOn.kt	139	6	6	0.957	no
-133	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/SandboxTree.kt	133	0	0	1.000	no
 133	tests	core/src/test/kotlin/com/daiyimo/maeve/core/agent/StopSummaryTest.kt	133	0	0	1.000	no
 133	tests	core/src/test/kotlin/com/daiyimo/maeve/core/cap/root/RootCommandClassTest.kt	133	0	0	1.000	no
 133	tests	core/src/test/kotlin/com/daiyimo/maeve/core/model/LeakedToolMarkupTest.kt	133	0	0	1.000	no
@@ -667,6 +661,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 122	tests	app/src/test/java/com/daiyimo/maeve/memory/EncryptedMemoryFileTest.kt	122	0	0	1.000	no
 121	tests	app/src/androidTest/java/com/daiyimo/maeve/cap/web/WebLoginTest.kt	122	1	1	0.992	no
 121	src	app/src/main/java/com/daiyimo/maeve/cap/phone/shell/DeviceUnlockInput.kt	122	1	1	0.992	no
+121	src	core/src/main/kotlin/com/daiyimo/maeve/core/gate/ConfirmationGate.kt	290	169	118	0.417	no
 120	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/web/WebBarrier.kt	120	0	0	1.000	no
 120	src	core/src/main/kotlin/com/daiyimo/maeve/core/oauth/AccountSession.kt	120	0	0	1.000	no
 119	tests	app/src/androidTest/java/com/daiyimo/maeve/vision/BitmapImageOpsTest.kt	119	0	0	1.000	no
@@ -702,6 +697,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 113	tests	core/src/test/kotlin/com/daiyimo/maeve/core/adb/LocalPortScanTest.kt	113	0	0	1.000	no
 112	src	app/src/main/java/com/daiyimo/maeve/replay/FileRouteStore.kt	112	0	0	1.000	no
 112	src	app/src/main/java/com/daiyimo/maeve/ui/DeviceAccessSection.kt	123	11	9	0.911	no
+112	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunMetrics.kt	284	172	127	0.394	no
 112	src	core/src/main/kotlin/com/daiyimo/maeve/core/tool/Args.kt	112	0	0	1.000	no
 112	tests	core/src/test/kotlin/com/daiyimo/maeve/core/cap/phone/WheelStepsTest.kt	112	0	0	1.000	no
 112	tests	core/src/test/kotlin/com/daiyimo/maeve/core/model/ClientHeadersTest.kt	118	6	6	0.949	no
@@ -749,6 +745,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 106	tests	app/src/androidTest/java/com/daiyimo/maeve/cap/phone/a11y/DialogSpillDeviceTest.kt	111	5	5	0.955	no
 106	src	app/src/main/java/com/daiyimo/maeve/voice/SpeechSession.kt	106	0	0	1.000	no
 106	src	core/src/main/kotlin/com/daiyimo/maeve/core/agent/OutcomeJudge.kt	106	0	0	1.000	no
+106	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/Redactor.kt	294	188	107	0.361	no
 106	src	core/src/main/kotlin/com/daiyimo/maeve/core/shell/RecoveryPolicy.kt	106	0	0	1.000	no
 106	tests	core/src/test/kotlin/com/daiyimo/maeve/core/mcp/McpHostHttpTest.kt	108	2	2	0.981	no
 105	src	app/src/main/java/com/daiyimo/maeve/cap/sandbox/ProcRunner.kt	111	6	6	0.946	no
@@ -855,7 +852,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 93	tests	app/src/test/java/com/daiyimo/maeve/settings/RecoverySettingsTest.kt	93	0	0	1.000	no
 93	src	core/src/main/kotlin/com/daiyimo/maeve/core/agent/ModelRouter.kt	93	0	0	1.000	no
 93	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/mcp/McpHandshake.kt	93	0	0	1.000	no
-93	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/TraceDisk.kt	93	0	0	1.000	no
 93	tests	core/src/test/kotlin/com/daiyimo/maeve/core/cap/web/cdp/CdpDeadlineTest.kt	93	0	0	1.000	no
 93	eval	eval/README.md	95	2	2	0.979	no
 93	tools	tools/relay/README.md	110	17	17	0.845	no
@@ -915,6 +911,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 88	src	core/src/main/kotlin/com/daiyimo/maeve/core/mcp/McpUsb.kt	93	5	5	0.946	no
 88	src	core/src/main/kotlin/com/daiyimo/maeve/core/settings/SelfConfig.kt	93	5	5	0.946	no
 88	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/VisibleText.kt	88	0	0	1.000	no
+88	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/FdSys.kt	194	106	59	0.454	no
 88	tools	tools/relay/store.go	88	0	0	1.000	no
 87	tests	app/src/androidTest/java/com/daiyimo/maeve/cap/phone/a11y/OverlayFrameDragTest.kt	87	0	0	1.000	no
 87	src	app/src/main/java/com/daiyimo/maeve/ui/RootSection.kt	98	11	11	0.888	no
@@ -1086,10 +1083,10 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 75	tests	app/src/test/java/com/daiyimo/maeve/settings/FeatureFlagsCapsuleTest.kt	75	0	0	1.000	no
 75	tests	app/src/test/java/com/daiyimo/maeve/settings/NotificationOverviewTest.kt	75	0	0	1.000	no
 75	tests	app/src/test/java/com/daiyimo/maeve/task/AudioMuteTest.kt	75	0	0	1.000	no
-75	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunMetricsStore.kt	75	0	0	1.000	no
 75	src	core/src/main/kotlin/com/daiyimo/maeve/core/selfcheck/SelfCheckReport.kt	76	1	1	0.987	no
 75	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/Described.kt	75	0	0	1.000	no
 75	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/InterfaceUpdate.kt	75	0	0	1.000	no
+75	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/SandboxTree.kt	150	75	58	0.500	no
 75	tests	core/src/test/kotlin/com/daiyimo/maeve/core/cap/phone/LaunchWaitTest.kt	75	0	0	1.000	no
 75	tests	core/src/test/kotlin/com/daiyimo/maeve/core/mcp/McpServerTest.kt	75	0	0	1.000	no
 74	tests	app/src/androidTest/java/com/daiyimo/maeve/cap/phone/a11y/LegacyPhoneDeviceTest.kt	76	2	2	0.974	no
@@ -1308,6 +1305,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 56	src	core/src/main/kotlin/com/daiyimo/maeve/core/remote/RemoteEndpoints.kt	57	1	1	0.982	no
 56	src	core/src/main/kotlin/com/daiyimo/maeve/core/run/RunContracts.kt	56	0	0	1.000	no
 56	src	core/src/main/kotlin/com/daiyimo/maeve/core/tool/ToolDef.kt	56	0	0	1.000	no
+56	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/TraceDisk.kt	99	43	37	0.566	no
 56	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/tools/KeyTools.kt	56	0	0	1.000	no
 56	docs	docs/readme/README.zh-CN.md	137	81	126	0.409	no
 55	tests	app/src/androidTest/assets/web-fixtures/interact.html	55	0	0	1.000	no
@@ -1423,7 +1421,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 50	tests	app/src/test/java/com/daiyimo/maeve/ui/DeveloperSwitchesTest.kt	50	0	0	1.000	no
 50	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/web/PageDialogs.kt	50	0	0	1.000	no
 50	src	core/src/main/kotlin/com/daiyimo/maeve/core/knowledge/ChannelAdvisor.kt	54	4	4	0.926	no
-50	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/LegacyEvents.kt	50	0	0	1.000	no
 50	src	core/src/main/kotlin/com/daiyimo/maeve/core/tool/LinkPolicy.kt	50	0	0	1.000	no
 50	tests	core/src/test/kotlin/com/daiyimo/maeve/core/eval/EvalReportTimingTest.kt	50	0	0	1.000	no
 50	tests	core/src/test/kotlin/com/daiyimo/maeve/core/skills/SkillRedactorTest.kt	50	0	0	1.000	no
@@ -1431,7 +1428,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 49	res	app/src/main/res/values-ru/strings_plans.xml	49	0	0	1.000	no
 49	tests	app/src/test/java/com/daiyimo/maeve/intercept/AmooBridgeProtocolTest.kt	49	0	0	1.000	no
 49	src	core/src/main/kotlin/com/daiyimo/maeve/core/script/JsSource.kt	310	261	106	0.158	no
-49	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/SandboxPaths.kt	50	1	1	0.980	no
 49	core-text	core/src/main/resources/prompts/capabilities/web.md	57	8	8	0.860	no
 49	tests	core/src/test/kotlin/com/daiyimo/maeve/core/access/AppClassifierTest.kt	49	0	0	1.000	no
 49	tests	core/src/test/kotlin/com/daiyimo/maeve/core/action/ScriptReadsTest.kt	49	0	0	1.000	no
@@ -1463,6 +1459,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 47	tests	app/src/test/java/com/daiyimo/maeve/cap/phone/shell/InjectModeTest.kt	47	0	0	1.000	no
 47	tests	app/src/test/java/com/daiyimo/maeve/voice/SegmentsTest.kt	47	0	0	1.000	no
 47	src	core/src/main/kotlin/com/daiyimo/maeve/core/tool/ToolResults.kt	47	0	0	1.000	no
+47	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/TracePayload.kt	254	207	124	0.185	no
 47	core-text	core/src/main/resources/skills/content-transcribe/references/transcript-output-formats.md	47	0	0	1.000	no
 47	tests	core/src/test/kotlin/com/daiyimo/maeve/core/verify/VerifierSourcesTest.kt	47	0	0	1.000	no
 47	docs	docs/adr/0004-selfcheck-harness.md	49	2	1	0.959	no
@@ -1502,7 +1499,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 44	src	core/src/main/kotlin/com/daiyimo/maeve/core/agent/GuideRecommender.kt	44	0	0	1.000	no
 44	src	core/src/main/kotlin/com/daiyimo/maeve/core/agent/NoticePolicy.kt	44	0	0	1.000	no
 44	src	core/src/main/kotlin/com/daiyimo/maeve/core/general/HandleObstacle.kt	44	0	0	1.000	no
-44	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/LocalSpan.kt	44	0	0	1.000	no
 44	docs	docs/readme/README.es.md	136	92	134	0.324	no
 44	docs	docs/readme/README.ko.md	130	86	134	0.338	no
 44	docs	docs/readme/README.zh-Hant.md	126	82	132	0.349	no
@@ -1548,6 +1544,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 40	res	app/src/main/res/values-ru/strings_usage.xml	40	0	0	1.000	no
 40	tests	app/src/test/java/com/daiyimo/maeve/ui/QuoteMessageTest.kt	46	6	6	0.870	no
 40	src	core/src/main/kotlin/com/daiyimo/maeve/core/agent/ContextLimits.kt	40	0	0	1.000	no
+40	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunMetricsStore.kt	102	62	35	0.392	no
 40	src	core/src/main/kotlin/com/daiyimo/maeve/core/run/ChannelGateway.kt	40	0	0	1.000	no
 40	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/Pace.kt	40	0	0	1.000	no
 40	src	core/src/main/kotlin/com/daiyimo/maeve/core/visual/Shots.kt	40	0	0	1.000	no
@@ -1876,6 +1873,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 23	res	app/src/main/res/values/strings_recovery.xml	23	0	0	1.000	no
 23	tests	app/src/test/java/com/daiyimo/maeve/cap/phone/shell/ShareIntentTest.kt	23	0	0	1.000	no
 23	src	core/src/main/kotlin/com/daiyimo/maeve/core/agent/CompactionPolicy.kt	23	0	0	1.000	no
+23	src	core/src/main/kotlin/com/daiyimo/maeve/core/trace/LocalSpan.kt	80	57	21	0.287	no
 23	core-text	core/src/main/resources/knowledge/apps/android-settings/APP.md	23	0	0	1.000	no
 23	core-text	core/src/main/resources/knowledge/sites/mail.google.com/SITE.md	23	0	0	1.000	no
 23	core-text	core/src/main/resources/knowledge/sites/telegram.org/SITE.md	23	0	0	1.000	no
@@ -1925,6 +1923,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 21	tests	app/src/androidTest/java/com/daiyimo/maeve/cap/phone/a11y/TestAuthenticatorService.java	21	0	0	1.000	no
 21	tests	app/src/test/java/com/daiyimo/maeve/cap/phone/shell/ColdStartTest.kt	22	1	1	0.955	no
 21	src	core/src/main/kotlin/com/daiyimo/maeve/core/knowledge/SiteMatch.kt	21	0	0	1.000	no
+21	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/SandboxPaths.kt	66	45	29	0.318	no
 21	core-text	core/src/main/resources/knowledge/sites/mail.google.com/references/gmail-search-syntax.md	21	0	0	1.000	no
 21	core-text	core/src/main/resources/prompts/roles/intent_gate.md	21	0	0	1.000	no
 21	tests	core/src/test/kotlin/com/daiyimo/maeve/core/testing/LegacyRecords.kt	21	0	0	1.000	no
@@ -1956,7 +1955,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 20	src	app/src/main/java/com/daiyimo/maeve/setup/BootRestoreReceiver.kt	21	1	1	0.952	no
 20	tests	app/src/test/java/com/daiyimo/maeve/cap/web/PageScriptSecretRuleTest.kt	20	0	0	1.000	no
 20	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/sandbox/Sha256.kt	20	0	0	1.000	no
-20	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/ConversationTokens.kt	36	16	12	0.556	no
+20	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/LegacyEvents.kt	78	58	30	0.256	no
 20	tests	core/src/test/kotlin/com/daiyimo/maeve/core/agent/ContextTestSupport.kt	21	1	1	0.952	no
 20	tests	core/src/test/kotlin/com/daiyimo/maeve/core/cap/sandbox/Sha256Test.kt	20	0	0	1.000	no
 20	tests	core/src/test/kotlin/com/daiyimo/maeve/core/gate/DetectorByName.kt	20	0	0	1.000	no
@@ -2059,6 +2058,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 15	res	app/src/main/res/values-ru/strings_confirm.xml	15	0	0	1.000	no
 15	res	app/src/main/res/values-zh/strings_confirm.xml	15	0	0	1.000	no
 15	res	app/src/main/res/values/strings_confirm.xml	15	0	0	1.000	no
+15	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/ConversationTokens.kt	38	23	17	0.395	no
 15	core-text	core/src/main/resources/knowledge/apps/linkedin/APP.md	15	0	0	1.000	no
 15	core-text	core/src/main/resources/knowledge/apps/zhihu/APP.md	15	0	0	1.000	no
 15	core-text	core/src/main/resources/prompts/roles/locate.md	15	0	0	1.000	no
@@ -2079,7 +2079,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 14	eval	eval/tasks/web/web-future-exchange-rate.json	14	0	0	1.000	no
 13	tests	app/src/androidTest/assets/web-fixtures/restless.html	13	0	0	1.000	no
 13	res	app/src/main/res/xml/network_security_config.xml	13	0	0	1.000	no
-13	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunSink.kt	16	3	2	0.812	no
 13	src	core/src/main/kotlin/com/daiyimo/maeve/core/tool/OutputClip.kt	13	0	0	1.000	no
 13	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/ElementContext.kt	13	0	0	1.000	no
 13	core-text	core/src/main/resources/knowledge/sites/calendar.google.com/SITE.md	13	0	0	1.000	no
@@ -2126,11 +2125,12 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 9	src	app/src/main/java/com/daiyimo/maeve/shell/HelperMain.kt	9	0	0	1.000	no
 9	res	app/src/main/res/drawable/maeve_launcher_mono.xml	20	11	13	0.450	no
 9	src	core/src/main/kotlin/com/daiyimo/maeve/core/cap/sandbox/SandboxPackages.kt	9	0	0	1.000	no
+9	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunSink.kt	20	11	6	0.450	no
 9	core-text	core/src/main/resources/prompts/capabilities/channels.md	11	2	2	0.818	no
 9	tests	core/src/test/kotlin/com/daiyimo/maeve/core/workspace/WorkspaceFileGateTest.kt	9	0	0	1.000	no
 8	tests	app/src/androidTest/assets/web-fixtures/popup-auto.html	8	0	0	1.000	no
 8	src	app/src/main/java/com/daiyimo/maeve/ui/components/Logo.kt	15	7	14	0.533	no
-8	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunRecords.kt	12	4	2	0.667	no
+8	src	core/src/main/kotlin/com/daiyimo/maeve/core/record/RunRecords.kt	16	8	2	0.500	no
 8	src	core/src/main/kotlin/com/daiyimo/maeve/core/risk/Irreversible.kt	17	9	3	0.471	no
 8	core-text	core/src/main/resources/prompts/roles/conversation_title.md	8	0	0	1.000	no
 8	core-text	core/src/main/resources/prompts/roles/point_audit.md	8	0	0	1.000	no
@@ -2165,17 +2165,17 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 4	tests	app/src/androidTest/res/xml/test_authenticator.xml	5	1	1	0.800	no
 4	res	app/src/main/res/values-night/themes.xml	7	3	3	0.571	no
 4	res	app/src/main/res/xml/update_files.xml	5	1	1	0.800	no
-4	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/SandboxError.kt	4	0	0	1.000	no
-4	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/WorkspacePathCheck.kt	4	0	0	1.000	no
 4	core-text	core/src/main/resources/prompts/roles/user_screen.md	4	0	0	1.000	no
 4	tools	tools/relay/Caddyfile	5	1	1	0.800	no
 3	tests	app/src/androidTest/assets/web-fixtures/redirect.html	3	0	0	1.000	no
 3	src	app/src/main/java/com/daiyimo/maeve/chat/SharedFile.kt	4	1	1	0.750	no
+3	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/SandboxError.kt	7	4	1	0.429	no
 3	core-text	core/src/main/resources/skills/documents/scripts/manifest.json	3	0	0	1.000	no
 3	tools	tools/relay/.dockerignore	4	1	1	0.750	no
 3	tools	tools/relay/.gitignore	4	1	1	0.750	no
 3	tools	tools/sandbox/sources.lock	3	0	0	1.000	no
 2	tests	app/src/androidTest/assets/web-fixtures/cookie.html	3	1	1	0.667	no
+2	src	core/src/main/kotlin/com/daiyimo/maeve/core/workspace/WorkspacePathCheck.kt	8	6	2	0.250	no
 2	core-text	core/src/main/resources/prompts/capabilities/app-access.md	2	0	0	1.000	no
 2	core-text	core/src/main/resources/prompts/tools/settings_set.md	3	1	1	0.667	no
 2	core-text	core/src/main/resources/prompts/tools/web_read_page.md	2	0	0	1.000	no
@@ -2302,7 +2302,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 0	tests	core/src/test/resources/prompt-surface/layers/sizes.txt	4	4	4	0.000	no
 0	docs	docs/derived-files.tsv	2359	2359	0	0.000	no
 0	docs	docs/derived-rewrite-plan.md	384	384	0	0.000	no
-0	docs	docs/derived-rewrite-status.md	117	117	0	0.000	no
+0	docs	docs/derived-rewrite-status.md	133	133	0	0.000	no
 0	docs	docs/design/visual-system.html	279	279	0	0.000	no
 0	docs	docs/dev/copy-rules.md	127	127	0	0.000	no
 0	docs	docs/dev/ios-development-standard.md	220	220	0	0.000	no

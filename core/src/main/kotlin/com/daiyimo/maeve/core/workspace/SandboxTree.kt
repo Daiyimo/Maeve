@@ -14,84 +14,88 @@ import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 
 /**
- * `files/sandbox/` 这棵树的主人:谁要往树里写,都先在这里拿到许可。进程里一份,由 App 给出,经构造参数交给要写的地方。
+ * `files/sandbox/` 这棵树的主人:凡是往树里写,都要先在这里领许可。进程里只有一份,由 App 构造后交给要写的地方。
  *
- * - [exclusive]:改树的结构、或删整片的(安装/解包/换根文件系统、重置、清空或删掉工作区;App 里经 `SandboxDirs.exclusiveWrite`)。拿到时没有别人在写。
- * - [shared]:往已有的树里添东西的(技能同步、跑命令、网页下载、附件导入)。可以同时有很多个,
- *   但和 [exclusive] 互斥:重置删到一半时,不会有人又在里面建出目录(那样最后的 rmdir 会 ENOTEMPTY)。
+ * - [exclusive]:改树的结构、或整片删除时用(安装/解包/换根文件系统、重置、清空或删掉工作区;
+ *   App 里走 `SandboxDirs.exclusiveWrite`)。领到它时不会有人在写。
+ * - [shared]:往已有的树里添东西时用(技能同步、跑命令、网页下载、附件导入)。可以同时有很多个,
+ *   但与 [exclusive] 互斥:重置删到一半时,不会有人又在里面建目录(否则最后的 rmdir 会 ENOTEMPTY)。
  *
- * 有人在等 [exclusive] 时,新来的 [shared] 也排在它后面,重置不会被源源不断的命令饿死。
- * 同一条协程链里已经拿着(任一种)时再拿直接放行,嵌套调用不会自己锁死自己。
+ * 只要有人在等 [exclusive],后到的 [shared] 也排在它后面,重置不会被源源的命令饿死。
+ * 同一条协程链里已经持有时,再领直接放行,嵌套调用不会把自己锁死。
  *
- * - [lease]:长驻进程(沙箱里的 stdio MCP server)用的 shared,活多久拿多久,但可以被收回:
- *   [exclusive] 一拿到入口就收回所有租约(通知持有者停掉进程,许可当场放掉),不会被一个长驻进程挡上几十分钟;
+ * - [lease]:给长驻进程(沙箱里的 stdio MCP server)的 shared。活多久持多久,但可以被收回:
+ *   [exclusive] 一拿到入口就收掉所有租约(通知持有者停掉进程,许可当场释放),不必被一个长驻进程挡住几十分钟;
  *   漏关的租约也挡不住重置。换根文件系统、清工作区之后进程本来也跑不下去,停掉比让它在删掉的目录上接着跑干净。
  */
 class SandboxTree {
-    /** 拿到它才能开始:[shared] 只短暂持有,[exclusive] 全程持有,所以写者排队时新读者也等着。 */
-    private val entry = Mutex()
-    /** 有 [shared] 在用时锁着。 */
-    private val noShared = Mutex()
-    private val count = Mutex()
-    private var holders = 0
+    /** 进门的锁:[shared] 只短暂持有,[exclusive] 全程持有;所以写者排队时,新读者也跟着等。 */
+    private val doorway = Mutex()
 
-    /** 这条协程链此刻拿着哪几棵树的许可。 */
-    private class Held(val trees: Set<SandboxTree>) : AbstractCoroutineContextElement(Key) {
-        companion object Key : CoroutineContext.Key<Held>
+    /** 有 [shared] 在跑时被锁住。 */
+    private val idle = Mutex()
+    private val census = Mutex()
+    private var active = 0
+
+    /** 这条协程链此刻持有哪些树的许可。 */
+    private class Ownership(val trees: Set<SandboxTree>) : AbstractCoroutineContextElement(Key) {
+        companion object Key : CoroutineContext.Key<Ownership>
     }
 
-    private suspend fun heldTrees() = currentCoroutineContext()[Held]?.trees.orEmpty()
+    private suspend fun ownedTrees(): Set<SandboxTree> =
+        currentCoroutineContext()[Ownership]?.trees.orEmpty()
 
     suspend fun <T> exclusive(block: suspend () -> T): T {
-        val held = heldTrees()
-        if (this in held) return block()
-        return entry.withLock {
-            revokeLeases()
-            noShared.withLock { withContext(Held(held + this)) { block() } }
+        val alreadyOwned = ownedTrees()
+        if (this in alreadyOwned) return block()
+        return doorway.withLock {
+            reclaimLeases()
+            idle.withLock { withContext(Ownership(alreadyOwned + this)) { block() } }
         }
     }
 
-    /** 登记着的租约(含还在排队的);[exclusive] 拿着 [entry] 时逐个收回。 */
-    private val leases = LinkedHashSet<Lease>()
+    /** 已登记、还没交回的租约(包含仍在排队的);[exclusive] 拿着 [doorway] 时逐个收回。 */
+    private val registrations = LinkedHashSet<Lease>()
 
     /**
-     * 长期持有的 shared 许可,[Lease.close] 时放掉。[exclusive] 要用时先调 [onRevoke](在 IO 线程上,可以阻塞着等进程退出)
-     * 再放掉许可;之后持有者照常 close 不出错。排队期间被收回的,排到那次 [exclusive] 之后重新拿,交回的租约拿到时没被收回过。
-     * 持有者在拿到租约之后启动的东西要自己核一次 [Lease.revoked]:收回可能正好落在拿到和启动之间。
+     * 长期持有的 shared 许可,[Lease.close] 时释放。[exclusive] 要用时先调 [onRevoke](在 IO 线程上,
+     * 可以阻塞着等进程退出),再释放许可;之后持有者照常 close,不会出错。排队期间被收回的,会在那次
+     * [exclusive] 之后重新排队领取,交回的租约保证没被收回过。持有者在领到之后启动的东西要自己再看一次
+     * [Lease.revoked]:收回可能恰好落在领到和启动之间。
      */
     suspend fun lease(onRevoke: () -> Unit): Lease {
-        check(this !in heldTrees()) { "lease() must not be called while holding the tree" }
+        check(this !in ownedTrees()) { "lease() must not be called while holding the tree" }
         while (true) {
-            val lease = Lease(onRevoke)
-            // 先登记再排队:排在入口上的租约也收得到,不会出现拿到了许可却没登记、挡住重置的空档
-            synchronized(leases) { leases += lease }
-            val acquired = CompletableDeferred<Boolean>()
-            val holder = CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            val candidate = Lease(onRevoke)
+            // 先登记再排队:排在入口上的租约也收得到,不会出现已经拿到许可却没登记、挡住重置的空档
+            synchronized(registrations) { registrations += candidate }
+            val answer = CompletableDeferred<Boolean>()
+            val keeper = CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
                 try {
                     shared {
-                        acquired.complete(lease.markHeld())
-                        lease.released.await()
+                        answer.complete(candidate.markHeld())
+                        candidate.released.await()
                     }
                 } finally {
-                    synchronized(leases) { leases -= lease }
-                    acquired.complete(false)
+                    synchronized(registrations) { registrations -= candidate }
+                    answer.complete(false)
                 }
             }
-            val ok = try {
-                acquired.await()
+            val granted = try {
+                answer.await()
             } catch (e: Throwable) {
-                lease.close()
-                holder.cancel()
+                candidate.close()
+                keeper.cancel()
                 throw e
             }
-            if (ok) return lease
+            if (granted) return candidate
         }
     }
 
-    private suspend fun revokeLeases() {
-        val all = synchronized(leases) { leases.toList() }
-        if (all.isEmpty()) return
-        withContext(Dispatchers.IO + NonCancellable) { for (l in all) l.revoke() }
+    private suspend fun reclaimLeases() {
+        val current = synchronized(registrations) { registrations.toList() }
+        if (current.isEmpty()) return
+        withContext(Dispatchers.IO + NonCancellable) { for (lease in current) lease.revoke() }
     }
 
     /** 见 [lease]。 */
@@ -99,12 +103,21 @@ class SandboxTree {
         internal val released = CompletableDeferred<Unit>()
         private var held = false
 
-        /** 被 [exclusive] 收回过;收回后许可已经放掉,持有者不该再往树里写。 */
-        @Volatile var revoked = false
+        /** 被 [exclusive] 收回过;收回后许可已经释放,持有者不该再往树里写。 */
+        @Volatile
+        var revoked = false
             private set
 
-        /** 拿到许可时调:这之前已被收回的返回 false。 */
-        internal fun markHeld(): Boolean = synchronized(this) { if (revoked) { released.complete(Unit); false } else { held = true; true } }
+        /** 拿到许可时调用:在此之前已被收回的返回 false。 */
+        internal fun markHeld(): Boolean = synchronized(this) {
+            if (revoked) {
+                released.complete(Unit)
+                false
+            } else {
+                held = true
+                true
+            }
+        }
 
         internal fun revoke() {
             val wasHeld = synchronized(this) {
@@ -112,22 +125,26 @@ class SandboxTree {
                 revoked = true
                 held
             }
-            // 还在排队的不用停什么:它会排到这次之后重新拿
+            // 还在排队的不用停什么:它会排到这次之后重新领
             if (wasHeld) runCatching { onRevoke() }
             released.complete(Unit)
         }
 
-        override fun close() { released.complete(Unit) }
+        override fun close() {
+            released.complete(Unit)
+        }
     }
 
     suspend fun <T> shared(block: suspend () -> T): T {
-        val held = heldTrees()
-        if (this in held) return block()
-        entry.withLock { count.withLock { if (holders++ == 0) noShared.lock() } }
+        val alreadyOwned = ownedTrees()
+        if (this in alreadyOwned) return block()
+        doorway.withLock { census.withLock { if (active++ == 0) idle.lock() } }
         try {
-            return withContext(Held(held + this)) { block() }
+            return withContext(Ownership(alreadyOwned + this)) { block() }
         } finally {
-            withContext(NonCancellable) { count.withLock { if (--holders == 0) noShared.unlock() } }
+            withContext(NonCancellable) {
+                census.withLock { if (--active == 0) idle.unlock() }
+            }
         }
     }
 }

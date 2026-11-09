@@ -1,127 +1,171 @@
 package com.daiyimo.maeve.core.record
 
+import com.daiyimo.maeve.core.tool.Verb
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import com.daiyimo.maeve.core.tool.Verb
 
 /**
- * 运行记录的脱敏:密码框里输入的字、形如 API Key 的串一律记为 `***`。
- * 调用方不确定目标是不是密码框时应按是处理(宁可少记)。
+ * 运行记录的脱敏入口。凡是密码框里的输入、形似 API Key 的串、名字像凭据的字段,
+ * 都只留下 [MASK]。判断不了目标性质时按敏感处理——记录少一点比多记一段密码好。
  */
 object Redactor {
     const val MASK = "***"
 
+    // 各种服务商的密钥形态。长度下限用来避开普通单词,不做语义判断。
     private val SK_KEY = Regex("""\bsk-[A-Za-z0-9_\-]{16,}""")
     private val BEARER = Regex("""\bBearer\s+[A-Za-z0-9._~+/=\-]{8,}""")
     private val GOOGLE_KEY = Regex("""\bAIza[0-9A-Za-z_\-]{30,}""")
-    /** Google 新格式的认证 Key:`AQ.` 开头,后面一长串 base64url 字符。 */
+
+    /** Google 新式认证 Key:`AQ.` 前缀,后面是一段 base64url 字符。 */
     private val GOOGLE_AUTH_KEY = Regex("""\bAQ\.[0-9A-Za-z_\-]{20,}""")
     private val GITHUB_TOKEN = Regex("""\bgh[pousr]_[A-Za-z0-9]{20,}""")
 
     /** [secretField]:端口报告这次输入的目标是密码框。 */
     /** [verb]:调用的工具做的动作(不认识的工具为 null)。 */
-    fun args(verb: Verb?, argsJson: String, secretField: Boolean): String {
-        if (verb == Verb.MemorySave) return maskFields(argsJson, MEMORY_ARGS)
-        if (verb == Verb.Script) return script(argsJson)
-        if (verb == Verb.PhoneCommand) return maskFields(argsJson, setOf("command"))
-        if (verb == Verb.PhoneRun) return phoneRun(argsJson)
-        if (verb != Verb.TypeText || !secretField) return text(argsJson)
-        val o = try {
-            Json.parseToJsonElement(argsJson) as? JsonObject
-        } catch (e: SerializationException) {
-            null
-        } ?: return MASK // 解析不了就整段不记,宁可丢信息
-        val masked = if ("text" in o) JsonObject(o + ("text" to JsonPrimitive(MASK))) else o
+    fun args(verb: Verb?, argsJson: String, secretField: Boolean): String = when {
+        verb == Verb.MemorySave -> maskFields(argsJson, MEMORY_ARGS)
+        verb == Verb.Script -> maskScript(argsJson)
+        verb == Verb.PhoneCommand -> maskFields(argsJson, setOf("command"))
+        verb == Verb.PhoneRun -> maskPhoneRun(argsJson)
+        verb != Verb.TypeText || !secretField -> text(argsJson)
+        else -> maskTypedText(argsJson)
+    }
+
+    /** 是否密码框由端口判断;确定是时把 `text` 字段整段换掉。 */
+    private fun maskTypedText(argsJson: String): String {
+        val root = parseObject(argsJson) ?: return MASK
+        val masked = if ("text" in root) {
+            JsonObject(root + ("text" to JsonPrimitive(MASK)))
+        } else {
+            root
+        }
         return text(masked.toString())
     }
 
-    /** 条件式手机命令里的输入内容可能是密码,整段按字段打码。 */
-    private fun phoneRun(argsJson: String): String {
-        val o = try { Json.parseToJsonElement(argsJson) as? JsonObject } catch (e: SerializationException) { null } ?: return MASK
-        val commands = o["commands"] as? JsonArray ?: return text(argsJson)
-        val hidden = JsonArray(commands.map { command ->
-            val item = command as? JsonObject ?: return@map command
-            if ("text" !in item || item["op"] != JsonPrimitive("type")) item
-            else JsonObject(item + ("text" to JsonPrimitive(MASK)))
+    /**
+     * 条件式手机命令里可能夹着输入动作,而输入目标未必是普通输入框。
+     * 只要 `op` 是 type 且带 `text`,就把输入内容遮住。
+     */
+    private fun maskPhoneRun(argsJson: String): String {
+        val root = parseObject(argsJson) ?: return MASK
+        val commands = root["commands"] as? JsonArray ?: return text(argsJson)
+        val rewritten = JsonArray(commands.map { element ->
+            val command = element as? JsonObject ?: return@map element
+            val typesText = command["op"] == JsonPrimitive("type") && "text" in command
+            if (typesText) JsonObject(command + ("text" to JsonPrimitive(MASK))) else command
         })
-        return text(JsonObject(o + ("commands" to hidden)).toString())
+        return text(JsonObject(root + ("commands" to rewritten)).toString())
     }
 
     /**
-     * web_script 的源码:脚本里要输入的字可能写成任何形式(交给 maeve.type、先存进变量、拼接),
-     * 和 type_text 一样不知道是不是密码框,一律按是处理:源码里每个字符串字面量都打码,只留引号种类(模板字符串留 `${…}` 的位置)。
+     * `web_script` 的源码。输入内容可能直接交给 type、先赋给变量、拼接后再用,
+     * 没法判断哪一段会进密码框,所以把每个字符串字面量都遮住,只保留引号与
+     * 模板字符串里的 `${…}` 占位。
      */
-    private fun script(argsJson: String): String {
-        val o = try { Json.parseToJsonElement(argsJson) as? JsonObject } catch (e: SerializationException) { null } ?: return MASK
-        val code = (o["code"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return text(argsJson)
-        val masked = STRING_LITERAL.replace(code) { m ->
-            val q = m.value.first()
-            val body = m.value.substring(1, m.value.length - 1)
-            if (body.isEmpty()) m.value
-            else if (q == '`') "`" + TEMPLATE_HOLE.findAll(body).joinToString("") { h -> MASK + STRING_LITERAL.replace(h.value) { "'$MASK'" } } + MASK + "`"
-            else "$q$MASK$q"
-        }
-        return text(JsonObject(o + ("code" to JsonPrimitive(masked))).toString())
+    private fun maskScript(argsJson: String): String {
+        val root = parseObject(argsJson) ?: return MASK
+        val code = (root["code"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+            ?: return text(argsJson)
+        val masked = maskJsLiterals(code)
+        return text(JsonObject(root + ("code" to JsonPrimitive(masked))).toString())
     }
 
-    /** 工具结果进运行记录前:记忆的内容、用户交回时写的备注不记(编号、种类照记)。 */
+    private fun maskJsLiterals(code: String): String = STRING_LITERAL.replace(code) { match ->
+        val literal = match.value
+        val quote = literal.first()
+        val body = literal.substring(1, literal.length - 1)
+        when {
+            body.isEmpty() -> literal
+            quote == '`' -> "`" + TEMPLATE_HOLE.findAll(body).joinToString("") { hole ->
+                MASK + STRING_LITERAL.replace(hole.value) { inner -> "'$MASK'" }
+            } + MASK + "`"
+            else -> "$quote$MASK$quote"
+        }
+    }
+
+    /** 工具结果进记录前:记忆正文、交回用户时的备注、命令输出都不留原文。 */
     fun result(verb: Verb?, content: JsonObject): JsonObject = when (verb) {
-        Verb.MemorySearch -> (content["memories"] as? JsonArray)?.let { arr ->
-            JsonObject(content + ("memories" to JsonArray(arr.map { m ->
-                (m as? JsonObject)?.let { if ("content" in it) JsonObject(it + ("content" to JsonPrimitive(MASK))) else it } ?: JsonPrimitive(MASK)
-            })))
-        } ?: content
-        Verb.HandToUser -> if ("userNote" in content) JsonObject(content + ("userNote" to JsonPrimitive(MASK))) else content
-        Verb.PhoneCommand -> if ("output" in content) JsonObject(content + ("output" to JsonPrimitive(MASK))) else content
+        Verb.MemorySearch -> maskMemories(content)
+        Verb.HandToUser -> maskField(content, "userNote")
+        Verb.PhoneCommand -> maskField(content, "output")
         else -> content
     }
 
+    private fun maskMemories(content: JsonObject): JsonObject {
+        val memories = content["memories"] as? JsonArray ?: return content
+        val rewritten = JsonArray(memories.map { item ->
+            when (item) {
+                is JsonObject ->
+                    if ("content" in item) JsonObject(item + ("content" to JsonPrimitive(MASK))) else item
+                else -> JsonPrimitive(MASK)
+            }
+        })
+        return JsonObject(content + ("memories" to rewritten))
+    }
+
+    private fun maskField(content: JsonObject, name: String): JsonObject =
+        if (name in content) JsonObject(content + (name to JsonPrimitive(MASK))) else content
+
     private fun maskFields(argsJson: String, fields: Set<String>): String {
-        val o = try {
-            Json.parseToJsonElement(argsJson) as? JsonObject
-        } catch (e: SerializationException) {
-            null
-        } ?: return MASK
-        return text(JsonObject(o.mapValues { (k, v) -> if (k in fields) JsonPrimitive(MASK) else v }).toString())
+        val root = parseObject(argsJson) ?: return MASK
+        val masked = root.mapValues { (name, value) ->
+            if (name in fields) JsonPrimitive(MASK) else value
+        }
+        return text(JsonObject(masked).toString())
+    }
+
+    private fun parseObject(argsJson: String): JsonObject? = try {
+        Json.parseToJsonElement(argsJson) as? JsonObject
+    } catch (e: SerializationException) {
+        null
     }
 
     private val STRING_LITERAL = Regex("""'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`""")
-    /** 模板字符串里的 ${…}:表达式不是字面量,位置留着,前后的字打码。 */
+
+    /** 模板字符串里的 `${…}`:表达式不是字面量,保留它的位置。 */
     private val TEMPLATE_HOLE = Regex("""\$\{[^}]*\}""")
     private val MEMORY_ARGS = setOf("content", "quote", "keywords")
 
-    /** 一次性码一类的词。 */
+    /** 一次性验证码一类的提示词。 */
     private val CODE_WORD = Regex("""验证|校验码|动态码|动态密码|确认码|安全码|短信|口令|(?i:\b(?:code|otp|passcode|pin|2fa)\b)""")
-    /** 4–8 位数字,中间可以隔单个空格或连字符(「4 8 2 9 1 3」「482-913」)。 */
+
+    /** 4–8 位数字,数字之间可以夹一个空格或连字符,如「4 8 2 9 1 3」「482-913」。 */
     private val CODE_DIGITS = Regex(
         """(?<![\d.¥$€£])(?<!\d,)(?<![¥$€£] )\d(?:[ \-]?\d){3,7}(?!\d)(?!\.\d)(?!,\d{3}(?!\d))""" +
-            // 后面跟着单位、年份、货币的是量,不是码
+            // 紧跟单位、年份或金额的是数量,不当验证码
             """(?!\s*(?:年|元|块|角|分钟|小时|秒|天|月|日|号|次|个|人|件|条|米|公里|千米|克|公斤|千克|斤|吨|度|℃|°|%|‰|[¥$€£]|(?i:km|kg|mb|gb|kb|ms|cm|mm|mah|rmb|usd|cny)\b))""",
     )
-    /** 码和这类词之间至多隔几个字(哪一边都算)。 */
+
+    /** 验证码提示词与数字之间允许隔开的最大字数。 */
     private const val CODE_WINDOW = 24
 
     /**
-     * 证据账本里的材料(读屏、网页、命令输出)进账前经它:[text] 认得的 Key 之外,一次性码也遮住——
-     * 前后 [CODE_WINDOW] 个字以内有「验证」「短信」「code」一类词的 4–8 位数字。密码框的字本来就不进读屏文字。
+     * 证据账本的材料(读屏、网页、命令输出)入账前走这一层:先按 [text] 遮掉
+     * 已知的 Key,再把附近出现「验证」「短信」「code」等提示的 4–8 位数字遮住。
+     * 密码框里的字本来就不会进入读屏文字,这里不重复处理。
      */
-    fun evidence(s: String): String {
-        val t = text(s)
-        val words = CODE_WORD.findAll(t).map { it.range }.toList()
-        if (words.isEmpty()) return t
-        return CODE_DIGITS.replace(t) { m ->
-            val near = words.any { w -> m.range.first - w.last in 1..CODE_WINDOW + 1 || w.first - m.range.last in 1..CODE_WINDOW + 1 }
-            if (near) MASK else m.value
+    fun evidence(raw: String): String {
+        val redacted = text(raw)
+        val hints = CODE_WORD.findAll(redacted).map { it.range }.toList()
+        if (hints.isEmpty()) return redacted
+        return CODE_DIGITS.replace(redacted) { candidate ->
+            val close = hints.any { hint ->
+                candidate.range.first - hint.last in 1..CODE_WINDOW + 1 ||
+                    hint.first - candidate.range.last in 1..CODE_WINDOW + 1
+            }
+            if (close) MASK else candidate.value
         }
     }
 
     fun text(s: String): String {
-        var out = s
-        for (re in listOf(SK_KEY, GOOGLE_KEY, GOOGLE_AUTH_KEY, GITHUB_TOKEN)) out = re.replace(out, MASK)
-        return BEARER.replace(out, "Bearer $MASK")
+        var redacted = s
+        for (pattern in listOf(SK_KEY, GOOGLE_KEY, GOOGLE_AUTH_KEY, GITHUB_TOKEN)) {
+            redacted = pattern.replace(redacted, MASK)
+        }
+        return BEARER.replace(redacted, "Bearer $MASK")
     }
 
     // ---------- 网页网络数据 ----------
@@ -129,19 +173,27 @@ object Redactor {
     data class Network(val url: String?, val body: String?, val headers: Map<String, String>?)
 
     /**
-     * 网页网络数据(地址、响应正文、头)离开网络记录前一律经它:交给模型、进核查证据、进运行记录都是同一份。
-     * 名字像凭据的查询参数、JSON/表单字段、头的值记为 `***`(按词判断:author、keyword 不算);
-     * OAuth 回跳里的 code、state 一并遮住;此外 JWT、又长又杂(大小写字母加数字)的串、[text] 认得的 Key 也遮住。
+     * 网页网络数据(地址、正文、头)离开网络模块前统一经过这里,保证交给模型、
+     * 核查证据和运行记录的是同一份。名字像凭据的查询参数、JSON/表单字段和头的值
+     * 记为 [MASK](按词判断,author、keyword 不算);OAuth 回跳里的 code、state
+     * 一并遮住;JWT、长且字符种类混合的串以及 [text] 认得的 Key 也不留。
      */
-    fun network(url: String? = null, body: String? = null, headers: Map<String, String>? = null): Network = Network(
-        url = url?.let { values(maskUrl(it), slash = false) },
-        body = body?.let { values(maskBody(it), slash = true) },
-        headers = headers?.mapValues { (k, v) -> if (secretName(k)) MASK else values(v, slash = true) },
-    )
+    fun network(
+        url: String? = null,
+        body: String? = null,
+        headers: Map<String, String>? = null,
+    ): Network {
+        val safeUrl = url?.let { values(maskUrl(it), slash = false) }
+        val safeBody = body?.let { values(maskBody(it), slash = true) }
+        val safeHeaders = headers?.mapValues { (name, value) ->
+            if (secretName(name)) MASK else values(value, slash = true)
+        }
+        return Network(safeUrl, safeBody, safeHeaders)
+    }
 
     /**
-     * 读脚本、站点命令从页面上读出来的数据(JSON):和网络响应正文同一套规则(凭据名字的字段、JWT、又长又杂的串、Key),
-     * 只是长串不跨斜杠认(结果里常有网址,路径各段分开看)。
+     * 脚本与站点命令从页面读出的数据(JSON)。规则同网络正文,只是长串不跨斜杠
+     * 识别,避免把网址的路径段整个当成凭据。
      */
     fun pageData(s: String): String = values(maskBody(s), slash = false)
 
@@ -154,46 +206,68 @@ object Redactor {
     private val CASE_BOUNDARY = Regex("(?<=[a-z0-9])(?=[A-Z])")
     private val WORD_SPLIT = Regex("[^A-Za-z0-9]+")
 
-    /** 名字按词拆开(驼峰、下划线、连字符)后有像凭据的词。 */
+    /** 名字拆成小写词后是否含凭据语义(驼峰、下划线、连字符都算分隔)。 */
     internal fun secretName(name: String): Boolean {
-        val words = name.split(WORD_SPLIT).flatMap { it.split(CASE_BOUNDARY) }.map { it.lowercase() }.filter { it.isNotEmpty() }
+        val words = name.split(WORD_SPLIT)
+            .flatMap { it.split(CASE_BOUNDARY) }
+            .map { it.lowercase() }
+            .filter { it.isNotEmpty() }
         return words.any { it in SECRET_WORDS } || words.joinToString("") in SECRET_COMPOUNDS
     }
 
     private val OAUTH_MARKERS = setOf("state", "redirect_uri", "client_id", "code_verifier")
     private val OAUTH_RESULTS = setOf("code", "state")
 
-    /** 查询串或片段里的 a=b&c=d:凭据名字的值遮住;像 OAuth 回跳的(有 state 等,且带 code 或凭据)把 code、state 也遮住。[bareKey]:单个 key 也算凭据。 */
-    private fun maskParams(q: String, bareKey: Boolean): String {
-        val parts = q.split('&')
-        val names = parts.map { it.substringBefore('=').lowercase() }
-        val oauth = names.any { it in OAUTH_MARKERS } && (names.contains("code") || names.any { secretName(it) })
-        return parts.joinToString("&") { p ->
-            val eq = p.indexOf('=')
-            if (eq <= 0) return@joinToString p
-            val name = p.substring(0, eq)
-            val n = name.lowercase()
-            val hide = secretName(name) || (bareKey && n == "key") || (oauth && n in OAUTH_RESULTS)
-            if (hide) "$name=$MASK" else p
+    /**
+     * 查询串或片段里的 `a=b&c=d`。凭据名的值遮住;如果看起来是 OAuth 回跳
+     * (带 state 等标记,并且带 code 或凭据),code、state 也一起遮。
+     * [bareKey] 为 true 时单独的 `key` 参数也算凭据。
+     */
+    private fun maskParams(query: String, bareKey: Boolean): String {
+        val pairs = query.split('&')
+        val names = pairs.map { it.substringBefore('=').lowercase() }
+        val oauthReturn = names.any { it in OAUTH_MARKERS } &&
+            (names.contains("code") || names.any { secretName(it) })
+        return pairs.joinToString("&") { pair ->
+            val separator = pair.indexOf('=')
+            if (separator <= 0) return@joinToString pair
+            val name = pair.substring(0, separator)
+            val lower = name.lowercase()
+            val hide = secretName(name) ||
+                (bareKey && lower == "key") ||
+                (oauthReturn && lower in OAUTH_RESULTS)
+            if (hide) "$name=$MASK" else pair
         }
     }
 
-    private fun maskUrl(u: String): String {
-        val hash = u.indexOf('#')
-        val beforeHash = if (hash >= 0) u.substring(0, hash) else u
-        val fragment = if (hash >= 0) u.substring(hash + 1) else null
-        val q = beforeHash.indexOf('?')
-        val base = if (q >= 0) beforeHash.substring(0, q + 1) + maskParams(beforeHash.substring(q + 1), bareKey = true) else beforeHash
-        return if (fragment == null) base else base + "#" + if ('=' in fragment) maskParams(fragment, bareKey = true) else fragment
+    private fun maskUrl(raw: String): String {
+        val hashAt = raw.indexOf('#')
+        val beforeHash = if (hashAt >= 0) raw.substring(0, hashAt) else raw
+        val fragment = if (hashAt >= 0) raw.substring(hashAt + 1) else null
+        val queryAt = beforeHash.indexOf('?')
+        val maskedBase = if (queryAt >= 0) {
+            beforeHash.substring(0, queryAt + 1) +
+                maskParams(beforeHash.substring(queryAt + 1), bareKey = true)
+        } else {
+            beforeHash
+        }
+        if (fragment == null) return maskedBase
+        val maskedFragment = if ('=' in fragment) maskParams(fragment, bareKey = true) else fragment
+        return "$maskedBase#$maskedFragment"
     }
 
     private val JSON_PAIR = Regex(""""((?:[^"\\]|\\.){1,100})"(\s*:\s*)("(?:[^"\\]|\\.)*"|-?\d[\d.eE+\-]*|true|false|null)""")
     private val FORM = Regex("""^[^\s{}\[\]"<>]+=[^\s]*$""")
 
-    private fun maskBody(b: String): String {
-        if (FORM.matches(b)) return maskParams(b, bareKey = false)
-        return JSON_PAIR.replace(b) { m ->
-            if (secretName(m.groupValues[1])) "\"${m.groupValues[1]}\"${m.groupValues[2]}\"$MASK\"" else m.value
+    private fun maskBody(body: String): String {
+        if (FORM.matches(body)) return maskParams(body, bareKey = false)
+        return JSON_PAIR.replace(body) { match ->
+            val name = match.groupValues[1]
+            if (secretName(name)) {
+                "\"$name\"${match.groupValues[2]}\"$MASK\""
+            } else {
+                match.value
+            }
         }
     }
 
@@ -201,12 +275,19 @@ object Redactor {
     private val LONG_WITH_SLASH = Regex("""[A-Za-z0-9_\-+/=]{32,}""")
     private val LONG = Regex("""[A-Za-z0-9_\-+=]{32,}""")
 
-    /** 值里的 JWT、又长又杂的串、已知格式的 Key。地址里不跨斜杠认(路径各段分开看)。 */
+    /**
+     * 值里的 JWT、长且同时含大小写字母和数字的串、已知格式的 Key。
+     * [slash] 决定长串是否把 `/` 当作串的一部分。
+     */
     private fun values(s: String, slash: Boolean): String {
         var out = JWT.replace(s, MASK)
-        out = (if (slash) LONG_WITH_SLASH else LONG).replace(out) { m ->
-            val v = m.value
-            if (v.any(Char::isUpperCase) && v.any(Char::isLowerCase) && v.any(Char::isDigit)) MASK else v
+        val longRuns = if (slash) LONG_WITH_SLASH else LONG
+        out = longRuns.replace(out) { match ->
+            val value = match.value
+            val mixed = value.any(Char::isUpperCase) &&
+                value.any(Char::isLowerCase) &&
+                value.any(Char::isDigit)
+            if (mixed) MASK else value
         }
         return text(out)
     }

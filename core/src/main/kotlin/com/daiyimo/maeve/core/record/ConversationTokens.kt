@@ -1,27 +1,30 @@
 package com.daiyimo.maeve.core.record
 
 /**
- * 一个对话里各轮合起来用了多少 token,按每轮的运行小结([RunMetrics])算,口径和「查看过程」顶上那一行同一个
- * ([RunMetrics.tokens]:主循环每次回复报的输入加输出)。
+ * 一个对话累计使用的 token。按每轮运行小结([RunMetrics])相加,口径与「查看
+ * 过程」顶部那一行一致([RunMetrics.tokens]:主循环每次回复报的输入加输出)。
  *
- * [missing] 是没算全的轮次:小结还没写好、旧到被清掉了(只留最近 [RunMetricsStore.DEFAULT_KEEP] 份),
- * 或有的回复服务商没报用量;这时界面写「至少」,不估算。
+ * [missing] 是没能算全的轮次数量:小结还没写入、已经因为保留上限
+ * ([RunMetricsStore.DEFAULT_KEEP])被清掉,或其中有的回复服务商没报用量。
+ * 此时界面显示「至少」,不做估算。
  */
 data class ConversationTokens(val tokens: Long, val turns: Int, val missing: Int) {
-    val partial: Boolean
-        get() = missing > 0
+    val partial: Boolean get() = missing > 0
 
     companion object {
-        /** 一轮的 token;没有小结、或一个也没报(全是 0)时为 null,界面不写「0 Token」。 */
+        /** 单轮 token;没有小结或全是 0 时返回 null,界面不应显示「0 Token」。 */
         fun turn(metrics: RunMetrics?): Long? = metrics?.tokens?.takeIf { it > 0 }
 
-        /** [runIds] 是这个对话里已经结束的各轮(同一个只算一次);一个数也没有时为 null,界面不显示。 */
+        /**
+         * 汇总 [runIds] 对应的各轮。[runIds] 中重复的编号只算一次;
+         * 一个可用的数都没有时返回 null,界面不显示。
+         */
         fun of(runIds: List<String>, metrics: Map<String, RunMetrics>): ConversationTokens? {
-            val unique = runIds.distinct()
+            val turns = runIds.distinct()
             var total = 0L
             var incomplete = 0
-            for (id in unique) {
-                val run = metrics[id]
+            for (runId in turns) {
+                val run = metrics[runId]
                 if (run == null) {
                     incomplete++
                     continue
@@ -29,8 +32,7 @@ data class ConversationTokens(val tokens: Long, val turns: Int, val missing: Int
                 total += run.tokens
                 if (run.callsWithoutUsage > 0) incomplete++
             }
-            if (total <= 0) return null
-            return ConversationTokens(total, unique.size, incomplete)
+            return if (total > 0) ConversationTokens(total, turns.size, incomplete) else null
         }
     }
 }

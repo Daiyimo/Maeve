@@ -1,16 +1,20 @@
 package com.daiyimo.maeve.core.record
 
-/** 运行记录的接收方。实现方自己吞掉写盘错误:记录失败不能影响任务。 */
+/**
+ * 运行记录的接收端。实现方必须自行吞掉写盘异常:记录失败不能反过来影响任务。
+ */
 interface RunSink {
     fun event(e: RunEvent)
 
-    /** [png] 是第 [mediaId] 张存下的画面。 */
+    /** 接收第 [mediaId] 张画面的 PNG 数据。 */
     fun media(mediaId: Int, png: ByteArray) = Unit
 
     companion object {
-        /** 不记录任何东西的接收方;测试和不需要记录的场景用。 */
-        val NONE: RunSink = object : RunSink {
-            override fun event(e: RunEvent) = Unit
-        }
+        /** 丢弃所有事件的接收端,供测试和不需要记录的路径使用。 */
+        val NONE: RunSink = DiscardingSink
     }
+}
+
+private object DiscardingSink : RunSink {
+    override fun event(e: RunEvent) = Unit
 }

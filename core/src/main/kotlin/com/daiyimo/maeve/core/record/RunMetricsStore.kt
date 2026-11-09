@@ -5,61 +5,87 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
- * 每次运行一份小结([RunMetrics]),一行一份存在 [file](JSON Lines),只留最近 [keep] 份;运行记录只留最近 30 次,
- * 小结不跟着清,统计看得到更多次。运行收尾时记一份,交出回答后判了结局再补上([update])。
- * 读不出的行跳过,整个文件坏了按空的算;写是整份写到临时文件再换上,写不成只丢这一次。
- * 同一个文件可能有几个实例(每个页面、每次运行各开一个),读写用进程内同一把锁。
+ * 运行小结的持久化:每次运行一份 [RunMetrics],以 JSON Lines 存在 [file] 中,
+ * 只留最近 [keep] 份。运行记录本身只留 30 次,但统计需要更长的历史,所以
+ * 小结独立保留、不随记录清理。
+ *
+ * 收尾时 [append] 一份,交付回答并判定结局后再用 [update] 补上。读不出的行
+ * 直接跳过,整份文件损坏按空处理;写入先落到同目录的临时文件再改名,写不成功
+ * 只损失这一次。同一个文件可能被多个实例打开,读写共用进程内的一把锁。
  */
 class RunMetricsStore(private val file: File, private val keep: Int = DEFAULT_KEEP) {
-    init { require(keep > 0) { "keep must be positive" } }
+    init {
+        require(keep > 0) { "keep must be positive" }
+    }
 
-    /** 旧的在前。 */
-    fun all(): List<RunMetrics> = synchronized(LOCK) { read() }
+    /** 全部小结,旧的在前。 */
+    fun all(): List<RunMetrics> = withDataLock { load() }
 
     /**
-     * 这几次运行的小结,按运行编号;没有的不在里面。只解析含这些编号的行(解析后再核对编号),
-     * 不把整个文件(最多 [keep] 份)都解析一遍。
+     * 指定运行的小结,以运行编号为键;不存在的不出现在结果里。先按文本粗筛
+     * 可能含目标编号的行,解码后再核对编号,避免每次都解析整份文件
+     * (最多 [keep] 份)。
      */
-    fun byIds(runIds: Set<String>): Map<String, RunMetrics> = synchronized(LOCK) {
-        val ids = runIds.filter { it.isNotEmpty() }
-        if (ids.isEmpty() || !file.isFile) return@synchronized emptyMap()
-        val lines = runCatching { file.readLines() }.getOrDefault(emptyList())
-        lines.asSequence()
-            .filter { line -> ids.any { line.contains(it) } }
-            .mapNotNull { runCatching { JSON.decodeFromString(RunMetrics.serializer(), it) }.getOrNull() }
+    fun byIds(runIds: Set<String>): Map<String, RunMetrics> = withDataLock {
+        val wanted = runIds.filter { it.isNotEmpty() }
+        if (wanted.isEmpty() || !file.isFile) return@withDataLock emptyMap()
+        readLinesOrEmpty()
+            .asSequence()
+            .filter { row -> wanted.any { row.contains(it) } }
+            .mapNotNull(::decodeRow)
             .filter { it.runId in runIds }
             .associateBy { it.runId }
     }
 
-    /** 最近 [n] 份(旧的在前);[n] 为 null 时全部。 */
-    fun recent(n: Int?): List<RunMetrics> = all().let { if (n == null) it else it.takeLast(n) }
-
-    /** 记一份;同一次运行已有的换掉。 */
-    fun append(m: RunMetrics) = synchronized(LOCK) {
-        write(read().filter { m.runId.isEmpty() || it.runId != m.runId } + m)
+    /** 最近 [n] 份,旧的在前;[n] 为空时返回全部。 */
+    fun recent(n: Int?): List<RunMetrics> = all().let { rows ->
+        if (n == null) rows else rows.takeLast(n)
     }
 
-    /** 改一次运行的那一份;没有就不动。 */
-    fun update(runId: String, change: (RunMetrics) -> RunMetrics) = synchronized(LOCK) {
-        val list = read()
-        if (list.none { it.runId == runId }) return@synchronized
-        write(list.map { if (it.runId == runId) change(it) else it })
+    /** 追加一份;同一运行已有记录则替换。运行编号为空时总是新增。 */
+    fun append(m: RunMetrics) = withDataLock {
+        val existing = load()
+        val kept = if (m.runId.isEmpty()) {
+            existing
+        } else {
+            existing.filter { it.runId != m.runId }
+        }
+        persist(kept + m)
     }
 
-    private fun read(): List<RunMetrics> {
+    /** 改写指定运行的那一份;不存在时什么也不做。 */
+    fun update(runId: String, change: (RunMetrics) -> RunMetrics) = withDataLock {
+        val before = load()
+        if (before.none { it.runId == runId }) return@withDataLock
+        persist(before.map { row -> if (row.runId == runId) change(row) else row })
+    }
+
+    private fun load(): List<RunMetrics> {
         if (!file.isFile) return emptyList()
-        val lines = runCatching { file.readLines() }.getOrDefault(emptyList())
-        return lines.filter { it.isNotBlank() }.mapNotNull { runCatching { JSON.decodeFromString(RunMetrics.serializer(), it) }.getOrNull() }
+        return readLinesOrEmpty()
+            .filter { it.isNotBlank() }
+            .mapNotNull(::decodeRow)
     }
 
-    private fun write(list: List<RunMetrics>) {
+    private fun readLinesOrEmpty(): List<String> =
+        runCatching { file.readLines() }.getOrDefault(emptyList())
+
+    private fun decodeRow(row: String): RunMetrics? =
+        runCatching { JSON.decodeFromString(RunMetrics.serializer(), row) }.getOrNull()
+
+    private fun persist(rows: List<RunMetrics>) {
         runCatching {
             file.parentFile?.mkdirs()
-            val tmp = File(file.path + ".tmp")
-            tmp.writeText(list.takeLast(keep).joinToString("") { JSON.encodeToString(RunMetrics.serializer(), it) + "\n" })
-            if (!tmp.renameTo(file)) error("rename failed")
+            val staging = File(file.path + ".tmp")
+            val content = rows.takeLast(keep).joinToString("") { row ->
+                JSON.encodeToString(RunMetrics.serializer(), row) + "\n"
+            }
+            staging.writeText(content)
+            check(staging.renameTo(file)) { "rename failed" }
         }
     }
+
+    private inline fun <T> withDataLock(block: () -> T): T = synchronized(LOCK, block)
 
     companion object {
         const val DEFAULT_KEEP = 500
@@ -67,8 +93,9 @@ class RunMetricsStore(private val file: File, private val keep: Int = DEFAULT_KE
         private val LOCK = Any()
         val JSON = Json { ignoreUnknownKeys = true }
 
-        /** 导出给人分析用:一个 JSON 数组,旧的在前。 */
-        fun export(list: List<RunMetrics>): String = EXPORT.encodeToString(ListSerializer(RunMetrics.serializer()), list)
+        /** 导出成一个 JSON 数组,方便人工分析;旧的在前。 */
+        fun export(list: List<RunMetrics>): String =
+            EXPORT.encodeToString(ListSerializer(RunMetrics.serializer()), list)
 
         private val EXPORT = Json { encodeDefaults = true }
     }
