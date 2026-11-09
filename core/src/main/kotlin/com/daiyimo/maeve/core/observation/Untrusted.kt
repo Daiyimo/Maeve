@@ -9,14 +9,23 @@ object Untrusted {
     const val OPEN = "<untrusted>"
     const val CLOSE = "</untrusted>"
     const val OVERHEAD = 2 + OPEN.length + CLOSE.length
+    private const val ESCAPED_CLOSE = "<\\/untrusted>"
 
     /** 套上标记;空的原样返回。 */
-    fun wrap(text: String): String = if (text.isEmpty()) text else "$OPEN\n" + text.replace(CLOSE, "<\\/untrusted>") + "\n$CLOSE"
+    fun wrap(text: String): String =
+        if (text.isEmpty()) "" else buildString(text.length + OVERHEAD + 2) {
+            append(OPEN).append('\n')
+            append(escape(text))
+            append('\n').append(CLOSE)
+        }
 
     /** 包裹后的整个字段仍须满足工具声明的长度上限。 */
     fun wrapWithin(text: String, maxChars: Int): String {
-        require(maxChars >= OVERHEAD)
-        val escaped = text.replace(CLOSE, "<\\/untrusted>")
-        return if (escaped.isEmpty()) escaped else "$OPEN\n${escaped.take(maxChars - OVERHEAD)}\n$CLOSE"
+        require(maxChars >= OVERHEAD) { "maxChars=$maxChars is smaller than the wrapper" }
+        if (text.isEmpty()) return ""
+        val body = escape(text).take(maxChars - OVERHEAD)
+        return "$OPEN\n$body\n$CLOSE"
     }
+
+    private fun escape(text: String): String = text.replace(CLOSE, ESCAPED_CLOSE)
 }

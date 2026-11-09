@@ -23,33 +23,67 @@ data class StepSummary(
 ) {
     /** 折进一轮:[line] 是这一步的进展行(以「→ 结局」结尾),[results] 是这一轮成功的工具结果,[said] 是模型这一轮说的话。 */
     fun next(line: String, results: List<JsonObject>, said: String?): StepSummary {
-        val f = facts.toMutableMap()
-        for (r in results) for ((key, kind) in FACT_KEYS) {
-            val v = (r[key] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull?.trim()?.takeIf { it.isNotEmpty() } ?: continue
-            f[kind] = ((f[kind].orEmpty() - clip(v)) + clip(v)).takeLast(MAX_FACT_VALUES)
-        }
-        var p = progress + line
-        var e = earlier
-        while (p.size > MAX_PROGRESS) {
-            val outcome = p.first().substringAfterLast("→ ").trim().let { if (it in e || e.size < MAX_EARLIER_KINDS) it else OTHER }
-            e = e + (outcome to (e[outcome] ?: 0) + 1)
-            p = p.drop(1)
-        }
-        return StepSummary(goal, f, p, e, said?.let(::clip)?.takeIf { it.isNotEmpty() } ?: intent)
+        val merged = mergeFacts(facts, results)
+        val kept = trimProgress(progress + line, earlier)
+        val plan = said?.let(::clip)?.takeIf { it.isNotEmpty() }
+        return StepSummary(goal, merged, kept.first, kept.second, plan ?: intent)
     }
 
     fun render(header: String): String = buildString {
         appendLine(header)
-        appendLine("Only the latest user message is the current task, and the tools are still available; earlier user messages are for reference only.")
+        appendLine(REMINDER)
         appendLine("Goal: $goal")
+        appendFacts()
+        appendProgress()
+        append(NEXT)
+        intent?.let { append(" (last stated plan before folding: $it)") }
+    }
+
+    private fun StringBuilder.appendFacts() {
         appendLine("Confirmed facts:")
         if (facts.isEmpty()) appendLine("- (none yet)")
-        FACT_KEYS.values.forEach { kind -> facts[kind]?.let { appendLine("- $kind: ${it.joinToString(", ")}") } }
+        for (kind in FACT_KEYS.values) {
+            val values = facts[kind] ?: continue
+            appendLine("- $kind: ${values.joinToString(", ")}")
+        }
+    }
+
+    private fun StringBuilder.appendProgress() {
         appendLine("Progress:")
-        if (earlier.isNotEmpty()) appendLine("- ${earlier.values.sum()} earlier steps: " + earlier.entries.joinToString(", ") { "${it.key} ${it.value}" })
+        if (earlier.isNotEmpty()) {
+            val total = earlier.values.sum()
+            appendLine("- $total earlier steps: " + earlier.entries.joinToString(", ") { "${it.key} ${it.value}" })
+        }
         progress.forEach { appendLine("- $it") }
-        append("Next: continue from the most recent steps kept below")
-        intent?.let { append(" (last stated plan before folding: $it)") }
+    }
+
+    private fun mergeFacts(previous: Map<String, List<String>>, results: List<JsonObject>): Map<String, List<String>> {
+        val out = LinkedHashMap(previous)
+        for (result in results) {
+            for ((field, kind) in FACT_KEYS) {
+                val value = (result[field] as? JsonPrimitive)
+                    ?.takeIf { it.isString }
+                    ?.contentOrNull
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: continue
+                val clipped = clip(value)
+                out[kind] = (out[kind].orEmpty().filterNot { it == clipped } + clipped).takeLast(MAX_FACT_VALUES)
+            }
+        }
+        return out
+    }
+
+    private fun trimProgress(start: List<String>, startEarlier: Map<String, Int>): Pair<List<String>, Map<String, Int>> {
+        var lines = start
+        var earlier = startEarlier
+        while (lines.size > MAX_PROGRESS) {
+            val outcome = lines.first().substringAfterLast("→ ").trim()
+            val key = if (outcome in earlier || earlier.size < MAX_EARLIER_KINDS) outcome else OTHER
+            earlier = earlier + (key to ((earlier[key] ?: 0) + 1))
+            lines = lines.drop(1)
+        }
+        return lines to earlier
     }
 
     private companion object {
@@ -60,6 +94,8 @@ data class StepSummary(
         const val MAX_EARLIER_KINDS = 5
         const val OTHER = "other"
         const val CLIP = 100
+        const val REMINDER = "Only the latest user message is the current task, and the tools are still available; earlier user messages are for reference only."
+        const val NEXT = "Next: continue from the most recent steps kept below"
 
         fun clip(s: String): String {
             val one = s.replace('\n', ' ').trim()

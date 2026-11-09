@@ -9,12 +9,17 @@ import java.util.concurrent.ConcurrentHashMap
  * 文字里的 {{name}} 由调用方填;漏填的直接报错,不把占位符发给模型。
  */
 object Prompts {
+    private const val RESOURCE_ROOT = "/prompts/"
+    private const val OPEN = "{{"
+    private const val CLOSE = "}}"
+    private val keyShape = Regex("[a-z0-9_]+")
     private val cache = ConcurrentHashMap<String, String>()
 
     /** 资源原文(去掉首尾空白)。 */
-    fun read(path: String): String = cache.getOrPut(path) {
-        checkNotNull(Prompts::class.java.getResourceAsStream("/prompts/$path")) { "missing prompts/$path" }
-            .bufferedReader(Charsets.UTF_8).use { it.readText() }.trim()
+    fun read(path: String): String = cache.computeIfAbsent(path) { name ->
+        val body = Prompts::class.java.getResourceAsStream(RESOURCE_ROOT + name)
+        checkNotNull(body) { "missing prompts/$name" }
+        body.bufferedReader(Charsets.UTF_8).use { it.readText() }.trim()
     }
 
     fun system(name: String): String = read("system/$name.md")
@@ -30,11 +35,32 @@ object Prompts {
     fun tool(file: String, vararg vars: Pair<String, Any?>): String = fill(read("tools/$file.md"), vars.toMap())
 
     /** 一遍替换:填进去的值(屏上的字、用户的话)里即使有 {{…}} 也原样保留。 */
-    fun fill(template: String, vars: Map<String, Any?>): String = PLACEHOLDER.replace(template) { m ->
-        val k = m.groupValues[1]
-        check(k in vars) { "unfilled placeholder {{$k}} in: ${template.take(80)}" }
-        vars[k].toString()
+    fun fill(template: String, vars: Map<String, Any?>): String {
+        if (OPEN !in template) return template
+        val out = StringBuilder(template.length)
+        var cursor = 0
+        while (cursor < template.length) {
+            val open = template.indexOf(OPEN, cursor)
+            if (open < 0) {
+                out.append(template, cursor, template.length)
+                break
+            }
+            val close = template.indexOf(CLOSE, open + OPEN.length)
+            if (close < 0) {
+                out.append(template, cursor, template.length)
+                break
+            }
+            val name = template.substring(open + OPEN.length, close)
+            if (!keyShape.matches(name)) {
+                out.append(template, cursor, open + OPEN.length)
+                cursor = open + OPEN.length
+                continue
+            }
+            out.append(template, cursor, open)
+            check(vars.containsKey(name)) { "unfilled placeholder {{$name}} in: ${template.take(80)}" }
+            out.append(vars.getValue(name).toString())
+            cursor = close + CLOSE.length
+        }
+        return out.toString()
     }
-
-    private val PLACEHOLDER = Regex("\\{\\{([a-z0-9_]+)\\}\\}")
 }

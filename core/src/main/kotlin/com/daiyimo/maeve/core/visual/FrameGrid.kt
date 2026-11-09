@@ -7,29 +7,43 @@ import kotlin.math.abs
  * 只用像素读取函数取样,不依赖安卓类(可在 JVM 上测);端口拿手里现成的位图取样,不编码图片。
  */
 class FrameGrid(val cols: Int, val rows: Int, val luma: IntArray) {
-    init { require(luma.size == cols * rows) }
+    init {
+        require(luma.size == cols * rows) { "luma=${luma.size} does not fit ${cols}x$rows" }
+    }
 
     companion object {
-        private const val SAMPLES = 2
+        private const val EDGE_SAMPLES = 2
+        private const val SAMPLES_PER_CELL = EDGE_SAMPLES * EDGE_SAMPLES
 
         /** 把 [width]×[height] 的画面切成格子,每格取 2×2 个点的平均亮度;[pixel] 返回 (x, y) 处的 ARGB。太小的画面为 null。 */
         fun sample(width: Int, height: Int, pixel: (Int, Int) -> Int): FrameGrid? {
-            val cols = FrameTuning.GRID_COLS; val rows = FrameTuning.GRID_ROWS
-            val cw = width / cols
-            val ch = height / rows
-            if (cw == 0 || ch == 0) return null
-            val out = IntArray(cols * rows)
-            for (gy in 0 until rows) for (gx in 0 until cols) {
-                var sum = 0
-                for (sy in 0 until SAMPLES) for (sx in 0 until SAMPLES) {
-                    sum += luma(pixel(gx * cw + (2 * sx + 1) * cw / (2 * SAMPLES), gy * ch + (2 * sy + 1) * ch / (2 * SAMPLES)))
+            val cellWidth = width / FrameTuning.GRID_COLS
+            val cellHeight = height / FrameTuning.GRID_ROWS
+            if (cellWidth == 0 || cellHeight == 0) return null
+
+            val cells = IntArray(FrameTuning.GRID_COLS * FrameTuning.GRID_ROWS)
+            for (row in 0 until FrameTuning.GRID_ROWS) {
+                for (col in 0 until FrameTuning.GRID_COLS) {
+                    var total = 0
+                    for (dy in 0 until EDGE_SAMPLES) {
+                        for (dx in 0 until EDGE_SAMPLES) {
+                            val x = col * cellWidth + (2 * dx + 1) * cellWidth / (2 * EDGE_SAMPLES)
+                            val y = row * cellHeight + (2 * dy + 1) * cellHeight / (2 * EDGE_SAMPLES)
+                            total += brightness(pixel(x, y))
+                        }
+                    }
+                    cells[row * FrameTuning.GRID_COLS + col] = total / SAMPLES_PER_CELL
                 }
-                out[gy * cols + gx] = sum / (SAMPLES * SAMPLES)
             }
-            return FrameGrid(cols, rows, out)
+            return FrameGrid(FrameTuning.GRID_COLS, FrameTuning.GRID_ROWS, cells)
         }
 
-        private fun luma(p: Int) = ((p shr 16 and 0xff) * 3 + (p shr 8 and 0xff) * 6 + (p and 0xff)) / 10
+        private fun brightness(argb: Int): Int {
+            val red = argb shr 16 and 0xff
+            val green = argb shr 8 and 0xff
+            val blue = argb and 0xff
+            return (red * 3 + green * 6 + blue) / 10
+        }
     }
 }
 
@@ -45,27 +59,42 @@ data class FrameChange(val whole: Double, val region: Double?) {
 object FrameDiff {
     /** [roi] 是目标区域(0–999 归一化的 [l,t,r,b]);两帧尺寸不一致、缺一帧为 null。 */
     fun compare(before: FrameGrid?, after: FrameGrid?, roi: List<Int>? = null): FrameChange? {
-        if (before == null || after == null || before.cols != after.cols || before.rows != after.rows) return null
-        val cols = before.cols; val rows = before.rows
+        if (before == null || after == null) return null
+        if (before.cols != after.cols || before.rows != after.rows) return null
+
+        val cols = before.cols
+        val rows = before.rows
+        val box = regionOf(roi, cols, rows)
         var changed = 0
-        var inRegion = 0; var regionChanged = 0
-        val box = roi?.takeIf { it.size == 4 }?.let { r ->
-            // 向外扩半格,免得小控件落在格子缝里
-            val l = (r[0] * cols / 1000.0 - 0.5).toInt().coerceIn(0, cols - 1)
-            val t = (r[1] * rows / 1000.0 - 0.5).toInt().coerceIn(0, rows - 1)
-            val rr = (r[2] * cols / 1000.0 + 0.5).toInt().coerceIn(l, cols - 1)
-            val b = (r[3] * rows / 1000.0 + 0.5).toInt().coerceIn(t, rows - 1)
-            intArrayOf(l, t, rr, b)
-        }
-        for (y in 0 until rows) for (x in 0 until cols) {
-            val i = y * cols + x
-            val d = abs(before.luma[i] - after.luma[i]) > FrameTuning.CELL_DELTA
-            if (d) changed++
-            if (box != null && x in box[0]..box[2] && y in box[1]..box[3]) {
-                inRegion++
-                if (d) regionChanged++
+        var inside = 0
+        var insideChanged = 0
+
+        for (row in 0 until rows) {
+            for (col in 0 until cols) {
+                val index = row * cols + col
+                val differs = abs(before.luma[index] - after.luma[index]) > FrameTuning.CELL_DELTA
+                if (differs) changed++
+                if (box != null && col in box.left..box.right && row in box.top..box.bottom) {
+                    inside++
+                    if (differs) insideChanged++
+                }
             }
         }
-        return FrameChange(changed.toDouble() / (cols * rows), box?.let { regionChanged.toDouble() / inRegion.coerceAtLeast(1) })
+
+        val whole = changed.toDouble() / (cols * rows)
+        val region = box?.let { insideChanged.toDouble() / inside.coerceAtLeast(1) }
+        return FrameChange(whole, region)
+    }
+
+    private data class Box(val left: Int, val top: Int, val right: Int, val bottom: Int)
+
+    private fun regionOf(roi: List<Int>?, cols: Int, rows: Int): Box? {
+        if (roi == null || roi.size != 4) return null
+        // 向外扩半格,免得小控件落在格子缝里
+        val left = (roi[0] * cols / 1000.0 - 0.5).toInt().coerceIn(0, cols - 1)
+        val top = (roi[1] * rows / 1000.0 - 0.5).toInt().coerceIn(0, rows - 1)
+        val right = (roi[2] * cols / 1000.0 + 0.5).toInt().coerceIn(left, cols - 1)
+        val bottom = (roi[3] * rows / 1000.0 + 0.5).toInt().coerceIn(top, rows - 1)
+        return Box(left, top, right, bottom)
     }
 }

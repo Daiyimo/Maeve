@@ -7,39 +7,54 @@ package com.daiyimo.maeve.core.prompt
 object Feedback {
     /** 反馈文件;键在所有文件里唯一。 */
     val FILES = listOf("tools", "loop")
-    private val HEADING = Regex("^## ([a-z0-9_.]+)$")
 
-    private val entries: Map<String, String> by lazy {
-        val out = LinkedHashMap<String, String>()
-        for (f in FILES) parse(Prompts.read("feedback/$f.md")).forEach { (k, v) -> check(out.put(k, v) == null) { "duplicate feedback key $k" } }
-        out
-    }
+    private val head = Regex("^## ([a-z0-9_.]+)$")
+    private val entries: Map<String, String> by lazy { loadAll() }
 
     /** 一个反馈文件里的各条(键 → 原文),按出现顺序;第一条之前的说明不算。 */
     fun parse(text: String): List<Pair<String, String>> {
-        val out = mutableListOf<Pair<String, String>>()
-        var key: String? = null
-        val body = mutableListOf<String>()
-        fun flush() { key?.let { out += it to body.joinToString("\n").trim('\n') }; body.clear() }
+        val found = ArrayList<Pair<String, String>>()
+        var current: String? = null
+        val lines = ArrayList<String>()
         for (line in text.lines()) {
-            val m = HEADING.matchEntire(line)
-            if (m != null) { flush(); key = m.groupValues[1] } else if (key != null) body += line
+            val match = head.matchEntire(line)
+            if (match == null) {
+                if (current != null) lines += line
+                continue
+            }
+            current?.let { found += it to lines.joinToString("\n").trim('\n') }
+            lines.clear()
+            current = match.groupValues[1]
         }
-        flush()
-        return out
+        current?.let { found += it to lines.joinToString("\n").trim('\n') }
+        return found
     }
 
     operator fun get(key: String): String = Prompts.fill(raw(key), emptyMap())
 
     fun format(key: String, vararg vars: Pair<String, Any?>): String = Prompts.fill(raw(key), vars.toMap())
 
-    fun has(key: String): Boolean = key in entries
+    fun has(key: String): Boolean = entries.containsKey(key)
 
     /** 键以 [prefix] 开头的各条,键去掉前缀(例如按错误码给的说明)。 */
-    fun section(prefix: String): Map<String, String> =
-        entries.filterKeys { it.startsWith(prefix) }.mapKeys { it.key.removePrefix(prefix) }
+    fun section(prefix: String): Map<String, String> {
+        val all = entries
+        return buildMap {
+            for ((key, value) in all) {
+                if (key.startsWith(prefix)) put(key.removePrefix(prefix), value)
+            }
+        }
+    }
 
     val keys: Set<String> get() = entries.keys
 
     private fun raw(key: String): String = checkNotNull(entries[key]) { "missing feedback $key" }
+
+    private fun loadAll(): Map<String, String> = buildMap {
+        for (file in FILES) {
+            for ((key, text) in parse(Prompts.read("feedback/$file.md"))) {
+                check(put(key, text) == null) { "duplicate feedback key $key" }
+            }
+        }
+    }
 }

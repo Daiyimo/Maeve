@@ -10,11 +10,11 @@ import kotlin.coroutines.CoroutineContext
  * 任意线程可用;每个资源只放一次,[close] 可重复调。
  */
 class ResourceScope {
-    private class Entry(val context: CoroutineContext, val release: () -> Unit)
+    private data class Hold(val context: CoroutineContext, val release: () -> Unit)
 
-    private val lock = Any()
-    private val entries = ArrayList<Entry>()
-    private var closed = false
+    private val monitor = Any()
+    private val holds = ArrayDeque<Hold>()
+    private var shut = false
 
     /**
      * 在 [context] 里调 [create],建好立即登记,收尾时同样在 [context] 里调 [release]。
@@ -22,29 +22,36 @@ class ResourceScope {
      */
     suspend fun <T> acquire(context: CoroutineContext, release: (T) -> Unit, create: suspend () -> T): T =
         withContext(context) {
-            val made = create()
-            val owned = synchronized(lock) { if (!closed) entries += Entry(context) { release(made) }; !closed }
-            if (!owned) {
-                release(made)
+            val value = create()
+            val accepted = synchronized(monitor) {
+                if (shut) false else true.also { holds.addLast(Hold(context) { release(value) }) }
+            }
+            if (!accepted) {
+                release(value)
                 throw IllegalStateException("resource scope already closed")
             }
-            made
+            value
         }
 
     /** 按登记的反序放掉全部;一个放不掉不影响其余,放完后抛出第一个错误。不受取消打断。 */
     suspend fun close() {
-        val todo = synchronized(lock) {
-            closed = true
-            entries.asReversed().toList().also { entries.clear() }
+        val pending = synchronized(monitor) {
+            if (shut) return
+            shut = true
+            val drained = holds.toList()
+            holds.clear()
+            drained
         }
-        var failure: Throwable? = null
-        for (e in todo) {
+        var first: Throwable? = null
+        for (index in pending.indices.reversed()) {
+            val hold = pending[index]
             try {
-                withContext(e.context + NonCancellable) { e.release() }
-            } catch (t: Throwable) {
-                failure?.addSuppressed(t) ?: run { failure = t }
+                withContext(hold.context + NonCancellable) { hold.release() }
+            } catch (error: Throwable) {
+                val prior = first
+                if (prior == null) first = error else prior.addSuppressed(error)
             }
         }
-        failure?.let { throw it }
+        first?.let { throw it }
     }
 }
