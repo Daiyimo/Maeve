@@ -165,7 +165,7 @@ def write_tsv(rows: list[Row], target: Path) -> None:
             "yes" if row.binary else "no",
         )))
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {target} ({len(rows)} rows)")
 
 
