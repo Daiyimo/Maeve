@@ -80,8 +80,12 @@ class ChatGptSignInService : Service() {
     companion object {
         private const val TAG = "MaeveChatGpt"
         private const val ACTION_CANCEL = "com.daiyimo.maeve.chatgpt.CANCEL_SIGN_IN"
-        /** 和任务、电脑连接的通知错开。 */
-        private const val NOTIFICATION_ID = 30_002
+        /**
+         * 和任务、电脑连接、微信监听的通知错开。
+         * 微信监听(WechatService)原来也用 30_002,两个前台服务会互相顶掉对方的常驻通知,
+         * 所以这里单独占一个号。
+         */
+        private const val NOTIFICATION_ID = 30_003
 
         /** 登录开始时调(用户刚点了登录,Maeve 在前台,可以开前台服务);开不了抛出,由调用方记下。 */
         fun start(context: Context) {
