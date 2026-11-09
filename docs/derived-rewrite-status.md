@@ -66,8 +66,15 @@ total          2354    278888    263168   94.4%
 | `core/.../device/DeviceAccessJson.kt` | 100% | 34.5% | `DeviceAccessTest` |
 | `core/.../net/UrlHost.kt` | 100% | 57.5% | `LocalHostsTest` / guard tests |
 
+第三批（观察 / 子任务）：
+
+| 文件 | 重写前衍生 | 重写后衍生 | 行为验证 |
+|---|---:|---:|---|
+| `core/.../observation/Observation.kt` | 100% | 65.4% | 观察相关测试；下一轮继续压 |
+| `core/.../child/ChildRuns.kt` | 100% | 47.3% | `ChildRunsTest` / `AgentLoopTest` |
+
 这批的公共 API、枚举值、输出文案和协程语义都保持不变；只重写内部结构、命名和注释。
-这批 9 个文件都已降到 60% 以下；但单文件达标不是目的，**行为等价 + 可编译 + 测试通过**才是。
+前两批 15 个文件都已降到 60% 以下；第三批 `Observation.kt` 仍为 65.4%，下一轮收尾。单文件达标不是目的，**行为等价 + 可编译 + 测试通过**才是。
 `Feedback.section` 的接收者遮蔽问题曾让 31 个测试失败，已由全量 `:core:test` 抓出并修复。
 
 ## 每批的硬约束

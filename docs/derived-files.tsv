@@ -758,7 +758,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 105	src	app/src/main/java/com/daiyimo/maeve/cap/sandbox/ProcRunner.kt	111	6	6	0.946	no
 105	res	app/src/main/res/values-ru/strings_timeline.xml	105	0	0	1.000	no
 105	tests	app/src/test/java/com/daiyimo/maeve/skills/PersonalSkillFilesTest.kt	105	0	0	1.000	no
-105	src	core/src/main/kotlin/com/daiyimo/maeve/core/observation/Observation.kt	105	0	0	1.000	no
 105	core-text	core/src/main/resources/skills/documents/scripts/extract_pdf.py	106	1	1	0.991	no
 105	tests	core/src/test/kotlin/com/daiyimo/maeve/core/agent/AgentLoopWebKnowledgeTest.kt	105	0	0	1.000	no
 105	tests	core/src/test/kotlin/com/daiyimo/maeve/core/knowledge/GuideCatalogTest.kt	105	0	0	1.000	no
@@ -926,6 +925,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 87	tests	app/src/test/java/com/daiyimo/maeve/browser/BrowserFavoritesTest.kt	87	0	0	1.000	no
 87	tests	app/src/test/java/com/daiyimo/maeve/settings/ApprovalStoreTest.kt	87	0	0	1.000	no
 87	src	core/src/main/kotlin/com/daiyimo/maeve/core/agent/Conversation.kt	90	3	3	0.967	no
+87	src	core/src/main/kotlin/com/daiyimo/maeve/core/observation/Observation.kt	133	46	18	0.654	no
 87	src	core/src/main/kotlin/com/daiyimo/maeve/core/tool/EvidenceLog.kt	87	0	0	1.000	no
 87	tests	core/src/test/kotlin/com/daiyimo/maeve/core/knowledge/KnowledgeIndexTest.kt	87	0	0	1.000	no
 86	tests	app/src/androidTest/java/com/daiyimo/maeve/ui/KeptPageUiTest.kt	91	5	5	0.945	no
@@ -962,7 +962,6 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 85	tests	app/src/test/java/com/daiyimo/maeve/about/ReleasesTest.kt	101	16	16	0.842	no
 85	tests	app/src/test/java/com/daiyimo/maeve/browser/RecentPagesTest.kt	85	0	0	1.000	no
 85	tests	app/src/test/resources/web/identity-harness.js	85	0	0	1.000	no
-85	src	core/src/main/kotlin/com/daiyimo/maeve/core/child/ChildRuns.kt	85	0	0	1.000	no
 85	src	core/src/main/kotlin/com/daiyimo/maeve/core/uistate/UiTreeJson.kt	85	0	0	1.000	no
 85	tests	core/src/test/kotlin/com/daiyimo/maeve/core/agent/AgentLoopSandboxTest.kt	85	0	0	1.000	no
 85	tests	core/src/test/kotlin/com/daiyimo/maeve/core/verify/RecordedVerifications.kt	85	0	0	1.000	no
@@ -1247,6 +1246,7 @@ derived_loc	group	file	head_loc	added	deleted	derived_ratio	binary
 62	tests	core/src/test/kotlin/com/daiyimo/maeve/core/uistate/ScreenMapTest.kt	62	0	0	1.000	no
 61	res	app/src/main/res/values-zh/strings_metrics.xml	62	1	1	0.984	no
 61	src	core/src/main/kotlin/com/daiyimo/maeve/core/action/Approval.kt	61	0	0	1.000	no
+61	src	core/src/main/kotlin/com/daiyimo/maeve/core/child/ChildRuns.kt	129	68	24	0.473	no
 61	tests	core/src/test/kotlin/com/daiyimo/maeve/core/vision/VisionServiceTest.kt	61	0	0	1.000	no
 60	tests	app/src/androidTest/assets/web-fixtures/elements.html	60	0	0	1.000	no
 60	tests	app/src/androidTest/java/com/daiyimo/maeve/cap/phone/display/DisplayFrameTest.kt	60	0	0	1.000	no

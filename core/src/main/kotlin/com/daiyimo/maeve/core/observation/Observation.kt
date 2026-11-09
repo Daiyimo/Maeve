@@ -4,16 +4,28 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * 一条观察是哪一类:[Read] 读到的界面或页面(App 的界面状态、网页正文、网页脚本与网络响应);[Output] 命令与脚本的输出、文件内容与路径;
- * [Reply] 别的 AI 的回答(子任务、外部服务);[UserSaid] 用户给的(对提问的回答、记忆);[Attachment] 用户或工具给的文件、图片;
- * [Fact] 工具结果里的事实(打开了哪个 App、网址与标题)。核心只按这几类处理,不认识具体能力。
+ * 一条观察是哪一类:
+ * - [Read] 读到的界面或页面(App 的界面状态、网页正文、网页脚本与网络响应)
+ * - [Output] 命令与脚本的输出、文件内容与路径
+ * - [Reply] 别的 AI 的回答(子任务、外部服务)
+ * - [UserSaid] 用户给的(对提问的回答、记忆)
+ * - [Attachment] 用户或工具给的文件、图片
+ * - [Fact] 工具结果里的事实(打开了哪个 App、网址与标题)
+ *
+ * 核心只按这几类处理,不认识具体能力。
  */
 enum class ObsKind(val wire: String) {
-    Read("read"), Output("output"), Reply("reply"), UserSaid("user_said"), Attachment("attachment"), Fact("fact");
+    Read("read"),
+    Output("output"),
+    Reply("reply"),
+    UserSaid("user_said"),
+    Attachment("attachment"),
+    Fact("fact"),
+    ;
 
     companion object {
         private val byWire = entries.associateBy { it.wire }
-        fun ofWire(w: String?): ObsKind? = w?.let(byWire::get)
+        fun ofWire(wire: String?): ObsKind? = wire?.let(byWire::get)
     }
 }
 
@@ -31,16 +43,21 @@ enum class PlaceKind(val wire: String) {
 }
 
 /**
- * 在哪里:App(包名)、站点(主机名)、网页(网址)、命令、文件。[name] 是这个地方的原样写法;核查、来源按它对上回答里提到的 App 或网址。
+ * 在哪里:App(包名)、站点(主机名)、网页(网址)、命令、文件。
+ * [name] 是这个地方的原样写法;核查、来源按它对上回答里提到的 App 或网址。
  */
 @Serializable
 data class Place(val kind: PlaceKind, val name: String) {
     companion object {
-        fun app(pkg: String) = Place(PlaceKind.App, pkg)
-        fun site(host: String) = Place(PlaceKind.Site, host)
-        fun page(url: String) = Place(PlaceKind.Page, url)
-        fun command(label: String) = Place(PlaceKind.Command, label)
-        fun file(label: String) = Place(PlaceKind.File, label)
+        fun app(pkg: String): Place = Place(PlaceKind.App, pkg)
+
+        fun site(host: String): Place = Place(PlaceKind.Site, host)
+
+        fun page(url: String): Place = Place(PlaceKind.Page, url)
+
+        fun command(label: String): Place = Place(PlaceKind.Command, label)
+
+        fun file(label: String): Place = Place(PlaceKind.File, label)
     }
 }
 
@@ -72,12 +89,16 @@ data class Observation(
     val id: Int = 0,
 ) {
     /** 在哪里的原样写法;没有为 null。 */
-    val where: String? get() = place?.name
+    val where: String?
+        get() = place?.name
 
     /** 按它是什么样的东西分(裁剪、界面上的说法按它定,不按工具)。 */
-    val form: ObsForm get() = when (kind) {
+    val form: ObsForm
+        get() = formOf(kind, inputs, place)
+
+    private fun formOf(kind: ObsKind, inputs: InputHints?, place: Place?): ObsForm = when (kind) {
         // 读界面状态时总带着输入框(可能一个也没有);读整页、脚本结果、网络响应时没有
-        ObsKind.Read -> if (inputs != null) ObsForm.Interface else ObsForm.Page
+        ObsKind.Read -> if (inputs == null) ObsForm.Page else ObsForm.Interface
         ObsKind.Output -> if (place?.kind == PlaceKind.File) ObsForm.File else ObsForm.Command
         ObsKind.Reply -> ObsForm.Reply
         ObsKind.UserSaid -> ObsForm.UserSaid
@@ -87,13 +108,16 @@ data class Observation(
 }
 
 /** 一次工具结果里读到的一条观察:账本里的编号和它的形态(裁剪据此决定怎么缩短、缩短后指回哪条)。 */
-@Serializable data class ReadTag(val obsId: Int, val form: ObsForm)
+@Serializable
+data class ReadTag(val obsId: Int, val form: ObsForm)
 
 /** 这条观察在工具结果里的标记。 */
-val Observation.tag: ReadTag get() = ReadTag(id, form)
+val Observation.tag: ReadTag
+    get() = ReadTag(id, form)
 
 /** 观察的形态:界面状态、页面内容、命令输出、文件、图片、回复、用户说的、事实。 */
-@Serializable enum class ObsForm { Interface, Page, Command, File, Image, Reply, UserSaid, Fact }
+@Serializable
+enum class ObsForm { Interface, Page, Command, File, Image, Reply, UserSaid, Fact }
 
 /** 核心自己(不是哪个能力)给出的观察的出处。 */
 const val CORE_SOURCE = "core"
@@ -102,4 +126,8 @@ const val CORE_SOURCE = "core"
  * 核查前「再看一眼」:能力此刻的样子([observations],界面状态、网页正文的开头……)和同一时刻的画面([image],要附图时才有)。
  * [protected]:此刻的页面受系统防截屏保护,看不到画面。由能力定义怎么看(见 Capability.freshLook)。
  */
-class Look(val observations: List<Observation>, val image: ByteArray? = null, val protected: Boolean = false)
+class Look(
+    val observations: List<Observation>,
+    val image: ByteArray? = null,
+    val protected: Boolean = false,
+)
