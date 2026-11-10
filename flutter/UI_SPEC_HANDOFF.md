@@ -1,7 +1,8 @@
 # Maeve Flutter UI 复刻 · 交接执行规格（HANDOFF）
 
 > ⛔ **本规格已作废（2026-11-10）**：它产出了 dsh-go 的视觉复刻。用户已决定重写为 Maeve 自己的
-> 设计语言，执行规格见 [`REWRITE_SPEC.md`](REWRITE_SPEC.md)。本文件仅作历史记录保留，
+> 设计语言，执行规格见 [`REWRITE_SPEC.md`](REWRITE_SPEC.md)，逐 token 决策记录见
+> [`docs/spec/flutter-visual-parity.md`](../docs/spec/flutter-visual-parity.md)。本文件仅作历史记录保留，
 > **不要照它施工**；其中的色值 / token 数值 / 屏幕骨架全部作废。
 
 ---

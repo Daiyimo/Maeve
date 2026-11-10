@@ -1,13 +1,19 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
-import '../../design/maeve_motion.dart';
-import '../../design/maeve_tokens.dart';
-import '../../widgets/glass_surface.dart';
 import 'pressable.dart';
 
+import '../../design/maeve_colors.dart';
+import '../../design/maeve_motifs.dart';
+import '../../design/maeve_motion.dart';
+import '../../design/maeve_shapes.dart';
+import '../../design/maeve_theme.dart';
+import '../../design/maeve_type.dart';
+
+import '../../widgets/glass_surface.dart';
+
 /// 尺寸变化平滑过渡(展开/收起、消息进出)。
-///
-/// 不走 `AnimatedSize` 的默认 100ms,统一用结构档 240ms;减少动画时归零。
 class SmoothSize extends StatelessWidget {
   const SmoothSize({
     super.key,
@@ -19,18 +25,15 @@ class SmoothSize extends StatelessWidget {
   final AlignmentGeometry alignment;
 
   @override
-  Widget build(BuildContext context) {
-    final motion = AppMotion.of(context);
-    return AnimatedSize(
-      duration: motion.standard,
-      curve: MaeveMotion.std,
-      alignment: alignment,
-      child: child,
-    );
-  }
+  Widget build(BuildContext context) => AnimatedSize(
+    duration: AppMotion.of(context).standard,
+    curve: MaeveMotion.collapseCurve,
+    alignment: alignment,
+    child: child,
+  );
 }
 
-/// 由 `visible` 驱动的展开:高度 + 淡入一起走(思考块、附件 tray、引文)。
+/// 由 `visible` 驱动的展开:高度 + 淡入一起走(思考块、引文 tray、附件条)。
 class ExpandReveal extends StatelessWidget {
   const ExpandReveal({
     super.key,
@@ -73,22 +76,24 @@ class ExpandReveal extends StatelessWidget {
 enum MaeveTone { idle, running, ready, warning, danger }
 
 Color toneColor(BuildContext context, MaeveTone tone) {
-  final scheme = Theme.of(context).colorScheme;
-  final dark = Theme.of(context).brightness == Brightness.dark;
+  final theme = MaeveTheme.of(context);
   return switch (tone) {
-    MaeveTone.idle => scheme.onSurfaceVariant,
-    MaeveTone.running => scheme.primary,
-    MaeveTone.ready => MaeveTokens.success(
-      dark ? Brightness.dark : Brightness.light,
-    ),
-    MaeveTone.warning => MaeveTokens.warning(
-      dark ? Brightness.dark : Brightness.light,
-    ),
-    MaeveTone.danger => scheme.error,
+    MaeveTone.idle => theme.colors.ink3,
+    MaeveTone.running => theme.colors.accent,
+    MaeveTone.ready => theme.semantic.ok,
+    MaeveTone.warning => theme.semantic.warn,
+    MaeveTone.danger => theme.semantic.bad,
   };
 }
 
-/// 状态点:形状 + 颜色双编码 —— 空闲是空心环,进行中是实心 + 呼吸,就绪是实心。
+/// 状态点:**形状 + 颜色双编码**,不靠颜色单独表状态。
+///
+/// - 空闲:空心环(还没开始)
+/// - 进行中:开口环 + 呼吸(和品牌标 armed 态同一个母题)
+/// - 就绪:实心核(环里填上了)
+/// - 警告/危险:实心点(配合文字)
+///
+/// 任何一处使用都必须同时给出文字(见 [HeaderStatus] / [StatusChip])。
 class StatusDot extends StatefulWidget {
   const StatusDot({super.key, this.tone = MaeveTone.idle, this.size = 7});
 
@@ -138,40 +143,86 @@ class _StatusDotState extends State<StatusDot>
   @override
   Widget build(BuildContext context) {
     final color = toneColor(context, widget.tone);
-    final hollow = widget.tone == MaeveTone.idle;
-    final size = widget.size;
     return SizedBox.square(
-      dimension: size * 2,
-      child: Center(
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (widget.tone == MaeveTone.running)
-              AnimatedBuilder(
-                animation: _breath,
-                builder: (context, _) => Container(
-                  width: size + 4 + _breath.value * 3,
-                  height: size + 4 + _breath.value * 3,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color.withValues(alpha: .16 - _breath.value * .08),
-                  ),
-                ),
-              ),
-            Container(
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: hollow ? Colors.transparent : color,
-                border: hollow ? Border.all(color: color, width: 1.2) : null,
-              ),
-            ),
-          ],
+      dimension: widget.size * 2,
+      child: AnimatedBuilder(
+        animation: _breath,
+        builder: (context, _) => CustomPaint(
+          painter: StatusDotPainter(
+            tone: widget.tone,
+            color: color,
+            breath: _breath.value,
+          ),
         ),
       ),
     );
   }
+}
+
+/// 公开以便单测记录绘制调用(形状差异是验收项)。
+@visibleForTesting
+class StatusDotPainter extends CustomPainter {
+  const StatusDotPainter({
+    required this.tone,
+    required this.color,
+    this.breath = .5,
+  });
+
+  final MaeveTone tone;
+  final Color color;
+  final double breath;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.shortestSide * .32;
+    final stroke = math.max(1.1, size.shortestSide * .16);
+    final outline = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round
+      ..color = color;
+    final solid = Paint()..color = color;
+    switch (tone) {
+      case MaeveTone.idle:
+        canvas.drawCircle(center, radius, outline);
+      case MaeveTone.running:
+        // 开口环 + 呼吸:和品牌标的 armed 态同一个动作。
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: radius),
+          -.6,
+          4.4,
+          false,
+          outline,
+        );
+        canvas.drawCircle(
+          center,
+          radius * .42,
+          Paint()..color = color.withValues(alpha: .35 + .45 * breath),
+        );
+      case MaeveTone.ready:
+        // 环 + 实心核 + 镂空中心(和品牌标 idle 态同形)。
+        canvas.drawCircle(center, radius, outline);
+        canvas.drawCircle(center, radius * .66, solid);
+      case MaeveTone.warning:
+      case MaeveTone.danger:
+        canvas.drawCircle(center, radius, solid);
+        if (tone == MaeveTone.danger) {
+          canvas.drawLine(
+            Offset(center.dx, center.dy - radius * .45),
+            Offset(center.dx, center.dy + radius * .15),
+            Paint()
+              ..color = Colors.white.withValues(alpha: .9)
+              ..strokeWidth = stroke * .7
+              ..strokeCap = StrokeCap.round,
+          );
+        }
+    }
+  }
+
+  @override
+  bool shouldRepaint(StatusDotPainter old) =>
+      old.tone != tone || old.color != color || old.breath != breath;
 }
 
 /// 顶栏状态行:状态点 + 一句人话。读屏单独给一句完整文案。
@@ -189,7 +240,7 @@ class HeaderStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodySmall;
+    final colors = MaeveTheme.of(context).colors;
     return Semantics(
       container: true,
       label: '状态：$text',
@@ -198,14 +249,14 @@ class HeaderStatus extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           StatusDot(tone: tone, size: 6),
-          const SizedBox(width: 4),
+          const SizedBox(width: 5),
           ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxWidth),
             child: Text(
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: style,
+              style: MaeveType.caption.copyWith(color: colors.ink3),
             ),
           ),
         ],
@@ -214,7 +265,7 @@ class HeaderStatus extends StatelessWidget {
   }
 }
 
-/// 空状态:图标 + 一句话 + 一个动作。列表空了、还没开始时用它,不要空白页。
+/// 空状态:图标块 + 一句话 + 一个动作。
 class EmptyView extends StatelessWidget {
   const EmptyView({
     super.key,
@@ -235,38 +286,35 @@ class EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final tint = tone ?? scheme.primary;
+    final theme = MaeveTheme.of(context);
+    final colors = theme.colors;
+    final tint = tone ?? colors.accent;
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: MaeveSpace.xl,
-        vertical: compact ? MaeveSpace.xxl : MaeveSpace.xxxl,
+        horizontal: MaeveSpace.s20,
+        vertical: compact ? MaeveSpace.s24 : MaeveSpace.s32,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: compact ? 40 : 52,
-            height: compact ? 40 : 52,
+            width: compact ? 38 : 46,
+            height: compact ? 38 : 46,
             decoration: BoxDecoration(
-              color: tint.withValues(alpha: .12),
-              borderRadius: BorderRadius.circular(MaeveRadius.md),
+              color: colors.accentSoft,
+              borderRadius: BorderRadius.circular(MaeveRadius.sm),
             ),
-            child: Icon(icon, size: compact ? 20 : 24, color: tint),
+            child: Icon(icon, size: compact ? 19 : 22, color: tint),
           ),
-          const SizedBox(height: MaeveSpace.lg),
-          Text(title, style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: MaeveSpace.s16),
+          Text(title, style: MaeveType.bodyStrong.copyWith(color: colors.ink)),
           if (body != null) ...[
-            const SizedBox(height: MaeveSpace.sm),
-            Text(
-              body!,
-              style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(color: scheme.onSurfaceVariant),
-            ),
+            const SizedBox(height: MaeveSpace.s6),
+            Text(body!, style: MaeveType.caption.copyWith(color: colors.ink3)),
           ],
           if (action != null) ...[
-            const SizedBox(height: MaeveSpace.lg),
+            const SizedBox(height: MaeveSpace.s16),
             action!,
           ],
         ],
@@ -292,25 +340,34 @@ class BriefNotice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = toneColor(context, tone);
-    return MaeveGlassSurface(
-      tier: MaeveGlassTier.card,
-      borderRadius: BorderRadius.circular(MaeveRadius.md),
+    final colors = MaeveTheme.of(context).colors;
+    final color = tone == MaeveTone.idle
+        ? colors.ink3
+        : toneColor(context, tone);
+    return Container(
       padding: const EdgeInsets.fromLTRB(
-        MaeveSpace.md,
-        MaeveSpace.sm + 2,
-        MaeveSpace.md,
-        MaeveSpace.sm + 2,
+        MaeveSpace.s12,
+        MaeveSpace.s10,
+        MaeveSpace.s12,
+        MaeveSpace.s10,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(MaeveRadius.md),
+        border: Border.all(color: colors.hair, width: .5),
       ),
       child: Row(
         children: [
-          Icon(icon, size: 17, color: color),
-          const SizedBox(width: MaeveSpace.sm),
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: MaeveSpace.s8),
           Expanded(
-            child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+            child: Text(
+              text,
+              style: MaeveType.hint.copyWith(color: colors.ink2),
+            ),
           ),
           if (action != null) ...[
-            const SizedBox(width: MaeveSpace.sm),
+            const SizedBox(width: MaeveSpace.s8),
             action!,
           ],
         ],
@@ -319,15 +376,16 @@ class BriefNotice extends StatelessWidget {
   }
 }
 
-/// 底部活动条:在做的事 + 停止。浮在阅读列上,不遮输入条。
+/// 底部活动条:在做的事 + 钢琴卷 + 停止。浮在阅读列上,不遮输入条。
 ///
-/// 状态点 + 一句人话,不显示秒数(第 7 节 B3:状态行不走秒)。
+/// 进度用钢琴卷而不是转圈:卷带表达"第几步、还剩几步",转圈只表达"在忙"。
 class ActivityStrip extends StatelessWidget {
   const ActivityStrip({
     super.key,
     required this.text,
     this.onStop,
     this.step,
+    this.states = const [],
     this.tone = MaeveTone.running,
   });
 
@@ -335,62 +393,67 @@ class ActivityStrip extends StatelessWidget {
 
   /// 第几步(可选,给自动化任务用)。
   final int? step;
+
+  /// 钢琴卷的状态;空列表时只显示文字。
+  final List<NoteState> states;
+
   final VoidCallback? onStop;
   final MaeveTone tone;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return MaeveGlassSurface(
       tier: MaeveGlassTier.card,
-      borderRadius: BorderRadius.circular(MaeveRadius.lg),
+      shape: MaeveShapes.button,
       padding: const EdgeInsets.fromLTRB(
-        MaeveSpace.md,
-        MaeveSpace.sm,
-        MaeveSpace.sm,
-        MaeveSpace.sm,
+        MaeveSpace.s12,
+        MaeveSpace.s8,
+        MaeveSpace.s8,
+        MaeveSpace.s8,
       ),
       child: Row(
         children: [
           StatusDot(tone: tone, size: 6),
-          const SizedBox(width: MaeveSpace.sm),
+          const SizedBox(width: MaeveSpace.s8),
           Expanded(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MaeveType.caption.copyWith(color: colors.ink2),
+                ),
+                if (states.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  PianoRoll(states: states, height: 10, note: 2.5, gap: 2),
+                ],
+              ],
             ),
           ),
           if (step != null) ...[
             Text(
               '第 $step 步',
-              style: MaeveFonts.mono(
-                context,
-                size: 11,
-                color: scheme.onSurfaceVariant,
-              ),
+              style: MaeveType.monoSmall.copyWith(color: colors.ink3),
             ),
-            const SizedBox(width: MaeveSpace.sm),
+            const SizedBox(width: MaeveSpace.s8),
           ],
           if (onStop != null)
             Pressable(
               onTap: onStop,
               borderRadius: BorderRadius.circular(MaeveRadius.pill),
-              haptic: null,
               semanticLabel: '停止',
               child: Container(
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: scheme.onSurface.withValues(alpha: .06),
+                  color: colors.ink,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  Icons.stop_rounded,
-                  size: 16,
-                  color: scheme.onSurface,
-                ),
+                child: Icon(Icons.stop_rounded, size: 16, color: colors.bg),
               ),
             ),
         ],
@@ -425,7 +488,7 @@ class _ThinkingPillState extends State<ThinkingPill> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     final motion = AppMotion.of(context);
     final canToggle = widget.onToggle != null || widget.lines.isNotEmpty;
     return Column(
@@ -441,24 +504,25 @@ class _ThinkingPillState extends State<ThinkingPill> {
           borderRadius: BorderRadius.circular(MaeveRadius.pill),
           child: Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: MaeveSpace.md,
-              vertical: 6,
+              horizontal: MaeveSpace.s10,
+              vertical: 5,
             ),
             decoration: BoxDecoration(
-              color: scheme.onSurface.withValues(alpha: .05),
+              color: colors.fill,
               borderRadius: BorderRadius.circular(MaeveRadius.pill),
+              border: Border.all(color: colors.hair, width: .5),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                StatusDot(
-                  tone: widget.busy ? MaeveTone.running : MaeveTone.idle,
-                  size: 6,
-                ),
+                if (widget.busy)
+                  const MazeRing(size: 11, indeterminate: true)
+                else
+                  StatusDot(tone: MaeveTone.ready, size: 5),
                 const SizedBox(width: 6),
                 Text(
-                  widget.busy ? '正在思考' : '思考了 ${widget.steps} 步',
-                  style: Theme.of(context).textTheme.bodySmall,
+                  widget.busy ? '正在走这一步' : '思考了 ${widget.steps} 步',
+                  style: MaeveType.hint.copyWith(color: colors.ink3),
                 ),
                 if (canToggle) ...[
                   const SizedBox(width: 2),
@@ -467,8 +531,8 @@ class _ThinkingPillState extends State<ThinkingPill> {
                     duration: motion.quick,
                     child: Icon(
                       Icons.expand_more,
-                      size: 15,
-                      color: scheme.onSurfaceVariant,
+                      size: 14,
+                      color: colors.ink3,
                     ),
                   ),
                 ],
@@ -479,7 +543,7 @@ class _ThinkingPillState extends State<ThinkingPill> {
         ExpandReveal(
           visible: _open && widget.lines.isNotEmpty,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(6, MaeveSpace.sm, 0, 0),
+            padding: const EdgeInsets.fromLTRB(6, MaeveSpace.s8, 0, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -488,7 +552,7 @@ class _ThinkingPillState extends State<ThinkingPill> {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text(
                       line,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: MaeveType.hint.copyWith(color: colors.ink3),
                     ),
                   ),
               ],
@@ -515,6 +579,7 @@ class PermissionPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
     final color = toneColor(context, tone);
     return Pressable(
       onTap: onTap,
@@ -522,18 +587,18 @@ class PermissionPill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: .12),
+          color: colors.warnSoft,
           borderRadius: BorderRadius.circular(MaeveRadius.pill),
+          border: Border.all(color: color.withValues(alpha: .35), width: .5),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.shield_outlined, size: 14, color: color),
+            Icon(Icons.shield_outlined, size: 13, color: color),
             const SizedBox(width: 6),
             Text(
               text,
-              style: Theme.of(context).textTheme.labelMedium
-                  ?.copyWith(color: color),
+              style: MaeveType.label.copyWith(fontSize: 12, color: color),
             ),
           ],
         ),
@@ -551,28 +616,26 @@ class AutoApprovePill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final color = MaeveTokens.warning(
-      dark ? Brightness.dark : Brightness.light,
-    );
+    final theme = MaeveTheme.of(context);
+    final color = theme.semantic.warn;
     return Pressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(MaeveRadius.pill),
       child: Container(
         padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
         decoration: BoxDecoration(
-          color: color.withValues(alpha: .14),
+          color: theme.colors.warnSoft,
           borderRadius: BorderRadius.circular(MaeveRadius.pill),
+          border: Border.all(color: color.withValues(alpha: .35), width: .5),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.bolt_rounded, size: 14, color: color),
+            Icon(Icons.bolt_rounded, size: 13, color: color),
             const SizedBox(width: 4),
             Text(
               '自动同意 · $scope',
-              style: Theme.of(context).textTheme.labelMedium
-                  ?.copyWith(color: color),
+              style: MaeveType.label.copyWith(fontSize: 12, color: color),
             ),
           ],
         ),
@@ -596,36 +659,36 @@ class StatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
     final color = toneColor(context, tone);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: filled ? color.withValues(alpha: .14) : null,
+        color: filled ? color.withValues(alpha: .12) : null,
         borderRadius: BorderRadius.circular(MaeveRadius.pill),
-        border: filled ? null : Border.all(color: color.withValues(alpha: .35)),
+        border: filled ? null : Border.all(color: colors.hair, width: .5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (tone != MaeveTone.idle) ...[
-            Container(
-              width: 5,
-              height: 5,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-            ),
+            StatusDot(tone: tone, size: 4),
             const SizedBox(width: 5),
           ],
           Text(
             label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: filled
-                  ? color
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
-              letterSpacing: .2,
+            style: MaeveType.label.copyWith(
+              fontSize: 11.5,
+              color: filled ? color : colors.ink3,
             ),
           ),
         ],
       ),
     );
   }
+}
+
+/// 把 [MaeveColors] 直接递给需要它的老调用点(少写一层 `MaeveTheme.of`)。
+extension MaeveColorsOf on BuildContext {
+  MaeveColors get maeveColors => MaeveTheme.of(this).colors;
 }

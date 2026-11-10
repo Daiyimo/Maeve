@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
 
-import '../design/maeve_tokens.dart';
+import '../widgets/maeve_mark.dart';
+
+import 'maeve_controller.dart';
+
+import '../design/maeve_shapes.dart';
+import '../design/maeve_theme.dart';
+import '../design/maeve_type.dart';
+
 import '../ui/common/app_page.dart';
 import '../ui/common/pressable.dart';
 import '../ui/memory/memory_page.dart';
 import '../ui/more/more_pages.dart';
 import '../ui/phone/phone_control_page.dart';
 import '../ui/runs/runs_page.dart';
+import '../ui/settings/settings_components.dart';
 import '../ui/settings/settings_hub.dart';
 import '../widgets/glass_surface.dart';
-import '../widgets/maeve_mark.dart';
-import 'maeve_controller.dart';
 
-/// B7 QuickPanel:右侧快捷面板。和会话抽屉同一套跟手/落位,只是从另一边来。
+/// 快捷面板:右侧拉出。入口是**图标网格**,不是长列表 —— 一屏能看全。
 ///
-/// 入口是用户自选的(这里给一组默认);⚙ 长按直接进设置搜索。
+/// 这是窄屏上唯一可靠的快捷入口:顶栏右侧那个网格键。
+/// 边缘手势在系统手势导航下会被系统吃掉,不能当唯一入口。
 class QuickPanel extends StatelessWidget {
   const QuickPanel({super.key, required this.onClose});
 
@@ -27,11 +34,68 @@ class QuickPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     final controller = MaeveScope.of(context);
+    final entries = <({IconData icon, String title, String note, Widget page})>[
+      (
+        icon: Icons.language_rounded,
+        title: '网页版',
+        note: '浏览器里继续',
+        page: const WebViewPage(),
+      ),
+      (
+        icon: Icons.dns_outlined,
+        title: '远程主机',
+        note: '交给配对的机器',
+        page: const SettingsHubPage(),
+      ),
+      (
+        icon: Icons.extension_outlined,
+        title: '插件',
+        note: '0 个',
+        page: const SettingsHubPage(),
+      ),
+      (
+        icon: Icons.memory_rounded,
+        title: '引擎',
+        note: '${controller.model} · ${controller.modelTier}',
+        page: const SettingsHubPage(),
+      ),
+      (
+        icon: Icons.bolt_outlined,
+        title: '运行',
+        note: '活动与进度',
+        page: const RunsPage(),
+      ),
+      (
+        icon: Icons.bookmark_border_rounded,
+        title: '记忆',
+        note: '留下的上下文',
+        page: const MemoryPage(),
+      ),
+      (
+        icon: Icons.smartphone_rounded,
+        title: '手机操控',
+        note: '替你在应用里点',
+        page: const PhoneControlPage(),
+      ),
+      (
+        icon: Icons.terminal_rounded,
+        title: '终端',
+        note: '沙箱命令行',
+        page: const TerminalPage(),
+      ),
+      (
+        icon: Icons.groups_outlined,
+        title: '社区',
+        note: '讨论与更新',
+        page: const CommunityPage(),
+      ),
+    ];
+
     return MaeveGlassSurface(
       tier: MaeveGlassTier.sheet,
-      borderRadius: BorderRadius.zero,
+      shape: const RoundedRectangleBorder(),
       padding: EdgeInsets.zero,
       child: SafeArea(
         left: false,
@@ -40,123 +104,76 @@ class QuickPanel extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                MaeveSpace.lg,
-                MaeveSpace.md,
-                MaeveSpace.sm,
+                MaeveSpace.s16,
+                MaeveSpace.s12,
+                MaeveSpace.s8,
                 0,
               ),
               child: Row(
                 children: [
-                  const MaeveMark(size: 24),
-                  const SizedBox(width: MaeveSpace.sm),
-                  Text('快捷', style: maeveEyebrow(context)),
+                  const MaeveMark(size: 22),
+                  const SizedBox(width: MaeveSpace.s8),
+                  Text(
+                    'QUICK',
+                    style: MaeveType.eyebrow.copyWith(color: colors.ink3),
+                  ),
                   const Spacer(),
                   Pressable(
                     onTap: onClose,
                     borderRadius: BorderRadius.circular(MaeveRadius.pill),
                     semanticLabel: '关闭快捷面板',
                     child: SizedBox.square(
-                      dimension: 36,
-                      child: Icon(
-                        Icons.close,
-                        size: 19,
-                        color: scheme.onSurfaceVariant,
-                      ),
+                      dimension: 40,
+                      child: Icon(Icons.close, size: 19, color: colors.ink3),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: MaeveSpace.md),
+            const SizedBox(height: MaeveSpace.s12),
             Expanded(
-              child: ListView(
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
-                  MaeveSpace.lg,
+                  MaeveSpace.s16,
                   0,
-                  MaeveSpace.lg,
-                  MaeveSpace.lg,
+                  MaeveSpace.s16,
+                  MaeveSpace.s16,
                 ),
-                children: [
-                  _entry(
-                    context,
-                    icon: Icons.language_rounded,
-                    title: '网页版',
-                    subtitle: '在浏览器里打开同一条会话',
-                    onTap: () => _open(context, const WebViewPage()),
-                  ),
-                  _entry(
-                    context,
-                    icon: Icons.dns_outlined,
-                    title: '远程主机',
-                    subtitle: '把任务交给配对的机器',
-                    onTap: () => _soon(context, '远程主机'),
-                  ),
-                  _entry(
-                    context,
-                    icon: Icons.extension_outlined,
-                    title: '插件',
-                    subtitle: '已装 0 个',
-                    onTap: () => _soon(context, '插件'),
-                  ),
-                  _entry(
-                    context,
-                    icon: Icons.memory_rounded,
-                    title: '引擎',
-                    subtitle: '${controller.model} · ${controller.modelTier}',
-                    onTap: () => _open(context, const SettingsHubPage()),
-                  ),
-                  _entry(
-                    context,
-                    icon: Icons.bolt_outlined,
-                    title: '运行',
-                    subtitle: 'Agent 活动与任务进度',
-                    onTap: () => _open(context, const RunsPage()),
-                  ),
-                  _entry(
-                    context,
-                    icon: Icons.bookmark_border_rounded,
-                    title: '记忆',
-                    subtitle: '把有用的上下文留在身边',
-                    onTap: () => _open(context, const MemoryPage()),
-                  ),
-                  _entry(
-                    context,
-                    icon: Icons.smartphone_rounded,
-                    title: '手机操控',
-                    subtitle: '让 Maeve 替你在应用里操作',
-                    onTap: () => _open(context, const PhoneControlPage()),
-                  ),
-                  _entry(
-                    context,
-                    icon: Icons.terminal_rounded,
-                    title: '终端',
-                    subtitle: '沙箱里的命令行',
-                    onTap: () => _open(context, const TerminalPage()),
-                  ),
-                  _entry(
-                    context,
-                    icon: Icons.groups_outlined,
-                    title: '社区',
-                    subtitle: '讨论、更新日志、反馈',
-                    onTap: () => _open(context, const CommunityPage()),
-                  ),
-                ],
+                child: LayoutBuilder(
+                  builder: (context, box) {
+                    const gap = MaeveSpace.s8;
+                    final columns = box.maxWidth >= 300 ? 2 : 1;
+                    final width =
+                        (box.maxWidth - gap * (columns - 1)) / columns;
+                    return Wrap(
+                      spacing: gap,
+                      runSpacing: gap,
+                      children: [
+                        for (final entry in entries)
+                          SizedBox(
+                            width: width,
+                            child: FeatureTile(
+                              icon: entry.icon,
+                              title: entry.title,
+                              subtitle: entry.note,
+                              onTap: () => _open(context, entry.page),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
             Container(
               decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: scheme.outline.withValues(alpha: .5),
-                    width: .5,
-                  ),
-                ),
+                border: Border(top: BorderSide(color: colors.hair, width: .5)),
               ),
               padding: const EdgeInsets.fromLTRB(
-                MaeveSpace.lg,
-                MaeveSpace.sm,
-                MaeveSpace.lg,
-                MaeveSpace.sm,
+                MaeveSpace.s16,
+                MaeveSpace.s6,
+                MaeveSpace.s16,
+                MaeveSpace.s6,
               ),
               child: Pressable(
                 onTap: () => _open(context, const SettingsHubPage()),
@@ -166,27 +183,26 @@ class QuickPanel extends StatelessWidget {
                 scale: false,
                 semanticLabel: '设置，长按搜索设置',
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: MaeveSpace.sm),
+                  padding: const EdgeInsets.symmetric(vertical: MaeveSpace.s10),
                   child: Row(
                     children: [
                       Icon(
                         Icons.settings_outlined,
                         size: 18,
-                        color: scheme.onSurfaceVariant,
+                        color: colors.ink2,
                       ),
-                      const SizedBox(width: MaeveSpace.sm),
-                      Text('设置', style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: MaeveSpace.s8),
+                      Text(
+                        '设置',
+                        style: MaeveType.body.copyWith(color: colors.ink),
+                      ),
+                      const SizedBox(width: 6),
                       Text(
                         '长按搜索',
-                        style: Theme.of(context).textTheme.labelSmall,
+                        style: MaeveType.hint.copyWith(color: colors.ink3),
                       ),
                       const Spacer(),
-                      Icon(
-                        Icons.chevron_right,
-                        size: 18,
-                        color: scheme.onSurfaceVariant,
-                      ),
+                      RowChevron(),
                     ],
                   ),
                 ),
@@ -196,67 +212,5 @@ class QuickPanel extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Widget _entry(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Pressable(
-        onTap: onTap,
-        scale: false,
-        borderRadius: BorderRadius.circular(MaeveRadius.sm),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: MaeveSpace.sm,
-            vertical: MaeveSpace.sm + 2,
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: scheme.primary.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(MaeveRadius.sm),
-                ),
-                child: Icon(icon, size: 16, color: scheme.primary),
-              ),
-              const SizedBox(width: MaeveSpace.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: Theme.of(context).textTheme.bodyLarge),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-              Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: scheme.onSurfaceVariant,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _soon(BuildContext context, String what) {
-    onClose();
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('$what 将通过 Android 平台桥接接入。')));
   }
 }

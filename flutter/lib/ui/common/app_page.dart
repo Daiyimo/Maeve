@@ -1,34 +1,41 @@
 import 'package:flutter/material.dart';
 
+import 'haptics.dart';
+
 import '../../design/maeve_motion.dart';
 import '../../design/maeve_surfaces.dart';
-import '../../design/maeve_tokens.dart';
-import 'pressable.dart';
+import '../../design/maeve_theme.dart';
+import '../../design/maeve_type.dart';
 
-/// 二级页骨架:标题栏 56 + 内容 + 顶渐隐 + 返回圆钮 44。
+import '../../widgets/glass_surface.dart';
+
+/// 二级页骨架:**整条玻璃顶栏 + 可滚动内容**。
 ///
 /// 三条约定:
-/// - 标题栏浮在内容上,内容滚到栏下才出现渐隐(C11),静止页没有一条色带;
-/// - 返回是 chrome 圆钮 44(和顶栏的 ≡ 同一个尺寸),不是文字箭头;
-/// - 进页用 iOS 式水平推入(300ms + 长尾减速),不是 Android 的上升淡入。
+/// - 顶栏是一条 56 高的玻璃(chrome 档),内容从它**底下**滚过去,被它采样模糊;
+///   没有额外的渐隐层 —— 填充 + 发丝线已经保证标题在滚动时仍然可读。
+/// - 标题相对**整条顶栏**居中:左右各占一个固定宽的格子,中间那块永远在正中。
+/// - 返回是 40 的圆钮;进页用 220ms 的减速推入(不是 Material 的上升淡入)。
 class AppPage extends StatefulWidget {
   const AppPage({
     super.key,
     required this.title,
     required this.child,
     this.subtitle,
+    this.eyebrow,
     this.actions = const [],
     this.padded = true,
     this.scrollController,
     this.showBack = true,
   });
 
-  /// 列表页:居中阅读列 + 顶部留出标题栏。
+  /// 列表页:居中阅读列 + 顶部留出顶栏。
   factory AppPage.list({
     Key? key,
     required String title,
     required List<Widget> children,
     String? subtitle,
+    String? eyebrow,
     List<Widget> actions = const [],
     EdgeInsets? padding,
     ScrollController? controller,
@@ -37,6 +44,7 @@ class AppPage extends StatefulWidget {
     key: key,
     title: title,
     subtitle: subtitle,
+    eyebrow: eyebrow,
     actions: actions,
     scrollController: controller,
     showBack: showBack,
@@ -45,10 +53,10 @@ class AppPage extends StatefulWidget {
       padding:
           padding ??
           const EdgeInsets.fromLTRB(
-            MaeveSpace.gutter,
-            MaeveLayout.pageBarHeight + MaeveSpace.md,
-            MaeveSpace.gutter,
-            MaeveSpace.xxxl,
+            MaeveSpace.s16,
+            MaeveSize.topBar + MaeveSpace.s8,
+            MaeveSpace.s16,
+            MaeveSpace.s32,
           ),
       children: children,
     ),
@@ -56,6 +64,10 @@ class AppPage extends StatefulWidget {
 
   final String title;
   final String? subtitle;
+
+  /// 标题上方那行等宽小字(带一个强调色小点)。
+  final String? eyebrow;
+
   final Widget child;
   final List<Widget> actions;
   final bool padded;
@@ -71,24 +83,17 @@ class AppPage extends StatefulWidget {
 }
 
 class _AppPageState extends State<AppPage> {
+  /// 内容滚到顶栏下面时给顶栏换一层更实的填充:玻璃仍然取样,但字更稳。
   bool _scrolled = false;
 
-  /// 用滚动通知判断,不依赖具体是哪个 controller —— 列表可能是调用方
-  /// 建的,也可能根本没有 controller(用默认的)。
   bool _onScroll(ScrollNotification notification) {
-    final next = notification.metrics.pixels > 4;
-    if (next != _scrolled && mounted) {
-      setState(() => _scrolled = next);
-    }
+    final next = notification.metrics.pixels > 2;
+    if (next != _scrolled && mounted) setState(() => _scrolled = next);
     return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    final surfaces = MaeveSurfaces.of(context);
-    final motion = AppMotion.of(context);
-    final left = widget.padded ? MaeveSpace.gutter : 0.0;
-    // 状态栏高度要算进来:标题栏贴顶会被系统图标压住。
     final safeTop = MediaQuery.viewPaddingOf(context).top;
 
     return Scaffold(
@@ -114,43 +119,17 @@ class _AppPageState extends State<AppPage> {
               ),
             ),
           ),
-          // 顶渐隐:只有内容滚到标题栏下面才出现。
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: IgnorePointer(
-              child: AnimatedOpacity(
-                opacity: _scrolled ? 1 : 0,
-                duration: motion.quick,
-                curve: Curves.easeOut,
-                child: Container(
-                  height: safeTop + MaeveLayout.pageBarHeight + 10,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        surfaces.backdropTop,
-                        surfaces.backdropTop.withValues(alpha: .82),
-                        surfaces.backdropTop.withValues(alpha: 0),
-                      ],
-                      stops: const [0, .62, 1],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            top: safeTop,
-            left: left,
-            right: left,
-            child: _PageBar(
+            child: TopBar(
               title: widget.title,
               subtitle: widget.subtitle,
+              eyebrow: widget.eyebrow,
               actions: widget.actions,
               showBack: widget.showBack,
+              elevated: _scrolled,
             ),
           ),
         ],
@@ -159,88 +138,143 @@ class _AppPageState extends State<AppPage> {
   }
 }
 
-class _PageBar extends StatelessWidget {
-  const _PageBar({
+/// 顶栏:整条玻璃 + 左圆钮 + 居中标题列(眉标 / 标题 / 副标题) + 右动作区。
+class TopBar extends StatelessWidget {
+  const TopBar({
+    super.key,
     required this.title,
-    required this.subtitle,
-    required this.actions,
-    required this.showBack,
+    this.subtitle,
+    this.eyebrow,
+    this.actions = const [],
+    this.showBack = true,
+    this.onBack,
+    this.leading,
+    this.brand = false,
+    this.elevated = false,
   });
 
   final String title;
   final String? subtitle;
+  final String? eyebrow;
   final List<Widget> actions;
   final bool showBack;
+  final VoidCallback? onBack;
+
+  /// 覆盖左侧按钮(聊天页放抽屉键)。
+  final Widget? leading;
+
+  /// 标题左边带品牌标(对话页),顶栏高出一档给三层文字。
+  final bool brand;
+
+  /// 内容已滚到下面:填充更实一点。
+  final bool elevated;
 
   @override
   Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    final safeTop = MediaQuery.viewPaddingOf(context).top;
     final canPop = Navigator.of(context).canPop();
-    return SizedBox(
-      height: MaeveLayout.pageBarHeight,
-      child: Row(
-        children: [
-          SizedBox(
-            width: MaeveLayout.touch,
-            child: showBack && canPop
-                ? PageBackButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
-                  )
-                : null,
-          ),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                if (subtitle != null)
-                  Text(
-                    subtitle!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-              ],
-            ),
-          ),
-          SizedBox(
-            width: MaeveLayout.touch,
+    final height = brand ? MaeveSize.topBarBrand : MaeveSize.topBar;
+    // 左右两格等宽,标题才真的居中;右侧有几个动作就按几个 48 算。
+    final sideWidth = 48.0 * (actions.isEmpty ? 1 : actions.length);
+
+    return BackdropGroup(
+      child: Container(
+        padding: EdgeInsets.only(top: safeTop),
+        color: Colors.transparent,
+        child: MaeveGlassSurface(
+          tier: MaeveGlassTier.chrome,
+          grouped: true,
+          shape: const RoundedRectangleBorder(),
+          blur: true,
+          // 滚动后不用换材质,玻璃本身会采样;这里只在滚动时把填充压得更实一档。
+          tint: elevated ? colors.ink : null,
+          tintAlpha: elevated ? .02 : null,
+          child: SizedBox(
+            height: height,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: actions,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 返回圆钮:chrome 玻璃、44×44,与顶栏圆钮同尺寸同材质。
-class PageBackButton extends StatelessWidget {
-  const PageBackButton({super.key, required this.onPressed});
-
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Pressable(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(MaeveRadius.pill),
-        semanticLabel: '返回',
-        child: SizedBox.square(
-          dimension: MaeveLayout.touch,
-          child: Center(
-            child: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              size: 17,
-              color: scheme.onSurface,
+              children: [
+                SizedBox(
+                  width: 48,
+                  child:
+                      leading ??
+                      (showBack && canPop
+                          ? _BarButton(
+                              icon: Icons.arrow_back_ios_new_rounded,
+                              label: '返回',
+                              onTap:
+                                  onBack ??
+                                  () => Navigator.of(context).maybePop(),
+                            )
+                          : const SizedBox.shrink()),
+                ),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (eyebrow != null) ...[
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 4,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: colors.accent,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              eyebrow!,
+                              style: MaeveType.eyebrowFor(eyebrow!)
+                                  .copyWith(color: colors.ink3),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                      ],
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (brand) ...[
+                            const _BrandDot(),
+                            const SizedBox(width: 8),
+                          ],
+                          Flexible(
+                            child: Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: MaeveType.title.copyWith(
+                                color: colors.ink,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 1),
+                        Text(
+                          subtitle!,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: MaeveType.hint.copyWith(color: colors.ink3),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                SizedBox(
+                  width: sideWidth,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: actions,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -249,21 +283,76 @@ class PageBackButton extends StatelessWidget {
   }
 }
 
-/// iOS 式水平推入:进场 300ms 长尾减速,退场 300ms 加速离开。
+/// 顶栏 / 行内的小圆钮(40,可点域 44)。
+class _BarButton extends StatelessWidget {
+  const _BarButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          onTap: () {
+            MaeveHaptics.play(MaeveHaptic.tick);
+            onTap();
+          },
+          child: SizedBox.square(
+            dimension: 48,
+            child: Center(child: Icon(icon, size: 17, color: colors.ink)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 标题左边那个小环:Maeve 的品牌标缩到 18 的尺寸。
+class _BrandDot extends StatelessWidget {
+  const _BrandDot();
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 18,
+    child: Center(
+      child: Icon(
+        Icons.circle_outlined,
+        size: 14,
+        color: MaeveTheme.of(context).colors.accent,
+      ),
+    ),
+  );
+}
+
+/// iOS 式水平推入:进场 220ms 减速,退场 220ms 加速离开。
 Route<T> maevePageRoute<T>(WidgetBuilder builder) => PageRouteBuilder<T>(
-  transitionDuration: MaeveMotion.push,
-  reverseTransitionDuration: MaeveMotion.push,
+  transitionDuration: MaeveMotion.page,
+  reverseTransitionDuration: MaeveMotion.page,
   pageBuilder: (context, animation, secondaryAnimation) => builder(context),
   transitionsBuilder: (context, animation, secondaryAnimation, child) {
     if (MediaQuery.disableAnimationsOf(context)) return child;
     final curved = CurvedAnimation(
       parent: animation,
-      curve: MaeveMotion.glide,
-      reverseCurve: MaeveMotion.exit,
+      curve: MaeveMotion.decelerate,
+      reverseCurve: Curves.easeInCubic,
     );
     return SlideTransition(
       position: Tween<Offset>(
-        begin: const Offset(.14, 0),
+        begin: const Offset(.06, 0),
         end: Offset.zero,
       ).animate(curved),
       child: FadeTransition(opacity: curved, child: child),

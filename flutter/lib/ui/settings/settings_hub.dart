@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../app/maeve_controller.dart';
-import '../../design/maeve_tokens.dart';
+import '../../design/maeve_shapes.dart';
+import '../../design/maeve_theme.dart';
+import '../../design/maeve_type.dart';
 import '../../widgets/maeve_mark.dart';
 import '../common/app_page.dart';
 import '../common/status.dart';
@@ -12,7 +14,7 @@ import 'appearance_page.dart';
 import 'general_pages.dart';
 import 'settings_components.dart';
 
-/// B8 设置 hub:搜索胶囊 + 一览卡 + 六组卡 + 底部品牌标。
+/// 设置 hub:搜索胶囊 + 一览卡 + 六组卡 + 底部品牌标。
 ///
 /// 分组按"人要做的一件事"组织,不是按代码模块。hub 上**不放**任何会放宽保护
 /// 或删数据的东西 —— 那些都在二级页里,而且要长按确认。
@@ -42,16 +44,15 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
-    final scheme = Theme.of(context).colorScheme;
-    final success = MaeveTokens.success(Theme.of(context).brightness);
-    final warning = MaeveTokens.warning(Theme.of(context).brightness);
+    final colors = MaeveTheme.of(context).colors;
 
     return AppPage.list(
       title: '设置',
       subtitle: '外观、能力与主机',
+      eyebrow: 'SETTINGS',
       children: [
         SearchCapsuleButton(onTap: _openSearch),
-        const SizedBox(height: MaeveSpace.lg),
+        const SizedBox(height: MaeveSpace.s12),
         SettingsOverview(
           name: '本机',
           detail: '未登录 · 所有内容只留在这台设备',
@@ -67,7 +68,6 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
           ],
           onTap: () => AppPage.open(context, const AccountPage()),
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: 'AI',
           rows: [
@@ -96,16 +96,15 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '能力',
-          hue: success,
+          tone: Tone.ok,
           rows: [
             SettingsTile(
               icon: Icons.smartphone_rounded,
               title: '手机操控',
               subtitle: '让它替你在应用里点',
-              chip: StatusChip(
+              chip: const StatusChip(
                 label: '未开启',
                 tone: MaeveTone.danger,
                 filled: true,
@@ -133,15 +132,14 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '外观',
-          hue: warning,
+          tone: Tone.accent,
           rows: [
             SettingsTile(
               icon: Icons.palette_outlined,
               title: '配色',
-              value: controller.palette.label,
+              value: controller.accentPreset.label,
               onTap: () => AppPage.open(context, const AppearancePage()),
             ),
             SettingsTile(
@@ -160,10 +158,8 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '通用',
-          hue: scheme.primary,
           rows: [
             SettingsTile(
               icon: Icons.chat_bubble_outline_rounded,
@@ -193,10 +189,9 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '主机',
-          hue: success,
+          tone: Tone.ok,
           rows: [
             SettingsTile(
               icon: Icons.dns_outlined,
@@ -220,7 +215,6 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '帮助与关于',
           rows: [
@@ -251,25 +245,21 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xxl),
+        const SizedBox(height: MaeveSpace.s32),
         Center(
           child: Column(
             children: [
-              // 底部居中 BrandMark 18,退到 textDisabled 的层级。
               Opacity(opacity: .38, child: const MaeveMark(size: 18)),
               const SizedBox(height: 6),
               Text(
-                'Maeve 0.1.0 · 界面原型',
-                style: MaeveFonts.mono(
-                  context,
-                  size: 11,
-                  color: scheme.onSurfaceVariant.withValues(alpha: .7),
-                ),
+                'MAEVE 0.1.0 · 界面原型',
+                style: MaeveType.eyebrowFor('界面原型')
+                    .copyWith(color: colors.ink3.withValues(alpha: .75)),
               ),
             ],
           ),
         ),
-        const SizedBox(height: MaeveSpace.xxl),
+        const SizedBox(height: MaeveSpace.s24),
       ],
     );
   }
@@ -407,6 +397,7 @@ class _SettingsSearchPageState extends State<SettingsSearchPage> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
     final query = _query.trim();
     final results = query.isEmpty
         ? _index
@@ -417,13 +408,14 @@ class _SettingsSearchPageState extends State<SettingsSearchPage> {
 
     return AppPage(
       title: '搜索设置',
+      eyebrow: 'SEARCH',
       padded: true,
       child: ListView(
         padding: const EdgeInsets.fromLTRB(
-          MaeveSpace.gutter,
-          MaeveLayout.pageBarHeight + MaeveSpace.sm,
-          MaeveSpace.gutter,
-          MaeveSpace.xxl,
+          MaeveSpace.s16,
+          MaeveSize.topBar + MaeveSpace.s8,
+          MaeveSpace.s16,
+          MaeveSpace.s32,
         ),
         children: [
           TextField(
@@ -431,22 +423,21 @@ class _SettingsSearchPageState extends State<SettingsSearchPage> {
             controller: _input,
             autofocus: true,
             onChanged: (value) => setState(() => _query = value),
-            style: Theme.of(context).textTheme.bodyLarge,
+            style: MaeveType.body.copyWith(color: colors.ink),
             decoration: InputDecoration(
               hintText: '搜一个设置项',
-              prefixIcon: const Icon(Icons.search, size: 18),
+              prefixIcon: Icon(Icons.search, size: 18, color: colors.ink3),
               filled: true,
-              fillColor: Theme.of(context).colorScheme.onSurface
-                  .withValues(alpha: .05),
+              fillColor: colors.surface,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(MaeveRadius.pill),
+                borderRadius: BorderRadius.circular(MaeveRadius.md),
                 borderSide: BorderSide.none,
               ),
             ),
           ),
-          const SizedBox(height: MaeveSpace.lg),
+          const SizedBox(height: MaeveSpace.s16),
           if (results.isEmpty)
-            EmptyView(
+            const EmptyView(
               icon: Icons.search_off_rounded,
               title: '没找到',
               body: '换个词试试，或者回上一页逐组找。',

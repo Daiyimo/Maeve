@@ -2,127 +2,93 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../design/maeve_shapes.dart';
 import '../design/maeve_surfaces.dart';
-import '../design/maeve_tokens.dart';
+import '../design/maeve_theme.dart';
+import '../design/maeve_type.dart';
 
-export 'package:maeve_flutter/design/maeve_surfaces.dart'
+export '../design/maeve_surfaces.dart'
     show MaeveGlassStyle, MaeveGlassTier, MaeveSurfaces;
 
-/// 玻璃表面:**模糊背后的内容 → 叠半透明填充 → 发丝描边 + 顶边高光 → 外投影**。
+/// 玻璃表面:**模糊背后的内容 → 半透明填充 → 发丝描边 + 顶边高光 → 外投影**。
 ///
 /// ```dart
 /// MaeveGlassSurface(
 ///   tier: MaeveGlassTier.chrome,
-///   padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+///   shape: MaeveShapes.composer,
 ///   child: Row(children: [/* 输入条内容 */]),
 /// )
 /// ```
 ///
-/// ## 性能约定
+/// ## 约定
 ///
-/// - 只有 [MaeveGlassTier.chrome] / [MaeveGlassTier.sheet] 默认真模糊;同屏真模糊的
-///   元素控制在 3 个以内(输入条、侧栏、弹层)。
-/// - 模糊用 `ImageFilterConfig.blur(bounded: true)`:采样不越出形状边界,
-///   边缘不会被外面的颜色"渗"进来(iOS 同款),且必须配裁剪,模糊产物不出形状。
-/// - 降级:主题里 `MaeveSurfaces.blurEnabled == false`(设置"减少透明效果")
-///   或系统高对比度时,不创建 `BackdropFilter`,改用近乎不透明的
-///   `fallbackFill` —— 观感是"磨砂纸",可读性不降。
-/// - 按压缩放做在内容上(`InkWell` 在填充之内),不做在整个玻璃上:
-///   缩放一个会模糊的面板会每帧按新尺寸重采样背景。
+/// - 只有 [MaeveGlassTier.chrome] / [MaeveGlassTier.sheet] 默认真模糊;
+///   同屏真模糊的元素控制在 3 个以内,顶栏多件共用一个 [BackdropGroup]。
+/// - 有界模糊 `ImageFilterConfig.blur(bounded: true)`:采样不越出形状边界。
+/// - 降级:主题里 `blurEnabled == false`(设置"减少透明效果")或系统高对比度时,
+///   不创建 [BackdropFilter],改用近乎不透明的 `fallbackFill`。
+/// - 按压缩放做在内容上,不做在整个玻璃上:缩放一个会模糊的面板会每帧重采样背景。
 ///
 /// ## 为什么阴影要单独画
 ///
-/// 玻璃内部是半透明的,普通 `BoxShadow` 画在形状下方会透过玻璃、又被模糊
-/// 一次,玻璃中间发灰。这里用 even-odd 裁剪,只在形状**外部**画投影。
+/// 玻璃内部是半透明的,普通 `BoxShadow` 画在形状下方会透过玻璃、又被模糊一次,
+/// 玻璃中间发灰。这里用 even-odd 裁剪,只在形状**外部**画投影。
 class MaeveGlassSurface extends StatelessWidget {
   const MaeveGlassSurface({
     super.key,
     required this.child,
     this.tier = MaeveGlassTier.card,
+    this.shape,
     this.padding,
     this.tint,
     this.tintAlpha,
     this.blur,
     this.grouped = false,
     this.settled,
-    this.style,
-    this.borderRadius,
-    this.circle = false,
-    this.stadium = false,
     this.onTap,
     this.onLongPress,
-  }) : assert(!(circle && stadium), 'circle 与 stadium 只能二选一');
+  });
 
   final Widget child;
 
-  /// 材质层级,决定默认的填充 / 模糊 / 阴影 / 圆角。
+  /// 材质层级,决定默认的填充 / 模糊 / 阴影 / 形状。
   final MaeveGlassTier tier;
+
+  /// 覆盖层级默认形状(顶栏、抽屉用无圆角矩形)。
+  final ShapeBorder? shape;
 
   final EdgeInsetsGeometry? padding;
 
-  /// 着色(用户气泡的主色、页面图标的强调色)。null = 不加色。
+  /// 强调色淡淡洗一层(选中行、进行中的卡)。null = 不加色。
   final Color? tint;
-
-  /// 着色强度。null = 按明暗取默认值。
   final double? tintAlpha;
 
   /// 强制开 / 关模糊。null = 跟随层级默认值与主题总开关。
   final bool? blur;
 
-  /// 与同一 `BackdropGroup` 下的其他玻璃共享一次背景采样。
+  /// 与同一 [BackdropGroup] 下的其他玻璃共享一次背景采样。
   final bool grouped;
 
   /// 会动的玻璃(升起、被拖动的弹层)。0 = 在动:不采样背景,用不透明填充。
-  /// 停稳后走向 1:模糊立刻开,藏在近乎不透明的填充后面,填充渐变回玻璃,所以
-  /// 模糊出现时不跳。和 `blur: false` 不同,切换时模糊层留在树里,子树不重建。
-  /// null = 一直是玻璃。
   final double? settled;
 
-  /// 覆盖主题给的材质(极少用)。
-  final MaeveGlassStyle? style;
-
-  /// 覆盖层级默认圆角。
-  final BorderRadiusGeometry? borderRadius;
-
-  /// 圆形(圆钮、发送键底座)。
-  final bool circle;
-
-  /// 胶囊(半径永远等于高度一半)。
-  final bool stadium;
-
   final VoidCallback? onTap;
-
-  /// 长按(快捷入口:模型胶囊长按开 QuickPanel)。
   final VoidCallback? onLongPress;
 
-  BorderRadiusGeometry get _radius =>
-      borderRadius ??
+  ShapeBorder get _shape =>
+      shape ??
       switch (tier) {
-        // 第 4.1 节:chrome / sheet 28(composer 必须 28),card 14。
-        MaeveGlassTier.chrome || MaeveGlassTier.sheet => const BorderRadius.all(
-          Radius.circular(MaeveRadius.xl),
-        ),
-        MaeveGlassTier.card => const BorderRadius.all(
-          Radius.circular(MaeveRadius.md),
-        ),
-        MaeveGlassTier.pill => const BorderRadius.all(Radius.circular(999)),
+        MaeveGlassTier.chrome => MaeveShapes.button,
+        MaeveGlassTier.sheet => MaeveShapes.sheet,
+        MaeveGlassTier.card => MaeveShapes.card,
+        MaeveGlassTier.pill => MaeveShapes.pill,
       };
-
-  bool get _isStadium =>
-      stadium ||
-      (!circle && borderRadius == null && tier == MaeveGlassTier.pill);
-
-  ShapeBorder get _shape {
-    if (circle) return const CircleBorder();
-    if (_isStadium) return const StadiumBorder();
-    return RoundedSuperellipseBorder(borderRadius: _radius);
-  }
 
   @override
   Widget build(BuildContext context) {
-    final surfaces = MaeveSurfaces.of(context);
-    final s = style ?? surfaces.glass(tier);
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final theme = MaeveTheme.of(context);
+    final surfaces = theme.surfaces;
+    final s = surfaces.tier(tier);
     final highContrast = MediaQuery.maybeHighContrastOf(context) ?? false;
     final reduce = !surfaces.blurEnabled || highContrast;
     final useBlur = !reduce && (blur ?? s.blurs);
@@ -132,7 +98,7 @@ class MaeveGlassSurface extends StatelessWidget {
     final tintColor = tint;
     if (tintColor != null) {
       fill = Color.alphaBlend(
-        tintColor.withValues(alpha: tintAlpha ?? (dark ? .34 : .58)),
+        tintColor.withValues(alpha: tintAlpha ?? .10),
         fill,
       );
     }
@@ -144,12 +110,12 @@ class MaeveGlassSurface extends StatelessWidget {
       content = Padding(padding: padding!, child: content);
     }
     if (onTap != null || onLongPress != null) {
-      // 按压反馈做在内容上,不做在玻璃上:缩放一个会模糊的面板会每帧
-      // 按新尺寸重采样背景。
       content = Material(
         type: MaterialType.transparency,
         child: InkWell(
           customBorder: shape,
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
           onTap: onTap,
           onLongPress: onLongPress,
           child: content,
@@ -158,11 +124,12 @@ class MaeveGlassSurface extends StatelessWidget {
     }
 
     content = CustomPaint(
-      foregroundPainter: _MaeveGlassEdgePainter(
+      foregroundPainter: _GlassEdgePainter(
         shape: shape,
         hairline: s.hairline,
         hairlineWidth: s.hairlineWidth,
         rim: s.rim,
+        rimFraction: s.rimFraction,
         textDirection: textDirection,
       ),
       child: DecoratedBox(
@@ -185,13 +152,12 @@ class MaeveGlassSurface extends StatelessWidget {
               enabled: sampling,
               child: content,
             );
-      // 有界模糊只限制采样来源,不裁剪产物;不裁剪会在形状外看到模糊残影。
-      content = _clip(content);
+      content = _clip(content, shape);
     }
 
     if (s.shadows.isNotEmpty) {
       content = CustomPaint(
-        painter: _MaeveGlassShadowPainter(
+        painter: _GlassShadowPainter(
           shape: shape,
           shadows: s.shadows,
           textDirection: textDirection,
@@ -202,15 +168,21 @@ class MaeveGlassSurface extends StatelessWidget {
     return content;
   }
 
-  Widget _clip(Widget child) {
-    if (circle) return ClipOval(child: child);
-    if (_isStadium) {
+  Widget _clip(Widget child, ShapeBorder shape) {
+    if (shape is CircleBorder) return ClipOval(child: child);
+    if (shape is StadiumBorder) {
       return ClipRRect(
         borderRadius: const BorderRadius.all(Radius.circular(999)),
         child: child,
       );
     }
-    return ClipRSuperellipse(borderRadius: _radius, child: child);
+    if (shape is RoundedSuperellipseBorder) {
+      return ClipRSuperellipse(borderRadius: shape.borderRadius, child: child);
+    }
+    if (shape is RoundedRectangleBorder) {
+      return ClipRRect(borderRadius: shape.borderRadius, child: child);
+    }
+    return child;
   }
 
   static ImageFilterConfig _filterFor(double sigma, double saturation) {
@@ -228,9 +200,9 @@ class MaeveGlassSurface extends StatelessWidget {
 
   /// 保亮度的饱和度矩阵(Rec. 709 权重)。
   static List<double> _saturate(double s) {
-    final r = 0.2126 * (1 - s);
-    final g = 0.7152 * (1 - s);
-    final b = 0.0722 * (1 - s);
+    final r = .2126 * (1 - s);
+    final g = .7152 * (1 - s);
+    final b = .0722 * (1 - s);
     return <double>[
       r + s, g, b, 0, 0, //
       r, g + s, b, 0, 0, //
@@ -241,12 +213,13 @@ class MaeveGlassSurface extends StatelessWidget {
 }
 
 /// 发丝描边 + 顶边高光。描边画在形状内侧,裁剪时不会被切掉一半。
-class _MaeveGlassEdgePainter extends CustomPainter {
-  _MaeveGlassEdgePainter({
+class _GlassEdgePainter extends CustomPainter {
+  _GlassEdgePainter({
     required this.shape,
     required this.hairline,
     required this.hairlineWidth,
     required this.rim,
+    required this.rimFraction,
     required this.textDirection,
   });
 
@@ -254,13 +227,14 @@ class _MaeveGlassEdgePainter extends CustomPainter {
   final Color hairline;
   final double hairlineWidth;
   final Color rim;
+  final double rimFraction;
   final TextDirection? textDirection;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final rect = Offset.zero & size;
-    final width = math.max(hairlineWidth, 0.5);
+    final width = math.max(hairlineWidth, .5);
     final path = shape.getOuterPath(
       rect.deflate(width / 2),
       textDirection: textDirection,
@@ -275,31 +249,33 @@ class _MaeveGlassEdgePainter extends CustomPainter {
       );
     }
     if (rim.a > 0) {
-      final highlight = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = math.max(width, 0.8)
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [rim, rim.withValues(alpha: 0)],
-          stops: const [0, 0.45],
-        ).createShader(rect);
-      canvas.drawPath(path, highlight);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(width, .8)
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [rim, rim.withValues(alpha: 0)],
+            stops: [0, rimFraction.clamp(.05, 1.0)],
+          ).createShader(rect),
+      );
     }
   }
 
   @override
-  bool shouldRepaint(_MaeveGlassEdgePainter old) =>
+  bool shouldRepaint(_GlassEdgePainter old) =>
       old.shape != shape ||
       old.hairline != hairline ||
       old.hairlineWidth != hairlineWidth ||
       old.rim != rim ||
-      old.textDirection != textDirection;
+      old.rimFraction != rimFraction;
 }
 
 /// 只在形状外部画的投影。
-class _MaeveGlassShadowPainter extends CustomPainter {
-  _MaeveGlassShadowPainter({
+class _GlassShadowPainter extends CustomPainter {
+  _GlassShadowPainter({
     required this.shape,
     required this.shadows,
     required this.textDirection,
@@ -342,7 +318,7 @@ class _MaeveGlassShadowPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_MaeveGlassShadowPainter old) =>
+  bool shouldRepaint(_GlassShadowPainter old) =>
       old.shape != shape ||
       !_sameShadows(old.shadows, shadows) ||
       old.textDirection != textDirection;
@@ -357,10 +333,10 @@ class _MaeveGlassShadowPainter extends CustomPainter {
   }
 }
 
-/// 玻璃圆钮:顶栏的加号、发送键的底座。
+/// 玻璃圆钮:顶栏动作键、输入条的两颗圆键。
 ///
-/// 圆钮浮在静态背景上(顶栏、侧栏),按约定不真模糊,只拿玻璃的填充、
-/// 发丝描边与顶边高光;`prominent` 用实色主色(发送键),不加描边。
+/// 圆钮浮在静态背景上,按约定不取样,只拿玻璃的填充、发丝描边与顶边高光;
+/// [prominent] 用实色强调色(发送键)。
 class MaeveGlassButton extends StatelessWidget {
   const MaeveGlassButton({
     super.key,
@@ -369,6 +345,7 @@ class MaeveGlassButton extends StatelessWidget {
     required this.onPressed,
     this.prominent = false,
     this.compact = false,
+    this.enabled = true,
   });
 
   final IconData icon;
@@ -376,25 +353,30 @@ class MaeveGlassButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool prominent;
   final bool compact;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    final surfaces = MaeveSurfaces.of(context);
-    final chrome = surfaces.chrome;
-    final scheme = Theme.of(context).colorScheme;
-    final dimension = compact ? 38.0 : 44.0;
-    final shape = const CircleBorder();
-    final fill = prominent ? scheme.primary : chrome.fill;
-    final foreground = prominent ? scheme.onPrimary : scheme.onSurface;
+    final theme = MaeveTheme.of(context);
+    final colors = theme.colors;
+    final chrome = theme.surfaces.chrome;
+    final dimension = compact ? 36.0 : MaeveSize.iconButton;
+    const shape = CircleBorder();
+    final active = enabled && onPressed != null;
+    final fill = prominent ? colors.accent : chrome.fill;
+    final foreground = prominent
+        ? colors.onAccent
+        : (active ? colors.ink : colors.ink3);
 
     Widget button = CustomPaint(
       foregroundPainter: prominent
           ? null
-          : _MaeveGlassEdgePainter(
+          : _GlassEdgePainter(
               shape: shape,
               hairline: chrome.hairline,
               hairlineWidth: chrome.hairlineWidth,
               rim: chrome.rim,
+              rimFraction: .5,
               textDirection: Directionality.maybeOf(context),
             ),
       child: DecoratedBox(
@@ -409,7 +391,7 @@ class MaeveGlassButton extends StatelessWidget {
     );
     if (!prominent && chrome.shadows.isNotEmpty) {
       button = CustomPaint(
-        painter: _MaeveGlassShadowPainter(
+        painter: _GlassShadowPainter(
           shape: shape,
           shadows: chrome.shadows,
           textDirection: Directionality.maybeOf(context),
@@ -422,10 +404,17 @@ class MaeveGlassButton extends StatelessWidget {
       message: tooltip,
       child: Semantics(
         button: true,
+        enabled: active,
         label: tooltip,
         child: Material(
           type: MaterialType.transparency,
-          child: InkWell(customBorder: shape, onTap: onPressed, child: button),
+          child: InkWell(
+            customBorder: shape,
+            splashFactory: NoSplash.splashFactory,
+            highlightColor: Colors.transparent,
+            onTap: active ? onPressed : null,
+            child: button,
+          ),
         ),
       ),
     );

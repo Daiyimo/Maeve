@@ -1,23 +1,31 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
-import '../design/maeve_motion.dart';
-import '../design/maeve_tokens.dart';
-import '../models/conversation.dart';
-import '../ui/common/app_sheet.dart';
-import '../ui/common/pressable.dart';
-import '../ui/common/haptics.dart';
-import '../ui/more/more_pages.dart';
-import '../ui/settings/settings_components.dart';
-import '../ui/common/status.dart';
-import '../widgets/glass_surface.dart';
-import '../widgets/maeve_mark.dart';
 import 'maeve_controller.dart';
 
-/// B3 聊天页 + B4 顶栏 + B5 输入条。
+import '../design/maeve_motifs.dart';
+import '../design/maeve_motion.dart';
+import '../design/maeve_shapes.dart';
+import '../design/maeve_theme.dart';
+import '../design/maeve_type.dart';
+
+import 'package:flutter/services.dart';
+
+import '../models/conversation.dart';
+import '../ui/common/app_page.dart';
+import '../ui/common/app_sheet.dart';
+import '../ui/common/haptics.dart';
+import '../ui/common/pressable.dart';
+import '../ui/common/status.dart';
+import '../ui/settings/settings_components.dart';
+import '../widgets/glass_surface.dart';
+
+/// 聊天页(Maeve 的语言:剧本轨 + 纸条输入条)。
 ///
-/// 顶栏是浮在列表上的几枚玻璃件,列表从它下面穿过去;输入条浮在阅读列上,
-/// 不 dock 在屏幕底部 —— 这两件事决定了它不是"安卓工具栏 + 底部输入框"。
+/// - 顶栏是**整条玻璃**:品牌标 + 标题 + 一行状态,左边抽屉键、右边两个动作键。
+/// - 每一轮对话前面站一个 [ScriptRail](第几幕 + 幕号印章 + 竖线)。
+/// - 你的话是"高一级表面 + 一道描边"的气泡(不是彩色实底);
+///   她的回答是**一条竖线 + 全宽正文**(剧本边注),没有填充卡片。
+/// - 输入条是 16 圆角的纸条,不是胶囊;浮在内容上,下面垫一段渐隐。
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key, required this.onMenu, required this.onQuickPanel});
 
@@ -34,7 +42,7 @@ class _ChatPageState extends State<ChatPage> {
   final Set<String> _openTurns = {};
   bool _showJump = false;
 
-  /// 正在引用的那条消息(B3 的引用 chip)。
+  /// 正在引用的那条消息(引用 chip)。
   ({String text, bool fromUser})? _quote;
 
   @override
@@ -85,35 +93,25 @@ class _ChatPageState extends State<ChatPage> {
     final controller = MaeveScope.of(context);
     final conversation = controller.active;
     final padding = MediaQuery.viewPaddingOf(context);
-    final safeTop = padding.top;
-    // Scaffold 自己会为键盘让位(resizeToAvoidBottomInset),这里不要再加一次
-    // viewInsets,否则输入条会被顶到屏幕中间。只补底部的系统手势区。
-    final safeBottom = padding.bottom;
-    // 列表底部要让出浮起的输入条:引文 chip / 自动同意 / 活动条都会把它撑高,
-    // 写死一个常数会让最后一条消息被盖住。
+    final bottomSafe = padding.bottom;
+    // 列表底部要让出浮起的输入条:引文 / 自动同意 / 活动条都会把它撑高。
     final reserve =
-        56 +
-        MaeveSpace.floatInset +
-        MaeveSpace.lg +
+        MaeveSize.composer +
+        MaeveSpace.s12 +
+        MaeveSpace.s24 +
         (_quote != null ? 56 : 0) +
         (controller.autoApprove ? 44 : 0) +
-        (controller.generating ? 52 : 0);
-    final width = MediaQuery.sizeOf(context).width;
-    final composerWidth = (MaeveSpace.floatingWidth).clamp(
-      0.0,
-      width - 2 * MaeveSpace.floatInset,
-    );
+        (controller.generating ? 56 : 0);
 
     return Stack(
       children: [
-        // 列表:顶部给顶栏留白,底部给浮起的输入条留白。
         Positioned.fill(
           child: ListView(
             key: const ValueKey('chat-list'),
             controller: _scroll,
             padding: EdgeInsets.only(
-              top: safeTop + MaeveLayout.headerHeight + MaeveSpace.sm,
-              bottom: reserve,
+              top: padding.top + MaeveSize.topBarBrand + 10,
+              bottom: bottomSafe + reserve,
             ),
             children: [
               Center(
@@ -123,7 +121,7 @@ class _ChatPageState extends State<ChatPage> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: MaeveSpace.gutter,
+                      horizontal: MaeveSpace.s16,
                     ),
                     child: conversation.isEmpty
                         ? _EmptyHome(
@@ -148,62 +146,74 @@ class _ChatPageState extends State<ChatPage> {
             ],
           ),
         ),
-        // B4:浮动顶栏。
         Positioned(
           top: 0,
           left: 0,
           right: 0,
-          child: SafeArea(
-            bottom: false,
-            child: _ChatHeader(
-              title: conversation.title,
-              status: controller.statusLine,
-              tone: controller.generating
-                  ? MaeveTone.running
-                  : (controller.connected ? MaeveTone.ready : MaeveTone.idle),
-              model: controller.model,
-              tier: controller.modelTier,
-              showModel: width >= 520,
-              onMenu: widget.onMenu,
-              onTitle: () => _showConversationDetails(context, controller),
-              onModel: () => _showModelSheet(context, controller),
-              onNew: () => controller.create(),
-              onQuick: widget.onQuickPanel,
-              busy: controller.generating,
+          child: TopBar(
+            title: conversation.title,
+            eyebrow: controller.eyebrow,
+            subtitle: controller.statusLine,
+            brand: true,
+            showBack: false,
+            leading: _BarAction(
+              icon: Icons.menu_rounded,
+              label: '打开对话列表',
+              onTap: widget.onMenu,
             ),
+            actions: [
+              _BarAction(
+                icon: Icons.grid_view_rounded,
+                label: '快捷面板',
+                onTap: widget.onQuickPanel,
+              ),
+              _BarAction(
+                icon: Icons.add_rounded,
+                label: '新对话',
+                onTap: () => controller.create(),
+              ),
+            ],
           ),
         ),
-        // B5:输入条浮在阅读列上,离底部 12。
         Positioned(
           left: 0,
           right: 0,
-          bottom: safeBottom + MaeveSpace.floatInset,
-          child: Center(
-            child: SizedBox(
-              width: composerWidth,
-              child: _Composer(
-                controller: controller,
-                input: _input,
-                quote: _quote?.text,
-                onClearQuote: () => setState(() => _quote = null),
-                onSend: () => _send(controller),
-                onStop: controller.stop,
-                onAttach: () => _attachmentSheet(context),
-              ),
-            ),
+          bottom: 0,
+          child: _ComposerDock(
+            controller: controller,
+            input: _input,
+            quote: _quote?.text,
+            onClearQuote: () => setState(() => _quote = null),
+            onSend: () => _send(controller),
+            onStop: controller.stop,
+            onAttach: () => _attachmentSheet(context),
           ),
         ),
         if (_showJump)
           Positioned(
-            right: MaeveSpace.gutter,
-            bottom: safeBottom + 96,
-            child: _JumpToBottom(onTap: _toBottom),
+            right: MaeveSpace.s16,
+            bottom: bottomSafe + 104,
+            child: MaeveGlassSurface(
+              tier: MaeveGlassTier.card,
+              shape: const CircleBorder(),
+              onTap: _toBottom,
+              child: const SizedBox.square(
+                dimension: 38,
+                child: Icon(Icons.arrow_downward_rounded, size: 18),
+              ),
+            ),
           ),
       ],
     );
   }
 
-  /// 长按一条消息:复制 / 引用。引用会落到输入条上方的 chip 里。
+  void _notice(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// 长按一条消息:复制 / 引用。
   Future<void> _messageSheet(
     BuildContext context,
     MaeveController controller,
@@ -223,7 +233,7 @@ class _ChatPageState extends State<ChatPage> {
               title: message.isUser ? '你的消息' : 'Maeve 的回复',
               subtitle: summary,
             ),
-            const SizedBox(height: MaeveSpace.sm),
+            const SizedBox(height: MaeveSpace.s8),
             ListPageRow(
               title: '复制',
               leading: const Icon(Icons.copy_all_outlined, size: 19),
@@ -270,7 +280,7 @@ class _ChatPageState extends State<ChatPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SheetTitleBar(title: '添加内容', subtitle: '接入桥接后，这里会打开系统的选择器'),
-          const SizedBox(height: MaeveSpace.sm),
+          const SizedBox(height: MaeveSpace.s8),
           ListPageRow(
             title: '照片',
             subtitle: '系统相册',
@@ -302,353 +312,47 @@ class _ChatPageState extends State<ChatPage> {
       ),
     ),
   );
-
-  void _notice(BuildContext context, String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _showConversationDetails(
-    BuildContext context,
-    MaeveController controller,
-  ) {
-    final conversation = controller.active;
-    return showMaeveSheet<void>(
-      context: context,
-      builder: (context) => AppSheet(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SheetTitleBar(
-              title: conversation.title,
-              subtitle: '会话详情',
-              actions: [
-                IconButton(
-                  tooltip: '关闭',
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: const Icon(Icons.close, size: 20),
-                ),
-              ],
-            ),
-            const SizedBox(height: MaeveSpace.md),
-            _DetailRow(
-              label: '模型',
-              value: '${controller.model} · ${controller.modelTier}',
-            ),
-            _DetailRow(label: '消息', value: '${conversation.messages.length} 条'),
-            _DetailRow(
-              label: '最近活动',
-              value: _relativeTime(conversation.updatedAt),
-            ),
-            _DetailRow(label: '状态', value: conversation.pinned ? '已置顶' : '未置顶'),
-            const SizedBox(height: MaeveSpace.sm),
-            ListPageRow(
-              title: '分享这段对话',
-              subtitle: '复制全文或导出 Markdown',
-              leading: const Icon(Icons.ios_share_rounded, size: 19),
-              onTap: () {
-                Navigator.of(context).pop();
-                showShareSheet(context, controller);
-              },
-            ),
-            const SizedBox(height: MaeveSpace.sm),
-            Text(
-              '接入桥接后，这里会显示真实会话的运行细节。',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showModelSheet(
-    BuildContext context,
-    MaeveController controller,
-  ) => showMaeveSheet<void>(
-    context: context,
-    builder: (context) => AppSheet(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SheetTitleBar(title: '模型', subtitle: '思考档位越高，越慢也越稳'),
-          const SizedBox(height: MaeveSpace.sm),
-          for (final tier in ['高', '中', '低'])
-            ListPageRow(
-              title: 'Maeve · $tier',
-              subtitle: switch (tier) {
-                '高' => '多步推理，适合复杂任务',
-                '中' => '平衡速度与质量',
-                _ => '最快，适合短问答',
-              },
-              selected: controller.modelTier == tier,
-              trailing: controller.modelTier == tier
-                  ? Icon(
-                      Icons.check,
-                      size: 18,
-                      color: Theme.of(context).colorScheme.primary,
-                    )
-                  : null,
-              onTap: () {
-                controller.setModelTier(tier);
-                Navigator.of(context).pop();
-              },
-            ),
-        ],
-      ),
-    ),
-  );
 }
 
-String _relativeTime(DateTime time) {
-  final difference = DateTime.now().difference(time);
-  if (difference.inMinutes < 1) return '刚刚';
-  if (difference.inHours < 1) return '${difference.inMinutes} 分钟前';
-  if (difference.inDays < 1) return '${difference.inHours} 小时前';
-  if (difference.inDays == 1) return '昨天';
-  return '${difference.inDays} 天前';
-}
-
-class _DetailRow extends StatelessWidget {
-  const _DetailRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 5),
-    child: Row(
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-        const Spacer(),
-        Text(value, style: Theme.of(context).textTheme.bodyMedium),
-      ],
-    ),
-  );
-}
-
-/// B4 顶栏:≡ 圆钮 + 标题胶囊(标题 + 状态行) + 模型胶囊 + ＋ 圆钮。
-///
-/// 一枚 `BackdropGroup` 罩住整排,四块玻璃共用一次背景采样;件与件之间不重叠,
-/// 所以可以共用;整条没有色带,内容滚到栏下才靠页面渐隐挡。
-class _ChatHeader extends StatelessWidget {
-  const _ChatHeader({
-    required this.title,
-    required this.status,
-    required this.tone,
-    required this.model,
-    required this.tier,
-    required this.showModel,
-    required this.onMenu,
-    required this.onTitle,
-    required this.onModel,
-    required this.onNew,
-    required this.onQuick,
-    required this.busy,
-  });
-
-  final String title;
-  final String status;
-  final MaeveTone tone;
-  final String model;
-  final String tier;
-  final bool showModel;
-  final VoidCallback onMenu;
-  final VoidCallback onTitle;
-  final VoidCallback onModel;
-  final VoidCallback onNew;
-  final VoidCallback onQuick;
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context) {
-    return BackdropGroup(
-      child: SizedBox(
-        height: MaeveLayout.headerHeight,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.md),
-          child: Row(
-            children: [
-              _HeaderCircle(
-                icon: Icons.menu_rounded,
-                tooltip: '打开对话列表',
-                onTap: onMenu,
-              ),
-              const SizedBox(width: MaeveSpace.sm),
-              Expanded(
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 360),
-                    child: _TitlePill(
-                      title: title,
-                      status: status,
-                      tone: tone,
-                      onTap: onTitle,
-                    ),
-                  ),
-                ),
-              ),
-              if (showModel) ...[
-                const SizedBox(width: MaeveSpace.sm),
-                _ModelPill(
-                  model: model,
-                  tier: tier,
-                  busy: busy,
-                  onTap: onModel,
-                  onLongPress: onQuick,
-                ),
-              ],
-              const SizedBox(width: MaeveSpace.sm),
-              _HeaderCircle(
-                icon: Icons.add_rounded,
-                tooltip: '新对话',
-                onTap: onNew,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HeaderCircle extends StatelessWidget {
-  const _HeaderCircle({
+/// 顶栏上的一个动作键(48 的可点域,40 的圆)。
+class _BarAction extends StatelessWidget {
+  const _BarAction({
     required this.icon,
-    required this.tooltip,
+    required this.label,
     required this.onTap,
   });
 
   final IconData icon;
-  final String tooltip;
+  final String label;
   final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Tooltip(
-    message: tooltip,
-    child: MaeveGlassSurface(
-      tier: MaeveGlassTier.chrome,
-      circle: true,
-      grouped: true,
-      onTap: onTap,
-      child: SizedBox.square(
-        dimension: MaeveLayout.touch,
-        child: Icon(icon, size: 20),
-      ),
-    ),
-  );
-}
-
-/// 标题胶囊:标题 + 状态行(点 + 一句人话)。点按展开会话详情。
-class _TitlePill extends StatelessWidget {
-  const _TitlePill({
-    required this.title,
-    required this.status,
-    required this.tone,
-    required this.onTap,
-  });
-
-  final String title;
-  final String status;
-  final MaeveTone tone;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: '$title，$status',
-    child: MaeveGlassSurface(
-      tier: MaeveGlassTier.chrome,
-      stadium: true,
-      grouped: true,
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(
-        horizontal: MaeveSpace.lg,
-        vertical: 4,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.titleSmall,
-          ),
-          const SizedBox(height: 1),
-          HeaderStatus(text: status, tone: tone, maxWidth: 190),
-        ],
-      ),
-    ),
-  );
-}
-
-/// 模型胶囊:✦ Maeve · 高 ⌄。
-class _ModelPill extends StatelessWidget {
-  const _ModelPill({
-    required this.model,
-    required this.tier,
-    required this.busy,
-    required this.onTap,
-    required this.onLongPress,
-  });
-
-  final String model;
-  final String tier;
-  final bool busy;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return MaeveGlassSurface(
-      tier: MaeveGlassTier.chrome,
-      stadium: true,
-      grouped: true,
-      onTap: onTap,
-      onLongPress: onLongPress,
-      padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.md),
-      child: SizedBox(
-        height: MaeveLayout.touch,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.auto_awesome, size: 14, color: scheme.primary),
-            const SizedBox(width: 5),
-            Text(model, style: Theme.of(context).textTheme.titleSmall),
-            const SizedBox(width: 4),
-            Text('· $tier', style: Theme.of(context).textTheme.bodySmall),
-            Icon(Icons.expand_more, size: 15, color: scheme.onSurfaceVariant),
-          ],
+    final colors = MaeveTheme.of(context).colors;
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        label: label,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          onTap: () {
+            MaeveHaptics.play(MaeveHaptic.tick);
+            onTap();
+          },
+          child: SizedBox.square(
+            dimension: 48,
+            child: Center(child: Icon(icon, size: 20, color: colors.ink)),
+          ),
         ),
       ),
     );
   }
 }
 
-class _JumpToBottom extends StatelessWidget {
-  const _JumpToBottom({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => MaeveGlassSurface(
-    tier: MaeveGlassTier.chrome,
-    circle: true,
-    onTap: onTap,
-    child: const SizedBox.square(
-      dimension: 38,
-      child: Icon(Icons.arrow_downward_rounded, size: 18),
-    ),
-  );
-}
-
-/// 空状态:品牌标识 + 一句话 + 几条可点的建议。
+/// 空状态:品牌标 + 一句问候 + 三张示例卡(点一下直接发出去)。
 class _EmptyHome extends StatelessWidget {
   const _EmptyHome({required this.onPick});
 
@@ -656,82 +360,70 @@ class _EmptyHome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final suggestions = [
+    final colors = MaeveTheme.of(context).colors;
+    const examples = [
       ('帮我理清一个决定', '把利弊摊开，找出真正在意的那一条'),
       ('规划一个项目', '从目标倒推，排出可执行的下一步'),
       ('把一段想法整理成笔记', '保留原意，删掉重复'),
     ];
     return Padding(
-      padding: const EdgeInsets.only(top: MaeveSpace.xxl),
+      padding: const EdgeInsets.only(top: MaeveSpace.s24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const MaeveMark(size: 54, state: MarkState.armed),
-              const SizedBox(width: MaeveSpace.lg),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('有声音的宿主', style: maeveEyebrow(context)),
-                    const SizedBox(height: 4),
-                    Text(
-                      '一个念头，从这里开始。',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: MaeveSpace.lg),
           Text(
-            'Maeve 已准备好陪你梳理想法、探索问题，或规划下一步。',
-            style: Theme.of(context).textTheme.bodyMedium
-                ?.copyWith(color: scheme.onSurfaceVariant),
+            'MAEVE · HOST',
+            style: MaeveType.eyebrow.copyWith(color: colors.ink3),
           ),
-          const SizedBox(height: MaeveSpace.xl),
-          for (final (title, subtitle) in suggestions)
+          const SizedBox(height: MaeveSpace.s10),
+          Text(
+            '一个念头，从这里开始。',
+            style: MaeveType.display.copyWith(color: colors.ink),
+          ),
+          const SizedBox(height: MaeveSpace.s10),
+          Text(
+            '她在另一块屏上把事办完，你的屏幕还是你的。说一句就行。',
+            style: MaeveType.body.copyWith(color: colors.ink2),
+          ),
+          const SizedBox(height: MaeveSpace.s24),
+          for (final (title, subtitle) in examples)
             Padding(
-              padding: const EdgeInsets.only(bottom: MaeveSpace.sm),
+              padding: const EdgeInsets.only(bottom: MaeveSpace.s8),
               child: Pressable(
                 onTap: () => onPick(title),
                 borderRadius: BorderRadius.circular(MaeveRadius.md),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: MaeveSpace.md,
-                    vertical: MaeveSpace.md,
+                    horizontal: MaeveSpace.s12,
+                    vertical: MaeveSpace.s12,
                   ),
                   decoration: BoxDecoration(
-                    color: scheme.onSurface.withValues(alpha: .04),
+                    color: colors.surface,
                     borderRadius: BorderRadius.circular(MaeveRadius.md),
-                    border: Border.all(
-                      color: scheme.outline.withValues(alpha: .5),
-                      width: .5,
-                    ),
+                    border: Border.all(color: colors.edge, width: .5),
                   ),
                   child: Row(
                     children: [
                       Icon(
                         Icons.north_east_rounded,
                         size: 15,
-                        color: scheme.primary,
+                        color: colors.accent,
                       ),
-                      const SizedBox(width: MaeveSpace.md),
+                      const SizedBox(width: MaeveSpace.s12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               title,
-                              style: Theme.of(context).textTheme.bodyLarge,
+                              style: MaeveType.body.copyWith(color: colors.ink),
                             ),
                             Text(
                               subtitle,
-                              style: Theme.of(context).textTheme.bodySmall,
+                              style: MaeveType.caption.copyWith(
+                                fontSize: 13.5,
+                                color: colors.ink3,
+                              ),
                             ),
                           ],
                         ),
@@ -747,7 +439,7 @@ class _EmptyHome extends StatelessWidget {
   }
 }
 
-/// 消息列表:同轮内 8、换轮 24;已完成的轮次可折叠成一行。
+/// 消息列表:每一轮 = 台词轨 + 一条用户气泡 + 一条回答。
 class _MessageList extends StatelessWidget {
   const _MessageList({
     required this.conversation,
@@ -768,16 +460,16 @@ class _MessageList extends StatelessWidget {
     final messages = conversation.messages;
     final lastAssistant = messages.lastIndexWhere((m) => !m.isUser);
     final children = <Widget>[];
+    var act = 0;
     for (var i = 0; i < messages.length; i++) {
       final message = messages[i];
       final key = '${conversation.id}:$i';
       final isLatest = i == messages.length - 1;
       if (message.isUser) {
+        act += 1;
         children.add(
-          Padding(
-            padding: EdgeInsets.only(
-              top: i == 0 ? MaeveSpace.lg : MaeveSpace.betweenTurns,
-            ),
+          _ActRow(
+            act: act,
             child: _UserBubble(
               message: message,
               onResend: () => onRetry(message),
@@ -789,10 +481,9 @@ class _MessageList extends StatelessWidget {
       }
       final collapsed = i != lastAssistant && !openTurns.contains(key);
       children.add(
-        Padding(
-          padding: EdgeInsets.only(
-            top: i == 0 ? MaeveSpace.lg : MaeveSpace.betweenTurns,
-          ),
+        _ActRow(
+          act: act,
+          showNumber: false,
           child: _AssistantTurn(
             message: message,
             collapsed: collapsed,
@@ -810,6 +501,31 @@ class _MessageList extends StatelessWidget {
   }
 }
 
+/// 一轮:左边台词轨,右边内容。轨的竖线一直连到下一轮。
+class _ActRow extends StatelessWidget {
+  const _ActRow({
+    required this.act,
+    required this.child,
+    this.showNumber = true,
+  });
+
+  final int act;
+  final Widget child;
+  final bool showNumber;
+
+  @override
+  Widget build(BuildContext context) => IntrinsicHeight(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ScriptRail(act: act, showNumber: showNumber),
+        const SizedBox(width: MaeveSpace.s8),
+        Expanded(child: child),
+      ],
+    ),
+  );
+}
+
 class _UserBubble extends StatelessWidget {
   const _UserBubble({
     required this.message,
@@ -823,48 +539,53 @@ class _UserBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surfaces = MaeveSurfaces.of(context);
-    final bubble = surfaces.userBubble;
-    final ink = surfaces.onUserBubble;
-    return Align(
-      alignment: Alignment.centerRight,
+    final colors = MaeveTheme.of(context).colors;
+    return Padding(
+      padding: const EdgeInsets.only(
+        top: MaeveSpace.s12,
+        bottom: MaeveSpace.s12,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Container(
-            constraints: const BoxConstraints(maxWidth: 560),
-            padding: const EdgeInsets.symmetric(
-              horizontal: MaeveSpace.lg,
-              vertical: MaeveSpace.md,
-            ),
-            decoration: BoxDecoration(
-              color: bubble,
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(MaeveRadius.lg),
-                topRight: Radius.circular(MaeveRadius.lg),
-                bottomLeft: Radius.circular(MaeveRadius.lg),
-                bottomRight: Radius.circular(MaeveRadius.xs),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width * .8 - 60,
               ),
-            ),
-            child: GestureDetector(
-              onLongPress: onLongPress,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (message.quote != null) ...[
-                    _QuotedBlock(
-                      text: message.quote!,
-                      fromUser: message.quoteFromUser,
-                      onLight: true,
-                    ),
-                    const SizedBox(height: MaeveSpace.sm),
-                  ],
-                  Text(
-                    message.text,
-                    style: Theme.of(context).textTheme.bodyLarge
-                        ?.copyWith(color: ink),
+              child: Pressable(
+                onLongPress: onLongPress,
+                borderRadius: BorderRadius.circular(MaeveRadius.lg),
+                scale: false,
+                child: MaeveGlassSurface(
+                  tier: MaeveGlassTier.card,
+                  shape: MaeveShapes.userBubble,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
                   ),
-                ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (message.quote != null) ...[
+                        _QuotedBlock(
+                          text: message.quote!,
+                          fromUser: message.quoteFromUser,
+                        ),
+                        const SizedBox(height: MaeveSpace.s6),
+                      ],
+                      Text(
+                        message.text,
+                        style: MaeveType.script.copyWith(
+                          fontSize: 15.5,
+                          height: 22.5 / 15.5,
+                          color: colors.ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -874,22 +595,9 @@ class _UserBubble extends StatelessWidget {
               child: Pressable(
                 onTap: onResend,
                 borderRadius: BorderRadius.circular(MaeveRadius.pill),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: MaeveSpace.sm,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary
-                        .withValues(alpha: .12),
-                    borderRadius: BorderRadius.circular(MaeveRadius.pill),
-                  ),
-                  child: Text(
-                    '已排队 · 立即发送',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
+                child: Text(
+                  '已排队 · 立即发送',
+                  style: MaeveType.hint.copyWith(color: colors.accent),
                 ),
               ),
             ),
@@ -916,32 +624,38 @@ class _AssistantTurn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     if (collapsed) {
-      return Pressable(
-        onTap: onToggle,
-        borderRadius: BorderRadius.circular(MaeveRadius.pill),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: MaeveSpace.md,
-            vertical: 6,
-          ),
-          decoration: BoxDecoration(
-            color: scheme.onSurface.withValues(alpha: .04),
+      return Padding(
+        padding: const EdgeInsets.only(bottom: MaeveSpace.s12),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Pressable(
+            onTap: onToggle,
             borderRadius: BorderRadius.circular(MaeveRadius.pill),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const StatusDot(tone: MaeveTone.idle, size: 5),
-              const SizedBox(width: 6),
-              Text(
-                '已完成${message.steps > 0 ? ' · ${message.steps} 步' : ''}',
-                style: Theme.of(context).textTheme.bodySmall,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: MaeveSpace.s10,
+                vertical: 5,
               ),
-              const SizedBox(width: 2),
-              Icon(Icons.expand_more, size: 15, color: scheme.onSurfaceVariant),
-            ],
+              decoration: BoxDecoration(
+                color: colors.fill,
+                borderRadius: BorderRadius.circular(MaeveRadius.pill),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StatusDot(tone: MaeveTone.ready, size: 5),
+                  const SizedBox(width: 6),
+                  Text(
+                    '已完成${message.steps > 0 ? ' · ${message.steps} 步' : ''}',
+                    style: MaeveType.hint.copyWith(color: colors.ink3),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(Icons.expand_more, size: 14, color: colors.ink3),
+                ],
+              ),
+            ),
           ),
         ),
       );
@@ -949,46 +663,83 @@ class _AssistantTurn extends StatelessWidget {
     return GestureDetector(
       onLongPress: onLongPress,
       behavior: HitTestBehavior.translucent,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 2),
-            child: MaeveMark(size: 22),
-          ),
-          const SizedBox(width: MaeveSpace.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (message.steps > 0) ...[
-                  ThinkingPill(
-                    steps: message.steps,
-                    lines: message.thinking,
-                    expanded: false,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: MaeveSpace.s12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (message.steps > 0) ...[
+              ThinkingPill(steps: message.steps, lines: message.thinking),
+              const SizedBox(height: MaeveSpace.s10),
+            ],
+            // 回答:左侧一条竖线 + 全宽正文,没有填充卡片。
+            Container(
+              decoration: BoxDecoration(
+                border: Border(left: BorderSide(color: colors.rule, width: 1)),
+              ),
+              padding: const EdgeInsets.only(
+                left: 15,
+                top: 1,
+                bottom: 3,
+                right: 2,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message.text,
+                    style: MaeveType.script.copyWith(color: colors.ink),
                   ),
-                  const SizedBox(height: MaeveSpace.inTurn),
-                ],
-                Text(
-                  message.text,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-                if (!isLatest) ...[
-                  const SizedBox(height: 2),
-                  Pressable(
-                    onTap: onToggle,
-                    borderRadius: BorderRadius.circular(MaeveRadius.pill),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
+                  if (!isLatest) ...[
+                    const SizedBox(height: 2),
+                    Pressable(
+                      onTap: onToggle,
+                      borderRadius: BorderRadius.circular(MaeveRadius.pill),
                       child: Text(
                         '收起',
-                        style: Theme.of(context).textTheme.labelSmall,
+                        style: MaeveType.hint.copyWith(color: colors.ink3),
                       ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 引用块:一条竖线 + 两行摘要。
+class _QuotedBlock extends StatelessWidget {
+  const _QuotedBlock({required this.text, required this.fromUser});
+
+  final String text;
+  final bool fromUser;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    return Container(
+      padding: const EdgeInsets.only(left: MaeveSpace.s8),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(color: colors.ink3.withValues(alpha: .5), width: 2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            fromUser ? '你' : 'Maeve',
+            style: MaeveType.eyebrow.copyWith(color: colors.ink3),
+          ),
+          Text(
+            text,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: MaeveType.hint.copyWith(color: colors.ink3),
           ),
         ],
       ),
@@ -996,16 +747,124 @@ class _AssistantTurn extends StatelessWidget {
   }
 }
 
-/// B5 输入条:chrome 玻璃 + 圆角 28 + 两颗 40 圆键。
-class _Composer extends StatefulWidget {
-  const _Composer({
+/// 输入条那一整块:引文 / 自动同意 / 活动条叠在纸条上方,底下垫一段渐隐。
+class _ComposerDock extends StatelessWidget {
+  const _ComposerDock({
+    required this.controller,
+    required this.input,
+    required this.quote,
+    required this.onClearQuote,
+    required this.onSend,
+    required this.onStop,
+    required this.onAttach,
+  });
+
+  final MaeveController controller;
+  final TextEditingController input;
+  final String? quote;
+  final VoidCallback onClearQuote;
+  final VoidCallback onSend;
+  final VoidCallback onStop;
+  final VoidCallback onAttach;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    final bottom = MediaQuery.viewPaddingOf(context).bottom;
+    return Container(
+      padding: EdgeInsets.only(bottom: bottom + MaeveSpace.s6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            colors.bg.withValues(alpha: 0),
+            colors.bg.withValues(alpha: .92),
+            colors.bg,
+          ],
+          stops: const [0, .55, 1],
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+          MaeveSpace.s12,
+          MaeveSpace.s10,
+          MaeveSpace.s12,
+          MaeveSpace.s6,
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: MaeveSpace.readingWidth,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ExpandReveal(
+                  visible: quote != null,
+                  child: quote == null
+                      ? const SizedBox.shrink()
+                      : Padding(
+                          padding: const EdgeInsets.only(bottom: MaeveSpace.s6),
+                          child: _QuoteChip(
+                            text: quote!,
+                            onClear: onClearQuote,
+                          ),
+                        ),
+                ),
+                if (controller.autoApprove) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: AutoApprovePill(onTap: controller.toggleAutoApprove),
+                  ),
+                  const SizedBox(height: MaeveSpace.s6),
+                ],
+                if (controller.generating) ...[
+                  ActivityStrip(
+                    text: '正在走这一步',
+                    states: _rollStates(controller),
+                    onStop: onStop,
+                  ),
+                  const SizedBox(height: MaeveSpace.s6),
+                ],
+                _ComposerBar(
+                  controller: controller,
+                  input: input,
+                  onSend: onSend,
+                  onStop: onStop,
+                  onAttach: onAttach,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 钢琴卷的状态:已完成的步 + 正在走的那一步。
+  List<NoteState> _rollStates(MaeveController controller) {
+    final steps = controller.active.messages
+        .where((m) => !m.isUser)
+        .fold<int>(0, (sum, m) => sum + m.steps);
+    final total = (steps + 3).clamp(4, 12);
+    return [
+      for (var i = 0; i < total; i++)
+        i < steps
+            ? NoteState.done
+            : (i == steps ? NoteState.active : NoteState.pending),
+    ];
+  }
+}
+
+/// 16 圆角的纸条输入栏(不是胶囊)。
+class _ComposerBar extends StatefulWidget {
+  const _ComposerBar({
     required this.controller,
     required this.input,
     required this.onSend,
     required this.onStop,
     required this.onAttach,
-    required this.onClearQuote,
-    this.quote,
   });
 
   final MaeveController controller;
@@ -1013,14 +872,12 @@ class _Composer extends StatefulWidget {
   final VoidCallback onSend;
   final VoidCallback onStop;
   final VoidCallback onAttach;
-  final VoidCallback onClearQuote;
-  final String? quote;
 
   @override
-  State<_Composer> createState() => _ComposerState();
+  State<_ComposerBar> createState() => _ComposerBarState();
 }
 
-class _ComposerState extends State<_Composer> {
+class _ComposerBarState extends State<_ComposerBar> {
   @override
   void initState() {
     super.initState();
@@ -1038,151 +895,124 @@ class _ComposerState extends State<_Composer> {
   @override
   Widget build(BuildContext context) {
     final controller = widget.controller;
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     final canSend = widget.input.text.trim().isNotEmpty;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // 引文 tray:在上方,expand_reveal 进出。
-        ExpandReveal(
-          visible: widget.quote != null,
-          // 收起后不留在树里:读屏不该读到一个 0 高度的"取消引用"。
-          child: widget.quote == null
-              ? const SizedBox.shrink()
-              : Padding(
-                  padding: const EdgeInsets.only(bottom: MaeveSpace.sm),
-                  child: _QuoteChip(
-                    text: widget.quote!,
-                    onClear: widget.onClearQuote,
-                  ),
+    final busy = controller.generating;
+    return MaeveGlassSurface(
+      tier: MaeveGlassTier.chrome,
+      shape: MaeveShapes.composer,
+      padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.s6),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: MaeveSize.composer),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            _RoundKey(
+              key: const ValueKey('attach-file'),
+              icon: Icons.add_rounded,
+              tooltip: '添加内容',
+              onTap: widget.onAttach,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: MaeveSpace.s6,
+                  vertical: 6,
                 ),
-        ),
-        // 自动同意开着时一直看得见(状态不能藏在设置里)。
-        if (controller.autoApprove) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: AutoApprovePill(onTap: controller.toggleAutoApprove),
-          ),
-          const SizedBox(height: MaeveSpace.sm),
-        ],
-        if (controller.generating) ...[
-          ActivityStrip(text: 'Maeve 正在思考', onStop: widget.onStop),
-          const SizedBox(height: MaeveSpace.sm),
-        ],
-        MaeveGlassSurface(
-          tier: MaeveGlassTier.chrome,
-          borderRadius: const BorderRadius.all(Radius.circular(MaeveRadius.xl)),
-          padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
+                child: TextField(
+                  key: const ValueKey('message-input'),
+                  controller: widget.input,
+                  minLines: 1,
+                  maxLines: 5,
+                  style: MaeveType.body.copyWith(color: colors.ink),
+                  textAlignVertical: TextAlignVertical.center,
+                  textInputAction: TextInputAction.newline,
+                  cursorColor: colors.accent,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    hintText: controller.connected
+                        ? (busy ? '插话给当前这一步…' : '给 Maeve 一点内容…')
+                        : '未连接，暂时不能发送',
+                    hintStyle: MaeveType.body.copyWith(color: colors.ink3),
+                  ),
+                  onSubmitted: (_) => canSend ? widget.onSend() : null,
+                ),
+              ),
+            ),
+            if (busy)
               _RoundKey(
-                key: const ValueKey('attach-file'),
-                icon: Icons.add_rounded,
-                tooltip: '添加内容',
-                filled: false,
-                onTap: widget.onAttach,
+                icon: Icons.stop_rounded,
+                tooltip: '停止生成',
+                ink: true,
+                onTap: widget.onStop,
               ),
-              const SizedBox(width: MaeveSpace.xs),
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 40),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: MaeveSpace.sm,
-                      vertical: 10,
-                    ),
-                    child: TextField(
-                      key: const ValueKey('message-input'),
-                      controller: widget.input,
-                      minLines: 1,
-                      maxLines: 6,
-                      style: Theme.of(context).textTheme.bodyLarge,
-                      textAlignVertical: TextAlignVertical.center,
-                      textInputAction: TextInputAction.newline,
-                      cursorColor: scheme.primary,
-                      decoration: InputDecoration(
-                        isDense: true,
-                        border: InputBorder.none,
-                        hintText: controller.connected
-                            ? '给 Maeve 一点内容…'
-                            : '未连接，暂时不能发送',
-                        hintStyle: Theme.of(context).textTheme.bodyLarge
-                            ?.copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                      onSubmitted: (_) => canSend ? widget.onSend() : null,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: MaeveSpace.xs),
+            if (!busy || canSend)
               _RoundKey(
                 key: const ValueKey('send-message'),
-                icon: controller.generating
-                    ? Icons.stop_rounded
-                    : Icons.arrow_upward_rounded,
-                tooltip: controller.generating ? '停止生成' : '发送消息',
-                filled: !controller.generating && canSend,
-                faded: controller.generating,
-                onTap: controller.generating
-                    ? widget.onStop
-                    : (canSend ? widget.onSend : null),
+                icon: Icons.arrow_upward_rounded,
+                tooltip: '发送消息',
+                accent: canSend,
+                enabled: canSend,
+                onTap: canSend ? widget.onSend : null,
               ),
-            ],
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
-/// 40 圆键:发送是主色实心,附件是淡底;不可用时降透明度(不是变灰点不动)。
+/// 40 圆键:发送是强调色实心,附件是淡底;不可用时降透明度(不是变灰点不动)。
 class _RoundKey extends StatelessWidget {
   const _RoundKey({
     super.key,
     required this.icon,
     required this.tooltip,
     required this.onTap,
-    this.filled = false,
-    this.faded = false,
+    this.accent = false,
+    this.ink = false,
+    this.enabled = true,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback? onTap;
-  final bool filled;
-  final bool faded;
+  final bool accent;
+  final bool ink;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final enabled = onTap != null;
-    final background = filled
-        ? scheme.primary
-        : (faded
-              ? scheme.onSurface.withValues(alpha: .10)
-              : scheme.onSurface.withValues(alpha: .06));
-    final foreground = filled ? scheme.onPrimary : scheme.onSurface;
+    final colors = MaeveTheme.of(context).colors;
+    final background = accent
+        ? colors.accent
+        : (ink ? colors.ink : Colors.transparent);
+    final foreground = accent
+        ? colors.onAccent
+        : (ink ? colors.bg : colors.ink);
     return Tooltip(
       message: tooltip,
       child: Semantics(
         button: true,
+        enabled: enabled,
         label: tooltip,
         child: Pressable(
-          onTap: onTap,
+          onTap: enabled ? onTap : null,
           borderRadius: BorderRadius.circular(MaeveRadius.pill),
           haptic: enabled ? MaeveHaptic.light : null,
           child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 160),
-            opacity: enabled || faded ? 1 : .55,
+            duration: AppMotion.of(context).quick,
+            opacity: accent || ink || enabled ? 1 : .5,
             child: Container(
-              width: 40,
-              height: 40,
+              width: MaeveSize.iconButton,
+              height: MaeveSize.iconButton,
+              margin: const EdgeInsets.symmetric(vertical: 6),
               decoration: BoxDecoration(
                 color: background,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 19, color: foreground),
+              child: Icon(icon, size: 20, color: foreground),
             ),
           ),
         ),
@@ -1191,52 +1021,7 @@ class _RoundKey extends StatelessWidget {
   }
 }
 
-/// 引用块:一条竖线 + 两行摘要。用户气泡里也用它(浅底,降透明度)。
-class _QuotedBlock extends StatelessWidget {
-  const _QuotedBlock({
-    required this.text,
-    required this.fromUser,
-    this.onLight = false,
-  });
-
-  final String text;
-  final bool fromUser;
-  final bool onLight;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final tone = onLight
-        ? scheme.onSurface.withValues(alpha: .55)
-        : scheme.onSurfaceVariant;
-    return Container(
-      padding: const EdgeInsets.only(left: MaeveSpace.sm),
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(color: tone.withValues(alpha: .5), width: 2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            fromUser ? '你' : 'Maeve',
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(color: tone),
-          ),
-          Text(
-            text,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: tone),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 输入条上方的引文 chip:一行摘要 + 取消。
+/// 引文 chip:一行摘要 + 取消,贴在输入条上方。
 class _QuoteChip extends StatelessWidget {
   const _QuoteChip({required this.text, required this.onClear});
 
@@ -1245,32 +1030,29 @@ class _QuoteChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return Container(
       padding: const EdgeInsets.fromLTRB(
-        MaeveSpace.md,
-        MaeveSpace.sm,
-        MaeveSpace.sm,
-        MaeveSpace.sm,
+        MaeveSpace.s12,
+        MaeveSpace.s8,
+        MaeveSpace.s6,
+        MaeveSpace.s8,
       ),
       decoration: BoxDecoration(
-        color: scheme.primary.withValues(alpha: .10),
+        color: colors.accentSoft,
         borderRadius: BorderRadius.circular(MaeveRadius.md),
-        border: Border.all(
-          color: scheme.primary.withValues(alpha: .22),
-          width: .5,
-        ),
+        border: Border.all(color: colors.edge, width: .5),
       ),
       child: Row(
         children: [
-          Icon(Icons.format_quote_rounded, size: 16, color: scheme.primary),
-          const SizedBox(width: MaeveSpace.sm),
+          Icon(Icons.format_quote_rounded, size: 15, color: colors.accent),
+          const SizedBox(width: MaeveSpace.s8),
           Expanded(
             child: Text(
               text,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: MaeveType.hint.copyWith(color: colors.ink2),
             ),
           ),
           Pressable(
@@ -1279,11 +1061,7 @@ class _QuoteChip extends StatelessWidget {
             semanticLabel: '取消引用',
             child: SizedBox.square(
               dimension: 28,
-              child: Icon(
-                Icons.close,
-                size: 15,
-                color: scheme.onSurfaceVariant,
-              ),
+              child: Icon(Icons.close, size: 15, color: colors.ink3),
             ),
           ),
         ],

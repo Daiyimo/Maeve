@@ -1,85 +1,80 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:maeve_flutter/design/maeve_tokens.dart';
+import 'package:maeve_flutter/design/maeve_accent.dart';
+import 'package:maeve_flutter/design/maeve_colors.dart';
+import 'package:maeve_flutter/design/maeve_shapes.dart';
+import 'package:maeve_flutter/design/maeve_surfaces.dart';
+import 'package:maeve_flutter/design/maeve_theme.dart';
 import 'package:maeve_flutter/widgets/glass_surface.dart';
 
-/// Hosts [child] in a themed app with optional surface overrides, so the glass
-/// chain can be inspected without standing up the whole shell.
-Widget _host(
+/// 玻璃链路的验收:哪一档模糊、降级怎么走、会动的玻璃什么时候停止采样。
+Widget host(
   Widget child, {
   Brightness brightness = Brightness.dark,
   bool blurEnabled = true,
   bool highContrast = false,
-}) {
-  return MaterialApp(
-    theme: maeveTheme(brightness, blurEnabled: blurEnabled),
-    home: MediaQuery(
-      data: MediaQueryData(highContrast: highContrast),
-      child: Builder(builder: (context) => child),
+}) => MaterialApp(
+  theme: maeveTheme(brightness: brightness),
+  home: MediaQuery(
+    data: MediaQueryData(highContrast: highContrast),
+    child: MaeveThemeScope(
+      brightness: brightness,
+      accent: deriveAccent(MaeveAccentPreset.reverie),
+      blurEnabled: blurEnabled,
+      child: Scaffold(body: Center(child: child)),
     ),
-  );
-}
+  ),
+);
 
 void main() {
-  testWidgets('chrome glass samples the backdrop, card glass does not', (
-    tester,
-  ) async {
+  testWidgets('chrome / sheet 取样,card / pill 不取样', (tester) async {
     await tester.pumpWidget(
-      _host(
+      host(
         const Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             MaeveGlassSurface(
               tier: MaeveGlassTier.chrome,
               child: Text('chrome'),
             ),
             MaeveGlassSurface(tier: MaeveGlassTier.card, child: Text('card')),
+            MaeveGlassSurface(tier: MaeveGlassTier.pill, child: Text('pill')),
           ],
         ),
       ),
     );
     expect(find.text('chrome'), findsOneWidget);
     expect(find.text('card'), findsOneWidget);
-    // Only the chrome tier blurs: cards lie on a static backdrop and a
-    // BackdropFilter there would burn GPU for nothing.
+    expect(find.text('pill'), findsOneWidget);
+    // 只有 chrome 建了一层采样;card / pill 长在滚动内容里,取样会玻璃套玻璃。
     expect(find.byType(BackdropFilter), findsOneWidget);
   });
 
-  testWidgets('reduce transparency drops every backdrop filter', (
-    tester,
-  ) async {
+  testWidgets('减少透明效果:一个 BackdropFilter 都不建', (tester) async {
     await tester.pumpWidget(
-      _host(
-        const MaeveGlassSurface(
-          tier: MaeveGlassTier.chrome,
-          child: Text('chrome'),
-        ),
+      host(
+        const MaeveGlassSurface(tier: MaeveGlassTier.chrome, child: Text('x')),
         blurEnabled: false,
       ),
     );
-    expect(find.text('chrome'), findsOneWidget);
     expect(find.byType(BackdropFilter), findsNothing);
+    expect(find.text('x'), findsOneWidget);
   });
 
-  testWidgets('high contrast drops the backdrop filter too', (tester) async {
+  testWidgets('系统高对比度也退化成不透明填充', (tester) async {
     await tester.pumpWidget(
-      _host(
-        const MaeveGlassSurface(
-          tier: MaeveGlassTier.sheet,
-          child: Text('sheet'),
-        ),
+      host(
+        const MaeveGlassSurface(tier: MaeveGlassTier.sheet, child: Text('s')),
         highContrast: true,
       ),
     );
-    expect(find.text('sheet'), findsOneWidget);
     expect(find.byType(BackdropFilter), findsNothing);
   });
 
-  testWidgets('a moving glass keeps its filter but stops sampling', (
-    tester,
-  ) async {
+  testWidgets('会动的玻璃保留 filter 但停止采样', (tester) async {
     await tester.pumpWidget(
-      _host(
+      host(
         const MaeveGlassSurface(
           tier: MaeveGlassTier.chrome,
           settled: 0,
@@ -87,18 +82,13 @@ void main() {
         ),
       ),
     );
-    // The filter layer stays mounted (the subtree is not rebuilt), it just
-    // stops sampling the backdrop while the surface moves.
     final filter = tester.widget<BackdropFilter>(find.byType(BackdropFilter));
     expect(filter.enabled, isFalse);
-    expect(find.text('moving'), findsOneWidget);
   });
 
-  testWidgets('blur override can force a card to sample the backdrop', (
-    tester,
-  ) async {
+  testWidgets('card 可以被强制开模糊(sigma 兜底 14)', (tester) async {
     await tester.pumpWidget(
-      _host(
+      host(
         const MaeveGlassSurface(
           tier: MaeveGlassTier.card,
           blur: true,
@@ -109,62 +99,66 @@ void main() {
     expect(find.byType(BackdropFilter), findsOneWidget);
   });
 
-  test('settled fill interpolates from the opaque fallback to the glass', () {
-    final style = MaeveSurfaces.dark.chrome;
-    final moving = Color.lerp(style.fallbackFill, style.fill, 0)!;
-    final settled = Color.lerp(style.fallbackFill, style.fill, 1)!;
-    // While moving the surface hides behind a near-opaque fill, so the blur
-    // appearing later never pops; settled it is the plain glass fill.
-    expect(moving.a, greaterThan(settled.a));
-    expect(settled, style.fill);
-  });
-
-  test('glass style lerp interpolates every channel', () {
-    final a = MaeveSurfaces.light.chrome;
-    final b = MaeveSurfaces.dark.chrome;
-    final mid = MaeveGlassStyle.lerp(a, b, 0.5);
-    expect(mid.blurSigma, closeTo((a.blurSigma + b.blurSigma) / 2, 1e-9));
-    expect(mid.saturation, closeTo((a.saturation + b.saturation) / 2, 1e-9));
-    expect(mid.fill, Color.lerp(a.fill, b.fill, 0.5));
-    expect(mid.fallbackFill, Color.lerp(a.fallbackFill, b.fallbackFill, 0.5));
-    expect(mid.hairline, Color.lerp(a.hairline, b.hairline, 0.5));
-    expect(mid.shadows.length, a.shadows.length);
-  });
-
-  test(
-    'forBrightness without blur keeps the tier data but flips the switch',
-    () {
-      final reduced = MaeveSurfaces.forBrightness(
-        Brightness.dark,
-        blurEnabled: false,
-      );
-      expect(reduced.blurEnabled, isFalse);
-      // The style data survives so switching back needs no rebuild of styles.
-      expect(reduced.chrome.blurSigma, MaeveSurfaces.dark.chrome.blurSigma);
-      expect(MaeveSurfaces.dark.blurEnabled, isTrue);
-      expect(MaeveSurfaces.light.chrome.blurSigma, greaterThan(0));
-      expect(MaeveSurfaces.light.card.blurSigma, 0);
-    },
-  );
-
-  test('surfaces lerp crosses brightness without losing the backdrop', () {
-    final mid = MaeveSurfaces.light.lerp(MaeveSurfaces.dark, 0.5);
-    expect(
-      mid.backdropTop,
-      Color.lerp(
-        MaeveSurfaces.light.backdropTop,
-        MaeveSurfaces.dark.backdropTop,
-        0.5,
+  testWidgets('shared 采样:同一 BackdropGroup 下的多件只采一次', (tester) async {
+    await tester.pumpWidget(
+      host(
+        BackdropGroup(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              MaeveGlassSurface(
+                tier: MaeveGlassTier.chrome,
+                grouped: true,
+                child: Text('a'),
+              ),
+              MaeveGlassSurface(
+                tier: MaeveGlassTier.chrome,
+                grouped: true,
+                child: Text('b'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
-    expect(
-      mid.chrome.fill,
-      Color.lerp(
-        MaeveSurfaces.light.chrome.fill,
-        MaeveSurfaces.dark.chrome.fill,
-        0.5,
+    // 仍然是两个 filter 节点,但都在同一个 group 里(一组只采样一次)。
+    expect(find.byType(BackdropGroup), findsOneWidget);
+    expect(find.byType(BackdropFilter), findsNWidgets(2));
+  });
+
+  testWidgets('形状决定裁剪:会模糊的玻璃必须按形状裁', (tester) async {
+    // 只有会模糊的玻璃才裁剪(模糊产物不能出形状);不模糊的卡不裁,省一次离屏。
+    await tester.pumpWidget(
+      host(
+        const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            MaeveGlassSurface(
+              tier: MaeveGlassTier.chrome,
+              shape: MaeveShapes.pill,
+              child: Text('p'),
+            ),
+            MaeveGlassSurface(
+              tier: MaeveGlassTier.chrome,
+              shape: MaeveShapes.card,
+              child: Text('c'),
+            ),
+          ],
+        ),
       ),
     );
-    expect(mid.blurEnabled, isTrue);
+    expect(find.byType(ClipRRect), findsWidgets);
+    expect(find.byType(ClipRSuperellipse), findsWidgets);
+  });
+
+  test('四档材质:降级填充接近不透明,模糊只在两档', () {
+    final s = buildSurfaces(
+      MaeveColors.dark(deriveAccent(MaeveAccentPreset.reverie)),
+      blurEnabled: false,
+    );
+    for (final style in [s.chrome, s.sheet, s.card, s.pill]) {
+      expect(style.blurSigma, 0);
+      expect(style.fallbackFill.a, greaterThanOrEqualTo(.98));
+    }
   });
 }

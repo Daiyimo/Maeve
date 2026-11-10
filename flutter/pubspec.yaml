@@ -21,18 +21,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # 只打包等宽字体 JetBrains Mono(OFL,3 个字重共 ~0.8MB)。
-  # 中文字体不打包:跟随系统(Roboto + 系统中文字体)。
-  fonts:
-    - family: JetBrainsMono
-      fonts:
-        - asset: assets/fonts/JetBrainsMono-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/JetBrainsMono-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/JetBrainsMono-Bold.ttf
-          weight: 700
-
   # Flutter module metadata. These identifiers let the tooling keep assets and
   # plugins consistent; the Android host keeps its own application id.
   module:

@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/maeve_controller.dart';
-import '../../design/maeve_tokens.dart';
 import '../../bridge/maeve_bridge.dart';
+import '../../design/maeve_shapes.dart';
+import '../../design/maeve_theme.dart';
+import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
 import '../common/hold_to_confirm.dart';
 import '../common/status.dart';
 import 'settings_components.dart';
 
-/// B9 界面:图标风格、列表常驻、触感。
+/// 界面:图标风格、列表常驻、触感。
 class InterfacePage extends StatelessWidget {
   const InterfacePage({super.key});
 
@@ -19,6 +21,7 @@ class InterfacePage extends StatelessWidget {
     return AppPage.list(
       title: '界面',
       subtitle: '列表怎么摆、点按怎么回应',
+      eyebrow: 'INTERFACE',
       children: [
         SettingsSection(
           title: '布局',
@@ -31,19 +34,18 @@ class InterfacePage extends StatelessWidget {
               onChanged: (value) =>
                   controller.updatePrefs((prefs) => prefs.iconStyle = value),
             ),
-            SettingsTile(
+            const SettingsTile(
               icon: Icons.desktop_windows_outlined,
               title: '宽屏列表常驻',
               subtitle: '断点 840dp：更宽时列表就留在左边',
               value: '自动',
-              onTap: null,
+              enabled: false,
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '反馈',
-          hue: MaeveTokens.warning(Theme.of(context).brightness),
+          tone: Tone.warn,
           rows: [
             SettingsSwitchTile(
               icon: Icons.vibration_rounded,
@@ -66,16 +68,18 @@ class InterfacePage extends StatelessWidget {
   }
 }
 
-/// B9 性能:减少透明效果、低端机模式。玻璃模糊的降级入口只在这里。
+/// 性能:减少透明效果、低端机模式。玻璃模糊的降级入口只在这里。
 class PerformancePage extends StatelessWidget {
   const PerformancePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
+    final colors = MaeveTheme.of(context).colors;
     return AppPage.list(
       title: '动效与性能',
       subtitle: '关掉模糊仍然好看，只是更省电',
+      eyebrow: 'PERFORMANCE',
       children: [
         SettingsSection(
           title: '透明效果',
@@ -99,7 +103,6 @@ class PerformancePage extends StatelessWidget {
           ],
           footnote: '系统打开"高对比度"或"移除动画"时，这两项会自动生效，不用手动开。',
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '动效',
           rows: [
@@ -107,8 +110,8 @@ class PerformancePage extends StatelessWidget {
               icon: Icons.motion_photos_off_outlined,
               title: '系统动画设置',
               subtitle: '跟随系统的"移除动画"开关',
-              value: AppMotionProbe.of(context),
-              onTap: null,
+              value: MediaQuery.disableAnimationsOf(context) ? '已移除' : '跟随系统',
+              enabled: false,
             ),
             const SettingsTile(
               icon: Icons.timer_outlined,
@@ -119,15 +122,15 @@ class PerformancePage extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: MaeveSpace.s16),
+        Text(
+          '关掉模糊后，四档表面都退回接近不透明的填充；发丝线与顶边高光保留，'
+          '层级仍然读得出来。',
+          style: MaeveType.hint.copyWith(color: colors.ink3),
+        ),
       ],
     );
   }
-}
-
-/// 把系统的动效开关读成一句人话。
-abstract final class AppMotionProbe {
-  static String of(BuildContext context) =>
-      MediaQuery.disableAnimationsOf(context) ? '已移除' : '跟随系统';
 }
 
 class VoicePage extends StatelessWidget {
@@ -139,6 +142,7 @@ class VoicePage extends StatelessWidget {
     return AppPage.list(
       title: '语音',
       subtitle: '说话比打字快的时候',
+      eyebrow: 'VOICE',
       children: [
         SettingsSection(
           title: '输入',
@@ -153,7 +157,6 @@ class VoicePage extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '输出',
           rows: [
@@ -188,6 +191,7 @@ class NotificationPage extends StatelessWidget {
     return AppPage.list(
       title: '通知',
       subtitle: '只在需要你的时候响',
+      eyebrow: 'NOTIFICATIONS',
       children: [
         SettingsSection(
           title: '推送',
@@ -229,7 +233,8 @@ class ReplyPrefsPage extends StatelessWidget {
     final controller = MaeveScope.of(context);
     return AppPage.list(
       title: '回复偏好',
-      subtitle: '它怎么跟你说话',
+      subtitle: '她怎么跟你说话',
+      eyebrow: 'REPLIES',
       children: [
         SettingsSection(
           title: '长度',
@@ -245,7 +250,6 @@ class ReplyPrefsPage extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '过程',
           rows: [
@@ -273,17 +277,19 @@ class ReplyPrefsPage extends StatelessWidget {
   }
 }
 
-/// B9 隐私:数据去哪、怎么清。清除必须长按 1.5s。
+/// 隐私:数据去哪、怎么清。清除必须长按 1.5s。
 class PrivacyPage extends StatelessWidget {
   const PrivacyPage({super.key});
 
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
-    final scheme = Theme.of(context).colorScheme;
+    final theme = MaeveTheme.of(context);
+    final colors = theme.colors;
     return AppPage.list(
       title: '隐私',
       subtitle: '什么会离开这台设备',
+      eyebrow: 'PRIVACY',
       children: [
         SettingsSection(
           title: '数据去向',
@@ -311,47 +317,45 @@ class PrivacyPage extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, MaeveSpace.sm),
-          child: Text('清除', style: maeveEyebrow(context)),
-        ),
+        const GroupLabel(text: '清除'),
         HoldToConfirm(
-          borderRadius: BorderRadius.circular(MaeveRadius.md),
+          shape: MaeveShapes.button,
           semanticLabel: '按住清除本机会话',
+          progressColor: theme.semantic.bad,
           onConfirmed: () {
-            // 拷贝一份再删:边遍历边删会抛 ConcurrentModificationError
+            // 先拷贝再删:边遍历边改集合会抛 ConcurrentModificationError。
             for (final conversation in controller.conversations.toList()) {
               controller.delete(conversation.id);
             }
             _notice(context, '本机会话已清除。');
           },
           child: Container(
-            padding: const EdgeInsets.all(MaeveSpace.lg),
+            padding: const EdgeInsets.all(MaeveSpace.s16),
             decoration: BoxDecoration(
-              color: scheme.error.withValues(alpha: .08),
+              color: colors.badSoft,
               borderRadius: BorderRadius.circular(MaeveRadius.md),
               border: Border.all(
-                color: scheme.error.withValues(alpha: .35),
+                color: theme.semantic.bad.withValues(alpha: .35),
                 width: .5,
               ),
             ),
             child: Row(
               children: [
-                Icon(Icons.delete_outline, size: 20, color: scheme.error),
-                const SizedBox(width: MaeveSpace.md),
+                Icon(Icons.delete_outline, size: 20, color: theme.semantic.bad),
+                const SizedBox(width: MaeveSpace.s12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         '按住清除本机会话',
-                        style: Theme.of(context).textTheme.bodyLarge
-                            ?.copyWith(color: scheme.error),
+                        style: MaeveType.body.copyWith(
+                          color: theme.semantic.bad,
+                        ),
                       ),
                       Text(
                         '按住 1.5 秒生效，松手即取消',
-                        style: Theme.of(context).textTheme.bodySmall,
+                        style: MaeveType.hint.copyWith(color: colors.ink3),
                       ),
                     ],
                   ),
@@ -360,12 +364,17 @@ class PrivacyPage extends StatelessWidget {
             ),
           ),
         ),
+        const SizedBox(height: MaeveSpace.s12),
+        Text(
+          '清除只影响这台设备上的进程内存；已经发给模型的内容由服务商按其政策处理。',
+          style: MaeveType.hint.copyWith(color: colors.ink3),
+        ),
       ],
     );
   }
 }
 
-/// B9 系统权限:无障碍、屏幕读取。读屏测试不发模型。
+/// 系统权限:无障碍、屏幕读取。读屏测试不发模型。
 class SystemAccessPage extends StatefulWidget {
   const SystemAccessPage({super.key});
 
@@ -381,6 +390,7 @@ class _SystemAccessPageState extends State<SystemAccessPage> {
     return AppPage.list(
       title: '系统权限',
       subtitle: '要让 Maeve 看见屏幕，得先给它钥匙',
+      eyebrow: 'ACCESS',
       children: [
         SettingsSection(
           title: '授权',
@@ -410,7 +420,6 @@ class _SystemAccessPageState extends State<SystemAccessPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '自检',
           rows: [
@@ -439,6 +448,7 @@ class BackgroundGuidePage extends StatelessWidget {
   Widget build(BuildContext context) => AppPage.list(
     title: '后台保活',
     subtitle: '让长任务别被系统掐掉',
+    eyebrow: 'BACKGROUND',
     children: [
       SettingsSection(
         title: '按顺序做',
@@ -469,7 +479,7 @@ class BackgroundGuidePage extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: MaeveSpace.lg),
+      const SizedBox(height: MaeveSpace.s12),
       const BriefNotice(
         text: '不同厂商的系统叫法不一样，找不到就搜"后台"或"电池"。',
         icon: Icons.tips_and_updates_outlined,
@@ -487,6 +497,7 @@ class DiagnosticsPage extends StatelessWidget {
     return AppPage.list(
       title: '诊断',
       subtitle: '出问题时先看这里',
+      eyebrow: 'DIAGNOSTICS',
       children: [
         SettingsSection(
           title: '运行环境',
@@ -497,7 +508,7 @@ class DiagnosticsPage extends StatelessWidget {
               value: 'Android · Flutter',
               enabled: false,
             ),
-            SettingsTile(
+            const SettingsTile(
               icon: Icons.tag_rounded,
               title: '版本',
               value: '0.1.0',
@@ -513,7 +524,6 @@ class DiagnosticsPage extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '日志',
           rows: [
@@ -552,6 +562,7 @@ class LanguagePage extends StatelessWidget {
   Widget build(BuildContext context) => AppPage.list(
     title: '语言',
     subtitle: '界面与字形的选择',
+    eyebrow: 'LANGUAGE',
     children: [
       SettingsSection(
         title: '界面语言',
@@ -562,10 +573,9 @@ class LanguagePage extends StatelessWidget {
             trailing: Icon(
               Icons.check,
               size: 18,
-              color: Theme.of(context).colorScheme.primary,
+              color: MaeveTheme.of(context).colors.accent,
             ),
             selected: true,
-            onTap: null,
           ),
           ListPageRow(
             title: 'English',

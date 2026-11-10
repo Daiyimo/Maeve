@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/maeve_mark.dart';
+
+import 'maeve_controller.dart';
+
+import '../design/maeve_colors.dart';
 import '../design/maeve_motion.dart';
-import '../design/maeve_tokens.dart';
+import '../design/maeve_shapes.dart';
+import '../design/maeve_theme.dart';
+import '../design/maeve_type.dart';
+
 import '../models/conversation.dart';
 import '../ui/common/app_page.dart';
 import '../ui/common/app_sheet.dart';
@@ -11,13 +19,11 @@ import '../ui/common/status.dart';
 import '../ui/settings/settings_components.dart';
 import '../ui/settings/settings_hub.dart';
 import '../widgets/glass_surface.dart';
-import '../widgets/maeve_mark.dart';
-import 'maeve_controller.dart';
 
-/// B6 会话抽屉:品牌行 + 新对话 + 搜索 + 工作区 + 状态筛选 + 分组列表 + 身份条。
+/// 会话抽屉:品牌行 + 新对话 + 搜索 + 工作区 + 状态筛选 + 分组列表 + 身份条。
 ///
 /// 分组顺序固定:置顶 → 文件夹 → 按天(今天/昨天/更早)。未读有徽标,
-/// 当前会话用主色 9% 软填充(不是描边),按压时压到 18%。
+/// 当前会话用强调色淡淡洗一层(不是描边)。
 class SessionsDrawer extends StatefulWidget {
   const SessionsDrawer({super.key, required this.onClose, this.docked = false});
 
@@ -44,24 +50,24 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
-    final surfaces = MaeveSurfaces.of(context);
-    final scheme = Theme.of(context).colorScheme;
+    final theme = MaeveTheme.of(context);
+    final colors = theme.colors;
 
     return MaeveGlassSurface(
       tier: MaeveGlassTier.sheet,
-      borderRadius: BorderRadius.zero,
+      shape: const RoundedRectangleBorder(),
       padding: EdgeInsets.zero,
       child: SafeArea(
         right: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _brandRow(context, controller, scheme),
+            _brandRow(context, controller, colors),
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                MaeveSpace.lg,
-                MaeveSpace.sm,
-                MaeveSpace.lg,
+                MaeveSpace.s16,
+                MaeveSpace.s8,
+                MaeveSpace.s16,
                 0,
               ),
               child: Column(
@@ -70,20 +76,20 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                     _selectionBar(context, controller)
                   else
                     _newConversationButton(context, controller),
-                  const SizedBox(height: MaeveSpace.md),
-                  _searchField(context, controller, scheme),
-                  const SizedBox(height: MaeveSpace.md),
-                  _workspaceRow(context, controller, scheme),
-                  const SizedBox(height: MaeveSpace.sm),
+                  const SizedBox(height: MaeveSpace.s12),
+                  _searchField(context, controller, colors),
+                  const SizedBox(height: MaeveSpace.s8),
+                  _workspaceRow(context, controller, colors),
+                  const SizedBox(height: MaeveSpace.s4),
                   _filterStrip(context, controller),
                 ],
               ),
             ),
-            const SizedBox(height: MaeveSpace.sm),
-            Expanded(child: _list(context, controller, scheme)),
+            const SizedBox(height: MaeveSpace.s8),
+            Expanded(child: _list(context, controller, colors)),
             if (controller.archivedConversations.isNotEmpty)
               _archivedHint(context, controller),
-            _identityBar(context, controller, scheme, surfaces),
+            _identityBar(context, controller, colors),
           ],
         ),
       ),
@@ -93,19 +99,19 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
   Widget _brandRow(
     BuildContext context,
     MaeveController controller,
-    ColorScheme scheme,
+    MaeveColors colors,
   ) => Padding(
     padding: const EdgeInsets.fromLTRB(
-      MaeveSpace.lg,
-      MaeveSpace.md,
-      MaeveSpace.sm,
+      MaeveSpace.s16,
+      MaeveSpace.s12,
+      MaeveSpace.s8,
       0,
     ),
     child: Row(
       children: [
-        const MaeveMark(size: 26),
-        const SizedBox(width: MaeveSpace.sm),
-        Text('MAEVE', style: maeveEyebrow(context)),
+        const MaeveMark(size: 24),
+        const SizedBox(width: MaeveSpace.s8),
+        Text('MAEVE', style: MaeveType.eyebrow.copyWith(color: colors.ink3)),
         const Spacer(),
         Pressable(
           onTap: () {
@@ -121,13 +127,13 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
           borderRadius: BorderRadius.circular(MaeveRadius.pill),
           semanticLabel: _selecting ? '退出多选' : '收起列表',
           child: SizedBox.square(
-            dimension: 36,
+            dimension: 40,
             child: Icon(
               _selecting
                   ? Icons.close
                   : (widget.docked ? Icons.menu_open : Icons.close),
               size: 19,
-              color: scheme.onSurfaceVariant,
+              color: colors.ink3,
             ),
           ),
         ),
@@ -138,116 +144,113 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
   Widget _newConversationButton(
     BuildContext context,
     MaeveController controller,
-  ) => Pressable(
-    key: const ValueKey('new-conversation'),
-    onTap: () {
-      controller.create();
-      widget.onClose();
-    },
-    haptic: MaeveHaptic.light,
-    borderRadius: BorderRadius.circular(MaeveRadius.md),
-    child: Container(
-      height: MaeveLayout.touch,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(MaeveRadius.md),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.add_rounded,
-            size: 18,
-            color: Theme.of(context).colorScheme.onPrimary,
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '新对话',
-            style: Theme.of(context).textTheme.labelLarge
-                ?.copyWith(color: Theme.of(context).colorScheme.onPrimary),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _selectionBar(BuildContext context, MaeveController controller) =>
-      SizedBox(
-        height: MaeveLayout.touch,
+  ) {
+    final colors = MaeveTheme.of(context).colors;
+    return Pressable(
+      key: const ValueKey('new-conversation'),
+      onTap: () {
+        controller.create();
+        widget.onClose();
+      },
+      haptic: MaeveHaptic.light,
+      borderRadius: BorderRadius.circular(MaeveRadius.md),
+      child: Container(
+        height: MaeveSize.button,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: colors.accent,
+          borderRadius: BorderRadius.circular(MaeveRadius.md),
+        ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            Icon(Icons.add_rounded, size: 18, color: colors.onAccent),
+            const SizedBox(width: 6),
             Text(
-              '已选 ${_selected.length}',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: _selected.isEmpty
-                  ? null
-                  : () {
-                      for (final id in _selected.toList()) {
-                        controller.archive(id);
-                      }
-                      setState(() {
-                        _selected.clear();
-                        _selecting = false;
-                      });
-                    },
-              child: const Text('归档'),
-            ),
-            TextButton(
-              onPressed: _selected.isEmpty
-                  ? null
-                  : () {
-                      for (final id in _selected.toList()) {
-                        controller.delete(id);
-                      }
-                      setState(() {
-                        _selected.clear();
-                        _selecting = false;
-                      });
-                    },
-              style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.error,
+              '新对话',
+              style: MaeveType.bodyStrong.copyWith(
+                fontSize: 15.5,
+                color: colors.onAccent,
               ),
-              child: const Text('删除'),
             ),
           ],
         ),
-      );
+      ),
+    );
+  }
+
+  Widget _selectionBar(BuildContext context, MaeveController controller) {
+    final colors = MaeveTheme.of(context).colors;
+    return SizedBox(
+      height: MaeveSize.button,
+      child: Row(
+        children: [
+          Text(
+            '已选 ${_selected.length}',
+            style: MaeveType.bodyStrong.copyWith(color: colors.ink),
+          ),
+          const Spacer(),
+          TextButton(
+            onPressed: _selected.isEmpty
+                ? null
+                : () {
+                    for (final id in _selected.toList()) {
+                      controller.archive(id);
+                    }
+                    setState(() {
+                      _selected.clear();
+                      _selecting = false;
+                    });
+                  },
+            child: const Text('归档'),
+          ),
+          TextButton(
+            onPressed: _selected.isEmpty
+                ? null
+                : () {
+                    for (final id in _selected.toList()) {
+                      controller.delete(id);
+                    }
+                    setState(() {
+                      _selected.clear();
+                      _selecting = false;
+                    });
+                  },
+            style: TextButton.styleFrom(foregroundColor: colors.bad),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _searchField(
     BuildContext context,
     MaeveController controller,
-    ColorScheme scheme,
+    MaeveColors colors,
   ) => Container(
-    height: 38,
-    padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.md),
+    height: 40,
+    padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.s12),
     decoration: BoxDecoration(
-      color: scheme.onSurface.withValues(alpha: .05),
-      borderRadius: BorderRadius.circular(MaeveRadius.pill),
-      border: Border.all(
-        color: scheme.outline.withValues(alpha: .5),
-        width: .5,
-      ),
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(MaeveRadius.md),
+      border: Border.all(color: colors.edge, width: .5),
     ),
     child: Row(
       children: [
-        Icon(Icons.search, size: 16, color: scheme.onSurfaceVariant),
+        Icon(Icons.search, size: 16, color: colors.ink3),
         const SizedBox(width: 6),
         Expanded(
           child: TextField(
             key: const ValueKey('conversation-search'),
             controller: _search,
             onChanged: controller.setSearch,
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: MaeveType.body.copyWith(color: colors.ink),
             decoration: InputDecoration(
               isDense: true,
               border: InputBorder.none,
               hintText: '搜索对话',
-              hintStyle: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(color: scheme.onSurfaceVariant),
+              hintStyle: MaeveType.body.copyWith(color: colors.ink3),
             ),
           ),
         ),
@@ -258,24 +261,20 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
   Widget _workspaceRow(
     BuildContext context,
     MaeveController controller,
-    ColorScheme scheme,
+    MaeveColors colors,
   ) => Pressable(
     onTap: () => _showWorkspaceSheet(context, controller),
     borderRadius: BorderRadius.circular(MaeveRadius.sm),
     scale: false,
     child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
       child: Row(
         children: [
-          Icon(
-            Icons.computer_rounded,
-            size: 15,
-            color: scheme.onSurfaceVariant,
-          ),
+          Icon(Icons.computer_rounded, size: 14, color: colors.ink3),
           const SizedBox(width: 6),
-          Text('本机工作区', style: Theme.of(context).textTheme.bodySmall),
+          Text('本机工作区', style: MaeveType.hint.copyWith(color: colors.ink3)),
           const SizedBox(width: 4),
-          Icon(Icons.expand_more, size: 15, color: scheme.onSurfaceVariant),
+          Icon(Icons.expand_more, size: 14, color: colors.ink3),
         ],
       ),
     ),
@@ -283,6 +282,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
 
   Widget _filterStrip(BuildContext context, MaeveController controller) {
     const labels = ['全部', '未读', '置顶'];
+    final colors = MaeveTheme.of(context).colors;
     return Row(
       children: [
         for (var i = 0; i < labels.length; i++)
@@ -294,22 +294,22 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
               child: AnimatedContainer(
                 duration: AppMotion.of(context).quick,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: MaeveSpace.md,
+                  horizontal: MaeveSpace.s10,
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
                   color: controller.listFilter == i
-                      ? Theme.of(context).colorScheme.primary
-                            .withValues(alpha: .14)
+                      ? colors.accentSoft
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(MaeveRadius.pill),
                 ),
                 child: Text(
                   labels[i],
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  style: MaeveType.label.copyWith(
+                    fontSize: 12,
                     color: controller.listFilter == i
-                        ? Theme.of(context).colorScheme.primary
-                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ? colors.accent
+                        : colors.ink3,
                   ),
                 ),
               ),
@@ -322,36 +322,36 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
   Widget _list(
     BuildContext context,
     MaeveController controller,
-    ColorScheme scheme,
+    MaeveColors colors,
   ) {
     final items = controller.visibleConversations;
     if (items.isEmpty) {
-      return Column(
-        children: [
-          Expanded(
-            child: EmptyView(
-              icon: Icons.forum_outlined,
-              title: controller.search.isEmpty ? '还没有对话' : '没有匹配的对话',
-              body: controller.search.isEmpty ? '从上面新建一个，或者换个筛选。' : '换个关键词试试。',
-              compact: true,
-            ),
-          ),
-        ],
+      return EmptyView(
+        icon: Icons.forum_outlined,
+        title: controller.search.isEmpty ? '还没有对话' : '没有匹配的对话',
+        body: controller.search.isEmpty ? '从上面新建一个，或者换个筛选。' : '换个关键词试试。',
+        compact: true,
       );
     }
     final sections = _group(controller, items);
     return ListView(
       padding: const EdgeInsets.fromLTRB(
-        MaeveSpace.sm,
+        MaeveSpace.s8,
         0,
-        MaeveSpace.sm,
-        MaeveSpace.sm,
+        MaeveSpace.s8,
+        MaeveSpace.s8,
       ),
       children: [
         for (final section in sections) ...[
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, MaeveSpace.sm, 10, 4),
-            child: Text(section.label, style: maeveEyebrow(context)),
+            padding: const EdgeInsets.fromLTRB(10, MaeveSpace.s12, 10, 4),
+            child: Text(
+              section.label,
+              style: MaeveType.label.copyWith(
+                fontSize: 12.5,
+                color: colors.ink3,
+              ),
+            ),
           ),
           for (final conversation in section.items)
             _ConversationRow(
@@ -411,60 +411,51 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
     return '更早';
   }
 
-  Widget _archivedHint(BuildContext context, MaeveController controller) =>
-      Padding(
-        padding: const EdgeInsets.fromLTRB(
-          MaeveSpace.lg,
-          0,
-          MaeveSpace.lg,
-          MaeveSpace.xs,
-        ),
-        child: Pressable(
-          onTap: () => _showArchivedSheet(context, controller),
-          borderRadius: BorderRadius.circular(MaeveRadius.sm),
-          scale: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.inventory_2_outlined,
-                  size: 15,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '已归档 ${controller.archivedConversations.length}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const Spacer(),
-                Icon(
-                  Icons.chevron_right,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ],
-            ),
+  Widget _archivedHint(BuildContext context, MaeveController controller) {
+    final colors = MaeveTheme.of(context).colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        MaeveSpace.s16,
+        0,
+        MaeveSpace.s16,
+        MaeveSpace.s4,
+      ),
+      child: Pressable(
+        onTap: () => _showArchivedSheet(context, controller),
+        borderRadius: BorderRadius.circular(MaeveRadius.sm),
+        scale: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Icon(Icons.inventory_2_outlined, size: 14, color: colors.ink3),
+              const SizedBox(width: 6),
+              Text(
+                '已归档 ${controller.archivedConversations.length}',
+                style: MaeveType.hint.copyWith(color: colors.ink3),
+              ),
+              const Spacer(),
+              Icon(Icons.chevron_right, size: 16, color: colors.ink3),
+            ],
           ),
         ),
-      );
+      ),
+    );
+  }
 
   Widget _identityBar(
     BuildContext context,
     MaeveController controller,
-    ColorScheme scheme,
-    MaeveSurfaces surfaces,
+    MaeveColors colors,
   ) => Container(
     padding: const EdgeInsets.fromLTRB(
-      MaeveSpace.lg,
-      MaeveSpace.sm,
-      MaeveSpace.sm,
-      MaeveSpace.sm,
+      MaeveSpace.s16,
+      MaeveSpace.s8,
+      MaeveSpace.s8,
+      MaeveSpace.s8,
     ),
     decoration: BoxDecoration(
-      border: Border(
-        top: BorderSide(color: scheme.outline.withValues(alpha: .5), width: .5),
-      ),
+      border: Border(top: BorderSide(color: colors.hair, width: .5)),
     ),
     child: Row(
       children: [
@@ -478,7 +469,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
             '本机 · Android',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall,
+            style: MaeveType.hint.copyWith(color: colors.ink3),
           ),
         ),
         const Spacer(),
@@ -490,12 +481,8 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
           borderRadius: BorderRadius.circular(MaeveRadius.pill),
           semanticLabel: '设置',
           child: SizedBox.square(
-            dimension: 32,
-            child: Icon(
-              Icons.settings_outlined,
-              size: 18,
-              color: scheme.onSurfaceVariant,
-            ),
+            dimension: 36,
+            child: Icon(Icons.settings_outlined, size: 18, color: colors.ink2),
           ),
         ),
       ],
@@ -514,7 +501,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SheetTitleBar(title: conversation.title, subtitle: '会话操作'),
-          const SizedBox(height: MaeveSpace.sm),
+          const SizedBox(height: MaeveSpace.s8),
           ListPageRow(
             title: conversation.pinned ? '取消置顶' : '置顶',
             leading: Icon(
@@ -547,7 +534,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
             leading: Icon(
               Icons.delete_outline,
               size: 19,
-              color: Theme.of(context).colorScheme.error,
+              color: MaeveTheme.of(context).colors.bad,
             ),
             onTap: () {
               controller.delete(conversation.id);
@@ -570,7 +557,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SheetTitleBar(title: '已归档', subtitle: '恢复后回到列表'),
-          const SizedBox(height: MaeveSpace.sm),
+          const SizedBox(height: MaeveSpace.s8),
           for (final conversation in controller.archivedConversations)
             ListPageRow(
               title: conversation.title,
@@ -598,7 +585,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SheetTitleBar(title: '工作区', subtitle: '会话按工作区分开'),
-          const SizedBox(height: MaeveSpace.sm),
+          const SizedBox(height: MaeveSpace.s8),
           ListPageRow(
             title: '本机',
             subtitle: '运行在这台 Android 设备上',
@@ -642,7 +629,7 @@ class _ConversationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return Padding(
       padding: const EdgeInsets.only(bottom: 2),
       child: Pressable(
@@ -653,16 +640,15 @@ class _ConversationRow extends StatelessWidget {
         child: AnimatedContainer(
           duration: AppMotion.of(context).quick,
           padding: const EdgeInsets.fromLTRB(
-            MaeveSpace.sm + 2,
-            MaeveSpace.sm,
-            MaeveSpace.sm,
-            MaeveSpace.sm,
+            10,
+            MaeveSpace.s8,
+            10,
+            MaeveSpace.s8,
           ),
           decoration: BoxDecoration(
-            // 当前会话是主色 9% 软填充;多选选中压到 18%。
             color: selected
-                ? scheme.primary.withValues(alpha: .18)
-                : (active ? scheme.primary.withValues(alpha: .09) : null),
+                ? colors.accent.withValues(alpha: .16)
+                : (active ? colors.accentSoft : null),
             borderRadius: BorderRadius.circular(MaeveRadius.sm),
           ),
           child: Row(
@@ -675,7 +661,7 @@ class _ConversationRow extends StatelessWidget {
                         ? Icons.check_circle_rounded
                         : Icons.radio_button_unchecked,
                     size: 17,
-                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
+                    color: selected ? colors.accent : colors.ink3,
                   ),
                 ),
               Expanded(
@@ -689,8 +675,8 @@ class _ConversationRow extends StatelessWidget {
                             padding: const EdgeInsets.only(right: 4),
                             child: Icon(
                               Icons.push_pin,
-                              size: 12,
-                              color: scheme.onSurfaceVariant,
+                              size: 11,
+                              color: colors.ink3,
                             ),
                           ),
                         Expanded(
@@ -698,12 +684,12 @@ class _ConversationRow extends StatelessWidget {
                             conversation.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  fontWeight: active
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                ),
+                            style: MaeveType.body.copyWith(
+                              color: colors.ink,
+                              fontWeight: active
+                                  ? FontWeight.w500
+                                  : FontWeight.w400,
+                            ),
                           ),
                         ),
                       ],
@@ -711,7 +697,7 @@ class _ConversationRow extends StatelessWidget {
                     const SizedBox(height: 1),
                     Text(
                       _time(conversation.updatedAt),
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: MaeveType.monoSmall.copyWith(color: colors.ink3),
                     ),
                   ],
                 ),
@@ -724,15 +710,14 @@ class _ConversationRow extends StatelessWidget {
                     vertical: 1,
                   ),
                   decoration: BoxDecoration(
-                    color: scheme.primary,
+                    color: colors.accent,
                     borderRadius: BorderRadius.circular(MaeveRadius.pill),
                   ),
                   child: Text(
                     '${conversation.unread}',
-                    style: MaeveFonts.mono(
-                      context,
-                      size: 10,
-                      color: scheme.onPrimary,
+                    style: MaeveType.monoSmall.copyWith(
+                      fontSize: 10,
+                      color: colors.onAccent,
                     ),
                   ),
                 ),
@@ -747,9 +732,9 @@ class _ConversationRow extends StatelessWidget {
     final now = DateTime.now();
     final diff = now.difference(time);
     if (diff.inMinutes < 1) return '刚刚';
-    if (diff.inHours < 1) return '${diff.inMinutes} 分钟前';
-    if (diff.inDays < 1) {
-      return '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} 分钟前';
+    if (diff.inHours < 24) {
+      return '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
     }
     if (diff.inDays == 1) return '昨天';
     return '${time.month} 月 ${time.day} 日';

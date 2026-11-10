@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../bridge/maeve_bridge.dart';
 import '../../design/maeve_motion.dart';
-import '../../design/maeve_tokens.dart';
+import '../../design/maeve_shapes.dart';
+import '../../design/maeve_theme.dart';
+import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
 import '../common/app_sheet.dart';
 import '../common/hold_to_confirm.dart';
@@ -10,7 +12,7 @@ import '../common/pressable.dart';
 import '../common/status.dart';
 import '../settings/settings_components.dart';
 
-/// B10 手机操控:总开关 + 首次披露 + 状态 + 读屏测试 + 悬浮条 + 确认方式 +
+/// 手机操控:总开关 + 首次显著披露 + 状态 + 读屏测试 + 悬浮条 + 确认方式 +
 /// 应用名单 + 解除限制 + 最近操作。
 ///
 /// 行为语义对齐 `core/risk/AppTier.kt`、`SensitiveText.kt`、`ConfirmDecision.kt`:
@@ -35,12 +37,13 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = MaeveTheme.of(context);
+    final colors = theme.colors;
     return AppPage.list(
       title: '手机操控',
       subtitle: '让它替你在应用里动手',
+      eyebrow: 'PHONE CONTROL',
       children: [
-        // 总开关 + 首次显著披露。
         SettingsSection(
           title: '总开关',
           rows: [
@@ -58,9 +61,8 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
               },
             ),
           ],
-          footnote: '开启后会读屏、点按、输入。它不会在你没让它做任务时自己动手。',
+          footnote: '开启后会读屏、点按、输入。她不会在你没让她做任务时自己动手。',
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '权限',
           rows: [
@@ -96,7 +98,6 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '自检',
           rows: [
@@ -112,7 +113,6 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '悬浮条',
           rows: [
@@ -126,16 +126,15 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                MaeveSpace.md,
+                MaeveSpace.s16,
                 0,
-                MaeveSpace.md,
-                MaeveSpace.md,
+                MaeveSpace.s16,
+                MaeveSpace.s12,
               ),
               child: _StripPreview(state: _strip),
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '确认方式',
           rows: [
@@ -150,9 +149,9 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
           ],
           footnote: '确认卡 30 秒不选按拒绝处理；没人在手机旁也按不同意。',
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '应用名单',
+          tone: Tone.bad,
           rows: [
             SettingsTile(
               icon: Icons.account_balance_outlined,
@@ -181,11 +180,7 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, MaeveSpace.sm),
-          child: Text('解除限制', style: maeveEyebrow(context)),
-        ),
+        const GroupLabel(text: '解除限制'),
         _RelaxRow(
           icon: Icons.account_balance_outlined,
           title: '允许操作支付 / 银行 / 券商',
@@ -195,7 +190,7 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
           onConfirmed: () => setState(() => _relaxed = true),
           onRevoke: () => setState(() => _relaxed = false),
         ),
-        const SizedBox(height: MaeveSpace.sm),
+        const SizedBox(height: MaeveSpace.s8),
         _RelaxRow(
           icon: Icons.chat_rounded,
           title: '微信降为照常',
@@ -205,7 +200,7 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
           onConfirmed: () => _notice('已解除：微信不再每步确认。'),
           onRevoke: () {},
         ),
-        const SizedBox(height: MaeveSpace.sm),
+        const SizedBox(height: MaeveSpace.s8),
         _RelaxRow(
           icon: Icons.password_rounded,
           title: '允许代填密码 / 验证码',
@@ -215,15 +210,13 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
           onConfirmed: () => _notice('已解除：密码页可以代填（只记 ••••）。'),
           onRevoke: () {},
         ),
-        const SizedBox(height: MaeveSpace.sm),
+        const SizedBox(height: MaeveSpace.s8),
         Text(
           _running ? '任务进行中，不能修改解除限制。' : '三项默认关闭；任务进行中不能打开。',
-          style: Theme.of(context).textTheme.bodySmall,
+          style: MaeveType.hint.copyWith(color: colors.ink3),
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '最近操作',
-          hue: Theme.of(context).colorScheme.onSurfaceVariant,
           rows: const [
             SettingsTile(
               icon: Icons.touch_app_outlined,
@@ -249,7 +242,6 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
           ],
           footnote: '只记动作，不记屏幕内容；密码与验证码只留 ••••。',
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '进阶',
           rows: [
@@ -267,33 +259,34 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xxl),
+        const SizedBox(height: MaeveSpace.s24),
         Center(
           child: Text(
-            '风险分级由 Android 侧判定：Deny / ConfirmEveryWrite / Normal',
-            style: MaeveFonts.mono(
-              context,
-              size: 10,
-              color: scheme.onSurfaceVariant,
-            ),
+            'TIER · DENY / CONFIRM-EVERY-WRITE / NORMAL',
+            style: MaeveType.eyebrow.copyWith(color: colors.ink3),
           ),
         ),
-        const SizedBox(height: MaeveSpace.xxl),
+        const SizedBox(height: MaeveSpace.s24),
       ],
     );
+  }
+
+  void _notice(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _disclose() async {
     final accepted = await showMaeveSheet<bool>(
       context: context,
-      dismissible: true,
       builder: (context) => AppSheet(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SheetTitleBar(title: '开启前，请先看清楚', subtitle: '这是一台能替你动手的手机'),
-            const SizedBox(height: MaeveSpace.sm),
+            const SizedBox(height: MaeveSpace.s8),
             const _DisclosureLine(
               icon: Icons.visibility_outlined,
               title: '它会看见屏幕',
@@ -309,45 +302,41 @@ class _PhoneControlPageState extends State<PhoneControlPage> {
               title: '有些事它永远不做',
               body: '支付/银行/券商的写操作一律不碰；密码页交还给你。',
             ),
-            const SizedBox(height: MaeveSpace.lg),
+            const SizedBox(height: MaeveSpace.s16),
             HoldToConfirm(
-              borderRadius: BorderRadius.circular(MaeveRadius.md),
+              shape: MaeveShapes.button,
               semanticLabel: '按住开启手机操控',
               onConfirmed: () {
                 setState(() => _enabled = true);
                 Navigator.of(context).pop(true);
               },
               child: Container(
-                height: 48,
+                height: MaeveSize.button,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
+                  color: MaeveTheme.of(context).colors.accent,
                   borderRadius: BorderRadius.circular(MaeveRadius.md),
                 ),
                 child: Text(
                   '按住开启',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: Theme.of(context).colorScheme.onPrimary,
+                  style: MaeveType.bodyStrong.copyWith(
+                    color: MaeveTheme.of(context).colors.onAccent,
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: MaeveSpace.sm),
+            const SizedBox(height: MaeveSpace.s8),
             Text(
               '按住 1.5 秒生效，松手取消。',
-              style: Theme.of(context).textTheme.bodySmall,
+              style: MaeveType.hint.copyWith(
+                color: MaeveTheme.of(context).colors.ink3,
+              ),
             ),
           ],
         ),
       ),
     );
     if (accepted != true && mounted) setState(() => _enabled = false);
-  }
-
-  void _notice(String message) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -363,29 +352,31 @@ class _DisclosureLine extends StatelessWidget {
   final String body;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: MaeveSpace.md),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(
-          icon,
-          size: 18,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
-        const SizedBox(width: MaeveSpace.md),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.titleSmall),
-              Text(body, style: Theme.of(context).textTheme.bodySmall),
-            ],
+  Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: MaeveSpace.s12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: colors.ink3),
+          const SizedBox(width: MaeveSpace.s12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: MaeveType.bodyStrong.copyWith(color: colors.ink),
+                ),
+                Text(body, style: MaeveType.hint.copyWith(color: colors.ink3)),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 /// 悬浮条三态预览:胶囊 → 卡片 → 小球。只是示意,真机上是系统悬浮窗。
@@ -396,64 +387,55 @@ class _StripPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return AnimatedContainer(
       duration: AppMotion.of(context).standard,
-      curve: MaeveMotion.std,
+      curve: MaeveMotion.collapseCurve,
       height: 72,
       decoration: BoxDecoration(
-        color: scheme.onSurface.withValues(alpha: .04),
+        color: colors.fill,
         borderRadius: BorderRadius.circular(MaeveRadius.md),
       ),
       child: Center(
         child: switch (state) {
           0 => Container(
             padding: const EdgeInsets.symmetric(
-              horizontal: MaeveSpace.md,
+              horizontal: MaeveSpace.s12,
               vertical: 6,
             ),
             decoration: BoxDecoration(
-              color: scheme.surface,
+              color: colors.surfaceHighest,
               borderRadius: BorderRadius.circular(MaeveRadius.pill),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: .12),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              border: Border.all(color: colors.edge, width: .5),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 const StatusDot(tone: MaeveTone.running, size: 6),
                 const SizedBox(width: 6),
-                Text('正在操作微信', style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  '正在操作微信',
+                  style: MaeveType.hint.copyWith(color: colors.ink2),
+                ),
                 const SizedBox(width: 8),
-                Icon(Icons.stop_circle_outlined, size: 15, color: scheme.error),
+                Icon(Icons.stop_circle_outlined, size: 15, color: colors.bad),
               ],
             ),
           ),
           1 => Container(
             width: 200,
-            padding: const EdgeInsets.all(MaeveSpace.md),
+            padding: const EdgeInsets.all(MaeveSpace.s12),
             decoration: BoxDecoration(
-              color: scheme.surface,
+              color: colors.surfaceHighest,
               borderRadius: BorderRadius.circular(MaeveRadius.md),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: .14),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+              border: Border.all(color: colors.edge, width: .5),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   '第 3 步 · 输入搜索词',
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: MaeveType.hint.copyWith(color: colors.ink3),
                 ),
                 const SizedBox(height: 6),
                 Row(
@@ -461,6 +443,9 @@ class _StripPreview extends StatelessWidget {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () {},
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 32),
+                        ),
                         child: const Text('停止'),
                       ),
                     ),
@@ -468,6 +453,9 @@ class _StripPreview extends StatelessWidget {
                     Expanded(
                       child: FilledButton(
                         onPressed: () {},
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 32),
+                        ),
                         child: const Text('继续'),
                       ),
                     ),
@@ -481,23 +469,12 @@ class _StripPreview extends StatelessWidget {
             height: 34,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: scheme.primary,
+              color: colors.accent,
               shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: .18),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
             child: Text(
               '3',
-              style: MaeveFonts.mono(
-                context,
-                size: 12,
-                color: scheme.onPrimary,
-              ),
+              style: MaeveType.mono.copyWith(color: colors.onAccent),
             ),
           ),
         },
@@ -528,46 +505,45 @@ class _RelaxRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = MaeveTheme.of(context);
+    final colors = theme.colors;
     final content = Container(
-      padding: const EdgeInsets.all(MaeveSpace.md),
+      padding: const EdgeInsets.all(MaeveSpace.s12),
       decoration: BoxDecoration(
-        color: value
-            ? scheme.error.withValues(alpha: .08)
-            : scheme.onSurface.withValues(alpha: .035),
+        color: value ? colors.badSoft : colors.surface,
         borderRadius: BorderRadius.circular(MaeveRadius.md),
         border: Border.all(
           color: value
-              ? scheme.error.withValues(alpha: .35)
-              : scheme.outline.withValues(alpha: .45),
+              ? theme.semantic.bad.withValues(alpha: .35)
+              : colors.edge,
           width: .5,
         ),
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 18,
-            color: value ? scheme.error : scheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: MaeveSpace.md),
+          Icon(icon, size: 18, color: value ? theme.semantic.bad : colors.ink3),
+          const SizedBox(width: MaeveSpace.s12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: Theme.of(context).textTheme.bodyLarge
-                      ?.copyWith(color: value ? scheme.error : null),
+                  style: MaeveType.body.copyWith(
+                    color: value ? theme.semantic.bad : colors.ink,
+                  ),
                 ),
-                Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  subtitle,
+                  style: MaeveType.hint.copyWith(color: colors.ink3),
+                ),
               ],
             ),
           ),
           Text(
             value ? '已解除' : '关闭',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: value ? scheme.error : scheme.onSurfaceVariant,
+            style: MaeveType.hint.copyWith(
+              color: value ? theme.semantic.bad : colors.ink3,
             ),
           ),
         ],
@@ -583,8 +559,9 @@ class _RelaxRow extends StatelessWidget {
       );
     }
     return HoldToConfirm(
-      borderRadius: BorderRadius.circular(MaeveRadius.md),
+      shape: MaeveShapes.button,
       semanticLabel: '按住解除限制：$title',
+      progressColor: theme.semantic.bad,
       onConfirmed: onConfirmed,
       child: content,
     );

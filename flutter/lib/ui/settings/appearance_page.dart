@@ -1,31 +1,39 @@
 import 'package:flutter/material.dart';
 
 import '../../app/maeve_controller.dart';
-import '../../design/maeve_palette.dart';
-import '../../design/maeve_tokens.dart';
+import '../../design/maeve_accent.dart';
+import '../../design/maeve_colors.dart';
+import '../../design/maeve_motion.dart';
+import '../../design/maeve_shapes.dart';
+import '../../design/maeve_theme.dart';
+import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
 import '../common/haptics.dart';
 import '../common/pressable.dart';
 import 'settings_components.dart';
 
-/// B9 外观:六套配色、主题模式、图标风格,带一块实时预览。
+/// 外观:六套配色、主题模式、图标风格,带一块实时预览。
+///
+/// 预览用的是**正在选的那套**从 OKLCH 现推的颜色(不是预制截图)——
+/// 所以在哪一档上看到的对比度,就是切过去之后的对比度。
 class AppearancePage extends StatelessWidget {
   const AppearancePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return AppPage.list(
       title: '外观',
-      subtitle: '配色会同时换掉背景、光晕与气泡',
+      subtitle: '配色会同时换掉极光与强调色',
+      eyebrow: 'APPEARANCE',
       children: [
         SettingsSection(
-          title: '主题模式',
+          title: '明暗',
           rows: [
             SettingsSegmentTile(
               icon: Icons.brightness_6_outlined,
-              title: '明暗',
+              title: '主题模式',
               subtitle: '深色更省电，也更安静',
               options: const ['深色', '浅色', '跟随系统'],
               value: switch (controller.mode) {
@@ -41,16 +49,13 @@ class AppearancePage extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, MaeveSpace.sm),
-          child: Text('配色', style: maeveEyebrow(context)),
+        const SizedBox(height: MaeveSpace.s8),
+        const GroupLabel(text: '配色'),
+        MaeveAccentGrid(
+          selected: controller.accentPreset,
+          brightness: Theme.of(context).brightness,
+          onSelected: controller.setAccent,
         ),
-        MaevePaletteGrid(
-          selected: controller.palette,
-          onSelected: controller.setPalette,
-        ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '图标',
           rows: [
@@ -65,58 +70,56 @@ class AppearancePage extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(4, 0, 4, MaeveSpace.sm),
-          child: Text('预览', style: maeveEyebrow(context)),
-        ),
+        const SizedBox(height: MaeveSpace.s8),
+        const GroupLabel(text: '预览'),
         _Preview(
-          palette: controller.palette,
+          accent: deriveAccent(controller.accentPreset),
           brightness: Theme.of(context).brightness,
         ),
-        const SizedBox(height: MaeveSpace.md),
+        const SizedBox(height: MaeveSpace.s10),
         Text(
-          '换配色只换色相与光晕，文字对比度保持同一档 —— 所以每一套都同样好读。',
-          style: Theme.of(context).textTheme.bodySmall
-              ?.copyWith(color: scheme.onSurfaceVariant),
+          '换配色只换强调色一族;画布、四级文字和玻璃的色相固定不变 —— '
+          '所以每一套都同样好读，界面也不会跟着色相跑。',
+          style: MaeveType.hint.copyWith(color: colors.ink3),
         ),
-        const SizedBox(height: MaeveSpace.xxl),
+        const SizedBox(height: MaeveSpace.s24),
       ],
     );
   }
 }
 
-/// 六套配色:3 列色卡,选中是主色描边 + 勾。
-class MaevePaletteGrid extends StatelessWidget {
-  const MaevePaletteGrid({
+/// 六套配色:两/三列色卡,选中是强调色描边 + 勾。
+class MaeveAccentGrid extends StatelessWidget {
+  const MaeveAccentGrid({
     super.key,
     required this.selected,
     required this.onSelected,
+    required this.brightness,
   });
 
-  final MaevePalette selected;
-  final ValueChanged<MaevePalette> onSelected;
+  final MaeveAccentPreset selected;
+  final ValueChanged<MaeveAccentPreset> onSelected;
+  final Brightness brightness;
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
     return LayoutBuilder(
       builder: (context, box) {
-        const gap = MaeveSpace.md;
+        const gap = MaeveSpace.s8;
         final columns = box.maxWidth >= 520 ? 3 : 2;
         final width = (box.maxWidth - gap * (columns - 1)) / columns;
         return Wrap(
           spacing: gap,
           runSpacing: gap,
           children: [
-            for (final palette in MaevePalette.all)
+            for (final preset in MaeveAccentPreset.values)
               SizedBox(
                 width: width,
-                child: _PaletteCard(
-                  palette: palette,
-                  selected: palette.id == selected.id,
+                child: _PresetCard(
+                  preset: preset,
+                  selected: preset == selected,
                   brightness: brightness,
-                  onTap: () => onSelected(palette),
+                  onTap: () => onSelected(preset),
                 ),
               ),
           ],
@@ -126,38 +129,40 @@ class MaevePaletteGrid extends StatelessWidget {
   }
 }
 
-class _PaletteCard extends StatelessWidget {
-  const _PaletteCard({
-    required this.palette,
+class _PresetCard extends StatelessWidget {
+  const _PresetCard({
+    required this.preset,
     required this.selected,
     required this.brightness,
     required this.onTap,
   });
 
-  final MaevePalette palette;
+  final MaeveAccentPreset preset;
   final bool selected;
   final Brightness brightness;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final neutrals = palette.neutrals(brightness);
-    final seed = palette.primaryOf(brightness);
+    final colors = MaeveTheme.of(context).colors;
+    final accent = deriveAccent(preset);
+    final dark = brightness == Brightness.dark;
+    final seed = dark ? accent.darkSeed : accent.lightSeed;
+    final bubble = dark ? accent.darkBubble : accent.lightBubble;
+    final glow = dark ? accent.darkGlow : accent.lightGlow;
     return Pressable(
       onTap: onTap,
-      onLongPress: null,
       borderRadius: BorderRadius.circular(MaeveRadius.md),
       haptic: MaeveHaptic.light,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        padding: const EdgeInsets.all(MaeveSpace.md),
+        duration: AppMotion.of(context).quick,
+        padding: const EdgeInsets.all(MaeveSpace.s12),
         decoration: BoxDecoration(
-          color: neutrals.surface,
+          color: colors.surface,
           borderRadius: BorderRadius.circular(MaeveRadius.md),
           border: Border.all(
-            color: selected ? seed : scheme.outline.withValues(alpha: .55),
-            width: selected ? 1.6 : .5,
+            color: selected ? seed : colors.edge,
+            width: selected ? 1.4 : .5,
           ),
         ),
         child: Column(
@@ -167,24 +172,22 @@ class _PaletteCard extends StatelessWidget {
               children: [
                 _Swatch(color: seed),
                 const SizedBox(width: 4),
-                _Swatch(color: palette.bubbleOf(brightness)),
+                _Swatch(color: bubble),
                 const SizedBox(width: 4),
-                _Swatch(color: palette.glow),
+                _Swatch(color: glow),
                 const Spacer(),
                 if (selected)
                   Icon(Icons.check_circle_rounded, size: 16, color: seed),
               ],
             ),
-            const SizedBox(height: MaeveSpace.sm),
+            const SizedBox(height: MaeveSpace.s8),
             Text(
-              palette.label,
-              style: Theme.of(context).textTheme.titleSmall
-                  ?.copyWith(color: neutrals.ink),
+              preset.label,
+              style: MaeveType.bodyStrong.copyWith(color: colors.ink),
             ),
             Text(
               selected ? '当前配色' : '轻点切换',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: neutrals.secondary),
+              style: MaeveType.hint.copyWith(color: colors.ink3),
             ),
           ],
         ),
@@ -210,30 +213,28 @@ class _Swatch extends StatelessWidget {
   );
 }
 
-/// 迷你会话预览:一个用户气泡 + 一条回答 + 一颗主按钮。
+/// 迷你预览:一条你的气泡 + 一条回答(竖线)+ 一枚主按钮。
 class _Preview extends StatelessWidget {
-  const _Preview({required this.palette, required this.brightness});
+  const _Preview({required this.accent, required this.brightness});
 
-  final MaevePalette palette;
+  final MaeveAccent accent;
   final Brightness brightness;
 
   @override
   Widget build(BuildContext context) {
-    final neutrals = palette.neutrals(brightness);
-    final seed = palette.primaryOf(brightness);
+    final colors = brightness == Brightness.dark
+        ? MaeveColors.dark(accent)
+        : MaeveColors.light(accent);
     return Container(
-      padding: const EdgeInsets.all(MaeveSpace.lg),
+      padding: const EdgeInsets.all(MaeveSpace.s16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [neutrals.backdropTop, neutrals.backdropBottom],
+          colors: [colors.bgTop, colors.bgBottom],
         ),
         borderRadius: BorderRadius.circular(MaeveRadius.lg),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: .4),
-          width: .5,
-        ),
+        border: Border.all(color: colors.edge, width: .5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,74 +242,71 @@ class _Preview extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: MaeveSpace.md,
-                vertical: MaeveSpace.sm,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: palette.bubbleOf(brightness),
-                borderRadius: BorderRadius.circular(MaeveRadius.lg),
+                color: colors.surfaceHigh,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(MaeveRadius.lg),
+                  topRight: Radius.circular(MaeveRadius.lg),
+                  bottomRight: Radius.circular(MaeveRadius.xs),
+                  bottomLeft: Radius.circular(MaeveRadius.lg),
+                ),
+                border: Border.all(color: colors.edge, width: .5),
               ),
               child: Text(
                 '帮我把这件事理清楚',
-                style: Theme.of(context).textTheme.bodyMedium
-                    ?.copyWith(color: neutrals.bubbleInk),
+                style: MaeveType.body.copyWith(color: colors.ink),
               ),
             ),
           ),
-          const SizedBox(height: MaeveSpace.sm),
-          Row(
-            children: [
-              Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: seed.withValues(alpha: .2),
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: MaeveSpace.sm),
-              Expanded(
-                child: Text(
-                  '先说结论，再拆成三步。',
-                  style: Theme.of(context).textTheme.bodyMedium
-                      ?.copyWith(color: neutrals.ink),
-                ),
-              ),
-            ],
+          const SizedBox(height: MaeveSpace.s12),
+          Container(
+            decoration: BoxDecoration(
+              border: Border(left: BorderSide(color: colors.rule, width: 1)),
+            ),
+            padding: const EdgeInsets.only(left: 15),
+            child: Text(
+              '先说结论，再拆成三步。',
+              style: MaeveType.script.copyWith(color: colors.ink),
+            ),
           ),
-          const SizedBox(height: MaeveSpace.md),
+          const SizedBox(height: MaeveSpace.s12),
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: MaeveSpace.md,
-                  vertical: 6,
+                  horizontal: MaeveSpace.s16,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: seed,
-                  borderRadius: BorderRadius.circular(MaeveRadius.pill),
+                  color: colors.accent,
+                  borderRadius: BorderRadius.circular(MaeveRadius.md),
                 ),
                 child: Text(
                   '继续',
-                  style: Theme.of(context).textTheme.labelMedium
-                      ?.copyWith(color: palette.onPrimaryOf(brightness)),
+                  style: MaeveType.bodyStrong.copyWith(
+                    fontSize: 14.5,
+                    color: colors.onAccent,
+                  ),
                 ),
               ),
-              const SizedBox(width: MaeveSpace.sm),
+              const SizedBox(width: MaeveSpace.s8),
               Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: MaeveSpace.md,
-                  vertical: 6,
+                  horizontal: MaeveSpace.s16,
+                  vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: palette.container,
-                  borderRadius: BorderRadius.circular(MaeveRadius.pill),
+                  color: colors.fill,
+                  borderRadius: BorderRadius.circular(MaeveRadius.md),
+                  border: Border.all(color: colors.edge, width: .5),
                 ),
                 child: Text(
                   '换个方向',
-                  style: Theme.of(context).textTheme.labelMedium
-                      ?.copyWith(color: palette.onContainer),
+                  style: MaeveType.bodyStrong.copyWith(
+                    fontSize: 14.5,
+                    color: colors.ink,
+                  ),
                 ),
               ),
             ],

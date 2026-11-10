@@ -2,20 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../design/maeve_motion.dart';
-import '../../design/maeve_tokens.dart';
 import 'haptics.dart';
 
-/// 可按压的东西:按下缩到 0.97 + 一层柔和水波 + 可选触感。
+import '../../design/maeve_motion.dart';
+import '../../design/maeve_shapes.dart';
+import '../../design/maeve_theme.dart';
+
+/// 可按压的东西:按下缩到 0.97 + 一次水波 + 可选触感。
 ///
-/// 三条约定(第 4.6 节):
+/// 三条约定(与 Compose 侧同一个手感):
 /// 1. 缩放 90ms、`pressScale 0.97`,按到底也不越过;
 /// 2. 水波 90ms 起手;**滚动中不显示**(手指是在滚列表,不是点按钮);
 /// 3. 缩放做在内容上,不做在会模糊的玻璃上 —— 每帧按新尺寸重采样背景太贵。
-///
-/// ```dart
-/// Pressable(onTap: _open, child: Text('设置'))
-/// ```
 class Pressable extends StatefulWidget {
   const Pressable({
     super.key,
@@ -94,7 +92,7 @@ class _PressableState extends State<Pressable> {
   @override
   Widget build(BuildContext context) {
     final motion = AppMotion.of(context);
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
 
     Widget content = widget.child;
     if (widget.ripple) {
@@ -110,7 +108,7 @@ class _PressableState extends State<Pressable> {
                 curve: Curves.easeOut,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: scheme.onSurface.withValues(alpha: .05),
+                    color: colors.ink.withValues(alpha: .04),
                     borderRadius: widget.borderRadius,
                   ),
                 ),

@@ -1,29 +1,32 @@
 import 'package:flutter/material.dart';
 
 import '../../design/maeve_motion.dart';
-import '../../design/maeve_tokens.dart';
+import '../../design/maeve_shapes.dart';
+import '../../design/maeve_theme.dart';
+import '../../design/maeve_type.dart';
+
 import '../../widgets/glass_surface.dart';
 
 /// 底部弹层:sheet 玻璃 + 顶两角 28 + 抓手 + 标题栏。
 ///
-/// 升起 380ms、退出 260ms(`sheetRise`);停稳后模糊才取样,所以拖动中不闪。
+/// 升起 380ms、退出 260ms;停稳后模糊才取样,所以拖动中不闪。
 Future<T?> showMaeveSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   bool dismissible = true,
   bool isScrollControlled = true,
 }) {
-  final surfaces = MaeveSurfaces.of(context);
+  final colors = MaeveTheme.of(context).colors;
   final motion = AppMotion.of(context);
   final controller =
       BottomSheet.createAnimationController(Navigator.of(context))
         ..duration = motion.sheetIn
-        ..reverseDuration = motion.sheetOut;
+        ..reverseDuration = motion.standard;
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: isScrollControlled,
     backgroundColor: Colors.transparent,
-    barrierColor: surfaces.scrim,
+    barrierColor: colors.scrim,
     elevation: 0,
     isDismissible: dismissible,
     enableDrag: dismissible,
@@ -38,10 +41,10 @@ class AppSheet extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.fromLTRB(
-      MaeveSpace.lg,
-      MaeveSpace.sm,
-      MaeveSpace.lg,
-      MaeveSpace.lg,
+      MaeveSpace.s16,
+      MaeveSpace.s8,
+      MaeveSpace.s16,
+      MaeveSpace.s16,
     ),
   });
 
@@ -60,7 +63,7 @@ class AppSheet extends StatelessWidget {
         child: AnimatedBuilder(
           animation: animation ?? const AlwaysStoppedAnimation(1),
           builder: (context, _) {
-            // 弹层一起床就完全不等不闪:scheduled 采样要等它停稳。
+            // 弹层一起床就容易闪:scheduled 采样要等它停稳。
             final settled = animation == null
                 ? 1.0
                 : Curves.easeOut.transform(
@@ -68,10 +71,7 @@ class AppSheet extends StatelessWidget {
                   );
             return MaeveGlassSurface(
               tier: MaeveGlassTier.sheet,
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(MaeveRadius.xl),
-              ),
-              grouped: false,
+              shape: MaeveShapes.sheet,
               settled: settled,
               child: Padding(padding: padding, child: child),
             );
@@ -99,17 +99,17 @@ class SheetTitleBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return Column(
       children: [
         if (showGrabber)
           Padding(
-            padding: const EdgeInsets.only(top: 2, bottom: MaeveSpace.md),
+            padding: const EdgeInsets.only(top: 2, bottom: MaeveSpace.s12),
             child: Container(
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: scheme.onSurface.withValues(alpha: .16),
+                color: colors.ink3.withValues(alpha: .28),
                 borderRadius: BorderRadius.circular(MaeveRadius.pill),
               ),
             ),
@@ -120,19 +120,22 @@ class SheetTitleBar extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    title,
+                    style: MaeveType.title.copyWith(color: colors.ink),
+                  ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       subtitle!,
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: MaeveType.hint.copyWith(color: colors.ink3),
                     ),
                   ],
                 ],
               ),
             ),
             for (final action in actions) ...[
-              const SizedBox(width: MaeveSpace.xs),
+              const SizedBox(width: MaeveSpace.s4),
               action,
             ],
           ],

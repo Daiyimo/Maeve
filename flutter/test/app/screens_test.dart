@@ -1,52 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:maeve_flutter/app/maeve_controller.dart';
 import 'package:maeve_flutter/app/onboarding.dart';
-import 'package:maeve_flutter/design/maeve_tokens.dart';
-import 'package:maeve_flutter/main.dart';
+import 'package:maeve_flutter/design/maeve_accent.dart';
+import 'package:maeve_flutter/design/maeve_theme.dart';
 import 'package:maeve_flutter/ui/more/more_pages.dart';
 
-/// 引导、分享、终端、社区这些"不需要真机也能验"的页面。
+/// 不需要真机也能验的页面:引导、终端、网页壳、社区、分享。
 void main() {
+  Widget app(Widget child) => MaterialApp(
+    theme: maeveTheme(brightness: Brightness.dark),
+    builder: (context, child) => MaeveThemeScope(
+      brightness: Brightness.dark,
+      accent: deriveAccent(MaeveAccentPreset.reverie),
+      child: child ?? const SizedBox.shrink(),
+    ),
+    home: MaeveScope(controller: MaeveController(), child: child),
+  );
+
   Future<void> pump(WidgetTester tester, Widget child) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: maeveThemeForTest,
-        home: MaeveScope(
-          controller: MaeveController(),
-          child: Builder(builder: (context) => child),
-        ),
-      ),
-    );
+    tester.view.physicalSize = const Size(412, 915);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(app(child));
     await tester.pumpAndSettle();
   }
 
   testWidgets('引导:只数要回答的问题,四步走完能进主界面', (tester) async {
-    tester.view.physicalSize = const Size(412, 915);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    await pump(tester, const OnboardingPage());
 
-    await tester.pumpWidget(const MaeveApp());
-    await tester.pumpAndSettle();
-
-    // 从"关于 → 重新查看首次引导"的路径直接进引导页。
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: maeveThemeForTest,
-        home: MaeveScope(
-          controller: MaeveController(),
-          child: const OnboardingPage(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('有声音的宿主'), findsWidgets);
+    expect(find.text('SHE RUNS THE LOOP'), findsOneWidget);
     expect(find.text('开始'), findsOneWidget);
 
     await tester.tap(find.text('开始'));
     await tester.pumpAndSettle();
-    // 运行时是第 1 个要回答的问题,计数从 1 开始(默认本机)。
     expect(find.text('让它在哪儿跑'), findsOneWidget);
     expect(find.text('1 / 4'), findsOneWidget);
     expect(find.text('本机'), findsOneWidget);
@@ -55,8 +43,7 @@ void main() {
     await tester.tap(find.text('继续'));
     await tester.pumpAndSettle();
     expect(find.text('看起来像什么'), findsOneWidget);
-    // 选一套配色,这一步就答完了。
-    await tester.tap(find.text('松绿'));
+    await tester.tap(find.text('黄铜'));
     await tester.pumpAndSettle();
     expect(find.text('2 / 4'), findsOneWidget);
 
@@ -97,7 +84,7 @@ void main() {
 
   testWidgets('网页版:壳做好了,内容等 WebView 接上', (tester) async {
     await pump(tester, const WebViewPage());
-    expect(find.text('网页版'), findsOneWidget);
+    expect(find.text('网页版'), findsWidgets);
     expect(find.text('maeve.local/session'), findsOneWidget);
     expect(find.text('WebView 还没接上'), findsOneWidget);
   });
@@ -113,11 +100,16 @@ void main() {
     expect(find.textContaining('平台桥接'), findsOneWidget);
   });
 
-  testWidgets('分享:会话详情里能打开,复制项可用', (tester) async {
+  testWidgets('分享:能从会话详情打开,复制项可用', (tester) async {
     final controller = MaeveController();
     await tester.pumpWidget(
       MaterialApp(
-        theme: maeveThemeForTest,
+        theme: maeveTheme(brightness: Brightness.dark),
+        builder: (context, child) => MaeveThemeScope(
+          brightness: Brightness.dark,
+          accent: deriveAccent(MaeveAccentPreset.reverie),
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: MaeveScope(
           controller: controller,
           child: Builder(
@@ -142,6 +134,3 @@ void main() {
     expect(find.text('系统分享'), findsOneWidget);
   });
 }
-
-/// 测试用的主题:雾紫 + 允许模糊。
-final maeveThemeForTest = maeveTheme(Brightness.dark);

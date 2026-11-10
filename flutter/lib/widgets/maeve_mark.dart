@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../design/maeve_theme.dart';
+
 class MaeveMark extends StatelessWidget {
   const MaeveMark({super.key, required this.size, this.state = MarkState.idle});
   final double size;
@@ -11,7 +13,7 @@ class MaeveMark extends StatelessWidget {
   Widget build(BuildContext context) => CustomPaint(
     size: Size.square(size),
     painter: MaeveMarkPainter(
-      Theme.of(context).colorScheme.onSurface,
+      MaeveTheme.of(context).colors.ink,
       Theme.of(context).scaffoldBackgroundColor,
       armed: state == MarkState.armed,
     ),

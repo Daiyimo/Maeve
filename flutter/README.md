@@ -10,21 +10,26 @@ full list of prototype limits.
 | Path | What it is |
 |---|---|
 | `lib/main.dart` | Entry point only (`runApp`), re-exporting the app shell. |
-| `lib/app/maeve_app.dart` | `MaterialApp`: locale, light/dark themes per palette, global controller. |
+| `lib/app/maeve_app.dart` | `MaterialApp`: locale, light/dark themes per preset, `MaeveThemeScope` above the Navigator. |
 | `lib/app/maeve_controller.dart` | Settings, conversations, memories, run state (in memory). |
-| `lib/app/maeve_shell.dart` | B2 shell: two mutually exclusive gesture-driven drawers. |
-| `lib/app/chat_page.dart` | B3/B4/B5: floating header, message list, floating composer. |
-| `lib/app/sessions_drawer.dart` | B6: search, filters, grouping, multi-select, identity bar. |
-| `lib/app/quick_panel.dart` | B7: right-hand quick entries. |
-| `lib/app/onboarding.dart` | B1: welcome → runtime → appearance → access → key → finishing. |
-| `lib/design/` | Tokens, six palettes, OKLCH + contrast, surfaces (glass styles), motion. |
-| `lib/ui/common/` | Pressable, HoldToConfirm, AppPage, AppSheet, status widgets, haptics. |
-| `lib/ui/settings/` | Settings hub (B8) and sub-pages (B9) plus the settings row components. |
-| `lib/ui/phone/`, `lib/ui/runs/`, `lib/ui/memory/` | Phone control (B10), Runs, Memory. |
-| `lib/widgets/glass_surface.dart` | `MaeveGlassSurface`: bounded blur, shared sampling, downgrade path. |
+| `lib/app/maeve_shell.dart` | Two mutually exclusive gesture-driven drawers on one progress value. |
+| `lib/app/chat_page.dart` | Glass top bar, screenplay turn rail, paper-strip composer, quote/queue. |
+| `lib/app/sessions_drawer.dart` | Search, filters, pin/folder/day grouping, multi-select, identity bar. |
+| `lib/app/quick_panel.dart` | Right-hand entry **grid** (plus a visible header button, so narrow screens can reach it). |
+| `lib/app/onboarding.dart` | Welcome → runtime → appearance → access → key → finishing. |
+| `lib/design/` | OKLCH, six presets, colours, semantic, four glass tiers + aurora, shapes, type, motion, motifs, theme. |
+| `lib/ui/common/` | Pressable, HoldToConfirm, AppPage/TopBar, AppSheet, status widgets, haptics. |
+| `lib/ui/settings/` | Settings hub + sub-pages and the row language (A9 spacing rule lives in `RowMetrics`). |
+| `lib/ui/phone/`, `lib/ui/runs/`, `lib/ui/memory/`, `lib/ui/more/` | Phone control, runs, memory, web/terminal/community/share. |
+| `lib/widgets/glass_surface.dart` | `MaeveGlassSurface`: bounded blur, grouped sampling, rim/hairline, downgrade. |
 | `lib/bridge/maeve_bridge.dart` | `MaeveBridge` channel constants and the `open_settings` / status helpers. |
-| `test/` | Theme (contrast/tokens), components, glass pipeline and shell coverage. |
+| `test/` | Theme (contrast/tokens), components, glass pipeline, screens and shell. |
 | `tool/verify.sh` | Format, analyze and test, in that order. |
+
+Design decisions are recorded per token in
+[`docs/spec/flutter-visual-parity.md`](../docs/spec/flutter-visual-parity.md); the design contract is
+[`docs/spec/visual-tokens.md`](../docs/spec/visual-tokens.md) and the Compose reference is
+`app/src/main/java/com/daiyimo/maeve/ui/theme/`.
 
 ## Build the AAR for `:app`
 
@@ -73,8 +78,8 @@ Chat replies are local delayed demos. Conversations and memories exist only in p
 memory. Runs is a readiness view, attachments are not wired to a picker, and no model or
 Kotlin Agent execution is connected.
 
-Backdrop blur is real (bounded `BackdropFilter`, shared sampling per header group) and was
-verified on a PZ261A; the earlier "avoid blur" note is superseded. 设置 → 动效与性能 →
-减少透明效果 drops every `BackdropFilter` and falls back to an almost opaque fill.
-[FLUTTER_MIGRATION.md](../FLUTTER_MIGRATION.md) is the authoritative list, and
-[`UI_SPEC_HANDOFF.md`](UI_SPEC_HANDOFF.md) tracks per-screen parity with the design spec.
+Backdrop blur is real (bounded `BackdropFilter`, one `BackdropGroup` for the header).
+设置 → 动效与性能 → 减少透明效果 drops every `BackdropFilter` and falls back to a near-opaque fill.
+**This rewrite was not device-verified** (REWRITE_SPEC §9); the owner runs the device pass.
+[FLUTTER_MIGRATION.md](../FLUTTER_MIGRATION.md) is the authoritative list; the superseded replica
+hand-off stays as history in [`UI_SPEC_HANDOFF.md`](UI_SPEC_HANDOFF.md).

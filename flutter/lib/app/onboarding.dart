@@ -1,19 +1,25 @@
 import 'package:flutter/material.dart';
 
 import '../bridge/maeve_bridge.dart';
-import '../design/maeve_motion.dart';
-import '../design/maeve_palette.dart';
-import '../design/maeve_tokens.dart';
-import '../design/maeve_surfaces.dart';
-import '../ui/common/pressable.dart';
-import '../ui/common/status.dart';
+
 import '../widgets/maeve_mark.dart';
+
 import 'maeve_controller.dart';
 
-/// B1 首启引导:welcome → runtime → appearance → access → apiKey → finishing。
+import '../design/maeve_accent.dart';
+import '../design/maeve_motion.dart';
+import '../design/maeve_shapes.dart';
+import '../design/maeve_surfaces.dart';
+import '../design/maeve_theme.dart';
+import '../design/maeve_type.dart';
+
+import '../ui/common/pressable.dart';
+import '../ui/common/status.dart';
+
+/// 首启引导:欢迎 → 运行时 → 外观 → 权限 → 密钥 → 完成。
 ///
 /// 步骤条只数**要回答的问题**(4 个:运行时 / 外观 / 屏幕权限 / 密钥),
-/// welcome 与 finishing 不算;后三个都可以"稍后",不挡人进门。
+/// 欢迎与完成不计;后三个都可以"稍后",不挡人进门。
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({super.key});
 
@@ -29,8 +35,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
   bool _appearanceDone = false;
   bool _accessDone = false;
   String? _key;
-
-  /// 密钥这步"跳过"也算答过(它是个决定,不是没答)。
   bool _keyAnswered = false;
   final TextEditingController _keyInput = TextEditingController();
 
@@ -38,8 +42,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   /// 运行时永远有答案(默认本机);其余三个答过才算。
   int get _answered =>
-      1 +
-      [_appearanceDone, _accessDone, _keyAnswered].where((done) => done).length;
+      1 + [_appearanceDone, _accessDone, _keyAnswered].where((d) => d).length;
 
   bool get _counting =>
       _step == _Step.runtime ||
@@ -75,7 +78,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Stack(
@@ -86,9 +89,9 @@ class _OnboardingPageState extends State<OnboardingPage> {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    MaeveSpace.md,
-                    MaeveSpace.sm,
-                    MaeveSpace.gutter,
+                    MaeveSpace.s8,
+                    MaeveSpace.s8,
+                    MaeveSpace.s16,
                     0,
                   ),
                   child: Row(
@@ -99,24 +102,19 @@ class _OnboardingPageState extends State<OnboardingPage> {
                           borderRadius: BorderRadius.circular(MaeveRadius.pill),
                           semanticLabel: '上一步',
                           child: SizedBox.square(
-                            dimension: 40,
+                            dimension: 44,
                             child: Icon(
                               Icons.arrow_back_ios_new_rounded,
                               size: 16,
-                              color: scheme.onSurface,
+                              color: colors.ink,
                             ),
                           ),
                         ),
                       const Spacer(),
-                      // 步骤条只数要回答的问题。
                       if (_counting)
                         Text(
                           '$_answered / $_questions',
-                          style: MaeveFonts.mono(
-                            context,
-                            size: 12,
-                            color: scheme.onSurfaceVariant,
-                          ),
+                          style: MaeveType.mono.copyWith(color: colors.ink3),
                         ),
                     ],
                   ),
@@ -124,8 +122,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: AppMotion.of(context).page,
-                    switchInCurve: MaeveMotion.enter,
-                    switchOutCurve: MaeveMotion.exit,
+                    switchInCurve: MaeveMotion.decelerate,
+                    switchOutCurve: Curves.easeIn,
                     transitionBuilder: (child, animation) => FadeTransition(
                       opacity: animation,
                       child: SlideTransition(
@@ -144,10 +142,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(
-                    MaeveSpace.gutter,
-                    MaeveSpace.sm,
-                    MaeveSpace.gutter,
-                    MaeveSpace.lg,
+                    MaeveSpace.s16,
+                    MaeveSpace.s8,
+                    MaeveSpace.s16,
+                    MaeveSpace.s20,
                   ),
                   child: _footer(context),
                 ),
@@ -183,10 +181,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
     };
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(
-        MaeveSpace.gutter,
-        MaeveSpace.xxl,
-        MaeveSpace.gutter,
-        MaeveSpace.xl,
+        MaeveSpace.s16,
+        MaeveSpace.s24,
+        MaeveSpace.s16,
+        MaeveSpace.s20,
       ),
       child: Center(
         child: ConstrainedBox(
@@ -246,20 +244,32 @@ class _StepScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(eyebrow, style: maeveEyebrow(context)),
-        const SizedBox(height: 6),
-        Text(title, style: Theme.of(context).textTheme.headlineMedium),
-        const SizedBox(height: MaeveSpace.sm),
-        Text(
-          body,
-          style: Theme.of(context).textTheme.bodyMedium
-              ?.copyWith(color: scheme.onSurfaceVariant),
+        Row(
+          children: [
+            Container(
+              width: 4,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.accent,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              eyebrow,
+              style: MaeveType.eyebrowFor(eyebrow).copyWith(color: colors.ink3),
+            ),
+          ],
         ),
-        if (child != null) ...[const SizedBox(height: MaeveSpace.xl), child!],
+        const SizedBox(height: MaeveSpace.s8),
+        Text(title, style: MaeveType.largeTitle.copyWith(color: colors.ink)),
+        const SizedBox(height: MaeveSpace.s8),
+        Text(body, style: MaeveType.body.copyWith(color: colors.ink2)),
+        if (child != null) ...[const SizedBox(height: MaeveSpace.s20), child!],
       ],
     );
   }
@@ -267,27 +277,36 @@ class _StepScaffold extends StatelessWidget {
 
 class _WelcomeStep extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const MaeveMark(size: 72, state: MarkState.armed),
-      const SizedBox(height: MaeveSpace.xl),
-      Text('有声音的宿主', style: maeveEyebrow(context)),
-      const SizedBox(height: 6),
-      Text('一个念头，从这里开始。', style: Theme.of(context).textTheme.headlineMedium),
-      const SizedBox(height: MaeveSpace.md),
-      Text(
-        'Maeve 住在你的设备里：想事情、动手做、把结果留在本机。'
-        '接下来四个问题，决定它默认怎么工作。',
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
-      const SizedBox(height: MaeveSpace.xl),
-      const BriefNotice(
-        text: '不登录也能用完整功能；登录只是为了同步。',
-        icon: Icons.lock_outline_rounded,
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const MaeveMark(size: 68, state: MarkState.armed),
+        const SizedBox(height: MaeveSpace.s20),
+        Text(
+          'SHE RUNS THE LOOP',
+          style: MaeveType.eyebrow.copyWith(color: colors.ink3),
+        ),
+        const SizedBox(height: MaeveSpace.s10),
+        Text(
+          '一个念头，从这里开始。',
+          style: MaeveType.display.copyWith(color: colors.ink),
+        ),
+        const SizedBox(height: MaeveSpace.s12),
+        Text(
+          'Maeve 住在你的设备里：她在另一块屏上把事办完，你的主屏始终是你的。'
+          '接下来四个问题，决定她默认怎么工作。',
+          style: MaeveType.body.copyWith(color: colors.ink2),
+        ),
+        const SizedBox(height: MaeveSpace.s20),
+        const BriefNotice(
+          text: '不登录也能用完整功能；登录只是为了同步。',
+          icon: Icons.lock_outline_rounded,
+        ),
+      ],
+    );
+  }
 }
 
 class _RuntimeStep extends StatelessWidget {
@@ -310,7 +329,7 @@ class _RuntimeStep extends StatelessWidget {
           selected: !remote,
           onTap: () => onPick(false),
         ),
-        const SizedBox(height: MaeveSpace.sm),
+        const SizedBox(height: MaeveSpace.s8),
         _OptionCard(
           icon: Icons.dns_outlined,
           title: '远程主机',
@@ -340,44 +359,42 @@ class _OptionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return Pressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(MaeveRadius.md),
       child: AnimatedContainer(
         duration: AppMotion.of(context).quick,
-        padding: const EdgeInsets.all(MaeveSpace.md),
+        padding: const EdgeInsets.all(MaeveSpace.s12),
         decoration: BoxDecoration(
-          color: selected
-              ? scheme.primary.withValues(alpha: .10)
-              : scheme.onSurface.withValues(alpha: .04),
+          color: selected ? colors.accentSoft : colors.surface,
           borderRadius: BorderRadius.circular(MaeveRadius.md),
           border: Border.all(
-            color: selected
-                ? scheme.primary.withValues(alpha: .55)
-                : scheme.outline.withValues(alpha: .5),
-            width: selected ? 1.2 : .5,
+            color: selected ? colors.accent : colors.edge,
+            width: selected ? 1 : .5,
           ),
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: selected ? scheme.primary : scheme.onSurfaceVariant,
-            ),
-            const SizedBox(width: MaeveSpace.md),
+            Icon(icon, size: 20, color: selected ? colors.accent : colors.ink3),
+            const SizedBox(width: MaeveSpace.s12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.titleSmall),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    title,
+                    style: MaeveType.bodyStrong.copyWith(color: colors.ink),
+                  ),
+                  Text(
+                    subtitle,
+                    style: MaeveType.caption.copyWith(color: colors.ink3),
+                  ),
                 ],
               ),
             ),
             if (selected)
-              Icon(Icons.check_circle, size: 18, color: scheme.primary),
+              Icon(Icons.check_circle, size: 18, color: colors.accent),
           ],
         ),
       ),
@@ -393,39 +410,35 @@ class _AppearanceStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
+    final colors = MaeveTheme.of(context).colors;
     return _StepScaffold(
       eyebrow: '问题 2',
       title: '看起来像什么',
-      body: '六套配色，明暗各一套。选中的这套现在就会用上。',
+      body: '六套配色，来自甜水镇的意象。选中的这套现在就会用上。',
       child: Column(
         children: [
           Wrap(
-            spacing: MaeveSpace.sm,
-            runSpacing: MaeveSpace.sm,
+            spacing: MaeveSpace.s8,
+            runSpacing: MaeveSpace.s8,
             children: [
-              for (final palette in MaevePalette.all)
+              for (final preset in MaeveAccentPreset.values)
                 Pressable(
                   onTap: () {
-                    controller.setPalette(palette);
+                    controller.setAccent(preset);
                     onDone();
                   },
                   borderRadius: BorderRadius.circular(MaeveRadius.pill),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: MaeveSpace.md,
+                      horizontal: MaeveSpace.s12,
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: controller.palette.id == palette.id
-                          ? Theme.of(context).colorScheme.primary
-                                .withValues(alpha: .14)
-                          : null,
+                      color: controller.accentPreset == preset
+                          ? colors.accentSoft
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(MaeveRadius.pill),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outline
-                            .withValues(alpha: .5),
-                        width: .5,
-                      ),
+                      border: Border.all(color: colors.edge, width: .5),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -434,14 +447,17 @@ class _AppearanceStep extends StatelessWidget {
                           width: 12,
                           height: 12,
                           decoration: BoxDecoration(
-                            color: palette.seed,
+                            color: deriveAccent(preset).lightSeed,
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          palette.label,
-                          style: Theme.of(context).textTheme.labelMedium,
+                          preset.label,
+                          style: MaeveType.label.copyWith(
+                            fontSize: 12.5,
+                            color: colors.ink,
+                          ),
                         ),
                       ],
                     ),
@@ -449,7 +465,7 @@ class _AppearanceStep extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: MaeveSpace.md),
+          const SizedBox(height: MaeveSpace.s12),
           Row(
             children: [
               Expanded(
@@ -461,7 +477,7 @@ class _AppearanceStep extends StatelessWidget {
                   child: const Text('浅色'),
                 ),
               ),
-              const SizedBox(width: MaeveSpace.sm),
+              const SizedBox(width: MaeveSpace.s8),
               Expanded(
                 child: OutlinedButton(
                   onPressed: () {
@@ -488,7 +504,7 @@ class _AccessStep extends StatelessWidget {
   Widget build(BuildContext context) => _StepScaffold(
     eyebrow: '问题 3',
     title: '要不要让它看见屏幕',
-    body: '看见了才能替你在应用里点。不给也能用，只是它只能动嘴。',
+    body: '看见了才能替你在应用里点。不给也能用，只是她只能动嘴。',
     child: Column(
       children: [
         _OptionCard(
@@ -501,7 +517,7 @@ class _AccessStep extends StatelessWidget {
             onDone();
           },
         ),
-        const SizedBox(height: MaeveSpace.sm),
+        const SizedBox(height: MaeveSpace.s8),
         _OptionCard(
           icon: Icons.schedule_rounded,
           title: '稍后再说',
@@ -509,7 +525,7 @@ class _AccessStep extends StatelessWidget {
           selected: true,
           onTap: onDone,
         ),
-        const SizedBox(height: MaeveSpace.md),
+        const SizedBox(height: MaeveSpace.s12),
         const BriefNotice(
           text: '密码页、支付页始终交还给你；读屏测试不会发给模型。',
           icon: Icons.shield_outlined,
@@ -526,48 +542,50 @@ class _ApiKeyStep extends StatelessWidget {
   final ValueChanged<String?> onDone;
 
   @override
-  Widget build(BuildContext context) => _StepScaffold(
-    eyebrow: '问题 3 · 可选',
-    title: '用自己的密钥',
-    body: '不填也行：内置引擎够日常用。密钥只存在本机加密存储里。',
-    child: Column(
-      children: [
-        TextField(
-          controller: controller,
-          obscureText: true,
-          style: Theme.of(context).textTheme.bodyMedium,
-          decoration: InputDecoration(
-            hintText: 'sk-...',
-            filled: true,
-            fillColor: Theme.of(context).colorScheme.onSurface
-                .withValues(alpha: .05),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(MaeveRadius.md),
-              borderSide: BorderSide.none,
+  Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    return _StepScaffold(
+      eyebrow: '问题 4 · 可选',
+      title: '用自己的密钥',
+      body: '不填也行：内置引擎够日常用。密钥只存在本机加密存储里。',
+      child: Column(
+        children: [
+          TextField(
+            controller: controller,
+            obscureText: true,
+            style: MaeveType.body.copyWith(color: colors.ink),
+            decoration: InputDecoration(
+              hintText: 'sk-...',
+              filled: true,
+              fillColor: colors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(MaeveRadius.md),
+                borderSide: BorderSide.none,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: MaeveSpace.md),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: () => onDone(null),
-                child: const Text('跳过'),
+          const SizedBox(height: MaeveSpace.s12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => onDone(null),
+                  child: const Text('跳过'),
+                ),
               ),
-            ),
-            const SizedBox(width: MaeveSpace.sm),
-            Expanded(
-              child: FilledButton(
-                onPressed: () => onDone(controller.text.trim()),
-                child: const Text('保存'),
+              const SizedBox(width: MaeveSpace.s8),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => onDone(controller.text.trim()),
+                  child: const Text('保存'),
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
-    ),
-  );
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _FinishingStep extends StatelessWidget {
@@ -576,27 +594,30 @@ class _FinishingStep extends StatelessWidget {
   final bool keyProvided;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const MaeveMark(size: 64, state: MarkState.armed),
-      const SizedBox(height: MaeveSpace.xl),
-      Text('准备好了', style: Theme.of(context).textTheme.headlineMedium),
-      const SizedBox(height: MaeveSpace.sm),
-      Text(
-        '说第一句话就行。之后想改任何设置，从左上角进列表，再点设置。',
-        style: Theme.of(context).textTheme.bodyLarge,
-      ),
-      const SizedBox(height: MaeveSpace.xl),
-      BriefNotice(
-        text: keyProvided ? '已记下你的密钥（仅本次会话，尚未写入磁盘）。' : '使用内置引擎，不需要密钥。',
-        icon: Icons.vpn_key_outlined,
-      ),
-      const SizedBox(height: MaeveSpace.sm),
-      const BriefNotice(
-        text: '这个版本是界面原型：回复是本机示范，尚未接入真实模型。',
-        icon: Icons.info_outline,
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const MaeveMark(size: 60, state: MarkState.armed),
+        const SizedBox(height: MaeveSpace.s20),
+        Text('准备好了', style: MaeveType.display.copyWith(color: colors.ink)),
+        const SizedBox(height: MaeveSpace.s10),
+        Text(
+          '说第一句话就行。之后想改任何设置，从左边的列表进设置。',
+          style: MaeveType.body.copyWith(color: colors.ink2),
+        ),
+        const SizedBox(height: MaeveSpace.s20),
+        BriefNotice(
+          text: keyProvided ? '已记下你的密钥（仅本次会话，尚未写入磁盘）。' : '使用内置引擎，不需要密钥。',
+          icon: Icons.vpn_key_outlined,
+        ),
+        const SizedBox(height: MaeveSpace.s8),
+        const BriefNotice(
+          text: '这个版本是界面原型：回复是本机示范，尚未接入真实模型。',
+          icon: Icons.info_outline,
+        ),
+      ],
+    );
+  }
 }

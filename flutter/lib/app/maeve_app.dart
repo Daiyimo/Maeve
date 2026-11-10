@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 
-import '../design/maeve_tokens.dart';
-import 'maeve_controller.dart';
 import 'maeve_shell.dart';
+
+import 'maeve_controller.dart';
+
+import '../design/maeve_theme.dart';
+
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 /// 应用外壳:主题、语言、全局状态。
 class MaeveApp extends StatefulWidget {
@@ -40,14 +43,22 @@ class _MaeveAppState extends State<MaeveApp> {
           GlobalCupertinoLocalizations.delegate,
         ],
         theme: maeveTheme(
-          Brightness.light,
-          palette: controller.palette,
+          brightness: Brightness.light,
+          accent: controller.accent,
           blurEnabled: !controller.reduceTransparency,
         ),
         darkTheme: maeveTheme(
-          Brightness.dark,
-          palette: controller.palette,
+          brightness: Brightness.dark,
+          accent: controller.accent,
           blurEnabled: !controller.reduceTransparency,
+        ),
+        // 设计系统的入口放在 Theme 里面一层:这样亮度是**解析后**的
+        // (跟随系统时也对),换配色当场生效。
+        builder: (context, child) => MaeveThemeScope(
+          brightness: Theme.of(context).brightness,
+          accent: controller.accent,
+          blurEnabled: !controller.reduceTransparency,
+          child: child ?? const SizedBox.shrink(),
         ),
         home: const MaeveShell(),
       ),

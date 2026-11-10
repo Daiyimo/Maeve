@@ -2,7 +2,7 @@
 
 ## Direction
 
-Maeve Android uses Flutter for its user interface and Kotlin for Android platform capabilities. Flutter presents a cohesive iOS-inspired visual language; this does not make the module an iOS application and does not use SwiftUI or Xcode.
+Maeve Android uses Flutter for its user interface and Kotlin for Android platform capabilities. Flutter presents **Maeve's own visual language** — a neutral paper canvas, five surface steps, hairlines instead of shadows, one accent colour, monospace for machine readings — implemented a second time from `docs/spec/visual-tokens.md` and the Compose reference in `app/src/main/java/com/daiyimo/maeve/ui/theme/`. The parity record is [`docs/spec/flutter-visual-parity.md`](docs/spec/flutter-visual-parity.md). This is not an iOS application and does not use SwiftUI or Xcode.
 
 Flutter owns the user-visible shell, responsive navigation, themes, chat composition, Runs, Memory and Settings surfaces. Kotlin remains the Android capability layer for accessibility, sandbox execution, web takeover, voice, notifications, permissions and device services. Existing Kotlin/Compose surfaces can be retired only after the Flutter equivalents have real behavior and regression coverage.
 
@@ -11,11 +11,16 @@ Flutter owns the user-visible shell, responsive navigation, themes, chat composi
 - Flutter module: `flutter/`
 - Dart SDK constraint: `^3.13.5`
 - Design tokens: `flutter/lib/design/`
-  - `maeve_tokens.dart` —— 六档圆角、间距、语义色、`maeveTheme()`、等宽出口 `MaeveFonts`
-  - `maeve_palette.dart` —— 六套配色（雾紫/黛青/暮霞/松绿/琥珀/石墨）+ 中性色 hue/chroma 规则
-  - `maeve_surfaces.dart` —— 四层玻璃、背景渐变、两团光晕、遮罩、用户气泡色
-  - `maeve_motion.dart` —— 时长/曲线/弹簧 token 与 `AppMotion.of(context)`（减少动画时归零）
-  - `oklch.dart` —— OKLCH → sRGB 与 WCAG 对比度（单测共用）
+  - `maeve_oklch.dart` —— OKLCH ↔ sRGB、对比度、明度守卫（单测共用）
+  - `maeve_accent.dart` —— 六套预设（梅子/黄铜/沙原/珍珠/夜靛/石墨）+ `deriveAccent` / `guardSeed`
+  - `maeve_colors.dart` —— 五级表面阶梯 + 四级文字 + 唯一彩色 + 玻璃填充
+  - `maeve_semantic.dart` —— 状态色（ok/warn/bad/info）与工具 / 身份色
+  - `maeve_surfaces.dart` —— 四档玻璃（chrome/sheet/card/pill）+ 三团极光背景 + 降级
+  - `maeve_shapes.dart` —— 六档连续曲率 + 气泡尾角 + 输入条 16 的纸条
+  - `maeve_type.dart` —— 两套字三种声部、间距、尺寸、断点
+  - `maeve_motion.dart` —— 时长 / 曲线 / 弹簧与 `AppMotion.of(context)`
+  - `maeve_motifs.dart` —— 迷宫环 / 钢琴卷 / 台词轨 / 校准角
+  - `maeve_theme.dart` —— 手写 scheme + `MaeveTheme`（设计系统入口）
 - Glass material: `flutter/lib/widgets/glass_surface.dart`（`MaeveGlassSurface`，唯一入口）
 - Shared components: `flutter/lib/ui/common/`（Pressable、HoldToConfirm、AppPage、AppSheet、
   StatusDot/HeaderStatus、EmptyView、ActivityStrip、ThinkingPill、SmoothSize、ExpandReveal、触感入口）
@@ -32,27 +37,24 @@ is not a Gradle subproject: `:app` consumes the debug AAR that its build writes 
 
 The current Flutter shell includes:
 
-- Maeve eclipse mark; six palettes (雾紫 default) with light/dark and contrast-guarded neutrals
-- Real bounded backdrop blur (`ImageFilterConfig.blur(bounded: true)` + Rec.709 saturation),
-  shared sampling through one `BackdropGroup` per header row, with a no-blur downgrade path
-- Floating capsule header (B4): menu button + title/status pill + model pill + new-conversation button
-- Floating composer (B5): 28 radius, 1–6 lines, two 40 circle keys, activity strip while generating
+- Maeve's own language: neutral canvas (fixed hue), five surface steps, four ink levels, one accent
+  colour; six presets (梅子 default) derived in OKLCH and contrast-guarded per level
+- Real bounded backdrop blur (`bounded: true` + Rec.709 saturation) on two tiers only; cards and pills
+  deliberately never sample (they live inside the scrolling content), and one `BackdropGroup` covers
+  the header row
+- Top bar (B4): one full-width glass bar, brand mark + centred title column (monospace eyebrow, title,
+  status line), 40 circle actions on both sides — no floating capsules, no colour band
+- Composer (B5): a 16-radius *paper strip* (not a capsule), 1–5 lines, two 40 circle keys, a fade under it
 - Two mutually exclusive gesture-driven drawers (B2): sessions from the left, quick panel from the right,
-  finger-tracking with rubber band, spring fling and iOS glide settling
-- Chat (B3): per-turn grouping, collapsible finished turns, thinking pill, inline queueing while generating
-- Sessions drawer (B6): search, workspace row, status filter, pinned/folder/day grouping, unread badges,
-  archive restore, multi-select archive/delete
-- Settings hub (B8) with six groups + overview + search, and sub-pages (B9): appearance (palette grid with
-  live preview), interface, performance, voice, notifications, reply prefs, privacy (hold-to-clear),
-  system access (local read test), background guide, diagnostics, about, account, engine, remote, plugins
-- Phone control (B10): master switch with first-run disclosure, permissions, read test, strip states,
-  confirm mode, app tiers, hold-to-lift restrictions, recent actions
-- Onboarding (B1): welcome → runtime → appearance → access → api key → finishing
-- Message actions (B3): long-press to copy/quote; the quote lands in a chip above the composer and
-  travels with the next message; attachment entry lists photo/file/screen sources
-- Remaining surfaces (B11 shells): web view chrome, terminal (own dark theme + mono), share
-  (copy as text/Markdown; system share pending bridge), community, update, about, account, engine,
-  remote, plugins, runs, memory
+  finger-tracking with rubber band, spring fling and glide settling; the quick panel also has a **visible
+  header button** so narrow screens are not dependent on the system-gesture edge
+- Chat (B3): screenplay turn rail (act number + seal + hairline), user bubble on the raised surface with a
+  tail corner, answers as a 1dp left rule with full-width text, collapsible finished turns, thinking pill,
+  inline queueing, long-press to copy/quote
+- Sessions drawer (B6), settings hub with six groups + search (B8), every sub-page (B9), phone control
+  with first-run disclosure and hold-to-lift (B10), onboarding (B1), and the remaining shells (B11)
+- Motifs instead of generic chrome: maze ring replaces spinners, piano roll replaces "thinking…",
+  script rail numbers the turns, calibration corners mark instrument panels
 
 ## Prototype limits
 
@@ -61,10 +63,10 @@ The current Flutter shell includes:
 - Runs is a visual readiness view and has no real execution history.
 - Attachments are not connected to the Android file picker.
 - The host registers `maeve/ui` for `open_settings` / `status` and `maeve/ui/events` for status; chat, model calls, persistence and agent execution are still not connected.
-- Backdrop blur is real (bounded `BackdropFilter`) and verified on a PZ261A running Android 16; the
-  earlier "avoid blur" decision is superseded. Device screenshots live in `flutter/tool/screenshots/`.
-  If a RenderThread regression appears, use 设置 → 动效与性能 → 减少透明效果 (downgrade to
-  `fallbackFill`, no `BackdropFilter`), which is covered by tests.
+- Backdrop blur is real (bounded `BackdropFilter`). **The rewrite itself was not device-verified** —
+  REWRITE_SPEC §9 puts device checks with the project owner. Screenshots from the previous replica
+  shell are kept under `flutter/tool/screenshots/` as history only. If a RenderThread regression
+  appears, use 设置 → 动效与性能 → 减少透明效果 (no `BackdropFilter`, near-opaque fill), covered by tests.
 
 ## Device verification
 
@@ -143,8 +145,10 @@ the translated READMEs and the paths in `docs/`. The rules are in
 [`docs/dev/project-standards.md`](docs/dev/project-standards.md). A successful local Flutter
 run does not imply that Android platform bridge handlers or real model services are connected.
 
-Design parity with dsh-go is tracked in [`flutter/UI_SPEC_HANDOFF.md`](flutter/UI_SPEC_HANDOFF.md);
-before committing, run `python tools/check_no_upstream_copy.py` — it refuses any tracked file that
+The design now comes from Maeve's own contract, not from an upstream replica; the superseded
+hand-off is kept as history in [`flutter/UI_SPEC_HANDOFF.md`](flutter/UI_SPEC_HANDOFF.md). Parity
+decisions and per-token rationale live in [`docs/spec/flutter-visual-parity.md`](docs/spec/flutter-visual-parity.md).
+Before committing, run `python tools/check_no_upstream_copy.py` — it refuses any tracked file that
 carries upstream AGPL markers.
 
 ### Local environment

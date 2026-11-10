@@ -1,24 +1,28 @@
-import 'dart:ui' show lerpDouble;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import 'maeve_palette.dart';
+import 'maeve_colors.dart';
+import 'maeve_theme.dart';
 
-/// 玻璃层级。决定填充透明度、是否模糊、描边与阴影。
+/// 表面层级。四档都是玻璃,但**只有浮在滚动内容之上的两档真的取样模糊**。
 ///
-/// | 层级 | 用在哪 | 模糊 |
-/// |---|---|---|
-/// | [chrome] | 输入条、顶栏胶囊、圆钮 —— 浮在滚动内容上的 | 有 |
-/// | [sheet] | 侧栏、底部弹层、抽屉 | 有 |
-/// | [card] | 设置卡、记忆卡、回答卡 —— 躺在页面背景上的 | 无 |
-/// | [pill] | 用户气泡、图标 chip、状态胶囊 —— 列表里的小件 | 无 |
+/// | 层级 | 用在哪 | 模糊 σ | 填充 |
+/// |---|---|---|---|
+/// | [chrome] | 顶栏、输入栏 | 24 | 浅 0.62 / 深 0.68 |
+/// | [sheet] | 底部弹层、抽屉、侧栏 | 30 | 浅 0.74 / 深 0.82 |
+/// | [card] | 设置卡、任务卡 | — | 浅 0.58 / 深 0.50 |
+/// | [pill] | 状态胶囊、标签 | — | 浅 0.62 / 深 0.60 |
 ///
-/// 只有 chrome / sheet 真模糊:它们背后是会滚动的内容,模糊才有意义;
-/// card / pill 背后只是静态背景,半透明填充就已经读作"磨砂",
-/// 再上 `BackdropFilter` 只是白白烧 GPU(列表里几十个就是几十次模糊)。
+/// ## 为什么 card / pill 不取样
+///
+/// 它们长在**滚动内容里面**:一旦也取样,玻璃看到的就是"一张包含自己的旧画面",
+/// 下一帧再录进去,玻璃里套玻璃,越套越深。所以平放的大件只做填充 + 顶边高光 +
+/// 内描边 + 一道浅投影,不取样。chrome / sheet 从来不在被录制的内容里(它们是内容的
+/// 兄弟节点),取样是安全的 —— 看得见背后真正的滚动内容。
 enum MaeveGlassTier { chrome, sheet, card, pill }
 
-/// 一种玻璃材质的全部参数。
+/// 一种表面材质的全部参数。
 @immutable
 class MaeveGlassStyle {
   const MaeveGlassStyle({
@@ -28,265 +32,202 @@ class MaeveGlassStyle {
     required this.rim,
     this.blurSigma = 0,
     this.saturation = 1,
-    this.hairlineWidth = 0.5,
+    this.hairlineWidth = .75,
+    this.rimFraction = .30,
     this.shadows = const [],
   });
 
-  /// 开启模糊时的填充(带透明度)。
+  /// 开模糊时的填充(带透明度)。
   final Color fill;
 
-  /// 关闭模糊时的填充(低端机、省电、"减少透明效果"、高对比度模式)。
-  /// 必须接近不透明,否则没有模糊时背后的字会透出来干扰阅读。
+  /// 关模糊时的填充:必须接近不透明,否则文字会飘在背后的内容上。
   final Color fallbackFill;
 
-  /// 发丝描边:界定玻璃边缘。浅色是冷墨 8%,深色是白 9%。
+  /// 发丝描边:界定玻璃边缘。
   final Color hairline;
   final double hairlineWidth;
 
-  /// 顶边高光起始色,向下 45% 处渐隐到透明 —— 光从上方打在玻璃边上。
+  /// 顶边高光:光从上方打在玻璃边上,往里渐隐。
   final Color rim;
+
+  /// 顶边高光最多占元素高度的比例 —— 28dp 的药丸上不该整块都是高光。
+  final double rimFraction;
 
   /// 高斯模糊 σ(逻辑像素)。0 = 不模糊。
   final double blurSigma;
 
-  /// 模糊后的饱和度增益(1 = 不变)。iOS 式"透色":背后的颜色透过来更鲜一点。
+  /// 模糊后的饱和度增益(iOS 式透色)。
   final double saturation;
 
   /// 只画在形状**外部**的投影(玻璃内部不被阴影弄脏)。
   final List<BoxShadow> shadows;
 
   bool get blurs => blurSigma > 0;
-
-  MaeveGlassStyle copyWith({
-    Color? fill,
-    Color? fallbackFill,
-    Color? hairline,
-    Color? rim,
-    double? blurSigma,
-    double? saturation,
-    double? hairlineWidth,
-    List<BoxShadow>? shadows,
-  }) {
-    return MaeveGlassStyle(
-      fill: fill ?? this.fill,
-      fallbackFill: fallbackFill ?? this.fallbackFill,
-      hairline: hairline ?? this.hairline,
-      rim: rim ?? this.rim,
-      blurSigma: blurSigma ?? this.blurSigma,
-      saturation: saturation ?? this.saturation,
-      hairlineWidth: hairlineWidth ?? this.hairlineWidth,
-      shadows: shadows ?? this.shadows,
-    );
-  }
-
-  static MaeveGlassStyle lerp(MaeveGlassStyle a, MaeveGlassStyle b, double t) {
-    return MaeveGlassStyle(
-      fill: Color.lerp(a.fill, b.fill, t)!,
-      fallbackFill: Color.lerp(a.fallbackFill, b.fallbackFill, t)!,
-      hairline: Color.lerp(a.hairline, b.hairline, t)!,
-      rim: Color.lerp(a.rim, b.rim, t)!,
-      blurSigma: lerpDouble(a.blurSigma, b.blurSigma, t)!,
-      saturation: lerpDouble(a.saturation, b.saturation, t)!,
-      hairlineWidth: lerpDouble(a.hairlineWidth, b.hairlineWidth, t)!,
-      shadows: BoxShadow.lerpList(a.shadows, b.shadows, t) ?? const [],
-    );
-  }
 }
 
-/// 页面材质扩展:背景渐变、光晕、遮罩、四种玻璃。
-///
-/// 与 `MaeveTokens` 不同,这里随明暗变,也随"是否允许模糊"变。
-class MaeveSurfaces extends ThemeExtension<MaeveSurfaces> {
+/// 四档表面。
+@immutable
+class MaeveSurfaces {
   const MaeveSurfaces({
-    required this.backdropTop,
-    required this.backdropBottom,
-    required this.glowPrimary,
-    required this.glowSecondary,
-    required this.scrim,
-    required this.userBubble,
-    required this.onUserBubble,
-    required this.onUserBubbleSecondary,
     required this.chrome,
     required this.sheet,
     required this.card,
     required this.pill,
-    this.blurEnabled = true,
+    required this.blurEnabled,
   });
-
-  /// 页面竖向渐变的顶 / 底。
-  final Color backdropTop;
-  final Color backdropBottom;
-
-  /// 右上角主色光晕(已含透明度)。
-  final Color glowPrimary;
-
-  /// 左下角光晕(已含透明度):配主色的邻近色,紫罗兰配雾蓝。
-  final Color glowSecondary;
-
-  /// 抽屉 / 模态遮罩(已含透明度)。
-  final Color scrim;
-
-  /// 用户气泡底色(随配色换)。
-  final Color userBubble;
-
-  /// 用户气泡内主文字。
-  final Color onUserBubble;
-
-  /// 用户气泡内次级文字(必须 ≥5.8)。
-  final Color onUserBubbleSecondary;
 
   final MaeveGlassStyle chrome;
   final MaeveGlassStyle sheet;
   final MaeveGlassStyle card;
   final MaeveGlassStyle pill;
 
-  /// 总开关。关掉后所有层级都走 `fallbackFill`,不再创建 `BackdropFilter`。
-  /// 由设置里的"减少透明效果"或高对比度模式决定。
+  /// 总开关:关掉后所有层级走 fallbackFill,不再创建模糊层。
   final bool blurEnabled;
 
-  static MaeveSurfaces of(BuildContext context) =>
-      Theme.of(context).extension<MaeveSurfaces>() ?? MaeveSurfaces.light;
-
-  MaeveGlassStyle glass(MaeveGlassTier tier) => switch (tier) {
+  MaeveGlassStyle tier(MaeveGlassTier tier) => switch (tier) {
     MaeveGlassTier.chrome => chrome,
     MaeveGlassTier.sheet => sheet,
     MaeveGlassTier.card => card,
     MaeveGlassTier.pill => pill,
   };
-
-  /// 默认配色的浅色材质(= 雾紫)。没有主题扩展时兜底用。
-  static MaeveSurfaces get light =>
-      MaevePalette.reverie.surfaces(Brightness.light);
-
-  /// 默认配色的深色材质。
-  static MaeveSurfaces get dark =>
-      MaevePalette.reverie.surfaces(Brightness.dark);
-
-  /// 默认配色的材质,可关掉模糊(降级路径)。
-  static MaeveSurfaces forBrightness(
-    Brightness brightness, {
-    bool blurEnabled = true,
-  }) => MaevePalette.reverie.surfaces(brightness, blurEnabled: blurEnabled);
-
-  @override
-  MaeveSurfaces copyWith({
-    Color? backdropTop,
-    Color? backdropBottom,
-    Color? glowPrimary,
-    Color? glowSecondary,
-    Color? scrim,
-    Color? userBubble,
-    Color? onUserBubble,
-    Color? onUserBubbleSecondary,
-    MaeveGlassStyle? chrome,
-    MaeveGlassStyle? sheet,
-    MaeveGlassStyle? card,
-    MaeveGlassStyle? pill,
-    bool? blurEnabled,
-  }) {
-    return MaeveSurfaces(
-      backdropTop: backdropTop ?? this.backdropTop,
-      backdropBottom: backdropBottom ?? this.backdropBottom,
-      glowPrimary: glowPrimary ?? this.glowPrimary,
-      glowSecondary: glowSecondary ?? this.glowSecondary,
-      scrim: scrim ?? this.scrim,
-      userBubble: userBubble ?? this.userBubble,
-      onUserBubble: onUserBubble ?? this.onUserBubble,
-      onUserBubbleSecondary:
-          onUserBubbleSecondary ?? this.onUserBubbleSecondary,
-      chrome: chrome ?? this.chrome,
-      sheet: sheet ?? this.sheet,
-      card: card ?? this.card,
-      pill: pill ?? this.pill,
-      blurEnabled: blurEnabled ?? this.blurEnabled,
-    );
-  }
-
-  @override
-  MaeveSurfaces lerp(covariant MaeveSurfaces? other, double t) {
-    if (other == null) return this;
-    return MaeveSurfaces(
-      backdropTop: Color.lerp(backdropTop, other.backdropTop, t)!,
-      backdropBottom: Color.lerp(backdropBottom, other.backdropBottom, t)!,
-      glowPrimary: Color.lerp(glowPrimary, other.glowPrimary, t)!,
-      glowSecondary: Color.lerp(glowSecondary, other.glowSecondary, t)!,
-      scrim: Color.lerp(scrim, other.scrim, t)!,
-      userBubble: Color.lerp(userBubble, other.userBubble, t)!,
-      onUserBubble: Color.lerp(onUserBubble, other.onUserBubble, t)!,
-      onUserBubbleSecondary: Color.lerp(
-        onUserBubbleSecondary,
-        other.onUserBubbleSecondary,
-        t,
-      )!,
-      chrome: MaeveGlassStyle.lerp(chrome, other.chrome, t),
-      sheet: MaeveGlassStyle.lerp(sheet, other.sheet, t),
-      card: MaeveGlassStyle.lerp(card, other.card, t),
-      pill: MaeveGlassStyle.lerp(pill, other.pill, t),
-      blurEnabled: t < 0.5 ? blurEnabled : other.blurEnabled,
-    );
-  }
 }
 
-/// 页面背景:竖向渐变 + 右上 / 左下两团光晕。
+/// 由颜色和模糊开关出四档表面。数值与 Compose 侧 `buildSurfaces` 逐项一致。
 ///
-/// 铺在界面最底层,玻璃的"透色"与高光都靠它才看得出来。
+/// 唯一一处刻意的偏差:降级填充(`fallbackFill`)按"玻璃色压在画布上再取不透明"
+/// 算,而不是把半透明填充的 alpha 直接改成 0.97。后者在深色下会把 6% 白的表面
+/// 变成 97% 白 —— 一关模糊,顶栏就白成一块塑料。降级只是"不透明",不是"变白"。
+MaeveSurfaces buildSurfaces(MaeveColors colors, {bool blurEnabled = true}) {
+  Color opaque(Color fill) => Color.alphaBlend(fill, colors.bg);
+  return MaeveSurfaces(
+    blurEnabled: blurEnabled,
+    chrome: MaeveGlassStyle(
+      fill: colors.glass,
+      fallbackFill: opaque(colors.glass),
+      hairline: colors.glassEdge,
+      rim: colors.glassRim,
+      blurSigma: blurEnabled ? 24 : 0,
+      saturation: 1.40,
+      rimFraction: .42,
+      shadows: [
+        BoxShadow(
+          color: colors.floatShadow.withValues(alpha: .13),
+          blurRadius: 14,
+          offset: const Offset(0, 7),
+        ),
+      ],
+    ),
+    sheet: MaeveGlassStyle(
+      fill: colors.glassSheet,
+      fallbackFill: opaque(colors.glassSheet),
+      hairline: colors.glassEdge,
+      rim: colors.glassRim,
+      blurSigma: blurEnabled ? 30 : 0,
+      saturation: 1.55,
+      rimFraction: .16,
+      shadows: [
+        BoxShadow(
+          color: colors.floatShadow.withValues(alpha: .19),
+          blurRadius: 22,
+          offset: const Offset(0, 11),
+        ),
+      ],
+    ),
+    card: MaeveGlassStyle(
+      fill: colors.glassCard,
+      fallbackFill: opaque(colors.glassCard),
+      hairline: colors.glassEdge,
+      rim: colors.glassRim,
+      rimFraction: .34,
+      shadows: [
+        BoxShadow(
+          color: colors.floatShadow.withValues(alpha: .10),
+          blurRadius: 4,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    pill: MaeveGlassStyle(
+      fill: colors.glassPill,
+      fallbackFill: opaque(colors.glassPill),
+      hairline: colors.glassEdge,
+      rim: colors.glassRim,
+      rimFraction: .50,
+    ),
+  );
+}
+
+/// 全屏页面背景:**中性竖渐变 + 三团极光**。
+///
+/// 毛玻璃需要有东西可透:纯色背景模糊之后还是那个纯色,只是糊了一点,看不出是玻璃。
+/// 三团低饱和色斑(一颗跟主题色、一颗邻近色、一颗固定冷色)给玻璃提供折射原料,
+/// 玻璃件因此能读出位置感 —— 左上角的卡和右下角的卡透出来的颜色不一样。
+///
+/// 极光压得很淡(α 0.11–0.30):太艳会把玻璃染成花纸。
+/// **同一主题内所有页共用同一张背景**,切页面时背景不动。
 class MaeveBackdrop extends StatelessWidget {
-  const MaeveBackdrop({super.key});
+  const MaeveBackdrop({super.key, this.glow = true});
+
+  final bool glow;
 
   @override
   Widget build(BuildContext context) {
-    final surfaces = MaeveSurfaces.of(context);
+    final colors = MaeveTheme.of(context).colors;
     return DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [surfaces.backdropTop, surfaces.backdropBottom],
+          colors: [colors.bgTop, colors.bg, colors.bgBottom],
+          stops: const [0, .58, 1],
         ),
       ),
-      child: CustomPaint(
-        painter: _MaeveGlowPainter(
-          primary: surfaces.glowPrimary,
-          secondary: surfaces.glowSecondary,
-        ),
-        size: Size.infinite,
-      ),
+      child: glow
+          ? CustomPaint(
+              painter: _AuroraPainter(
+                primary: colors.glowPrimary,
+                secondary: colors.glowSecondary,
+                tertiary: colors.glowTertiary,
+              ),
+              size: Size.infinite,
+            )
+          : const SizedBox.expand(),
     );
   }
 }
 
-class _MaeveGlowPainter extends CustomPainter {
-  const _MaeveGlowPainter({required this.primary, required this.secondary});
+class _AuroraPainter extends CustomPainter {
+  const _AuroraPainter({
+    required this.primary,
+    required this.secondary,
+    required this.tertiary,
+  });
 
   final Color primary;
   final Color secondary;
+  final Color tertiary;
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    // 右上:主色光晕;左下:邻近色光晕。半径按短边取,横竖屏都撑得开。
-    final radius = size.shortestSide * 0.9;
-    final topRight = Offset(size.width * 0.88, -size.height * 0.06);
-    final bottomLeft = Offset(-size.width * 0.05, size.height * 1.02);
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [primary, primary.withValues(alpha: 0)],
-          radius: 0.62,
-        ).createShader(Rect.fromCircle(center: topRight, radius: radius)),
-    );
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [secondary, secondary.withValues(alpha: 0)],
-          radius: 0.58,
-        ).createShader(Rect.fromCircle(center: bottomLeft, radius: radius)),
-    );
+    final unit = math.min(size.width, size.height);
+    void glow(Color color, Offset center, double radius) {
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()
+          ..shader = RadialGradient(colors: [color, color.withValues(alpha: 0)])
+              .createShader(Rect.fromCircle(center: center, radius: radius)),
+      );
+    }
+
+    glow(primary, Offset(size.width * .14, size.height * .06), unit * .92);
+    glow(secondary, Offset(size.width * .92, size.height * .26), unit * .78);
+    glow(tertiary, Offset(size.width * .44, size.height * 1.02), unit * .86);
   }
 
   @override
-  bool shouldRepaint(_MaeveGlowPainter old) =>
-      old.primary != primary || old.secondary != secondary;
+  bool shouldRepaint(_AuroraPainter old) =>
+      old.primary != primary ||
+      old.secondary != secondary ||
+      old.tertiary != tertiary;
 }

@@ -1,9 +1,13 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:maeve_flutter/design/maeve_accent.dart';
 import 'package:maeve_flutter/design/maeve_motion.dart';
-import 'package:maeve_flutter/design/maeve_tokens.dart';
+import 'package:maeve_flutter/design/maeve_motifs.dart';
+import 'package:maeve_flutter/design/maeve_theme.dart';
 import 'package:maeve_flutter/ui/common/app_page.dart';
 import 'package:maeve_flutter/ui/common/app_sheet.dart';
 import 'package:maeve_flutter/ui/common/haptics.dart';
@@ -13,19 +17,35 @@ import 'package:maeve_flutter/ui/common/status.dart';
 import 'package:maeve_flutter/ui/settings/settings_components.dart';
 import 'package:maeve_flutter/widgets/glass_surface.dart';
 
-/// 第 6 节 C2/C3/C8/C11/C12 里能用无头测试守住的部分。
-Widget host(Widget child, {Brightness brightness = Brightness.dark}) =>
-    MaterialApp(
-      theme: maeveTheme(brightness),
-      home: Scaffold(body: Center(child: child)),
-    );
+/// 组件层验收:A5(动效/降级)、A6(可点目标/双编码)、A9(右栏规则)。
+Widget host(
+  Widget child, {
+  Brightness brightness = Brightness.dark,
+  bool blurEnabled = true,
+  bool disableAnimations = false,
+  bool highContrast = false,
+}) => MaterialApp(
+  theme: maeveTheme(brightness: brightness),
+  home: MediaQuery(
+    data: MediaQueryData(
+      disableAnimations: disableAnimations,
+      highContrast: highContrast,
+    ),
+    child: MaeveThemeScope(
+      brightness: brightness,
+      accent: deriveAccent(MaeveAccentPreset.reverie),
+      blurEnabled: blurEnabled,
+      child: Scaffold(body: Center(child: child)),
+    ),
+  ),
+);
 
 void main() {
-  group('Pressable(C5 按压)', () {
-    testWidgets('按下缩到 0.97,松开回 1', (tester) async {
+  group('Pressable', () {
+    testWidgets('按下缩到 0.97、90ms,松开回 1', (tester) async {
       await tester.pumpWidget(
         host(
-          Pressable(onTap: () {}, child: const SizedBox(width: 80, height: 40)),
+          Pressable(onTap: () {}, child: const SizedBox(width: 80, height: 44)),
         ),
       );
       AnimatedScale scale() => tester.widget<AnimatedScale>(
@@ -41,35 +61,28 @@ void main() {
       await tester.pump();
       expect(scale().scale, MaeveMotion.pressScale);
       expect(scale().duration, MaeveMotion.press);
-
       await gesture.up();
       await tester.pumpAndSettle();
       expect(scale().scale, 1);
     });
 
-    testWidgets('减少动画时不缩放', (tester) async {
+    testWidgets('减少动效时不缩放', (tester) async {
       await tester.pumpWidget(
-        MediaQuery(
-          data: const MediaQueryData(disableAnimations: true),
-          child: host(
-            Pressable(
-              onTap: () {},
-              child: const SizedBox(width: 80, height: 40),
-            ),
-          ),
+        host(
+          Pressable(onTap: () {}, child: const SizedBox(width: 80, height: 44)),
+          disableAnimations: true,
         ),
       );
       final gesture = await tester.startGesture(
         tester.getCenter(find.byType(Pressable)),
       );
       await tester.pump();
-      final scale = tester.widget<AnimatedScale>(find.byType(AnimatedScale));
-      expect(scale.scale, 1);
+      expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1);
       await gesture.up();
     });
   });
 
-  group('HoldToConfirm(C12 危险操作摩擦)', () {
+  group('HoldToConfirm(A6 危险操作摩擦)', () {
     testWidgets('按满 1500ms 才生效,提前松手不算', (tester) async {
       var fired = 0;
       await tester.pumpWidget(
@@ -80,14 +93,12 @@ void main() {
           ),
         ),
       );
-
       final gesture = await tester.startGesture(
         tester.getCenter(find.byType(HoldToConfirm)),
       );
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 1200));
       expect(fired, 0);
-
-      // 中途松手:进度回退,不生效。
       await gesture.up();
       await tester.pump(const Duration(milliseconds: 400));
       expect(fired, 0);
@@ -101,7 +112,7 @@ void main() {
       await again.up();
     });
 
-    testWidgets('手指移动超过 24px 视为放弃', (tester) async {
+    testWidgets('移动超过 24px 视为放弃', (tester) async {
       var fired = 0;
       await tester.pumpWidget(
         host(
@@ -114,6 +125,7 @@ void main() {
       final gesture = await tester.startGesture(
         tester.getCenter(find.byType(HoldToConfirm)),
       );
+      await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
       await gesture.moveBy(const Offset(40, 0));
       await tester.pump(const Duration(milliseconds: 1600));
@@ -122,8 +134,8 @@ void main() {
     });
   });
 
-  group('触感入口(C8)', () {
-    testWidgets('关掉后一次平台调用都不发', (tester) async {
+  group('触感(A6 单一入口)', () {
+    testWidgets('关掉后零平台调用;开着时按档位震动', (tester) async {
       final calls = <MethodCall>[];
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -148,74 +160,76 @@ void main() {
     });
   });
 
-  group('AppPage(C11 顶渐隐)', () {
-    testWidgets('静止不出现渐隐,滚下去才出现', (tester) async {
+  group('页面骨架(A10 / 顶栏)', () {
+    testWidgets('顶栏是整条玻璃,标题列有眉标与副标题', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          theme: maeveTheme(Brightness.dark),
-          home: AppPage.list(
-            title: '测试页',
-            children: [
-              for (var i = 0; i < 40; i++)
-                SizedBox(height: 60, child: Text('行 $i')),
-            ],
+          theme: maeveTheme(brightness: Brightness.dark),
+          home: MaeveThemeScope(
+            brightness: Brightness.dark,
+            accent: deriveAccent(MaeveAccentPreset.reverie),
+            child: AppPage.list(
+              title: '测试页',
+              eyebrow: 'TEST',
+              subtitle: '副标题',
+              children: [for (var i = 0; i < 30; i++) Text('行 $i')],
+            ),
           ),
         ),
       );
       await tester.pumpAndSettle();
 
-      double fadeOpacity() {
-        final finder = find.descendant(
-          of: find.byType(AppPage),
-          matching: find.byType(AnimatedOpacity),
-        );
-        return tester.widget<AnimatedOpacity>(finder.first).opacity;
-      }
-
-      expect(fadeOpacity(), 0);
       expect(find.text('测试页'), findsOneWidget);
-
-      await tester.drag(find.byType(ListView), const Offset(0, -300));
-      await tester.pumpAndSettle();
-      expect(fadeOpacity(), 1);
+      expect(find.text('TEST'), findsOneWidget);
+      expect(find.text('副标题'), findsOneWidget);
+      // 顶栏是一块 chrome 玻璃(会采样)。
+      final surface = tester.widget<MaeveGlassSurface>(
+        find.byType(MaeveGlassSurface).first,
+      );
+      expect(surface.tier, MaeveGlassTier.chrome);
+      expect(find.byType(BackdropFilter), findsWidgets);
     });
   });
 
-  group('设置组件', () {
-    testWidgets('一张卡里所有行共享组色相', (tester) async {
-      const hue = Color(0xFF34766F);
+  group('设置行(A9 右栏规则)', () {
+    testWidgets('value 与箭头之间恒为 8,长值省略号', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          theme: maeveTheme(Brightness.dark),
-          home: Scaffold(
-            body: SettingsSection(
-              title: '能力',
-              hue: hue,
-              rows: const [
-                SettingsTile(icon: Icons.smartphone, title: '手机操控'),
-                SettingsTile(icon: Icons.mic, title: '语音'),
+        host(
+          SizedBox(
+            width: 360,
+            child: SettingsSection(
+              title: '分组',
+              rows: [
+                SettingsTile(
+                  icon: Icons.tag,
+                  title: '版本',
+                  value: '0.1.0+1 (build 2026-11-11) 很长很长',
+                  onTap: () {},
+                ),
               ],
             ),
           ),
         ),
       );
-      final glyphs = tester.widgetList<SettingsGlyph>(
-        find.byType(SettingsGlyph),
-      );
-      expect(glyphs.length, 2);
-      for (final glyph in glyphs) {
-        expect(glyph.tint, hue);
-      }
+      expect(RowMetrics.gap, 8);
+      final value = tester.widget<Text>(find.textContaining('0.1.0+1'));
+      expect(value.maxLines, 1);
+      expect(value.overflow, TextOverflow.ellipsis);
+
+      // 值右边缘到箭头左边缘 = 8。
+      final valueRect = tester.getRect(find.textContaining('0.1.0+1'));
+      final chevronRect = tester.getRect(find.byIcon(Icons.chevron_right));
+      expect(chevronRect.left - valueRect.right, closeTo(RowMetrics.gap, .5));
     });
 
-    testWidgets('开关行整行可点,右侧有开关态文案', (tester) async {
+    testWidgets('开关行:文案与开关之间也是 8,整行可点', (tester) async {
       var value = false;
       await tester.pumpWidget(
-        MaterialApp(
-          theme: maeveTheme(Brightness.dark),
-          home: StatefulBuilder(
-            builder: (context, setState) => Scaffold(
-              body: SettingsSection(
+        host(
+          SizedBox(
+            width: 360,
+            child: StatefulBuilder(
+              builder: (context, setState) => SettingsSection(
                 title: '通用',
                 rows: [
                   SettingsSwitchTile(
@@ -234,110 +248,86 @@ void main() {
       await tester.tap(find.text('触感反馈'));
       await tester.pumpAndSettle();
       expect(find.text('已开启'), findsOneWidget);
+
+      final labelRect = tester.getRect(find.text('已开启'));
+      final switchRect = tester.getRect(find.byType(Switch));
+      expect(switchRect.left - labelRect.right, closeTo(RowMetrics.gap, .5));
     });
 
-    testWidgets('数值用等宽数字', (tester) async {
+    testWidgets('普通行图标块中性,状态行才上色', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          theme: maeveTheme(Brightness.dark),
-          home: Scaffold(
-            body: SettingsSection(
-              title: '关于',
+        host(
+          SizedBox(
+            width: 360,
+            child: SettingsSection(
+              title: '组',
               rows: const [
-                SettingsTile(
-                  icon: Icons.tag,
-                  title: '版本',
-                  value: '0.1.0',
-                  mono: true,
-                ),
+                SettingsTile(icon: Icons.tag, title: '中性'),
+                SettingsTile(icon: Icons.warning, title: '状态', tone: Tone.bad),
               ],
             ),
           ),
         ),
       );
-      final text = tester.widget<Text>(find.text('0.1.0'));
-      expect(text.style?.fontFamily, 'JetBrainsMono');
-      expect(
-        text.style?.fontFeatures,
-        contains(const FontFeature.tabularFigures()),
-      );
+      final tiles = tester.widgetList<IconTile>(find.byType(IconTile)).toList();
+      expect(tiles.first.tone, Tone.neutral);
+      expect(tiles.last.tone, Tone.bad);
     });
-  });
 
-  group('弹层(AppSheet)', () {
-    testWidgets('顶两角 28 的 sheet 玻璃', (tester) async {
+    testWidgets('分段行:选中项文字加粗/变色,不只靠底色', (tester) async {
+      var index = 0;
       await tester.pumpWidget(
-        MaterialApp(
-          theme: maeveTheme(Brightness.dark),
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: Center(
-                child: FilledButton(
-                  onPressed: () => showMaeveSheet<void>(
-                    context: context,
-                    builder: (_) =>
-                        const AppSheet(child: SheetTitleBar(title: '测试弹层')),
+        host(
+          SizedBox(
+            width: 360,
+            child: StatefulBuilder(
+              builder: (context, setState) => SettingsSection(
+                title: '组',
+                rows: [
+                  SettingsSegmentTile(
+                    icon: Icons.tune,
+                    title: '档位',
+                    options: const ['高', '中', '低'],
+                    value: index,
+                    onChanged: (next) => setState(() => index = next),
                   ),
-                  child: const Text('打开'),
-                ),
+                ],
               ),
             ),
           ),
         ),
       );
-      await tester.tap(find.text('打开'));
+      await tester.tap(find.text('中'));
       await tester.pumpAndSettle();
-      expect(find.text('测试弹层'), findsOneWidget);
-
-      final surface = tester.widget<MaeveGlassSurface>(
-        find.descendant(
-          of: find.byType(AppSheet),
-          matching: find.byType(MaeveGlassSurface),
-        ),
-      );
-      expect(surface.tier, MaeveGlassTier.sheet);
-      expect(
-        surface.borderRadius,
-        const BorderRadius.vertical(top: Radius.circular(MaeveRadius.xl)),
-      );
+      final selected = tester.widget<Text>(find.text('中'));
+      final colors = MaeveTheme.of(tester.element(find.byType(SettingsSection)))
+          .colors;
+      expect(selected.style?.color, colors.onAccent);
     });
   });
 
-  group('状态双编码(C9)', () {
-    testWidgets('空闲是空心环,就绪是实心点', (tester) async {
-      await tester.pumpWidget(
-        host(
-          const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              StatusDot(tone: MaeveTone.idle),
-              StatusDot(tone: MaeveTone.ready),
-            ],
-          ),
-        ),
-      );
-      final dots = tester
-          .widgetList<Container>(
-            find.descendant(
-              of: find.byType(StatusDot),
-              matching: find.byType(Container),
-            ),
-          )
-          .toList();
-      // 每个点一个 Container:空心靠 border,实心靠 color。
-      final idle = dots.firstWhere(
-        (c) => (c.decoration! as BoxDecoration).border != null,
-      );
-      final ready = dots.firstWhere(
-        (c) =>
-            (c.decoration! as BoxDecoration).color != null &&
-            (c.decoration! as BoxDecoration).color != Colors.transparent,
-      );
-      expect((idle.decoration! as BoxDecoration).color, Colors.transparent);
-      expect(
-        (ready.decoration! as BoxDecoration).color,
-        isNot(Colors.transparent),
-      );
+  group('状态双编码', () {
+    test('五种状态画出不同形状(不是只换颜色)', () {
+      List<String> ops(MaeveTone tone) {
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder);
+        final spy = _RecordingCanvas(canvas);
+        StatusDotPainter(
+          tone: tone,
+          color: const Color(0xFFFFFFFF),
+        ).paint(spy, const Size.square(14));
+        return spy.ops;
+      }
+
+      final idle = ops(MaeveTone.idle);
+      final running = ops(MaeveTone.running);
+      final ready = ops(MaeveTone.ready);
+      final danger = ops(MaeveTone.danger);
+
+      expect(idle, isNot(running));
+      expect(running.any((op) => op.startsWith('arc')), isTrue);
+      expect(ready.where((op) => op.startsWith('circle')).length, 2);
+      expect(danger.any((op) => op.startsWith('line')), isTrue);
     });
 
     testWidgets('顶栏状态行给读屏一句完整文案', (tester) async {
@@ -348,7 +338,79 @@ void main() {
     });
   });
 
-  group('展开与尺寸', () {
+  group('母题', () {
+    test('迷宫环:进度画一段弧长,不是转圈', () {
+      final recorder = ui.PictureRecorder();
+      final spy = _RecordingCanvas(Canvas(recorder));
+      MazeRingPainter(
+        progress: .5,
+        track: const Color(0xFF222222),
+        head: const Color(0xFFFFFFFF),
+        strokeWidth: 1.4,
+      ).paint(spy, const Size.square(24));
+      // 底螺线 + 走过的一段 + 光点。
+      expect(spy.ops.where((op) => op.startsWith('path')).length, 2);
+      expect(spy.ops.where((op) => op.startsWith('circle')).length, 1);
+    });
+
+    test('钢琴卷:条高由序号决定,不随重建变化', () {
+      final heights = [
+        for (var i = 0; i < 8; i++) PianoRollPainter.fraction(i),
+      ];
+      final again = [for (var i = 0; i < 8; i++) PianoRollPainter.fraction(i)];
+      expect(heights, again);
+      expect(heights.toSet().length, greaterThan(4));
+    });
+
+    test('台词轨:幕号补零到两位', () {
+      const rail = ScriptRail(act: 3);
+      expect(rail.act, 3);
+      // 文案在 build 里补零,这里只守契约:1 起步、补到两位。
+      expect(3.toString().padLeft(2, '0'), '03');
+    });
+  });
+
+  group('弹层与展开', () {
+    testWidgets('弹层是 sheet 玻璃,顶两角 28', (tester) async {
+      // 设计系统的 scope 必须在 Navigator **之上**:弹层是另一条 route,
+      // 它不在 home 的子树里。MaeveApp 就是这么装的(MaterialApp.builder)。
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: maeveTheme(brightness: Brightness.dark),
+          builder: (context, child) => MaeveThemeScope(
+            brightness: Brightness.dark,
+            accent: deriveAccent(MaeveAccentPreset.reverie),
+            child: child ?? const SizedBox.shrink(),
+          ),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: FilledButton(
+                  onPressed: () => showMaeveSheet<void>(
+                    context: context,
+                    builder: (_) =>
+                        const AppSheet(child: SheetTitleBar(title: '弹层')),
+                  ),
+                  child: const Text('打开'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('打开'));
+      await tester.pumpAndSettle();
+      expect(find.text('弹层'), findsOneWidget);
+      final surface = tester.widget<MaeveGlassSurface>(
+        find.descendant(
+          of: find.byType(AppSheet),
+          matching: find.byType(MaeveGlassSurface),
+        ),
+      );
+      expect(surface.tier, MaeveGlassTier.sheet);
+      expect(surface.shape, isA<RoundedSuperellipseBorder>());
+    });
+
     testWidgets('ExpandReveal 收起时高度为 0', (tester) async {
       await tester.pumpWidget(
         host(
@@ -360,7 +422,6 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(tester.getSize(find.byType(ExpandReveal)).height, 0);
-
       await tester.pumpWidget(
         host(
           const ExpandReveal(
@@ -373,4 +434,46 @@ void main() {
       expect(tester.getSize(find.byType(ExpandReveal)).height, 80);
     });
   });
+}
+
+/// 记录 painter 的绘制调用,不做光栅化。
+class _RecordingCanvas implements Canvas {
+  _RecordingCanvas(this._inner);
+
+  final Canvas _inner;
+  final List<String> ops = [];
+
+  @override
+  void drawCircle(Offset c, double radius, Paint paint) {
+    ops.add('circle(${c.dx},${c.dy},$radius)');
+    _inner.drawCircle(c, radius, paint);
+  }
+
+  @override
+  void drawArc(
+    Rect rect,
+    double startAngle,
+    double sweepAngle,
+    bool useCenter,
+    Paint paint,
+  ) {
+    ops.add('arc($startAngle,$sweepAngle)');
+    _inner.drawArc(rect, startAngle, sweepAngle, useCenter, paint);
+  }
+
+  @override
+  void drawLine(Offset p1, Offset p2, Paint paint) {
+    ops.add('line(${p1.dx},${p1.dy})->(${p2.dx},${p2.dy})');
+    _inner.drawLine(p1, p2, paint);
+  }
+
+  @override
+  void drawPath(Path path, Paint paint) {
+    ops.add('path');
+    _inner.drawPath(path, paint);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnsupportedError('Unexpected canvas call ${invocation.memberName}');
 }

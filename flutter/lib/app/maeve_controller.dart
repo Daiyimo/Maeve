@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../design/maeve_palette.dart';
+import '../design/maeve_accent.dart';
+
 import '../models/conversation.dart';
 import '../ui/common/haptics.dart';
 
@@ -47,7 +48,12 @@ class MaeveController extends ChangeNotifier {
 
   // —— 外观 ——
   ThemeMode mode = ThemeMode.dark;
-  MaevePalette palette = MaevePalette.reverie;
+
+  /// 当前配色预设(六套之一)。推导出来的完整色位见 [accent]。
+  MaeveAccentPreset accentPreset = MaeveAccentPreset.reverie;
+
+  /// 当前配色推导完的色位(页面取色都走主题,不直接用这个)。
+  MaeveAccent get accent => deriveAccent(accentPreset);
   bool reduceTransparency = false;
   bool haptics = true;
 
@@ -136,6 +142,14 @@ class MaeveController extends ChangeNotifier {
   List<Conversation> get archivedConversations =>
       conversations.where((conversation) => conversation.archived).toList();
 
+  /// 顶栏标题上方那行等宽标签(机器声部):一眼看出她此刻在什么状态。
+  String get eyebrow {
+    if (!connected) return 'HOST · OFFLINE';
+    if (generating) return 'HOST · RUNNING';
+    if (autoApprove) return 'HOST · AUTO';
+    return 'HOST · READY';
+  }
+
   /// 状态行的一句人话(B3:不走秒)。
   String get statusLine {
     if (!connected) return '本机 · 未连接';
@@ -155,8 +169,8 @@ class MaeveController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setPalette(MaevePalette next) {
-    palette = next;
+  void setAccent(MaeveAccentPreset next) {
+    accentPreset = next;
     notifyListeners();
   }
 

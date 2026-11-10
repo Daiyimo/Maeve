@@ -1,14 +1,19 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
+
+import 'quick_panel.dart';
+
+import 'sessions_drawer.dart';
+
+import 'chat_page.dart';
 
 import '../design/maeve_motion.dart';
 import '../design/maeve_surfaces.dart';
-import '../design/maeve_tokens.dart';
-import 'chat_page.dart';
-import 'quick_panel.dart';
-import 'sessions_drawer.dart';
+import '../design/maeve_theme.dart';
+import '../design/maeve_type.dart';
+
+import 'package:flutter/physics.dart';
 
 /// B2 主壳:聊天页在底下,会话抽屉从左、QuickPanel 从右,两者互斥。
 ///
@@ -68,12 +73,12 @@ class _MaeveShellState extends State<MaeveShell> with TickerProviderStateMixin {
     }
   }
 
-  bool get _wide => MediaQuery.sizeOf(context).width >= MaeveLayout.breakpoint;
+  bool get _wide => MediaQuery.sizeOf(context).width >= MaeveBreakpoints.wide;
 
   double get _drawerWidth {
     final left = MediaQuery.viewPaddingOf(context).left;
     final width = MediaQuery.sizeOf(context).width;
-    return math.min(MaeveLayout.sidebarWidth + left, width - 56);
+    return math.min(MaeveSize.drawer + left, width - 56);
   }
 
   void _unfocus() => FocusManager.instance.primaryFocus?.unfocus();
@@ -235,7 +240,7 @@ class _MaeveShellState extends State<MaeveShell> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final wide = width >= MaeveLayout.breakpoint;
+    final wide = width >= MaeveBreakpoints.wide;
     return PopScope(
       canPop: !_overlayOpen,
       onPopInvokedWithResult: (didPop, result) {
@@ -264,7 +269,7 @@ class _MaeveShellState extends State<MaeveShell> with TickerProviderStateMixin {
                       if (wide)
                         _DockedSidebar(
                           visible: !_folded,
-                          width: MaeveLayout.sidebarWidth,
+                          width: MaeveSize.drawer,
                           child: SessionsDrawer(
                             docked: true,
                             onClose: () => setState(() => _folded = true),
@@ -291,7 +296,7 @@ class _MaeveShellState extends State<MaeveShell> with TickerProviderStateMixin {
   }
 
   Widget _scrim(BuildContext context) {
-    final surfaces = MaeveSurfaces.of(context);
+    final colors = MaeveTheme.of(context).colors;
     final progress = math.max(_drawer.value, _quick.value).clamp(0.0, 1.0);
     // 注意:这里必须返回 *定位* 的占位。非定位的 0×0 子件会让整个 Stack
     // 量到 0,聊天列表跟着变成 0 高 —— 这是"什么都没渲染"的经典坑。
@@ -306,7 +311,7 @@ class _MaeveShellState extends State<MaeveShell> with TickerProviderStateMixin {
           _closeQuick();
         },
         child: ColoredBox(
-          color: surfaces.scrim.withValues(alpha: surfaces.scrim.a * progress),
+          color: colors.scrim.withValues(alpha: colors.scrim.a * progress),
         ),
       ),
     );

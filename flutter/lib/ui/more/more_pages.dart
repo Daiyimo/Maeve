@@ -2,32 +2,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../app/maeve_controller.dart';
-import '../../design/maeve_tokens.dart';
+import '../../design/maeve_shapes.dart';
+import '../../design/maeve_theme.dart';
+import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
 import '../common/app_sheet.dart';
-import '../common/status.dart';
 import '../common/pressable.dart';
+import '../common/status.dart';
 import '../settings/settings_components.dart';
 
-/// B11 网页版:地址栏 + 内容区。真正的 WebView 由 Android 侧提供。
+/// 网页版:地址栏 + 内容区。真正的 WebView 由 Android 侧提供。
 class WebViewPage extends StatelessWidget {
   const WebViewPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return AppPage(
       title: '网页版',
       subtitle: '同一条会话，在浏览器里继续',
+      eyebrow: 'WEB',
       padded: false,
       child: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(
-              MaeveSpace.gutter,
-              MaeveLayout.pageBarHeight + MaeveSpace.sm,
-              MaeveSpace.gutter,
-              MaeveSpace.sm,
+              MaeveSpace.s16,
+              MaeveSize.topBar + MaeveSpace.s8,
+              MaeveSpace.s16,
+              MaeveSpace.s8,
             ),
             child: Row(
               children: [
@@ -35,22 +38,19 @@ class WebViewPage extends StatelessWidget {
                   child: Container(
                     height: 40,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: MaeveSpace.md,
+                      horizontal: MaeveSpace.s12,
                     ),
                     decoration: BoxDecoration(
-                      color: scheme.onSurface.withValues(alpha: .05),
-                      borderRadius: BorderRadius.circular(MaeveRadius.pill),
-                      border: Border.all(
-                        color: scheme.outline.withValues(alpha: .5),
-                        width: .5,
-                      ),
+                      color: colors.surface,
+                      borderRadius: BorderRadius.circular(MaeveRadius.md),
+                      border: Border.all(color: colors.edge, width: .5),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           Icons.lock_outline_rounded,
                           size: 14,
-                          color: scheme.onSurfaceVariant,
+                          color: colors.ink3,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
@@ -58,18 +58,14 @@ class WebViewPage extends StatelessWidget {
                             'maeve.local/session',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: MaeveFonts.mono(
-                              context,
-                              size: 12,
-                              color: scheme.onSurfaceVariant,
-                            ),
+                            style: MaeveType.mono.copyWith(color: colors.ink3),
                           ),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(width: MaeveSpace.sm),
+                const SizedBox(width: MaeveSpace.s8),
                 Pressable(
                   onTap: () => _notice(context, '刷新将由 WebView 桥接提供。'),
                   borderRadius: BorderRadius.circular(MaeveRadius.pill),
@@ -79,7 +75,7 @@ class WebViewPage extends StatelessWidget {
                     child: Icon(
                       Icons.refresh_rounded,
                       size: 18,
-                      color: scheme.onSurfaceVariant,
+                      color: colors.ink3,
                     ),
                   ),
                 ),
@@ -106,7 +102,7 @@ class WebViewPage extends StatelessWidget {
   }
 }
 
-/// B11 终端:独立主题(固定深底 + 等宽),命令执行由 Android 侧提供。
+/// 终端:独立主题(固定深底 + 等宽),命令执行由 Android 沙箱提供。
 class TerminalPage extends StatefulWidget {
   const TerminalPage({super.key});
 
@@ -116,10 +112,15 @@ class TerminalPage extends StatefulWidget {
 
 class _TerminalPageState extends State<TerminalPage> {
   final List<({String text, bool isCommand})> _lines = [
-    (text: 'Maeve shell · 本地预览', isCommand: false),
+    (text: 'maeve shell · 本地预览', isCommand: false),
     (text: '命令执行由 Android 沙箱提供，这里先给出终端的视觉与输入。', isCommand: false),
   ];
   final TextEditingController _input = TextEditingController();
+
+  // 终端有自己的主题:固定深底,不跟配色走。
+  static const _background = Color(0xFF0B0F0D);
+  static const _foreground = Color(0xFFD7E6DB);
+  static const _accent = Color(0xFF7FD1A6);
 
   @override
   void dispose() {
@@ -139,126 +140,144 @@ class _TerminalPageState extends State<TerminalPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 终端有自己的主题:固定深底,不跟配色走。
-    const background = Color(0xFF0B0F0D);
-    const foreground = Color(0xFFD7E6DB);
-    const accent = Color(0xFF7FD1A6);
-    return Theme(
-      data: Theme.of(context).copyWith(scaffoldBackgroundColor: background),
-      child: Scaffold(
-        backgroundColor: background,
-        body: SafeArea(
-          child: Column(
-            children: [
-              SizedBox(
-                height: MaeveLayout.pageBarHeight,
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: MaeveLayout.touch,
-                      child: PageBackButton(
-                        onPressed: () => Navigator.of(context).maybePop(),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        '终端',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: foreground),
-                      ),
-                    ),
-                    const SizedBox(width: MaeveLayout.touch),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.all(MaeveSpace.lg),
-                  children: [
-                    for (final line in _lines)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Text(
-                          line.isCommand ? '\$ ${line.text}' : line.text,
-                          style: MaeveFonts.mono(
-                            context,
-                            size: 12.5,
-                            color: line.isCommand ? accent : foreground,
-                            height: 1.5,
+    const line = TextStyle(
+      fontFamily: MaeveType.monoFamily,
+      fontFamilyFallback: MaeveType.monoFallback,
+      fontSize: 12.5,
+      height: 1.5,
+      fontFeatures: [FontFeature.tabularFigures()],
+    );
+    return Scaffold(
+      backgroundColor: _background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            SizedBox(
+              height: MaeveSize.topBar,
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 48,
+                    child: Pressable(
+                      onTap: () => Navigator.of(context).maybePop(),
+                      borderRadius: BorderRadius.circular(MaeveRadius.pill),
+                      semanticLabel: '返回',
+                      child: const SizedBox.square(
+                        dimension: 48,
+                        child: Center(
+                          child: Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 17,
+                            color: _foreground,
                           ),
                         ),
                       ),
-                  ],
-                ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Text(
+                      '终端',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w500,
+                        color: _foreground,
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(right: MaeveSpace.s16),
+                    child: Text(
+                      'SANDBOX',
+                      style: TextStyle(
+                        fontFamily: MaeveType.monoFamily,
+                        fontSize: 10.5,
+                        letterSpacing: .1,
+                        color: _foreground.withValues(alpha: .45),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.fromLTRB(
-                  MaeveSpace.lg,
-                  MaeveSpace.sm,
-                  MaeveSpace.lg,
-                  MaeveSpace.lg,
-                ),
-                decoration: const BoxDecoration(
-                  border: Border(
-                    top: BorderSide(color: Color(0x1FFFFFFF), width: .5),
+            ),
+            Container(height: .5, color: _foreground.withValues(alpha: .12)),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(MaeveSpace.s16),
+                children: [
+                  for (final entry in _lines)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Text(
+                        entry.isCommand ? '\$ ${entry.text}' : entry.text,
+                        style: line.copyWith(
+                          color: entry.isCommand ? _accent : _foreground,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(
+                MaeveSpace.s16,
+                MaeveSpace.s8,
+                MaeveSpace.s16,
+                MaeveSpace.s16,
+              ),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: _foreground.withValues(alpha: .12),
+                    width: .5,
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Text(
-                      '\$',
-                      style: MaeveFonts.mono(context, color: accent, size: 13),
-                    ),
-                    const SizedBox(width: MaeveSpace.sm),
-                    Expanded(
-                      child: TextField(
-                        key: const ValueKey('terminal-input'),
-                        controller: _input,
-                        onSubmitted: (_) => _submit(),
-                        style: MaeveFonts.mono(
-                          context,
-                          size: 12.5,
-                          color: foreground,
-                        ),
-                        cursorColor: accent,
-                        decoration: InputDecoration(
-                          isDense: true,
-                          border: InputBorder.none,
-                          hintText: '输入命令…',
-                          hintStyle: MaeveFonts.mono(
-                            context,
-                            size: 12.5,
-                            color: foreground.withValues(alpha: .35),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Pressable(
-                      onTap: _submit,
-                      borderRadius: BorderRadius.circular(MaeveRadius.pill),
-                      semanticLabel: '执行',
-                      child: SizedBox.square(
-                        dimension: 36,
-                        child: Icon(
-                          Icons.keyboard_return_rounded,
-                          size: 18,
-                          color: accent,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
-            ],
-          ),
+              child: Row(
+                children: [
+                  Text('\$', style: line.copyWith(color: _accent)),
+                  const SizedBox(width: MaeveSpace.s8),
+                  Expanded(
+                    child: TextField(
+                      key: const ValueKey('terminal-input'),
+                      controller: _input,
+                      onSubmitted: (_) => _submit(),
+                      style: line.copyWith(color: _foreground),
+                      cursorColor: _accent,
+                      decoration: InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        hintText: '输入命令…',
+                        hintStyle: line.copyWith(
+                          color: _foreground.withValues(alpha: .35),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Pressable(
+                    onTap: _submit,
+                    borderRadius: BorderRadius.circular(MaeveRadius.pill),
+                    semanticLabel: '执行',
+                    child: const SizedBox.square(
+                      dimension: 36,
+                      child: Icon(
+                        Icons.keyboard_return_rounded,
+                        size: 18,
+                        color: _accent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// B11 社区:外部入口。没有 url_launcher,点击先说明要走桥。
+/// 社区:外部入口。没有 url_launcher,点击先说明要走桥。
 class CommunityPage extends StatelessWidget {
   const CommunityPage({super.key});
 
@@ -266,6 +285,7 @@ class CommunityPage extends StatelessWidget {
   Widget build(BuildContext context) => AppPage.list(
     title: '社区',
     subtitle: '问题、想法、更新',
+    eyebrow: 'COMMUNITY',
     children: [
       SettingsSection(
         title: '去处',
@@ -295,7 +315,7 @@ class CommunityPage extends StatelessWidget {
   );
 }
 
-/// 分享:复制全文/Markdown 是真能用的,系统分享要接桥。
+/// 分享:复制全文 / Markdown 是真能用的,系统分享要接桥。
 Future<void> showShareSheet(BuildContext context, MaeveController controller) {
   final conversation = controller.active;
   final transcript = conversation.messages
@@ -312,7 +332,7 @@ Future<void> showShareSheet(BuildContext context, MaeveController controller) {
             title: '分享这段对话',
             subtitle: '${conversation.messages.length} 条 · 只在本机处理',
           ),
-          const SizedBox(height: MaeveSpace.sm),
+          const SizedBox(height: MaeveSpace.s8),
           ListPageRow(
             title: '复制全文',
             subtitle: '纯文本，粘到哪里都能读',

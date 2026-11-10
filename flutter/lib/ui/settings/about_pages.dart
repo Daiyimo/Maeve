@@ -5,23 +5,25 @@ import 'package:flutter/material.dart';
 import '../../app/maeve_controller.dart';
 import '../../app/onboarding.dart';
 import '../../bridge/maeve_bridge.dart';
-import '../../design/maeve_tokens.dart';
+import '../../design/maeve_theme.dart';
+import '../../design/maeve_type.dart';
 import '../../widgets/maeve_mark.dart';
 import '../common/app_page.dart';
 import '../common/app_sheet.dart';
 import '../common/status.dart';
 import 'settings_components.dart';
 
-/// B9 账号:未登录也能用，登录只是为同步。
+/// 账号:未登录也能用，登录只是为同步。
 class AccountPage extends StatelessWidget {
   const AccountPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return AppPage.list(
       title: '账号',
       subtitle: '不登录也能用完整功能',
+      eyebrow: 'ACCOUNT',
       children: [
         SettingsOverview(
           name: '本机',
@@ -32,14 +34,12 @@ class AccountPage extends StatelessWidget {
             (label: '套餐', value: '未订阅', mono: false),
             (label: '同步', value: '关闭', mono: false),
           ],
-          onTap: null,
         ),
-        const SizedBox(height: MaeveSpace.lg),
+        const SizedBox(height: MaeveSpace.s12),
         FilledButton(
           onPressed: () => _notice(context, '登录将通过 Android 平台桥接接入。'),
           child: const Text('登录以同步'),
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '账单',
           rows: const [
@@ -56,14 +56,13 @@ class AccountPage extends StatelessWidget {
               enabled: false,
             ),
           ],
-          footnote: '账号与账单都只在确实是你的数据时才同步；未登录时一切留在本机。',
+          footnote: '账号与账单只在确实是你的数据时才同步；未登录时一切留在本机。',
         ),
-        const SizedBox(height: MaeveSpace.xxl),
+        const SizedBox(height: MaeveSpace.s32),
         Center(
           child: Text(
-            'Maeve · 有声音的宿主',
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant),
+            'MAEVE · 有声音的宿主',
+            style: MaeveType.eyebrowFor('有声音的宿主').copyWith(color: colors.ink3),
           ),
         ),
       ],
@@ -71,7 +70,7 @@ class AccountPage extends StatelessWidget {
   }
 }
 
-/// B9 模型与思考:档位越低越快，越高越稳。
+/// 模型与思考:档位越低越快，越高越稳。
 class EnginePage extends StatelessWidget {
   const EnginePage({super.key});
 
@@ -81,13 +80,14 @@ class EnginePage extends StatelessWidget {
     return AppPage.list(
       title: '模型与思考',
       subtitle: '想多久，取决于任务有多难',
+      eyebrow: 'ENGINE',
       children: [
         SettingsSection(
           title: '思考档位',
           rows: [
             SettingsSegmentTile(
               icon: Icons.auto_awesome,
-              title: 'Maeve',
+              title: controller.model,
               subtitle: '同一套模型，三档思考深度',
               options: const ['高', '中', '低'],
               value: switch (controller.modelTier) {
@@ -101,7 +101,6 @@ class EnginePage extends StatelessWidget {
           ],
           footnote: '高档位会多花时间，但复杂任务上更少返工。',
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '边界',
           rows: const [
@@ -128,7 +127,7 @@ class EnginePage extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.lg),
+        const SizedBox(height: MaeveSpace.s12),
         const BriefNotice(
           text: '这些是执行层的硬边界，接入桥接后才会真正生效。',
           icon: Icons.info_outline,
@@ -138,7 +137,7 @@ class EnginePage extends StatelessWidget {
   }
 }
 
-/// B9 引擎设置汇总:把散落的引擎项收在一处。
+/// 引擎设置汇总:把散落的引擎项收在一处。
 class EngineSettingsHub extends StatelessWidget {
   const EngineSettingsHub({super.key});
 
@@ -146,6 +145,7 @@ class EngineSettingsHub extends StatelessWidget {
   Widget build(BuildContext context) => AppPage.list(
     title: '引擎设置',
     subtitle: '上下文、工具、主机',
+    eyebrow: 'ENGINE',
     children: [
       SettingsSection(
         title: '引擎',
@@ -176,7 +176,7 @@ class EngineSettingsHub extends StatelessWidget {
   );
 }
 
-/// B9 供应商:接入后才有多家可选。
+/// 供应商:接入后才有多家可选。
 class ProvidersPage extends StatelessWidget {
   const ProvidersPage({super.key});
 
@@ -184,6 +184,7 @@ class ProvidersPage extends StatelessWidget {
   Widget build(BuildContext context) => AppPage.list(
     title: '人格与提示词',
     subtitle: '它说话的方式，以及用谁的模型',
+    eyebrow: 'PROVIDERS',
     children: [
       SettingsSection(
         title: '人设',
@@ -203,7 +204,6 @@ class ProvidersPage extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: MaeveSpace.xl),
       SettingsSection(
         title: '供应商',
         rows: const [
@@ -235,11 +235,12 @@ class PluginsPage extends StatelessWidget {
   Widget build(BuildContext context) => AppPage.list(
     title: '插件',
     subtitle: '给 Maeve 加能力的原生界面',
+    eyebrow: 'PLUGINS',
     children: [
       EmptyView(
         icon: Icons.extension_outlined,
         title: '还没有装插件',
-        body: '插件提供原生界面与工具，装上后会出现在这里，也会出现在 QuickPanel。',
+        body: '插件提供原生界面与工具，装上后会出现在这里，也会出现在快捷面板。',
         action: FilledButton(
           onPressed: () => _notice(context, '插件市场将通过 Android 平台桥接接入。'),
           child: const Text('浏览插件'),
@@ -249,7 +250,7 @@ class PluginsPage extends StatelessWidget {
   );
 }
 
-/// B9 远程主机:配对了才显示入口。
+/// 远程主机:配对了才显示入口。
 class RemotePage extends StatelessWidget {
   const RemotePage({super.key});
 
@@ -257,6 +258,7 @@ class RemotePage extends StatelessWidget {
   Widget build(BuildContext context) => AppPage.list(
     title: '远程主机',
     subtitle: '把重活交给配对的机器',
+    eyebrow: 'HOSTS',
     children: [
       SettingsSection(
         title: '已配对',
@@ -269,7 +271,7 @@ class RemotePage extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: MaeveSpace.xl),
+      const SizedBox(height: MaeveSpace.s12),
       const BriefNotice(
         text: '远程执行时，任务内容会发送到那台机器；屏幕内容仍然只在本机处理。',
         icon: Icons.shield_outlined,
@@ -285,6 +287,7 @@ class UpdatePage extends StatelessWidget {
   Widget build(BuildContext context) => AppPage.list(
     title: '更新',
     subtitle: '安静地更新，不打扰',
+    eyebrow: 'UPDATE',
     children: [
       SettingsSection(
         title: '版本',
@@ -304,12 +307,12 @@ class UpdatePage extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: MaeveSpace.lg),
+      const SizedBox(height: MaeveSpace.s12),
       FilledButton(
         onPressed: () => _notice(context, '已是最新版本。'),
         child: const Text('检查更新'),
       ),
-      const SizedBox(height: MaeveSpace.md),
+      const SizedBox(height: MaeveSpace.s12),
       const BriefNotice(
         text: '更新只在你确认后安装；不会在后台偷偷换掉正在跑的版本。',
         icon: Icons.lock_outline_rounded,
@@ -318,7 +321,7 @@ class UpdatePage extends StatelessWidget {
   );
 }
 
-/// B9 关于:品牌、版本、许可。
+/// 关于:品牌、版本、许可。
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key, this.showIntro = false});
 
@@ -358,25 +361,31 @@ class _AboutPageState extends State<AboutPage> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final colors = MaeveTheme.of(context).colors;
     return AppPage.list(
       title: '关于',
       subtitle: 'Maeve',
+      eyebrow: 'ABOUT',
       children: [
-        const SizedBox(height: MaeveSpace.md),
+        const SizedBox(height: MaeveSpace.s12),
         Center(
           child: Column(
             children: [
-              const MaeveMark(size: 64, state: MarkState.armed),
-              const SizedBox(height: MaeveSpace.md),
-              Text('Maeve', style: Theme.of(context).textTheme.headlineSmall),
-              Text('有声音的宿主', style: Theme.of(context).textTheme.bodySmall),
-              const SizedBox(height: MaeveSpace.sm),
-              Text('0.1.0', style: MaeveFonts.mono(context, size: 12.5)),
+              const MaeveMark(size: 60, state: MarkState.armed),
+              const SizedBox(height: MaeveSpace.s12),
+              Text(
+                'Maeve',
+                style: MaeveType.largeTitle.copyWith(color: colors.ink),
+              ),
+              Text(
+                '有声音的宿主',
+                style: MaeveType.caption.copyWith(color: colors.ink3),
+              ),
+              const SizedBox(height: MaeveSpace.s8),
+              Text('0.1.0', style: MaeveType.mono.copyWith(color: colors.ink2)),
             ],
           ),
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '构建',
           rows: [
@@ -396,13 +405,12 @@ class _AboutPageState extends State<AboutPage> {
             ),
             const SettingsTile(
               icon: Icons.layers_outlined,
-              title: '视觉规范',
-              value: 'UI_SPEC_HANDOFF',
+              title: '设计契约',
+              value: 'visual-tokens.md',
               enabled: false,
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xl),
         SettingsSection(
           title: '许可与致谢',
           rows: [
@@ -416,8 +424,8 @@ class _AboutPageState extends State<AboutPage> {
             const SettingsTile(
               icon: Icons.font_download_outlined,
               title: '字体',
-              subtitle: 'JetBrains Mono（OFL-1.1）',
-              value: 'OFL',
+              subtitle: '跟随系统：无衬线 + 等宽',
+              value: '系统',
               enabled: false,
             ),
             SettingsTile(
@@ -427,12 +435,11 @@ class _AboutPageState extends State<AboutPage> {
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.xxl),
+        const SizedBox(height: MaeveSpace.s24),
         Center(
           child: Text(
             'Maeve 是本地优先的：默认不登录、不上传。',
-            style: Theme.of(context).textTheme.bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant),
+            style: MaeveType.hint.copyWith(color: colors.ink3),
           ),
         ),
       ],
@@ -460,9 +467,14 @@ Future<bool> confirmSheet(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SheetTitleBar(title: title),
-          const SizedBox(height: MaeveSpace.sm),
-          Text(body, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: MaeveSpace.lg),
+          const SizedBox(height: MaeveSpace.s8),
+          Text(
+            body,
+            style: MaeveType.body.copyWith(
+              color: MaeveTheme.of(context).colors.ink2,
+            ),
+          ),
+          const SizedBox(height: MaeveSpace.s16),
           Row(
             children: [
               Expanded(
@@ -471,7 +483,7 @@ Future<bool> confirmSheet(
                   child: const Text('取消'),
                 ),
               ),
-              const SizedBox(width: MaeveSpace.sm),
+              const SizedBox(width: MaeveSpace.s8),
               Expanded(
                 child: FilledButton(
                   onPressed: () => Navigator.of(context).pop(true),
