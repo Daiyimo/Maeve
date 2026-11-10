@@ -276,6 +276,15 @@ The Alpine-derived root filesystem contains additional GPL / LGPL / MPL packages
 notices live alongside the runtime build tooling. This is engineering bookkeeping, not
 legal advice — re-verify before distributing a binary.
 
+## JetBrains Mono
+
+- Project: https://github.com/JetBrains/JetBrainsMono
+- License: SIL Open Font License 1.1 (OFL-1.1)
+- Usage: Flutter 界面里唯一打包的字体，只用于等宽数字、版本号与代码
+  (`flutter/assets/fonts/`, `flutter/lib/design/maeve_tokens.dart` 的 `MaeveFonts`)。
+  中文字体不打包，跟随系统。
+- 许可原文: `flutter/assets/fonts/OFL.txt`
+
 ## dsh-Go (design reference only)
 
 - Project: https://github.com/ccch1mneyyy/dsh-Go

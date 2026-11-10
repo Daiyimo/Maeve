@@ -10,8 +10,19 @@ Flutter owns the user-visible shell, responsive navigation, themes, chat composi
 
 - Flutter module: `flutter/`
 - Dart SDK constraint: `^3.13.5`
-- Shared visual tokens: `flutter/lib/design/maeve_tokens.dart`
-- Tiered glass-like surfaces: `flutter/lib/widgets/glass_surface.dart`
+- Design tokens: `flutter/lib/design/`
+  - `maeve_tokens.dart` —— 六档圆角、间距、语义色、`maeveTheme()`、等宽出口 `MaeveFonts`
+  - `maeve_palette.dart` —— 六套配色（雾紫/黛青/暮霞/松绿/琥珀/石墨）+ 中性色 hue/chroma 规则
+  - `maeve_surfaces.dart` —— 四层玻璃、背景渐变、两团光晕、遮罩、用户气泡色
+  - `maeve_motion.dart` —— 时长/曲线/弹簧 token 与 `AppMotion.of(context)`（减少动画时归零）
+  - `oklch.dart` —— OKLCH → sRGB 与 WCAG 对比度（单测共用）
+- Glass material: `flutter/lib/widgets/glass_surface.dart`（`MaeveGlassSurface`，唯一入口）
+- Shared components: `flutter/lib/ui/common/`（Pressable、HoldToConfirm、AppPage、AppSheet、
+  StatusDot/HeaderStatus、EmptyView、ActivityStrip、ThinkingPill、SmoothSize、ExpandReveal、触感入口）
+- Settings components: `flutter/lib/ui/settings/`（SettingsSection/Tile/SwitchTile/SegmentTile/
+  Overview、SearchCapsuleButton、FeatureTile、ListPageRow）
+- Shell and screens: `flutter/lib/app/`（MaeveApp、MaeveShell、ChatPage、SessionsDrawer、
+  QuickPanel、Onboarding）+ `flutter/lib/ui/`（settings / phone / runs / memory 页面）
 - Bridge contracts: `maeve/ui` (method) and `maeve/ui/events` (event)
 - Module notes: [`flutter/README.md`](flutter/README.md)
 
@@ -21,11 +32,27 @@ is not a Gradle subproject: `:app` consumes the debug AAR that its build writes 
 
 The current Flutter shell includes:
 
-- Maeve eclipse mark, plum accent and unified light/dark design tokens
-- Layered chrome, sheet, card and pill surfaces without runtime backdrop blur
-- Responsive rail/sidebar navigation and searchable, switchable, creatable in-memory conversations
-- User and Maeve message presentation, composer, thinking state and stop action
-- Runs readiness state, Memory add/delete interactions, and appearance/platform settings
+- Maeve eclipse mark; six palettes (雾紫 default) with light/dark and contrast-guarded neutrals
+- Real bounded backdrop blur (`ImageFilterConfig.blur(bounded: true)` + Rec.709 saturation),
+  shared sampling through one `BackdropGroup` per header row, with a no-blur downgrade path
+- Floating capsule header (B4): menu button + title/status pill + model pill + new-conversation button
+- Floating composer (B5): 28 radius, 1–6 lines, two 40 circle keys, activity strip while generating
+- Two mutually exclusive gesture-driven drawers (B2): sessions from the left, quick panel from the right,
+  finger-tracking with rubber band, spring fling and iOS glide settling
+- Chat (B3): per-turn grouping, collapsible finished turns, thinking pill, inline queueing while generating
+- Sessions drawer (B6): search, workspace row, status filter, pinned/folder/day grouping, unread badges,
+  archive restore, multi-select archive/delete
+- Settings hub (B8) with six groups + overview + search, and sub-pages (B9): appearance (palette grid with
+  live preview), interface, performance, voice, notifications, reply prefs, privacy (hold-to-clear),
+  system access (local read test), background guide, diagnostics, about, account, engine, remote, plugins
+- Phone control (B10): master switch with first-run disclosure, permissions, read test, strip states,
+  confirm mode, app tiers, hold-to-lift restrictions, recent actions
+- Onboarding (B1): welcome → runtime → appearance → access → api key → finishing
+- Message actions (B3): long-press to copy/quote; the quote lands in a chip above the composer and
+  travels with the next message; attachment entry lists photo/file/screen sources
+- Remaining surfaces (B11 shells): web view chrome, terminal (own dark theme + mono), share
+  (copy as text/Markdown; system share pending bridge), community, update, about, account, engine,
+  remote, plugins, runs, memory
 
 ## Prototype limits
 
@@ -34,11 +61,24 @@ The current Flutter shell includes:
 - Runs is a visual readiness view and has no real execution history.
 - Attachments are not connected to the Android file picker.
 - The host registers `maeve/ui` for `open_settings` / `status` and `maeve/ui/events` for status; chat, model calls, persistence and agent execution are still not connected.
-- Runtime `BackdropFilter`/`RenderEffect` blur is intentionally avoided due to prior Android RenderThread instability.
+- Backdrop blur is real (bounded `BackdropFilter`) and verified on a PZ261A running Android 16; the
+  earlier "avoid blur" decision is superseded. Device screenshots live in `flutter/tool/screenshots/`.
+  If a RenderThread regression appears, use 设置 → 动效与性能 → 减少透明效果 (downgrade to
+  `fallbackFill`, no `BackdropFilter`), which is covered by tests.
 
 ## Device verification
 
-The workbench was checked on a PZ261A running Android 16:
+The workbench was checked on a PZ261A running Android 16. Current captures are in
+`flutter/tool/screenshots/`:
+
+- `b4-header-device.png` —— floating capsule header, no colour band, blur on device
+
+Captures for B5 (composer) / B8 (settings hub) / B10 (phone control) are still pending: the
+test device dropped to `adb offline` (Windows still lists the ADB interface as OK, so it is the
+phone-side adbd that stopped answering) before those screens could be captured. Re-run the
+screens once the device is back online; do not treat this list as complete.
+
+Older captures, kept for history:
 
 ![Flutter shell on the device](docs/media/flutter/flutter-device.png)
 
@@ -46,7 +86,8 @@ The workbench was checked on a PZ261A running Android 16:
 
 ## Migration order
 
-1. Embed the Flutter module in `app` and expose a feature flag for the Flutter shell.
+1. ~~Embed the Flutter module in `app` and expose a feature flag for the Flutter shell.~~ Done:
+   `com.daiyimo.maeve.ui.FlutterShellActivity` hosts the module behind an opt-in entry.
 2. Define and implement typed platform contracts for status, conversations, tasks, voice, permissions, settings and attachments.
 3. Move chat state and persistence behind the bridge; replace local demo replies with the real conversation stream.
 4. Connect Runs, Memory, Browser, Screens, About and Settings to their real data and capabilities.
@@ -71,6 +112,10 @@ reply, memory add/delete and the theme toggle.
 the translated READMEs and the paths in `docs/`. The rules are in
 [`docs/dev/project-standards.md`](docs/dev/project-standards.md). A successful local Flutter
 run does not imply that Android platform bridge handlers or real model services are connected.
+
+Design parity with dsh-go is tracked in [`flutter/UI_SPEC_HANDOFF.md`](flutter/UI_SPEC_HANDOFF.md);
+before committing, run `python tools/check_no_upstream_copy.py` — it refuses any tracked file that
+carries upstream AGPL markers.
 
 ### Local environment
 

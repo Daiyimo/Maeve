@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../design/maeve_surfaces.dart';
+import '../design/maeve_tokens.dart';
 
 export 'package:maeve_flutter/design/maeve_surfaces.dart'
     show MaeveGlassStyle, MaeveGlassTier, MaeveSurfaces;
@@ -49,6 +50,7 @@ class MaeveGlassSurface extends StatelessWidget {
     this.circle = false,
     this.stadium = false,
     this.onTap,
+    this.onLongPress,
   }) : assert(!(circle && stadium), 'circle 与 stadium 只能二选一');
 
   final Widget child;
@@ -90,12 +92,19 @@ class MaeveGlassSurface extends StatelessWidget {
 
   final VoidCallback? onTap;
 
+  /// 长按(快捷入口:模型胶囊长按开 QuickPanel)。
+  final VoidCallback? onLongPress;
+
   BorderRadiusGeometry get _radius =>
       borderRadius ??
       switch (tier) {
-        MaeveGlassTier.chrome ||
-        MaeveGlassTier.sheet => const BorderRadius.all(Radius.circular(24)),
-        MaeveGlassTier.card => const BorderRadius.all(Radius.circular(16)),
+        // 第 4.1 节:chrome / sheet 28(composer 必须 28),card 14。
+        MaeveGlassTier.chrome || MaeveGlassTier.sheet => const BorderRadius.all(
+          Radius.circular(MaeveRadius.xl),
+        ),
+        MaeveGlassTier.card => const BorderRadius.all(
+          Radius.circular(MaeveRadius.md),
+        ),
         MaeveGlassTier.pill => const BorderRadius.all(Radius.circular(999)),
       };
 
@@ -134,12 +143,17 @@ class MaeveGlassSurface extends StatelessWidget {
     if (padding != null) {
       content = Padding(padding: padding!, child: content);
     }
-    if (onTap != null) {
+    if (onTap != null || onLongPress != null) {
       // 按压反馈做在内容上,不做在玻璃上:缩放一个会模糊的面板会每帧
       // 按新尺寸重采样背景。
       content = Material(
         type: MaterialType.transparency,
-        child: InkWell(customBorder: shape, onTap: onTap, child: content),
+        child: InkWell(
+          customBorder: shape,
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: content,
+        ),
       );
     }
 

@@ -2,6 +2,8 @@ import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
+import 'maeve_palette.dart';
+
 /// 玻璃层级。决定填充透明度、是否模糊、描边与阴影。
 ///
 /// | 层级 | 用在哪 | 模糊 |
@@ -101,6 +103,9 @@ class MaeveSurfaces extends ThemeExtension<MaeveSurfaces> {
     required this.glowPrimary,
     required this.glowSecondary,
     required this.scrim,
+    required this.userBubble,
+    required this.onUserBubble,
+    required this.onUserBubbleSecondary,
     required this.chrome,
     required this.sheet,
     required this.card,
@@ -121,6 +126,15 @@ class MaeveSurfaces extends ThemeExtension<MaeveSurfaces> {
   /// 抽屉 / 模态遮罩(已含透明度)。
   final Color scrim;
 
+  /// 用户气泡底色(随配色换)。
+  final Color userBubble;
+
+  /// 用户气泡内主文字。
+  final Color onUserBubble;
+
+  /// 用户气泡内次级文字(必须 ≥5.8)。
+  final Color onUserBubbleSecondary;
+
   final MaeveGlassStyle chrome;
   final MaeveGlassStyle sheet;
   final MaeveGlassStyle card;
@@ -140,125 +154,19 @@ class MaeveSurfaces extends ThemeExtension<MaeveSurfaces> {
     MaeveGlassTier.pill => pill,
   };
 
-  /// 浅色:晨雾渐变 + 白玻璃。玻璃本身是白的,高光也是白的。
-  static const MaeveSurfaces light = MaeveSurfaces(
-    backdropTop: Color(0xFFF3F2F7),
-    backdropBottom: Color(0xFFECE7F2),
-    glowPrimary: Color(0x529B72B8),
-    glowSecondary: Color(0x478E93C6),
-    scrim: Color(0x5226232D),
-    chrome: MaeveGlassStyle(
-      fill: Color(0xB3FFFFFF),
-      fallbackFill: Color(0xF5F9F8FB),
-      hairline: Color(0x1426232D),
-      rim: Color(0xD9FFFFFF),
-      blurSigma: 18,
-      saturation: 1.3,
-      shadows: [
-        BoxShadow(
-          color: Color(0x1426232D),
-          blurRadius: 24,
-          offset: Offset(0, 8),
-        ),
-        BoxShadow(
-          color: Color(0x0D26232D),
-          blurRadius: 3,
-          offset: Offset(0, 1),
-        ),
-      ],
-    ),
-    sheet: MaeveGlassStyle(
-      fill: Color(0xD1F9F8FB),
-      fallbackFill: Color(0xFFF9F8FB),
-      hairline: Color(0x1226232D),
-      rim: Color(0xE6FFFFFF),
-      blurSigma: 24,
-      saturation: 1.4,
-      shadows: [
-        BoxShadow(
-          color: Color(0x1A26232D),
-          blurRadius: 32,
-          offset: Offset(0, 8),
-        ),
-      ],
-    ),
-    card: MaeveGlassStyle(
-      fill: Color(0x9EFFFFFF),
-      fallbackFill: Color(0xB8FFFFFF),
-      hairline: Color(0x0F26232D),
-      rim: Color(0xB3FFFFFF),
-    ),
-    pill: MaeveGlassStyle(
-      fill: Color(0x8CFFFFFF),
-      fallbackFill: Color(0xA8FFFFFF),
-      hairline: Color(0x1226232D),
-      rim: Color(0xBFFFFFFF),
-    ),
-  );
+  /// 默认配色的浅色材质(= 雾紫)。没有主题扩展时兜底用。
+  static MaeveSurfaces get light =>
+      MaevePalette.reverie.surfaces(Brightness.light);
 
-  /// 深色:夜石板渐变 + 烟灰玻璃。
-  static const MaeveSurfaces dark = MaeveSurfaces(
-    backdropTop: Color(0xFF201D27),
-    backdropBottom: Color(0xFF191521),
-    glowPrimary: Color(0x4D9B72B8),
-    glowSecondary: Color(0x3D8E93C6),
-    scrim: Color(0x7A000000),
-    chrome: MaeveGlassStyle(
-      fill: Color(0xB8332E3A),
-      fallbackFill: Color(0xF7332E3A),
-      hairline: Color(0x17FFFFFF),
-      rim: Color(0x1FFFFFFF),
-      blurSigma: 18,
-      saturation: 1.2,
-      shadows: [
-        BoxShadow(
-          color: Color(0x59000000),
-          blurRadius: 24,
-          offset: Offset(0, 8),
-        ),
-        BoxShadow(
-          color: Color(0x40000000),
-          blurRadius: 3,
-          offset: Offset(0, 1),
-        ),
-      ],
-    ),
-    sheet: MaeveGlassStyle(
-      fill: Color(0xDB2B2733),
-      fallbackFill: Color(0xF72B2733),
-      hairline: Color(0x14FFFFFF),
-      rim: Color(0x1AFFFFFF),
-      blurSigma: 24,
-      saturation: 1.2,
-      shadows: [
-        BoxShadow(
-          color: Color(0x66000000),
-          blurRadius: 32,
-          offset: Offset(0, 8),
-        ),
-      ],
-    ),
-    card: MaeveGlassStyle(
-      fill: Color(0x0DFFFFFF),
-      fallbackFill: Color(0x0FFFFFFF),
-      hairline: Color(0x12FFFFFF),
-      rim: Color(0x0FFFFFFF),
-    ),
-    pill: MaeveGlassStyle(
-      fill: Color(0x0FFFFFFF),
-      fallbackFill: Color(0x12FFFFFF),
-      hairline: Color(0x14FFFFFF),
-      rim: Color(0x14FFFFFF),
-    ),
-  );
+  /// 默认配色的深色材质。
+  static MaeveSurfaces get dark =>
+      MaevePalette.reverie.surfaces(Brightness.dark);
 
+  /// 默认配色的材质,可关掉模糊(降级路径)。
   static MaeveSurfaces forBrightness(
     Brightness brightness, {
     bool blurEnabled = true,
-  }) {
-    final base = brightness == Brightness.dark ? dark : light;
-    return blurEnabled ? base : base.copyWith(blurEnabled: false);
-  }
+  }) => MaevePalette.reverie.surfaces(brightness, blurEnabled: blurEnabled);
 
   @override
   MaeveSurfaces copyWith({
@@ -267,6 +175,9 @@ class MaeveSurfaces extends ThemeExtension<MaeveSurfaces> {
     Color? glowPrimary,
     Color? glowSecondary,
     Color? scrim,
+    Color? userBubble,
+    Color? onUserBubble,
+    Color? onUserBubbleSecondary,
     MaeveGlassStyle? chrome,
     MaeveGlassStyle? sheet,
     MaeveGlassStyle? card,
@@ -279,6 +190,10 @@ class MaeveSurfaces extends ThemeExtension<MaeveSurfaces> {
       glowPrimary: glowPrimary ?? this.glowPrimary,
       glowSecondary: glowSecondary ?? this.glowSecondary,
       scrim: scrim ?? this.scrim,
+      userBubble: userBubble ?? this.userBubble,
+      onUserBubble: onUserBubble ?? this.onUserBubble,
+      onUserBubbleSecondary:
+          onUserBubbleSecondary ?? this.onUserBubbleSecondary,
       chrome: chrome ?? this.chrome,
       sheet: sheet ?? this.sheet,
       card: card ?? this.card,
@@ -296,6 +211,13 @@ class MaeveSurfaces extends ThemeExtension<MaeveSurfaces> {
       glowPrimary: Color.lerp(glowPrimary, other.glowPrimary, t)!,
       glowSecondary: Color.lerp(glowSecondary, other.glowSecondary, t)!,
       scrim: Color.lerp(scrim, other.scrim, t)!,
+      userBubble: Color.lerp(userBubble, other.userBubble, t)!,
+      onUserBubble: Color.lerp(onUserBubble, other.onUserBubble, t)!,
+      onUserBubbleSecondary: Color.lerp(
+        onUserBubbleSecondary,
+        other.onUserBubbleSecondary,
+        t,
+      )!,
       chrome: MaeveGlassStyle.lerp(chrome, other.chrome, t),
       sheet: MaeveGlassStyle.lerp(sheet, other.sheet, t),
       card: MaeveGlassStyle.lerp(card, other.card, t),
