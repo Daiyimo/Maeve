@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'maeve_surfaces.dart';
+
 abstract final class MaeveTokens {
   static const accent = Color(0xFF9B72B8);
   static const accentStrong = Color(0xFF76508F);
@@ -35,7 +37,7 @@ abstract final class MaeveTokens {
   static const motionSheet = Duration(milliseconds: 320);
 }
 
-ThemeData maeveTheme(Brightness brightness) {
+ThemeData maeveTheme(Brightness brightness, {bool blurEnabled = true}) {
   final dark = brightness == Brightness.dark;
   final canvas = dark ? MaeveTokens.darkCanvas : MaeveTokens.lightCanvas;
   final surface = dark ? MaeveTokens.darkSurface : MaeveTokens.lightSurface;
@@ -69,6 +71,9 @@ ThemeData maeveTheme(Brightness brightness) {
     colorScheme: scheme,
     scaffoldBackgroundColor: canvas,
     dividerColor: line,
+    extensions: <ThemeExtension<dynamic>>[
+      MaeveSurfaces.forBrightness(brightness, blurEnabled: blurEnabled),
+    ],
     textTheme: baseText
         .apply(bodyColor: ink, displayColor: ink)
         .copyWith(
