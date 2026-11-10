@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'design/maeve_surfaces.dart';
 import 'design/maeve_tokens.dart';
 import 'models/conversation.dart';
 import 'widgets/glass_surface.dart';
@@ -20,27 +21,39 @@ class MaeveApp extends StatefulWidget {
 
 class _MaeveAppState extends State<MaeveApp> {
   ThemeMode mode = ThemeMode.dark;
+  bool reduceTransparency = false;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Maeve',
     debugShowCheckedModeBanner: false,
     themeMode: mode,
-    theme: maeveTheme(Brightness.light),
-    darkTheme: maeveTheme(Brightness.dark),
+    theme: maeveTheme(Brightness.light, blurEnabled: !reduceTransparency),
+    darkTheme: maeveTheme(Brightness.dark, blurEnabled: !reduceTransparency),
     home: MaeveShell(
       themeMode: mode,
       onTheme: () => setState(
         () => mode = mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark,
       ),
+      reduceTransparency: reduceTransparency,
+      onReduceTransparency: () =>
+          setState(() => reduceTransparency = !reduceTransparency),
     ),
   );
 }
 
 class MaeveShell extends StatefulWidget {
-  const MaeveShell({super.key, required this.onTheme, this.themeMode});
+  const MaeveShell({
+    super.key,
+    required this.onTheme,
+    this.themeMode,
+    this.reduceTransparency = false,
+    required this.onReduceTransparency,
+  });
   final VoidCallback onTheme;
   final ThemeMode? themeMode;
+  final bool reduceTransparency;
+  final VoidCallback onReduceTransparency;
 
   @override
   State<MaeveShell> createState() => _MaeveShellState();
@@ -87,6 +100,8 @@ class _MaeveShellState extends State<MaeveShell> {
         body: SafeArea(
           child: Stack(
             children: [
+              // 最底层:竖向渐变 + 双光晕。玻璃的透色与顶边高光靠它才看得出来。
+              const Positioned.fill(child: MaeveBackdrop()),
               Row(
                 children: [
                   if (wide) _rail(context),
@@ -99,9 +114,7 @@ class _MaeveShellState extends State<MaeveShell> {
                   child: GestureDetector(
                     key: const ValueKey('drawer-scrim'),
                     onTap: () => setState(() => drawer = false),
-                    child: ColoredBox(
-                      color: Colors.black.withValues(alpha: .48),
-                    ),
+                    child: ColoredBox(color: MaeveSurfaces.of(context).scrim),
                   ),
                 ),
                 Positioned(
@@ -680,12 +693,23 @@ class _MaeveShellState extends State<MaeveShell> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         child: Material(
           type: MaterialType.transparency,
-          child: SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('浅色外观'),
-            subtitle: const Text('使用清爽的浅色工作台配色。'),
-            value: widget.themeMode == ThemeMode.light,
-            onChanged: (_) => widget.onTheme(),
+          child: Column(
+            children: [
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('浅色外观'),
+                subtitle: const Text('使用清爽的浅色工作台配色。'),
+                value: widget.themeMode == ThemeMode.light,
+                onChanged: (_) => widget.onTheme(),
+              ),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('减少透明效果'),
+                subtitle: const Text('关闭背景模糊,玻璃改用近乎不透明的填充。'),
+                value: widget.reduceTransparency,
+                onChanged: (_) => widget.onReduceTransparency(),
+              ),
+            ],
           ),
         ),
       ),
@@ -701,7 +725,7 @@ class _MaeveShellState extends State<MaeveShell> {
             const Text('Flutter 界面 · Android 能力'),
             const SizedBox(height: 8),
             Text(
-              '玻璃表面使用稳定的分层填充；运行时背景模糊已禁用，因为曾观察到 Android RenderThread 不稳定。',
+              '输入条与侧栏使用有界背景模糊(采样不越出形状边界, iOS 同款);「减少透明效果」或系统高对比度时自动降级为不透明填充。',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
