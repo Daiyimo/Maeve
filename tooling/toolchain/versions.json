@@ -6,9 +6,9 @@
     "sha256": ""
   },
   "gradle": {
-    "version": "8.11.1",
-    "url": "https://services.gradle.org/distributions/gradle-8.11.1-bin.zip",
-    "sha256": "f397b287023acdba1e9f6fc5ea72d22dd63669d59ed4a289a29b1a76eee151c6"
+    "version": "9.3.1",
+    "url": "https://services.gradle.org/distributions/gradle-9.3.1-bin.zip",
+    "sha256": "b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06"
   },
   "flutter": {
     "version": "3.47.7",
@@ -18,8 +18,8 @@
     "sha256": "c2c875da25a1a1448d18ee4e8f398b2f6fce888b4775d8f9130538e16d826cb4"
   },
   "android": {
-    "agp": "8.7.3",
-    "kotlin": "2.1.20",
+    "agp": "9.1.0",
+    "kotlin": "2.4.0",
     "compileSdk": "36",
     "targetSdk": "35",
     "minSdk": "30",

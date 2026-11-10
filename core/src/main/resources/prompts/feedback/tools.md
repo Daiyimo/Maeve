@@ -577,6 +577,9 @@ unknown argument for {{tool}}; allowed: {{allowed}}.
 ## own_app
 This is Maeve's own screen (or opens Maeve itself), and Maeve does not operate itself: nothing was done. Try another way, or ask the user to handle it.
 
+## app_denied
+This app is on the do-not-touch list (payment, banking or brokerage apps): Maeve does not operate it, so nothing was done. Do not retry the action, and do not try to act in it through another app or a link. Tell the user plainly that Maeve leaves payment, banking and brokerage apps to them by default, and ask the user to do this step themselves.
+
 ## described.ambiguous
 {{count}} elements match 「{{text}}」, so nothing was done: {{candidates}}. Use one of these refs with snapshotId {{snapshot}}, or describe it more exactly (full text, or add role).
 

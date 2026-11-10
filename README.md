@@ -116,7 +116,9 @@ Release signing, R8 and CI are being set up as part of [M4](SPEC.md#10-里程碑
 This repository is at **M2 (interaction layer)**, with the user interface moving from
 Compose to a Flutter shell. The published history starts from a single
 Apache-2.0-attributed baseline snapshot, the package is `com.daiyimo.maeve`, and the
-compliance/attribution layer is in place. See [NOTICE](NOTICE) for attribution.
+compliance/attribution layer is in place. Maeve is a derivative work of Mika
+(Apache-2.0); the upstream attribution is retained in [NOTICE](NOTICE) and
+[ATTRIBUTION.md](ATTRIBUTION.md).
 
 The full M2 visual system, the connection hub and bridge v3 (M3), and release hardening
 (M4) are not finished yet. The Flutter shell is a workbench: chat replies are local demo
@@ -140,7 +142,9 @@ licensed under Apache-2.0 (inbound = outbound, §5); the project has no CLA or D
 
 ## License & attribution
 
-Apache-2.0 — see [LICENSE](LICENSE). `NOTICE` retains the original upstream attribution verbatim as required by Apache-2.0. Third-party and GPL/LGPL components are listed
+Apache-2.0 — see [LICENSE](LICENSE). Maeve is a derivative work of **Mika** by Wang Zan
+(Apache-2.0); `NOTICE` retains the upstream attribution as an addendum, as required by
+Apache-2.0 §4(d). Third-party and GPL/LGPL components are listed
 in [licenses/THIRD_PARTY_NOTICES.md](licenses/THIRD_PARTY_NOTICES.md) and mirrored into the APK.
 
 Suggested topics: `android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

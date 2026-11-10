@@ -24,6 +24,7 @@
     <string name="about_data_note">Всё, что вы отправляете Maeve (сообщения, содержимое экрана и снимки экрана), уходит только провайдеру модели, которого вы настроили. У Maeve нет собственных серверов, и она не собирает ваши данные; при проверке обновлений обращение идёт только к GitHub.</string>
     <string name="about_license_link">Лицензия Apache-2.0</string>
     <string name="about_author">Автор: Dai Yimo · © 2026</string>
+    <string name="about_upstream">На основе Mika от Wang Zan · Apache-2.0</string>
     <string name="about_license_title">Лицензия Apache-2.0</string>
     <string name="about_update_download">Скачать с GitHub</string>
     <string name="about_update_download_in_app">Скачать обновление</string>

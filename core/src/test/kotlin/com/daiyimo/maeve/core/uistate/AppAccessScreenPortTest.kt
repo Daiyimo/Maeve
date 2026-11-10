@@ -131,7 +131,8 @@ class AppAccessScreenPortTest {
         }
     }
 
-    private fun portMembers(): List<Method> = ScreenPort::class.java.methods.filter { it.name !in OWN }
+    /** 端口的成员;编译器生成的合成方法(Kotlin 2.4 起接口默认实现的 access$*$jd 辅助方法等)不是端口成员,排除。 */
+    private fun portMembers(): List<Method> = ScreenPort::class.java.methods.filter { it.name !in OWN && !it.isSynthetic }
 
     /** 什么都只记下名字的端口;读屏给一屏前台是 bank 的。 */
     private fun recordingPort(reached: MutableSet<String>): ScreenPort =

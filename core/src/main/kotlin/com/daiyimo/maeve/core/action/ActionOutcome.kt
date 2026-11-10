@@ -19,7 +19,7 @@ sealed interface ActionOutcome {
 
     /**
      * 没有执行。[code]:guard_stopped / guard_warning / confirmation_required / confirmation_mismatch / confirmation_declined /
-     * approval_unavailable / target_unresolved / own_app。
+     * approval_unavailable / target_unresolved / own_app / app_denied / secret_page。
      * [content] 是交给这次调用方的结果(脚本子步、模型单步照它回;批和回放按 [code] 自己说明)。
      */
     data class Refused(
@@ -53,29 +53,38 @@ fun ActionOutcome.execution(): ToolExecution = when (this) {
 internal object Refusals {
     const val SINGLE_USE = "One approval lets through only the next matching action, and that action uses it up whether it succeeds or not."
     const val OWN_APP = "own_app"
+    const val APP_DENIED = "app_denied"
+    const val SECRET_PAGE = "secret_page"
     const val PAYMENT_TAKEOVER = "The user completes payment with their own hands; do not use request_confirmation: after opening the payment page, call hand_to_user(reason=payment), " +
         "with item as the product (variant, quantity), amount as the amount due shown on screen, and address as the delivery address."
 
-    fun content(code: String, style: RefusalStyle, before: List<GuardVerdict>, hit: Irreversible?, reason: String?): JsonObject = when (style) {
+    fun content(code: String, style: RefusalStyle, before: List<GuardVerdict>, hit: Irreversible?, reason: String?, everyWrite: Boolean = false): JsonObject = when (style) {
         // 模型单步被守卫叫停时任务就此结束,用不到说明
         RefusalStyle.Model -> if (code == "approval_unavailable") notRun(code,
             "This step spends money, but this run cannot collect the user's approval. The action was not run. " +
                 "Do not retry this action in this run; explain the limitation to the user.") {
             hit?.let { put("action", it.action.name); put("matched", it.matched) }
             put("counts_as_failure", false)
-        } else if (hit == null) notRun(code, if (code == OWN_APP) Feedback["own_app"] else code) else {
-            val blocked = if (reason != null) mismatch(hit, reason) else required(hit)
+        } else if (hit == null) notRun(code, when (code) {
+            OWN_APP -> Feedback["own_app"]
+            APP_DENIED -> Feedback["app_denied"]
+            SECRET_PAGE -> Feedback.format("screen.needs_human", "reason" to "login")
+            else -> code
+        }) else {
+            val blocked = if (reason != null) mismatch(hit, reason) else required(hit, everyWrite)
             if (before.isEmpty()) blocked else JsonObject(blocked + ("guard" to JsonArray(before.map { it.toJson() })))
         }
         RefusalStyle.Script -> {
             val message = when (code) {
                 "guard_stopped" -> "Maeve's operation guard stopped the task."
                 "guard_warning" -> "Maeve's operation guard flagged this action; it was not run."
-                "confirmation_required" -> "this step spends money (${hit?.matched})"
+                "confirmation_required" -> if (everyWrite) "this step needs your confirmation (${hit?.matched})" else "this step spends money (${hit?.matched})"
                 "confirmation_mismatch" -> "this payment step (${hit?.matched}) does not match what the user approved ($reason)"
                 "approval_unavailable" -> "this step spends money and this run cannot get the user's approval; the action was not run"
                 "target_unresolved" -> "that ref is not on the latest snapshot; call maeve.snapshot() again"
                 OWN_APP -> Feedback["own_app"]
+                APP_DENIED -> Feedback["app_denied"]
+                SECRET_PAGE -> "this page has a password or verification-code input and needs the user"
                 else -> error("unknown refusal $code")
             }
             notRun(code, message) { hit?.let { put("action", it.action.name); put("matched", it.matched) } }
@@ -89,11 +98,15 @@ internal object Refusals {
         put("executed", false); put("recoverable", false); put("counts_as_failure", false)
     }
 
-    private fun required(hit: Irreversible) = buildJsonObject {
+    private fun required(hit: Irreversible, everyWrite: Boolean = false) = buildJsonObject {
         put("ok", false); put("error", "confirmation_required")
         put("action", hit.action.name); put("matched", hit.matched)
-        put("message", if (hit.action == IrrevAction.pay) "This step is a payment, so it was not run. $PAYMENT_TAKEOVER"
-            else "This step spends money (${hit.action.name}), so it was not run. First call request_confirmation saying where, what is bought and how much it costs, and do it after the user approves. $SINGLE_USE")
+        put("message", when {
+            everyWrite -> "This app is on the confirm-every-write list (such as WeChat), so every step needs your confirmation and this one was not run. " +
+                "Call request_confirmation describing this step, and do it right after you approve. $SINGLE_USE"
+            hit.action == IrrevAction.pay -> "This step is a payment, so it was not run. $PAYMENT_TAKEOVER"
+            else -> "This step spends money (${hit.action.name}), so it was not run. First call request_confirmation saying where, what is bought and how much it costs, and do it after the user approves. $SINGLE_USE"
+        })
         put("recoverable", true); put("counts_as_failure", false)
     }
 

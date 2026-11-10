@@ -511,12 +511,14 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 | §4(c) | 保留版权/专利/商标/归属声明 |
 | §4(d) | **`NOTICE` 里的上游署名原样保留**，只能追加自己的 addendum；换 Logo/名字不能删原作者署名 |
 | §6 | 不授予产品名/商标使用权 ⇒ 不用 Maeve 名称与 Logo |
-| 衍生关系 | 重构 + 换名 + 换仓库**仍是衍生作品**，§4 义务不因重写而消失；README 首屏坦率注明 fork 来源是加分项 |
+| 衍生关系 | 重构 + 换名 + 换仓库**仍是衍生作品**，§4 义务不因重写而消失；README 首屏坦率注明 fork 来源是加分项（已做：README/Status 明写 Mika 衍生来源，`NOTICE` 以 addendum 保留上游署名，LicensesScreen 与关于页各一行） |
 | GPL/LGPL | `libproot.so` / `libmaeverun.so` / rootfs 作为独立子进程运行 = mere aggregation，不传染主体；但 APK 需附 GPL/LGPL 全文、NOTICE 逐字副本、≥3 年源码要约。当前 `assets/licenses/` 只有 `Apache-2.0.txt` 与 `Protocol-Buffers.txt` |
 | **ML Kit** | `com.google.mlkit:text-recognition:16.0.1` **完全未披露**（THIRD_PARTY_NOTICES / LicensesScreen / assets/licenses 均无），发布前必须核查条款并补齐 |
 | AGPL-3.0 参考 | 见 §0.2：只取设计决策，不复制代码与素材；归档分析中不得放入 dsh-Go 源码 |
 | IP 免责 | README 与关于页写明 `Not affiliated with or endorsed by HBO, Warner Bros., or Westworld` |
 | 版本代号 | `Sublime` 仅作内部 release 代号（是知名编辑器名），不得作产品名或公开商标 |
+
+**2026-11-10 修复记录**：提交 `2169fa9` 曾整体删除上游归属，与上表 §4(d) 冲突；已按最小修复集恢复——`NOTICE`、`app/src/main/assets/licenses/NOTICE.txt`、`tools/relay/NOTICE` 以 addendum 保留上游（Mika）署名，`LicensesScreen` 恢复上游条目，关于页加 `about_upstream` 一行，`check_compliance.py` 的强制方向反转回正向（归属文件进 needle 扫描豁免集）。
 
 ---
 

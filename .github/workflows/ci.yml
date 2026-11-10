@@ -3,7 +3,14 @@ name: CI
 on:
   push:
     branches: [master, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   workflow_dispatch:
 
 permissions:
@@ -18,51 +25,9 @@ env:
   NO_PROXY: 127.0.0.1,localhost,::1
 
 jobs:
-  core:
-    name: core (JVM)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :core:test --no-daemon --stacktrace
-
-  cli-python:
-    name: cli (Python)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Translation tool tests
-        run: python3 -m unittest discover -s tools/i18n -v
-      - name: Translation resource check
-        run: python3 tools/i18n/translations.py check
-
-  flutter:
-    name: flutter (format / analyze / test)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: flutter
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 3.47.7
-          channel: stable
-          cache: true
-      - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed lib test
-      - run: flutter analyze
-      - run: flutter test
-
-  android:
-    name: android (:app assembleDebug)
+  # 唯一门禁：能装到 Android 上的 debug 包。jniLibs 是预编译产物，不需要 NDK。
+  android-debug:
+    name: android (:app:assembleDebug)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,8 +36,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
-      - name: Install SDK platforms
-        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0" "ndk;25.1.8937393"
+      - name: Install SDK platform and build-tools
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.47.7
@@ -84,3 +49,53 @@ jobs:
         run: flutter build aar --debug
       - name: Assemble debug APK
         run: ./gradlew :app:assembleDebug --no-daemon --stacktrace -PskipFlutterAar
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  # 30 秒，纯 Python 标准库：守住 Apache-2.0 §4 归属与第三方披露。
+  compliance:
+    name: compliance (attribution)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/maeve/check_compliance.py
+
+  # 手动才跑：与"在 Android 上使用"无直接关系的检查都挪到这里。
+  full-checks:
+    name: full checks (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: JVM unit tests
+        run: ./gradlew :core:test --no-daemon --stacktrace
+      - name: Android unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: i18n checks
+        run: |
+          python3 -m unittest discover -s tools/i18n -v
+          python3 tools/i18n/translations.py check
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.7
+          channel: stable
+          cache: true
+      - name: Flutter format / analyze / test
+        working-directory: flutter
+        run: |
+          flutter pub get
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze
+          flutter test

@@ -24,6 +24,7 @@
     <string name="about_data_note">Maeve に送った内容(メッセージ、画面の内容、スクリーンショット)は、設定したモデルプロバイダーにだけ送信されます。Maeve 専用のサーバーはなく、データも収集しません。アップデートの確認では GitHub にだけ接続します。</string>
     <string name="about_license_link">Apache-2.0 ライセンス</string>
     <string name="about_author">制作: Dai Yimo · © 2026</string>
+    <string name="about_upstream">Wang Zan による Mika がベース · Apache-2.0</string>
     <string name="about_license_title">Apache-2.0 ライセンス</string>
     <string name="about_update_download">GitHub からダウンロード</string>
     <string name="about_update_download_in_app">アップデートをダウンロード</string>

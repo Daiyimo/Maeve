@@ -24,6 +24,7 @@
     <string name="about_data_note">كل ما ترسله إلى Maeve — الرسائل ومحتوى الشاشة ولقطات الشاشة — يُرسل فقط إلى موفر النموذج الذي أعددته. لا تملك Maeve خوادم خاصة بها ولا تجمع أي بيانات عنك؛ ولا يتصل التحقق من التحديثات إلا بـ GitHub.</string>
     <string name="about_license_link">ترخيص Apache-2.0</string>
     <string name="about_author">من إعداد Dai Yimo · © 2026</string>
+    <string name="about_upstream">مبني على Mika من إعداد Wang Zan · Apache-2.0</string>
     <string name="about_license_title">ترخيص Apache-2.0</string>
     <string name="about_update_download">التنزيل من GitHub</string>
     <string name="about_update_download_in_app">تنزيل التحديث</string>

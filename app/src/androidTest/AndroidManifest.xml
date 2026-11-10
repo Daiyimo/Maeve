@@ -20,6 +20,8 @@
         <activity android:name="com.daiyimo.maeve.cap.phone.a11y.GestureTapTestActivity" android:exported="true" />
         <activity android:name="com.daiyimo.maeve.a11y.WebEditorTestActivity" android:exported="true" />
         <activity android:name="com.daiyimo.maeve.cap.phone.a11y.FieldsTestActivity" android:exported="true" />
+        <!-- 应用名单与敏感页保护的测试页:密码/验证码输入框、手机号输入框、裸的银行卡号与身份证号文字 -->
+        <activity android:name="com.daiyimo.maeve.cap.phone.a11y.SensitivePageTestActivity" android:exported="true" />
         <!-- 滚轮测试页:两个原版数字滚轮 -->
         <activity android:name="com.daiyimo.maeve.cap.phone.a11y.WheelPickerTestActivity" android:exported="true" />
         <!-- 从应用上下文打开别的 App:重现「开到用户主屏上」 -->

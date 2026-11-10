@@ -20,6 +20,8 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.daiyimo.maeve.core.cap.phone.GesturePacing
 import com.daiyimo.maeve.core.cap.phone.TypingPacing
+import com.daiyimo.maeve.core.risk.NumberMask
+import com.daiyimo.maeve.core.risk.SecretWords
 import com.daiyimo.maeve.core.uistate.ActionResult
 import com.daiyimo.maeve.core.uistate.APP_IN_USE_BY_OTHER_TASK
 import com.daiyimo.maeve.core.uistate.AppWait
@@ -346,7 +348,7 @@ class AndroidScreen(
                     else -> true
                 }
             }
-            ScreenEvent(AccessibilityEvent.eventTypeToString(event.eventType), event.packageName?.toString(), event.text.joinToString(" ").take(2_000))
+            ScreenEvent(AccessibilityEvent.eventTypeToString(event.eventType), event.packageName?.toString(), eventText(event))
         }
     }
 
@@ -363,7 +365,7 @@ class AndroidScreen(
                 }
             }
             .map { event -> ScreenEvent(AccessibilityEvent.eventTypeToString(event.eventType), event.packageName?.toString(),
-                event.text.joinToString(" ").ifBlank { event.className?.toString().orEmpty() }.take(2_000)) }
+                NumberMask.mask(event.text.joinToString(" ")).ifBlank { event.className?.toString().orEmpty() }.take(2_000)) }
         withTimeoutOrNull(durationMs) { stream.take(maxEvents).collect { collected += it } }
         collected
     }
@@ -504,8 +506,8 @@ class AndroidScreen(
             focusUncertain = !field.isFocused
         }
         val web = inWebView(field)
-        // 网页编辑区要粘贴才收得到输入;密码框不经剪贴板
-        var pasteUnavailable = web && field.isPassword
+        // 网页编辑区要粘贴才收得到输入;密码框、可按词认出的验证码框不经剪贴板(剪贴板里的字别的 App 也读得到)
+        var pasteUnavailable = web && secretField(field)
         val placeholder = ScreenReader.placeholderOf(field)
         val io = object : TextField {
             override fun read(): String? {
@@ -533,9 +535,9 @@ class AndroidScreen(
             }
         }
         val textsBefore = read().texts.toSet()
-        // 像人一样一段一段打出来(见 TypingPacing);密码框、要粘贴才收得到的网页框照旧一次写入。
+        // 像人一样一段一段打出来(见 TypingPacing);密码框、验证码框、要粘贴才收得到的网页框照旧一次写入。
         // 写不进、框不接受半截字时停下,下面照旧整段写入并读回核对
-        typing(field.packageName?.toString()).forField(web, field.isPassword).leadIn(io, text)
+        typing(field.packageName?.toString()).forField(web, secretField(field)).leadIn(io, text)
         var frozen = false
         val verification = typeAndVerify(
             io, text, TYPE_ATTEMPTS,
@@ -545,7 +547,7 @@ class AndroidScreen(
                 val typed = text.filterNot { it.isWhitespace() }
                 (read().texts.toSet() - textsBefore).any { typed in it.filterNot { c -> c.isWhitespace() } }.also { frozen = it }
             },
-            secret = field.isPassword,
+            secret = secretField(field),
         )
         val hint = listOfNotNull(
             HINT_TAPPED_TO_FOCUS.takeIf { found.tapped },
@@ -555,7 +557,7 @@ class AndroidScreen(
         ).joinToString(" ").ifEmpty { null }
         // 字可能只是显示出来、App 并没收到:不能报「一致」
         val reported = if (pasteUnavailable && verification != Verification.MISMATCH) Verification.UNKNOWN else verification
-        ok(verification = reported, hint = hint, secret = field.isPassword, relocatedTo = found.relocatedTo)
+        ok(verification = reported, hint = hint, secret = secretField(field), relocatedTo = found.relocatedTo)
     }
 
     override suspend fun clearText(ref: String?, snapshotId: String?): ActionResult = withContext(Dispatchers.IO) {
@@ -571,6 +573,23 @@ class AndroidScreen(
         val field = found.node
         verified(relocatedTo = found.relocatedTo) { if (inWebView(field)) inputText(field, "") == true else setText(field, "") }
     }
+
+    /**
+     * 这个输入框是不是秘密框:系统标的密码,或标签 / 提示语 / 资源 ID 按词认出的密码、验证码一类。
+     * 是的话读回不对模型展示、运行记录不记原文,网页框也不经剪贴板。认法与界面采集([ScreenReader])同一套。
+     */
+    private fun secretField(field: AccessibilityNodeInfo): Boolean =
+        SecretWords.secretField(
+            label = ScreenReader.ownLabel(field),
+            hint = field.hintText?.toString(),
+            viewId = field.viewIdResourceName,
+            editable = field.isEditable,
+            password = field.isPassword,
+        )
+
+    /** 事件文字也是界面内容:银行卡号、身份证号照例打码后再交给模型。 */
+    private fun eventText(event: AccessibilityEvent): String =
+        NumberMask.mask(event.text.joinToString(" ")).take(2_000)
 
     // ---------- 树里看不到的输入框 ----------
 

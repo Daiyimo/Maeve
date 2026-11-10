@@ -139,11 +139,13 @@ class ActionExecutor(
             d = decision.judge(call.name, args, origin)
         }
         when (d) {
-            is Decision.Required -> return blocked(call, args, origin, before, d.hit, null, followUp)
+            is Decision.Required -> return blocked(call, args, origin, before, d.hit, null, followUp, d.everyWrite)
             is Decision.Mismatch -> return blocked(call, args, origin, before, d.hit, d.reason, followUp)
             is Decision.Denied -> return approvalUnavailable(call, args, origin, before, d.hit, followUp)
             Decision.Unresolved -> return refuse("target_unresolved", origin, before)
             Decision.OwnApp -> return ownApp(call, args, origin, before, followUp)
+            Decision.DeniedApp -> return deniedApp(call, args, origin, before, followUp)
+            Decision.SecretPage -> return secretPage(call, args, origin, before, followUp)
             else -> Unit
         }
         // 对外动作:和同一网站、App 里的上一次隔开(等的时候任务还能取消,动作还没开始)
@@ -314,6 +316,26 @@ class ActionExecutor(
         return ActionOutcome.Refused(Refusals.OWN_APP, content, before)
     }
 
+    /** 作用在默认不碰名单(支付、银行、券商)里的 App 上:不做;要用户自己来,或用户在设置里放开这名。 */
+    private fun deniedApp(call: Part.ToolCall, args: JsonObject, origin: Origin, before: List<GuardVerdict>, followUp: FollowUp): ActionOutcome {
+        val content = Refusals.content(Refusals.APP_DENIED, origin.policy.refusals, before, null, null)
+        if (origin.policy.recordsRefusal) {
+            followUp.refused(content)
+            recorder.result(origin.step, call.name, tools.verb(call.name), content, tools.portRecord(call.name, args), null, null, 0, origin.policy.source, call.id)
+        }
+        return ActionOutcome.Refused(Refusals.APP_DENIED, content, before)
+    }
+
+    /** 密码 / 验证码页上要打字或清空:交还用户,不代填。 */
+    private fun secretPage(call: Part.ToolCall, args: JsonObject, origin: Origin, before: List<GuardVerdict>, followUp: FollowUp): ActionOutcome {
+        val content = Refusals.content(Refusals.SECRET_PAGE, origin.policy.refusals, before, null, null)
+        if (origin.policy.recordsRefusal) {
+            followUp.refused(content)
+            recorder.result(origin.step, call.name, tools.verb(call.name), content, tools.portRecord(call.name, args), null, null, 0, origin.policy.source, call.id)
+        }
+        return ActionOutcome.Refused(Refusals.SECRET_PAGE, content, before)
+    }
+
     private fun refuse(code: String, origin: Origin, before: List<GuardVerdict>) =
         ActionOutcome.Refused(code, Refusals.content(code, origin.policy.refusals, before, null, null), before)
 
@@ -344,10 +366,11 @@ class ActionExecutor(
 
     private fun blocked(
         call: Part.ToolCall, args: JsonObject, origin: Origin, before: List<GuardVerdict>, hit: Irreversible, reason: String?, followUp: FollowUp,
+        everyWrite: Boolean = false,
     ): ActionOutcome {
         recorder.confirmation(hit, if (reason != null) "mismatch" else "required")
         val code = if (reason != null) "confirmation_mismatch" else "confirmation_required"
-        val content = Refusals.content(code, origin.policy.refusals, before, hit, reason)
+        val content = Refusals.content(code, origin.policy.refusals, before, hit, reason, everyWrite)
         if (origin.policy.recordsRefusal) {
             followUp.refused(content)
             recorder.result(origin.step, call.name, tools.verb(call.name), content, tools.portRecord(call.name, args), null, null, 0, origin.policy.source, call.id)

@@ -12,6 +12,7 @@ import android.os.Build
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import com.daiyimo.maeve.core.risk.NumberMask
 import com.daiyimo.maeve.core.uistate.ScreenEvent
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
@@ -80,7 +81,8 @@ open class ScreenAccessibility : AccessibilityService() {
             val title = notification?.extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString()
             val body = notification?.extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()
             val text = listOfNotNull(title, body).joinToString(" ").ifBlank { event.text.joinToString(" ") }
-            notifications.tryEmit(ScreenEvent("notification", event.packageName?.toString(), text.take(2_000)))
+            // 通知正文同样是界面内容:银行卡号、身份证号打码后再交给模型
+            notifications.tryEmit(ScreenEvent("notification", event.packageName?.toString(), NumberMask.mask(text).take(2_000)))
         }
         // 没人订阅就不复制、不查屏号,事件很密
         if (events.subscriptionCount.value == 0) return

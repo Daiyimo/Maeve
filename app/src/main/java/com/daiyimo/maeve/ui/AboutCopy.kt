@@ -47,6 +47,8 @@ object AboutCopy {
     val DATA_NOTE: String get() = tr(R.string.about_data_note)
     val LICENSE_LINK: String get() = tr(R.string.about_license_link)
     val AUTHOR: String get() = tr(R.string.about_author)
+    /** 上游归属一行:Apache-2.0 §4(d) 要求在关于页可见。 */
+    val UPSTREAM: String get() = tr(R.string.about_upstream)
     val LICENSE_TITLE: String get() = tr(R.string.about_license_title)
 
     val UPDATE_DOWNLOAD: String get() = tr(R.string.about_update_download)

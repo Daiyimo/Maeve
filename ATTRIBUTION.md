@@ -1,13 +1,14 @@
 # Attribution and provenance
 
-Maeve is an independent, Apache-2.0 Android project maintained by Daiyimo.
+Maeve is an Apache-2.0 Android project, independently maintained by Daiyimo.
 This file records provenance and licence compliance for everything that ships with
 Maeve; it is not a claim of affiliation with or endorsement by any third party.
 
 ## Provenance
 
 ```text
-Daiyimo/Maeve              this repository, maintained independently
+Daiyimo/Maeve — derivative of Mika (wangzan101, Apache-2.0); published history
+starts from baseline snapshot 7cf7ff3, followed by Maeve changes
 ```
 
 The published history starts from a single baseline snapshot, root commit `7cf7ff3`
@@ -27,7 +28,7 @@ git rev-parse HEAD^{tree}         # changes with every commit; compare within on
 | 4(a) | Give recipients a copy of the License | `LICENSE` is the unmodified Apache-2.0 text. |
 | 4(b) | Modified files carry prominent change notices | See the notice below; the complete per-file change record is the git history. |
 | 4(c) | Retain copyright, patent, trademark and attribution notices | All third-party notices are retained; see `licenses/THIRD_PARTY_NOTICES.md`. |
-| 4(d) | Retain attribution notices from `NOTICE` | `NOTICE` carries the Maeve attribution and points at the third-party notices. |
+| 4(d) | Retain attribution notices from `NOTICE` | `NOTICE` carries the Maeve attribution and retains the upstream Mika attribution as an addendum; it points at the third-party notices. |
 | 6 | No trademark / product-name grant | No third-party logo, icon, GIF, slogan or product name is used as Maeve's own branding. |
 | 5 | Contributions | Inbound = outbound under Apache-2.0; there is no CLA or DCO. |
 

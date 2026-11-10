@@ -114,9 +114,9 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
     override fun autonomous() = auto
 }
 
-/** 询问时只有花钱的那一步先问用户;别的(发送、删除、卸载、密码框、一般改动)都直接做。 */
-@OptIn(ExperimentalCoroutinesApi::class)
-class PaymentOnlyAskTest {
+    /** 询问时只有花钱的那一步先问用户;别的(发送、删除、卸载、一般改动)都直接做。 */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    class PaymentOnlyAskTest {
     private fun loop(
         m: FakeModel, s: Chat, approvals: ApprovalSettings = Settable(), sink: RunSink = RunSink.NONE, timeout: Long? = null,
         flags: SpeedFlags = SpeedFlags.OFF, self: String? = null,
@@ -134,12 +134,28 @@ class PaymentOnlyAskTest {
         assertTrue(sink.all.none { it is RunEvent.Confirmation })
     }
 
-    @Test fun deletingUninstallingTypingPasswordsAndPlainTapsAllRunWithoutAsking() = runTest {
+    /**
+     * 删除、卸载、普通点击都不问,直接做。
+     * (2026-11-10 P0-2 起,往密码框里打字从这一列里移出:密码 / 验证码页交还用户,见
+     * [typingIntoASecretFieldIsHandedToTheUser];原断言「密码框打字放行」随行为一并更新。)
+     */
+    @Test fun deletingUninstallingAndPlainTapsAllRunWithoutAsking() = runTest {
         val s = Chat()
-        val m = FakeModel(OBSERVE, tap("@e7"), tap("@e4"), type("@e5", "x"), tap("@e6"), FINISH)
+        val m = FakeModel(OBSERVE, tap("@e7"), tap("@e4"), tap("@e6"), FINISH)
         loop(m, s).run("t")
         assertEquals(listOf("@e7", "@e4", "@e6"), s.taps)
-        assertEquals(listOf("x"), s.typed)
+    }
+
+    /** 密码 / 验证码页上要打字:交还用户,不代填;询问模式也不例外(硬规则)。 */
+    @Test fun typingIntoASecretFieldIsHandedToTheUser() = runTest {
+        val s = Chat()
+        val m = FakeModel(OBSERVE, type("@e5", "x"), GIVE_UP)
+        loop(m, s).run("t")
+        assertTrue(s.typed.isEmpty())
+        val r = m.result(2)
+        assertEquals("secret_page", r.s("error"))
+        assertTrue(r.s("message"), "hand_to_user" in r.s("message"))
+        assertTrue(r.s("message"), "login" in r.s("message"))
     }
 
     @Test fun placingAnOrderAsksFirst() = runTest {
@@ -259,5 +275,66 @@ class PaymentOnlyAskTest {
         assertTrue(s.opened.isEmpty())
         assertEquals("own_app", m2.result(2).s("error"))
         assertEquals("own_app", m2.result(3).s("error"))
+    }
+
+    /** 自主模式下付款也不问,但「不对 Maeve 自己动手」这层保护照旧(修复前被 autonomous 提前返回绕过)。 */
+    @Test fun autonomousModeStillRefusesToOperateItself() = runTest {
+        val approvals = Settable(auto = true)
+        // 屏上是 Maeve 自己:不点
+        val s = Chat(app = "com.maeve")
+        val m = FakeModel(OBSERVE, tap("@e6"), GIVE_UP)
+        loop(m, s, approvals = approvals, self = "com.maeve").run("t")
+        assertTrue(s.taps.isEmpty())
+        assertEquals("own_app", m.result(2).s("error"))
+        // 从别的 App 打开 Maeve:自主模式下也不做
+        s.app = "com.chat"
+        val m2 = FakeModel(OBSERVE, tools(call("phone_launch_app", """{"package":"com.maeve"}""")), GIVE_UP)
+        loop(m2, s, approvals = approvals, self = "com.maeve").run("t")
+        assertTrue(s.opened.isEmpty())
+        assertEquals("own_app", m2.result(2).s("error"))
+    }
+
+    /**
+     * 默认不碰名单(支付、银行、券商):写操作一律不做,自主模式也不例外(硬规则);
+     * 读这一屏照常——先看得见,才能决定要不要交还用户。
+     */
+    @Test fun deniedAppsAreNotWrittenToEvenInAutonomousMode() = runTest {
+        val approvals = Settable(auto = true)
+        val s = Chat(app = "com.eg.android.AlipayGphone")
+        val m = FakeModel(OBSERVE, tap("@e6"), type("@e2", "hi"), GIVE_UP)
+        loop(m, s, approvals = approvals).run("t")
+        assertEquals("true", m.result(1).s("ok"))
+        assertTrue(s.taps.isEmpty())
+        assertTrue(s.typed.isEmpty())
+        val r = m.result(2)
+        assertEquals("app_denied", r.s("error"))
+        assertTrue(r.s("message"), "do-not-touch" in r.s("message"))
+        assertEquals("app_denied", m.result(3).s("error"))
+        // 银行、券商同一待遇
+        for (pkg in listOf("com.icbc", "com.eastmoney.android.berlin")) {
+            val bank = Chat(app = pkg)
+            val bm = FakeModel(OBSERVE, tap("@e6"), GIVE_UP)
+            loop(bm, bank, approvals = approvals).run("t")
+            assertTrue(bank.taps.isEmpty())
+            assertEquals(pkg, "app_denied", bm.result(2).s("error"))
+        }
+    }
+
+    /** 微信(每步确认名单):询问时每一步写操作都要用户同意;自主模式豁免(软规则)。 */
+    @Test fun weChatAsksForEveryWriteStepButAutonomousModeRuns() = runTest {
+        val s = Chat(app = "com.tencent.mm")
+        // 普通按钮也算一步:两步写操作先后都被拦下,每一步都要先问
+        val m = FakeModel(OBSERVE, tap("@e6"), tap("@e7"), FINISH)
+        loop(m, s).run("t")
+        assertTrue(s.taps.isEmpty())
+        val r = m.result(2)
+        assertEquals("confirmation_required", r.s("error"))
+        assertTrue(r.s("message"), "confirm-every-write" in r.s("message"))
+        assertEquals("confirmation_required", m.result(3).s("error"))
+        // 自主模式:软规则,照常做
+        val auto = Chat(app = "com.tencent.mm")
+        val m2 = FakeModel(OBSERVE, tap("@e6"), FINISH)
+        loop(m2, auto, approvals = Settable(auto = true)).run("t")
+        assertEquals(listOf("@e6"), auto.taps)
     }
 }

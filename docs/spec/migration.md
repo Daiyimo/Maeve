@@ -14,7 +14,7 @@ for the Apache-2.0 change record.
 | Gradle identity | `rootProject.name = "Maeve"`, `namespace` / `applicationId` = `com.daiyimo.maeve`, `versionCode = 1`, `versionName = "0.1.0-dolores"`. |
 | Upstream URLs | `MaeveLinks.kt` (5 URLs, also drives `ApkIntegrity`'s whitelist), `tools/relay/go.mod` module path, `maeve_cli.py` `PHONE_FILES`, `tools/sandbox/build-runtime.py` split path tuple, `AboutScreenTest` release fixture. |
 | Compliance | New `README.md`, `ATTRIBUTION.md`, `CONTRIBUTING.md`, `SECURITY.md`; `NOTICE` addendum; `THIRD_PARTY_NOTICES.md` + in-app `Licenses.ENTRIES` augmented (ML Kit was undisclosed); GPL/LGPL texts, verbatim `NOTICE` and `SOURCE_OFFER.md` mirrored into `app/src/main/assets/licenses/`. |
-| Docs | `docs/spec/` (visual tokens, haptics, bridge v3, this file), `docs/adr/`, CI compliance job, release workflow. |
+| Docs | `docs/spec/` (visual tokens, haptics, bridge v3, this file), `docs/adr/`, CI compliance job (kept as the 30-second gate in the streamlined `ci.yml`, see §3.3), release workflow. |
 
 Reproduce the mechanical rename:
 
@@ -40,9 +40,10 @@ derivation, no four launcher aliases, no `HapticEngine`, no glass surfaces.
 | Accent | `Colors.kt` light `0xFF0A7CFF` → `0xFF6E6296` (reverie seed, 5.45:1 vs white text); dark `0xFF3D97FF` → `0xFF7969B4` (toned down from the `#B3A8D6` seed so `onAccent` white still clears 4.5:1 and the accent clears 3:1 on the dark page). `accentSoft` alpha unchanged. Hand-picked values, **not** yet the OKLCH `derive()` / `guard()` pipeline. |
 
 **Kept as `Maeve` on purpose:** `LicensesScreen`'s first `Entry("Maeve", "Apache-2.0", …)`
-(and the `filter { it.name != "Maeve" }` that depends on it) is the upstream attribution,
-asserted by `check_compliance.py`; `NOTICE` and `about_author` likewise. `Theme.Maeve` is a
-style name. `:core` protocol identities (`McpRpc.serverInfo`, `clientName`, `APP_NAME`,
+is the project's own entry (the `filter { it.name != "Maeve" }` below depends on that); the
+upstream attribution lives in the `NOTICE` addendum, the `Mika` licence-screen entry and the
+`about_upstream` line on the About page, all asserted by `check_compliance.py` in the forward
+direction. `Theme.Maeve` is a style name. `:core` protocol identities (`McpRpc.serverInfo`, `clientName`, `APP_NAME`,
 `KEY_LABEL`) are left for M3, where `maeve_*` names and `maeve_*` deprecated aliases are
 introduced together — changing half of them now would desynchronise the wire contract.
 
@@ -90,8 +91,9 @@ The first cut only re-skinned Maeve. This pass changes how the UI actually *feel
 
 **Apache-2.0 boundary kept at the time:** `NOTICE`, `ATTRIBUTION.md` and the first `LicensesScreen` entry
 still named Maeve and the upstream author. Only the user-facing "made by" line was re-attributed.
-(The upstream attribution in `NOTICE` / `ATTRIBUTION.md` / `LicensesScreen` was removed later,
-on the owner's decision — see `docs/derived-rewrite-plan.md` section 9.)
+(The upstream attribution in `NOTICE` / `ATTRIBUTION.md` / `LicensesScreen` was removed in `2169fa9`
+on the owner's decision — see `docs/derived-rewrite-plan.md` section 9 — and restored on 2026-11-10
+by the Apache-2.0 §4(d) compliance fix; see `ATTRIBUTION.md` for the current provenance.)
 
 Verification: `translations.py check` → 1989 resources / 10 languages; `check_compliance.py`
 → 23 notices / 24 entries; `assembleDebug` → BUILD SUCCESSFUL; `adb install -r` → Success.

@@ -4,6 +4,8 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.daiyimo.maeve.core.cap.phone.WheelMath
+import com.daiyimo.maeve.core.risk.NumberMask
+import com.daiyimo.maeve.core.risk.SecretWords
 import com.daiyimo.maeve.core.uistate.ElementLocator
 import com.daiyimo.maeve.core.uistate.UiElement
 import com.daiyimo.maeve.core.uistate.UiStates
@@ -69,8 +71,10 @@ internal object ScreenReader {
                 n.getBoundsInScreen(rect)
                 hash = mix(hash, n.className, n.text, n.contentDescription, rect.flattenToString(),
                     states(n))
-                if (n.isPassword) password = true
-                val own = if (n.isPassword) n.hintText?.toString()?.trim()?.ifEmpty { null } else ownLabel(n)
+                // 密码框,或可按词认出的密码 / 验证码输入框(标签、提示语、资源 ID):内容不进模型
+                val secretNode = SecretWords.secretField(ownLabel(n), n.hintText?.toString(), n.viewIdResourceName, n.isEditable, n.isPassword)
+                if (secretNode) password = true
+                val own = if (secretNode) n.hintText?.toString()?.trim()?.ifEmpty { null } else ownLabel(n)
                 own?.let(texts::add)
                 clip(rect, width, height)
                 clippedBounds = listOf(normalize(rect.left, width), normalize(rect.top, height),
@@ -78,7 +82,8 @@ internal object ScreenReader {
                 val usable = rect.width() >= MIN_SIZE && rect.height() >= MIN_SIZE
                 val interactive = n.isClickable || n.isEditable || n.isScrollable
                 if (usable && (own != null || interactive)) {
-                    val label = labelOf(n, own)
+                    // 银行卡号、身份证号打码后再进模型(界面指纹仍按原文字算)
+                    val label = NumberMask.mask(labelOf(n, own))
                     val role = roleOf(n)
                     if (seen.add("$role|$label|${rect.flattenToString()}")) {
                         val id = "@e${entries.size + 1}"
@@ -96,7 +101,7 @@ internal object ScreenReader {
                             clickable = n.isClickable, editable = n.isEditable, scrollable = n.isScrollable,
                             hint = own != null && showingHint(n),
                             focused = n.isFocused,
-                            secret = n.isPassword,
+                            secret = secretNode,
                             placeholder = if (n.isEditable) n.hintText?.toString()?.trim()?.ifEmpty { null } else null,
                             // 安卓的搜索框控件(SearchView 里的输入框)按类名认
                             searchField = n.isEditable && n.className?.toString()?.contains("Search", ignoreCase = true) == true,
@@ -113,15 +118,16 @@ internal object ScreenReader {
                 for (i in 0 until n.childCount) n.getChild(i)?.let { addAll(visit(it, depth + 1, childrenInList)) }
             }
             if (!visible) return children
+            val secretNode = SecretWords.secretField(ownLabel(n), n.hintText?.toString(), n.viewIdResourceName, n.isEditable, n.isPassword)
             return listOf(UiTreeNode(
                 role = roleOf(n), bounds = clippedBounds, ref = ref,
-                text = n.text?.toString()?.takeUnless { n.isPassword || it.isBlank() },
-                description = n.contentDescription?.toString()?.takeUnless { n.isPassword || it.isBlank() },
+                text = n.text?.toString()?.takeUnless { secretNode || it.isBlank() }?.let(NumberMask::mask),
+                description = n.contentDescription?.toString()?.takeUnless { secretNode || it.isBlank() }?.let(NumberMask::mask),
                 hintText = n.hintText?.toString()?.takeUnless { it.isBlank() },
                 resourceId = n.viewIdResourceName,
                 clickable = n.isClickable, editable = n.isEditable, scrollable = n.isScrollable,
                 checkable = n.isCheckable, checked = n.isChecked, selected = n.isSelected,
-                enabled = n.isEnabled, focused = n.isFocused, secret = n.isPassword,
+                enabled = n.isEnabled, focused = n.isFocused, secret = secretNode,
                 wheel = isWheel(n),
                 children = children,
             ))

@@ -24,6 +24,7 @@
     <string name="about_data_note">O que você envia ao Maeve — mensagens, conteúdo da tela e capturas de tela — vai apenas para o provedor de modelo que você configurou. O Maeve não tem servidores próprios e não coleta nenhum dado seu; a verificação de atualizações só acessa o GitHub.</string>
     <string name="about_license_link">Licença Apache-2.0</string>
     <string name="about_author">Feito por Dai Yimo · © 2026</string>
+    <string name="about_upstream">Baseado em Mika de Wang Zan · Apache-2.0</string>
     <string name="about_license_title">Licença Apache-2.0</string>
     <string name="about_update_download">Baixar do GitHub</string>
     <string name="about_update_download_in_app">Baixar atualização</string>

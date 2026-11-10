@@ -153,6 +153,7 @@ fun AboutScreen(
                 style = MaeveType.Hint, color = c.ink3, textAlign = TextAlign.Center,
             )
             Text(AboutCopy.AUTHOR, Modifier.padding(top = 2.dp), style = MaeveType.Hint, color = c.ink3)
+            Text(AboutCopy.UPSTREAM, Modifier.padding(top = 2.dp), style = MaeveType.Hint, color = c.ink3)
         }
     }
 

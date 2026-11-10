@@ -9,6 +9,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.daiyimo.maeve.core.risk.NumberMask
 import com.daiyimo.maeve.core.uistate.VisibleTextLine
 import com.daiyimo.maeve.core.uistate.normalize
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -46,7 +47,8 @@ internal object PhoneOcr {
                 if (result != null) succeeded.incrementAndGet()
                 result?.textBlocks?.forEach { block -> block.lines.forEach { line ->
                     val box = line.boundingBox ?: return@forEach
-                    val value = line.text.trim()
+                    // 银行卡号、身份证号打码后再交出去(认屏文字和用户屏幕两条路都经这里)
+                    val value = NumberMask.mask(line.text.trim())
                     // 有的识别模型不给置信度(为 0),当作没有
                     if (value.isNotEmpty()) lines += VisibleTextLine(value, listOf(
                         normalize(box.left, bitmap.width), normalize(box.top, bitmap.height),
