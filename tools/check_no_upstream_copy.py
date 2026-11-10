@@ -16,6 +16,7 @@ ALLOW = {
     "tools/maeve/check_compliance.py",
     "licenses/THIRD_PARTY_NOTICES.md",
     "SPEC.md",
+    "flutter/UI_SPEC_HANDOFF.md",
 }
 EXTS = {".dart", ".kt", ".kts", ".md", ".xml", ".yaml", ".yml", ".sh", ".py"}
 

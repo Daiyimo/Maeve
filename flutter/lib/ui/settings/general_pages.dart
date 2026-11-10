@@ -320,7 +320,8 @@ class PrivacyPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(MaeveRadius.md),
           semanticLabel: '按住清除本机会话',
           onConfirmed: () {
-            for (final conversation in controller.conversations) {
+            // 拷贝一份再删:边遍历边删会抛 ConcurrentModificationError
+            for (final conversation in controller.conversations.toList()) {
               controller.delete(conversation.id);
             }
             _notice(context, '本机会话已清除。');

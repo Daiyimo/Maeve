@@ -325,20 +325,24 @@ class SettingsTile extends StatelessWidget {
         children: [
           ?chip,
           if (chip == null && value != null)
-            Text(
-              value!,
-              style: mono
-                  ? MaeveFonts.mono(
-                      context,
-                      size: 12.5,
-                      color: scheme.onSurfaceVariant,
-                    )
-                  : Theme.of(context).textTheme.bodyMedium
-                        ?.copyWith(color: scheme.onSurfaceVariant),
+            Flexible(
+              child: Text(
+                value!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: mono
+                    ? MaeveFonts.mono(
+                        context,
+                        size: 12.5,
+                        color: scheme.onSurfaceVariant,
+                      )
+                    : Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+              ),
             ),
           ?trailing,
           if (onTap != null && enabled && trailing == null) ...[
-            const SizedBox(width: 2),
+            const SizedBox(width: MaeveSpace.sm),
             Icon(
               Icons.chevron_right,
               size: 18,

@@ -68,21 +68,51 @@ The current Flutter shell includes:
 
 ## Device verification
 
-The workbench was checked on a PZ261A running Android 16. Current captures are in
-`flutter/tool/screenshots/`:
+Checked on a Xiaomi 25042PN24C (dijun) running Android 17, 1080×2400 @450dpi (≈411dp wide,
+gesture navigation), over wireless ADB, 2026-11-10. Full captures are in
+`flutter/tool/screenshots/device-2026-11-10/`:
 
-- `b4-header-device.png` —— floating capsule header, no colour band, blur on device
+- `b4-b5-home.png` —— floating capsule header + floating composer + empty-state suggestions
+- `b6-sessions-drawer.png` —— brand row, new conversation, search, workspace, filters,
+  pinned/folder/day grouping, unread badge, identity bar
+- `b8-settings-hub.png` / `b8-settings-hub-scrolled.png` —— search capsule, overview card,
+  six groups with hue slots, bottom BrandMark
+- `b9-appearance.png` / `b9-appearance-amber.png` / `b9-appearance-light-amber.png` —— six palettes,
+  whole-tree palette switch, light theme
+- `b10-phone-control.png` / `b10-disclosure.png` / `b10-enabled.png` / `b10-tiers.png` /
+  `b10-relax.png` —— master switch off by default, first-run disclosure, hold-1.5s enable,
+  app tiers, relax rows default off, recent actions without screen content
+- `b1-onboarding.png` / `b1-onboarding-runtime.png` —— welcome → 4 questions
+- `b3-thinking.png` / `b3-replied.png` —— send → thinking pill → demo reply
+- `c4-performance.png` / `c4-no-blur-home.png` —— reduce-transparency downgrade (opaque fill)
+- `c10-wide-rail.png` / `c10-wide-folded.png` — ≥840dp docked sidebar + ≡ fold
 
-Captures for B5 (composer) / B8 (settings hub) / B10 (phone control) are still pending: the
-test device dropped to `adb offline` (Windows still lists the ADB interface as OK, so it is the
-phone-side adbd that stopped answering) before those screens could be captured. Re-run the
-screens once the device is back online; do not treat this list as complete.
+Findings from that run: blur rendering is stable (no RenderThread / GPU errors); the
+reduce-transparency and wide-layout paths behave as specified. Two defects were found and
+fixed in the same change: the privacy hold-to-clear flow threw `ConcurrentModificationError`
+after deleting one conversation (iterate a copy), and `tools/check_no_upstream_copy.py`
+failed on HEAD because `flutter/UI_SPEC_HANDOFF.md` was missing from its ALLOW list.
+One open gap: the quick panel has no reachable entry on a narrow phone — its only entry is
+the model-pill long-press, which renders only at ≥520dp, and the right-edge gesture zone is
+claimed by the system gesture navigation. The rewrite must give it a narrow-screen entry.
 
 Older captures, kept for history:
 
 ![Flutter shell on the device](docs/media/flutter/flutter-device.png)
 
 ![Flutter input and shell](docs/media/flutter/flutter-input-device.png)
+
+## Rewrite
+
+The shell above was built as a visual replica of dsh-go (AGPL-3.0, read-only research): its
+palette values and names, radius tiers, motion durations, four-tier glass recipe and screen
+skeletons all match the upstream. The user has decided to rewrite it onto Maeve's own design
+language. The execution spec is [`flutter/REWRITE_SPEC.md`](flutter/REWRITE_SPEC.md); the old
+replica spec [`flutter/UI_SPEC_HANDOFF.md`](flutter/UI_SPEC_HANDOFF.md) is kept for history and
+marked superseded. Functional contracts (bridge channels, AAR flow, screen behaviours,
+prototype limits) do not change; only the visual and interaction layer is rebuilt, derived from
+`docs/spec/visual-tokens.md`, the Kotlin theme under
+`app/src/main/java/com/daiyimo/maeve/ui/theme/`, and the `MaeveMark` brand anchor.
 
 ## Migration order
 
