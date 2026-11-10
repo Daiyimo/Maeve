@@ -87,7 +87,8 @@ void main() {
     expect(find.text('偏好'), findsWidgets);
     expect(find.text('浅色外观'), findsOneWidget);
     expect(find.text('Flutter 界面 · Android 能力'), findsOneWidget);
-    expect(find.textContaining('运行时背景模糊已禁用'), findsOneWidget);
+    expect(find.textContaining('有界背景模糊'), findsOneWidget);
+    expect(find.text('减少透明效果'), findsOneWidget);
   });
 
   testWidgets('sending a message shows user and demo reply', (tester) async {
@@ -196,6 +197,29 @@ void main() {
     await tester.tap(find.byTooltip('切换主题'));
     await tester.pumpAndSettle();
     expect(shellBrightness(), Brightness.light);
+  });
+
+  testWidgets('reduce-transparency switch drops the composer blur', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const MaeveApp());
+    // The composer is a chrome surface over the scrolling chat list, so it is
+    // the one backdrop filter on the chat page.
+    expect(find.byType(BackdropFilter), findsOneWidget);
+
+    await tester.tap(find.byTooltip('打开对话'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('减少透明效果'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('打开对话'));
+    await tester.pumpAndSettle();
+    // The chat page is reached through a conversation row, not a destination.
+    await tester.tap(find.text('选择之道'));
+    await tester.pumpAndSettle();
+    expect(find.byType(BackdropFilter), findsNothing);
   });
 
   testWidgets('narrow drawer opens, switches page and closes', (tester) async {
