@@ -61,9 +61,10 @@ class MaeveSemantic {
   }
 
   static const _hOk = 150.0;
-  static const _hWarn = 70.0;
-  static const _hBad = 25.0;
-  static const _hInfo = 245.0;
+  // 警告必须离画布色相(62)足够远:贴在同一个暖色上,金色会被读成"背景的一部分"。
+  static const _hWarn = 78.0;
+  static const _hBad = 22.0;
+  static const _hInfo = 248.0;
   static const _toolHues = [
     260.0,
     220.0,
@@ -86,25 +87,25 @@ class MaeveSemantic {
   ];
 
   static final MaeveSemantic light = _build(
-    textL: .45,
-    textC: .11,
-    containerL: .92,
-    containerC: .05,
-    onContainerL: .32,
-    onContainerC: .09,
-    solidL: .62,
-    solidC: .13,
+    textL: .455,
+    textC: .105,
+    containerL: .930,
+    containerC: .045,
+    onContainerL: .330,
+    onContainerC: .090,
+    solidL: .620,
+    solidC: .130,
   );
 
   static final MaeveSemantic dark = _build(
-    textL: .78,
-    textC: .10,
-    containerL: .30,
-    containerC: .055,
-    onContainerL: .88,
-    onContainerC: .07,
-    solidL: .70,
-    solidC: .12,
+    textL: .790,
+    textC: .098,
+    containerL: .300,
+    containerC: .045,
+    onContainerL: .880,
+    onContainerC: .070,
+    solidL: .740,
+    solidC: .120,
   );
 
   static MaeveSemantic _build({

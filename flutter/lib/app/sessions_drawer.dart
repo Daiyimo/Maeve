@@ -22,7 +22,7 @@ import '../widgets/glass_surface.dart';
 
 /// 会话抽屉:品牌行 + 新对话 + 搜索 + 工作区 + 状态筛选 + 分组列表 + 身份条。
 ///
-/// 分组顺序固定:置顶 → 文件夹 → 按天(今天/昨天/更早)。未读有徽标,
+/// 分组顺序固定:置顶 → 文件夹 → 按天(今天/昨天/更早)。
 /// 当前会话用强调色淡淡洗一层(不是描边)。
 class SessionsDrawer extends StatefulWidget {
   const SessionsDrawer({super.key, required this.onClose, this.docked = false});
@@ -56,6 +56,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
     return MaeveGlassSurface(
       tier: MaeveGlassTier.sheet,
       shape: const RoundedRectangleBorder(),
+      framed: false,
       padding: EdgeInsets.zero,
       child: SafeArea(
         right: false,
@@ -109,9 +110,9 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
     ),
     child: Row(
       children: [
-        const MaeveMark(size: 24),
+        MaeveMark(size: 20, color: colors.accent),
         const SizedBox(width: MaeveSpace.s8),
-        Text('MAEVE', style: MaeveType.eyebrow.copyWith(color: colors.ink3)),
+        Text('Maeve', style: MaeveType.title.copyWith(color: colors.ink)),
         const Spacer(),
         Pressable(
           onTap: () {
@@ -158,8 +159,12 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
         height: MaeveSize.button,
         alignment: Alignment.center,
         decoration: BoxDecoration(
+          // 不用强调色实底:一个 52 高的整宽色块是"面",而强调色是"信号"。
+          // 深色下它还会变成一块粉紫糖砖。改成淡强调底 + 强调描边 + 强调文字,
+          // 主按钮让给输入条上的发送键。
           color: colors.accent,
           borderRadius: BorderRadius.circular(MaeveRadius.md),
+          border: Border.all(color: colors.accent, width: .75),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -229,7 +234,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
     MaeveController controller,
     MaeveColors colors,
   ) => Container(
-    height: 40,
+    height: 48,
     padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.s12),
     decoration: BoxDecoration(
       color: colors.surface,
@@ -281,7 +286,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
   );
 
   Widget _filterStrip(BuildContext context, MaeveController controller) {
-    const labels = ['全部', '未读', '置顶'];
+    const labels = ['全部', '置顶'];
     final colors = MaeveTheme.of(context).colors;
     return Row(
       children: [
@@ -648,7 +653,7 @@ class _ConversationRow extends StatelessWidget {
           decoration: BoxDecoration(
             color: selected
                 ? colors.accent.withValues(alpha: .16)
-                : (active ? colors.accentSoft : null),
+                : (active ? colors.accent.withValues(alpha: .10) : null),
             borderRadius: BorderRadius.circular(MaeveRadius.sm),
           ),
           child: Row(

@@ -47,6 +47,7 @@ class MaeveGlassSurface extends StatelessWidget {
     this.settled,
     this.onTap,
     this.onLongPress,
+    this.framed = true,
   });
 
   final Widget child;
@@ -74,6 +75,9 @@ class MaeveGlassSurface extends StatelessWidget {
 
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+
+  /// Page chrome shares the canvas without a surrounding card outline.
+  final bool framed;
 
   ShapeBorder get _shape =>
       shape ??
@@ -124,17 +128,24 @@ class MaeveGlassSurface extends StatelessWidget {
     }
 
     content = CustomPaint(
-      foregroundPainter: _GlassEdgePainter(
-        shape: shape,
-        hairline: s.hairline,
-        hairlineWidth: s.hairlineWidth,
-        rim: s.rim,
-        rimFraction: s.rimFraction,
-        textDirection: textDirection,
-      ),
+      foregroundPainter: !framed
+          ? null
+          : _GlassEdgePainter(
+              shape: shape,
+              hairline: s.hairline,
+              hairlineWidth: s.hairlineWidth,
+              rim: s.rim,
+              rimFraction: s.rimFraction,
+              textDirection: textDirection,
+            ),
       child: DecoratedBox(
         decoration: ShapeDecoration(shape: shape, color: fill),
-        child: content,
+        child: _Sheen(
+          shape: shape,
+          sheen: framed ? s.sheen : Colors.transparent,
+          stop: s.sheenStop,
+          child: content,
+        ),
       ),
     );
 
@@ -155,7 +166,7 @@ class MaeveGlassSurface extends StatelessWidget {
       content = _clip(content, shape);
     }
 
-    if (s.shadows.isNotEmpty) {
+    if (framed && s.shadows.isNotEmpty) {
       content = CustomPaint(
         painter: _GlassShadowPainter(
           shape: shape,
@@ -209,6 +220,39 @@ class MaeveGlassSurface extends StatelessWidget {
       r, g, b + s, 0, 0, //
       0, 0, 0, 1, 0, //
     ];
+  }
+}
+
+/// 玻璃内部自上而下的一道提亮(见 [MaeveGlassStyle.sheen])。
+class _Sheen extends StatelessWidget {
+  const _Sheen({
+    required this.shape,
+    required this.sheen,
+    required this.stop,
+    required this.child,
+  });
+
+  final ShapeBorder shape;
+  final Color sheen;
+  final double stop;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (sheen.a <= 0) return child;
+    return DecoratedBox(
+      // 自上而下的一道提亮:玻璃"被上方的光照到"。
+      decoration: ShapeDecoration(
+        shape: shape,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [sheen, sheen.withValues(alpha: 0)],
+          stops: [0, stop.clamp(.05, 1.0)],
+        ),
+      ),
+      child: child,
+    );
   }
 }
 
@@ -381,10 +425,15 @@ class MaeveGlassButton extends StatelessWidget {
             ),
       child: DecoratedBox(
         decoration: ShapeDecoration(shape: shape, color: fill),
-        child: SizedBox.square(
-          dimension: dimension,
-          child: Center(
-            child: Icon(icon, size: compact ? 18 : 20, color: foreground),
+        child: _Sheen(
+          shape: shape,
+          sheen: prominent ? Colors.transparent : chrome.sheen,
+          stop: .5,
+          child: SizedBox.square(
+            dimension: dimension,
+            child: Center(
+              child: Icon(icon, size: compact ? 18 : 20, color: foreground),
+            ),
           ),
         ),
       ),

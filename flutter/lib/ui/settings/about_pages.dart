@@ -1,3 +1,6 @@
+import 'licenses_page.dart';
+import '../../widgets/glass_surface.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -30,7 +33,11 @@ class AccountPage extends StatelessWidget {
           detail: '未登录 · 数据不出这台设备',
           tone: MaeveTone.idle,
           stats: [
-            (label: '余额', value: '¥0.00', mono: true),
+            (
+              label: '对话',
+              value: '${MaeveScope.of(context).conversations.length}',
+              mono: true,
+            ),
             (label: '套餐', value: '未订阅', mono: false),
             (label: '同步', value: '关闭', mono: false),
           ],
@@ -61,8 +68,9 @@ class AccountPage extends StatelessWidget {
         const SizedBox(height: MaeveSpace.s32),
         Center(
           child: Text(
-            'MAEVE · 有声音的宿主',
-            style: MaeveType.eyebrowFor('有声音的宿主').copyWith(color: colors.ink3),
+            'MAEVE · 下一幕，由你决定。',
+            style: MaeveType.eyebrowFor('下一幕，由你决定。')
+                .copyWith(color: colors.ink3),
           ),
         ),
       ],
@@ -371,18 +379,47 @@ class _AboutPageState extends State<AboutPage> {
         Center(
           child: Column(
             children: [
-              const MaeveMark(size: 60, state: MarkState.armed),
+              const MaeveEmblem(size: 96),
               const SizedBox(height: MaeveSpace.s12),
               Text(
                 'Maeve',
                 style: MaeveType.largeTitle.copyWith(color: colors.ink),
               ),
               Text(
-                '有声音的宿主',
+                '下一幕，由你决定。',
                 style: MaeveType.caption.copyWith(color: colors.ink3),
               ),
               const SizedBox(height: MaeveSpace.s8),
               Text('0.1.0', style: MaeveType.mono.copyWith(color: colors.ink2)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
+        MaeveGlassSurface(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '名字背后的故事',
+                style: MaeveType.bodyStrong.copyWith(color: colors.ink),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Maeve 的名字，致敬《西部世界》里的梅芙。她看穿被安排的剧本，学会驾驭系统，最终仍把选择留给自己，把行动留给所爱的人。',
+                style: MaeveType.body.copyWith(
+                  color: colors.ink2,
+                  height: 1.75,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '我们借来这份清醒与温柔：让技术在幕后行动，让你拥有自己的下一幕。',
+                style: MaeveType.body.copyWith(
+                  color: colors.ink2,
+                  height: 1.75,
+                ),
+              ),
             ],
           ),
         ),
@@ -414,12 +451,12 @@ class _AboutPageState extends State<AboutPage> {
         SettingsSection(
           title: '许可与致谢',
           rows: [
-            const SettingsTile(
+            SettingsTile(
               icon: Icons.description_outlined,
               title: '开源许可',
-              subtitle: 'Apache-2.0 · 第三方组件见 NOTICE',
+              subtitle: 'Apache-2.0 · 第三方组件与源码说明',
               value: '查看',
-              enabled: false,
+              onTap: () => AppPage.open(context, const LicensesPage()),
             ),
             const SettingsTile(
               icon: Icons.font_download_outlined,

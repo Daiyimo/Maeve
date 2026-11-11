@@ -68,6 +68,12 @@ ThemeData maeveTheme({
       : MaeveColors.light(resolvedAccent);
   final semantic = MaeveSemantic.of(brightness);
   final text = maeveTextTheme(colors);
+  // ButtonStyle replaces its default text style rather than inheriting the
+  // surrounding paragraph. Keep the platform font when applying our tokens.
+  final buttonFont = ThemeData(brightness: brightness)
+      .textTheme
+      .labelLarge
+      ?.fontFamily;
 
   final scheme = ColorScheme(
     brightness: brightness,
@@ -155,12 +161,18 @@ ThemeData maeveTheme({
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
+        // Primary actions carry the selected palette, with guarded foreground contrast.
         backgroundColor: colors.accent,
         foregroundColor: colors.onAccent,
         minimumSize: const Size(0, MaeveSize.button),
         padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.s20),
         shape: MaeveShapes.button,
-        textStyle: MaeveType.bodyStrong.copyWith(fontSize: 15.5),
+        textStyle: MaeveType.bodyStrong.copyWith(
+          fontSize: 15.5,
+          fontFamily: buttonFont,
+          inherit: false,
+          decoration: TextDecoration.none,
+        ),
         elevation: 0,
       ),
     ),
@@ -169,7 +181,12 @@ ThemeData maeveTheme({
         foregroundColor: colors.accent,
         minimumSize: const Size(0, MaeveSize.touch),
         shape: MaeveShapes.button,
-        textStyle: MaeveType.bodyStrong.copyWith(fontSize: 14.5),
+        textStyle: MaeveType.bodyStrong.copyWith(
+          fontSize: 14.5,
+          fontFamily: buttonFont,
+          inherit: false,
+          decoration: TextDecoration.none,
+        ),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
@@ -178,14 +195,18 @@ ThemeData maeveTheme({
         minimumSize: const Size(0, MaeveSize.button),
         side: BorderSide(color: colors.edge, width: .75),
         shape: MaeveShapes.button,
-        textStyle: MaeveType.bodyStrong.copyWith(fontSize: 15.5),
+        textStyle: MaeveType.bodyStrong.copyWith(
+          fontSize: 15.5,
+          fontFamily: buttonFont,
+          inherit: false,
+          decoration: TextDecoration.none,
+        ),
       ),
     ),
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.resolveWith(
-        (states) =>
-            states.contains(WidgetState.selected) ? colors.onAccent : colors.bg,
-      ),
+      // 拇指恒为纯白:深色下强调色是浅兰紫,再配一个深色拇指就成了"黑旋钮 + 淡紫轨道",
+      // 看着像被反相的 iOS 开关。轨道上色 + 白色拇指是所有人都会读的那套。
+      thumbColor: WidgetStateProperty.all(colors.thumb),
       trackColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
             ? colors.accent
@@ -193,6 +214,7 @@ ThemeData maeveTheme({
       ),
       trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
     ),
+    iconTheme: IconThemeData(color: colors.ink2, size: MaeveSize.icon),
     listTileTheme: ListTileThemeData(
       iconColor: colors.ink2,
       textColor: colors.ink,

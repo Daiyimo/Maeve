@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/maeve_controller.dart';
 import '../../design/maeve_shapes.dart';
+import 'palette_strip.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import '../../widgets/maeve_mark.dart';
@@ -48,7 +49,7 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
 
     return AppPage.list(
       title: '设置',
-      subtitle: '外观、能力与主机',
+      subtitle: '把 Maeve 调成你的习惯',
       eyebrow: 'SETTINGS',
       children: [
         SearchCapsuleButton(onTap: _openSearch),
@@ -58,7 +59,11 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
           detail: '未登录 · 所有内容只留在这台设备',
           tone: controller.connected ? MaeveTone.ready : MaeveTone.idle,
           stats: [
-            (label: '余额', value: '¥0.00', mono: true),
+            (
+              label: '对话',
+              value: '${controller.conversations.length}',
+              mono: true,
+            ),
             (
               label: '引擎',
               value: '${controller.model} · ${controller.modelTier}',
@@ -67,6 +72,11 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
             (label: '版本', value: '0.1.0', mono: true),
           ],
           onTap: () => AppPage.open(context, const AccountPage()),
+        ),
+        const SizedBox(height: 20),
+        PaletteStrip(
+          selected: controller.accentPreset,
+          onSelected: controller.setAccent,
         ),
         SettingsSection(
           title: 'AI',
@@ -98,7 +108,6 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
         ),
         SettingsSection(
           title: '能力',
-          tone: Tone.ok,
           rows: [
             SettingsTile(
               icon: Icons.smartphone_rounded,
@@ -134,7 +143,6 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
         ),
         SettingsSection(
           title: '外观',
-          tone: Tone.accent,
           rows: [
             SettingsTile(
               icon: Icons.palette_outlined,
@@ -191,7 +199,6 @@ class _SettingsHubPageState extends State<SettingsHubPage> {
         ),
         SettingsSection(
           title: '主机',
-          tone: Tone.ok,
           rows: [
             SettingsTile(
               icon: Icons.dns_outlined,

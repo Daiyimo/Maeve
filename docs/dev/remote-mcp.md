@@ -97,7 +97,7 @@ cd ../..
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest -PdevInstall
 ```
 
-跨语言测试启动真实 Go 网关，经生产 Kotlin 隧道和手机鉴权调用真实 Python CLI 与 MCP，验证共享任务、统一令牌轮换、USB 令牌拒绝和解除配对。普通 JVM 测试不要求 Go。界面测试为 `RelaySectionTest` 和 `ComputerAccessScreenTest`；开发包通过 `devInstall` 与正式版隔离。
+跨语言测试启动真实 Go 网关，经生产 Kotlin 隧道和手机鉴权调用真实 Python CLI 与 MCP，验证共享任务、统一令牌轮换、USB 令牌拒绝和解除配对。普通 JVM 测试不要求 Go。界面测试为 `RemoteTaskRecoveryDeviceTest` 和 `FlutterLaunchDeviceTest`；开发包通过 `devInstall` 与正式版隔离。
 
 `/healthz` 仅证明网关进程可用，不代表手机在线。代理须保留 Host、WebSocket 和协议头，用调用方地址覆盖 X-Forwarded-For，超时大于 65 秒，禁用请求自动重试。默认不记录正文或凭据，反向代理也须如此。备份包含设备身份，恢复旧备份可能恢复被撤销设备；管理密钥轮换需替换私密文件后重启，不改变手机令牌。
 

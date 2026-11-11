@@ -43,7 +43,7 @@ void main() {
     await tester.tap(find.text('继续'));
     await tester.pumpAndSettle();
     expect(find.text('看起来像什么'), findsOneWidget);
-    await tester.tap(find.text('黄铜'));
+    await tester.tap(find.text('丝绒红'));
     await tester.pumpAndSettle();
     expect(find.text('2 / 4'), findsOneWidget);
 

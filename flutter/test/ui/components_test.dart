@@ -161,7 +161,28 @@ void main() {
   });
 
   group('页面骨架(A10 / 顶栏)', () {
-    testWidgets('顶栏是整条玻璃,标题列有眉标与副标题', (tester) async {
+    testWidgets('Unequal actions keep the title on the page center', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        host(
+          const TopBar(
+            title: '居中标题',
+            showBack: false,
+            actions: [
+              SizedBox.square(dimension: 48),
+              SizedBox.square(dimension: 48),
+            ],
+          ),
+        ),
+      );
+      expect(
+        tester.getCenter(find.text('居中标题')).dx,
+        tester.getCenter(find.byType(TopBar)).dx,
+      );
+    });
+
+    testWidgets('顶栏是整条玻璃,标题列只说两件事:标题 + 一行状态', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: maeveTheme(brightness: Brightness.dark),
@@ -180,14 +201,34 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('测试页'), findsOneWidget);
-      expect(find.text('TEST'), findsOneWidget);
       expect(find.text('副标题'), findsOneWidget);
+      // 有副标题时不再叠一行眉标:三行小字挤在 56 高的条里,远看是一团灰。
+      expect(find.text('TEST'), findsNothing);
       // 顶栏是一块 chrome 玻璃(会采样)。
       final surface = tester.widget<MaeveGlassSurface>(
         find.byType(MaeveGlassSurface).first,
       );
       expect(surface.tier, MaeveGlassTier.chrome);
       expect(find.byType(BackdropFilter), findsWidgets);
+    });
+
+    testWidgets('没有副标题时,眉标兜底成为第二行', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: maeveTheme(brightness: Brightness.dark),
+          home: MaeveThemeScope(
+            brightness: Brightness.dark,
+            accent: deriveAccent(MaeveAccentPreset.reverie),
+            child: AppPage.list(
+              title: '测试页',
+              eyebrow: 'TEST',
+              children: [for (var i = 0; i < 30; i++) Text('行 $i')],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('TEST'), findsOneWidget);
     });
   });
 
@@ -244,14 +285,14 @@ void main() {
           ),
         ),
       );
-      expect(find.text('已关闭'), findsOneWidget);
+      // 开关行不再在开关左边重复一遍"已开启/已关闭":开关的状态位 + 读屏的
+      // toggled 语义已经说了两遍,第三遍会把行内文字挤成两行。现在就一个开关。
+      expect(find.text('已关闭'), findsNothing);
+      expect(find.text('已开启'), findsNothing);
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
       await tester.tap(find.text('触感反馈'));
       await tester.pumpAndSettle();
-      expect(find.text('已开启'), findsOneWidget);
-
-      final labelRect = tester.getRect(find.text('已开启'));
-      final switchRect = tester.getRect(find.byType(Switch));
-      expect(switchRect.left - labelRect.right, closeTo(RowMetrics.gap, .5));
+      expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
     });
 
     testWidgets('普通行图标块中性,状态行才上色', (tester) async {
@@ -300,9 +341,13 @@ void main() {
       await tester.tap(find.text('中'));
       await tester.pumpAndSettle();
       final selected = tester.widget<Text>(find.text('中'));
+      final unselected = tester.widget<Text>(find.text('高'));
       final colors = MaeveTheme.of(tester.element(find.byType(SettingsSection)))
           .colors;
-      expect(selected.style?.color, colors.onAccent);
+      // 选中靠"强调色文字 + 描边",不靠一整块强调色实底:
+      // 三个分段里有一个是实心色块,整行会重得像个开关面板。
+      expect(selected.style?.color, colors.accent);
+      expect(unselected.style?.color, colors.ink3);
     });
   });
 

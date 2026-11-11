@@ -7,6 +7,7 @@ on any CI image before Gradle comes up.
 from __future__ import annotations
 
 import pathlib
+import os
 import re
 import sys
 
@@ -51,18 +52,26 @@ check("not affiliated with or endorsed by HBO" in readme,
 # 4. Every `## ` heading in THIRD_PARTY_NOTICES must appear on the in-app licence screen.
 notices = read("licenses/THIRD_PARTY_NOTICES.md")
 headings = [l[3:].strip() for l in notices.splitlines() if l.startswith("## ")]
-screen = read("app/src/main/java/com/daiyimo/maeve/ui/LicensesScreen.kt")
+screen = read("app/src/main/java/com/daiyimo/maeve/ui/LicensesModels.kt")
 body = screen[screen.index("val ENTRIES"):] if "val ENTRIES" in screen else ""
 names = re.findall(r'Entry\("([^"]+)"', body)
 check(len(headings) >= 16, "THIRD_PARTY_NOTICES.md looks truncated")
 for h in headings:
-    check(h in names, f"third-party notice not shown in LicensesScreen: {h}")
+    check(h in names, f"third-party notice not shown in the shared notice model: {h}")
 check(bool(names) and names[0] == "Maeve",
-      "LicensesScreen must show Maeve as its first entry")
+      "the shared notice model must show Maeve as its first entry")
 check(any("Mika" in n for n in names),
-      "LicensesScreen lost the upstream entry")
+      "the shared notice model lost the upstream entry")
 check("gpl-sources.tar.gz" in screen,
-      "GPL source offer string lost from LicensesScreen")
+      "GPL source offer string lost from the shared notice model")
+
+# The native data must still be reachable from the Flutter application.
+check("const LicensesPage()" in read("flutter/lib/ui/settings/about_pages.dart"),
+      "About must open Flutter's licence page")
+check("'legal_notices'" in read("flutter/lib/ui/settings/licenses_page.dart"),
+      "Flutter licence page must read the packaged native notice data")
+check('"legal_notices"' in read("app/src/main/java/com/daiyimo/maeve/ui/MaeveUiPlugin.kt"),
+      "Native bridge must expose packaged notices")
 
 # 5. Licence texts and the source offer must ship inside the APK.
 assets = ROOT / "app/src/main/assets/licenses"
@@ -88,16 +97,27 @@ allowed = {
     "tools/maeve",
     "NOTICE",
     "app/src/main/assets/licenses/NOTICE.txt",
-    "app/src/main/java/com/daiyimo/maeve/ui/LicensesScreen.kt",
+    "app/src/main/java/com/daiyimo/maeve/ui/LicensesModels.kt",
     "tools/relay/NOTICE",
     "ATTRIBUTION.md",
 }
 skip_dirs = {".git", "build", ".gradle", ".kotlin", ".idea", "__pycache__"}
 code_exts = {".kt", ".kts", ".java", ".xml", ".aidl", ".py", ".go", ".mod",
              ".json", ".pro", ".gradle", ".properties", ".yml", ".yaml",
-             ".sh", ".bat", ".txt", ".md"}
+             ".sh", ".bat", ".txt", ".md", ".dart"}
 needles = ("com.wangzan101.", "com/wangzan101/", "wangzan101", "mika")
-for path in ROOT.rglob("*"):
+def source_files(base: pathlib.Path):
+    # Prune before descent: build trees contain large archives and generated code.
+    # Filtering after rglob still walks every artifact and made local CI unbounded.
+    for directory, subdirs, files in os.walk(base):
+        subdirs[:] = [name for name in subdirs if name not in skip_dirs]
+        for name in files:
+            path = pathlib.Path(directory) / name
+            if path.suffix.lower() in code_exts:
+                yield path
+
+
+for path in source_files(ROOT):
     if not path.is_file() or path.suffix.lower() not in code_exts:
         continue
     if any(part in skip_dirs for part in path.parts):
@@ -115,9 +135,7 @@ for path in ROOT.rglob("*"):
 # 8. No AGPL-licensed source may be vendored.
 for marker in ("io.github.ccch1mneyyy", "package dsh_", "import 'package:dsh"):
     for base in (ROOT / "app", ROOT / "core"):
-        for path in base.rglob("*"):
-            if not path.is_file():
-                continue
+        for path in source_files(base):
             try:
                 if marker in path.read_text(encoding="utf-8"):
                     problems.append(f"possible AGPL-3.0 dsh-Go source copied: {path}")

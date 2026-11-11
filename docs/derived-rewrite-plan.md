@@ -1,5 +1,7 @@
 # 衍生代码清单与 clean-room 重写计划
 
+> 2026-11-11 更新：表内 Compose 页面文件名是迁移前盘点记录，现已退役；应用界面由 Flutter 重新设计。当前边界见 [Flutter 迁移契约](spec/flutter-visual-parity.md)。
+
 > 目标：把 Maeve 里仍然属于上游项目（Apache-2.0）表达的作者原创代码
 > 全部换成自己的实现，然后删掉 `NOTICE` 里的上游署名块与 `ATTRIBUTION.md` 的溯源章节。
 >
@@ -246,7 +248,7 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | 1,483 | 1,486 | 100% | `app/src/main/java/com/daiyimo/maeve/cap/web/WebScreen.kt` |
 | 1,336 | 1,372 | 97% | `app/src/main/java/com/daiyimo/maeve/capsule/CapsuleController.kt` |
 | 1,291 | 1,312 | 98% | `app/src/main/java/com/daiyimo/maeve/task/TaskRun.kt` |
-| 1,230 | 1,597 | 77% | `app/src/main/java/com/daiyimo/maeve/ui/ChatScreen.kt` |
+| 1,230 | 1,597 | 77% | app/src/main/java/com/daiyimo/maeve/ui/ChatScreen.kt（已退役） |
 | 1,221 | 1,237 | 99% | `tools/maeve-cli/scripts/maeve_desk/desk.js` |
 | 1,189 | 1,189 | 100% | `app/src/main/assets/web/page.js` |
 | 1,169 | 1,172 | 100% | `app/src/main/java/com/daiyimo/maeve/settings/ProviderStore.kt` |
@@ -258,12 +260,12 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | 867 | 936 | 93% | `SPEC.md` |
 | 826 | 890 | 93% | `app/src/main/java/com/daiyimo/maeve/capsule/CapsuleCardContent.kt` |
 | 821 | 822 | 100% | `core/src/test/kotlin/com/daiyimo/maeve/core/agent/AgentLoopTest.kt` |
-| 819 | 907 | 90% | `app/src/main/java/com/daiyimo/maeve/ui/ModelsScreen.kt` |
+| 819 | 907 | 90% | app/src/main/java/com/daiyimo/maeve/ui/ModelsScreen.kt（已退役） |
 | 765 | 801 | 96% | `core/src/test/resources/prompt-surface/layers/all.txt` |
 | 760 | 760 | 100% | `core/src/test/kotlin/com/daiyimo/maeve/core/tool/ToolDispatcherWebTest.kt` |
 | 751 | 753 | 100% | `core/src/test/kotlin/com/daiyimo/maeve/core/shell/BuiltinShellEngineTest.kt` |
 | 716 | 734 | 98% | `app/src/main/cpp/maeverun/maeverun.c` |
-| 676 | 722 | 94% | `app/src/main/java/com/daiyimo/maeve/ui/ModelSetupScreen.kt` |
+| 676 | 722 | 94% | app/src/main/java/com/daiyimo/maeve/ui/ModelSetupScreen.kt（已退役） |
 
 规律：**TOP 25 里 9 个是测试、8 个是 `app:ui`、1 个是 `tools` 的 JS**。产品代码里最难啃的仍是
 `AndroidScreen.kt`（无障碍取树，1,926 行）、`ShellService.kt`（shell 服务，1,634 行）、
@@ -363,7 +365,7 @@ Compose、以及可批处理的文本资源。**所以有效工作量接近上�
 | `ATTRIBUTION.md` | Provenance / §4 表 / "What changed since the baseline" / Naming boundary | 已改写为独立项目文档，不含上游身份 |
 | `tools/relay/` 下的 `NOTICE` | 全文只有上游署名两行 | 已删除文件 |
 | `app/src/main/assets/licenses/NOTICE.txt` | 应用内许可证屏数据源，含上游署名块 | 已同步删除 |
-| `app/src/main/java/com/daiyimo/maeve/ui/LicensesScreen.kt` | "上游版权方" 条目 | 已删除 |
+| app/src/main/java/com/daiyimo/maeve/ui/LicensesScreen.kt（已退役） | "上游版权方" 条目 | 已删除 |
 | `licenses/THIRD_PARTY_NOTICES.md` | scrcpy 段指向 `ShellContext.kt` | scrcpy 是独立第三方，**保留**；仅当 `ShellContext.kt` 被重写时才更新路径 |
 
 放行条件（建议写成 CI 断言）：

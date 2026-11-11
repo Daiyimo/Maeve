@@ -4,27 +4,15 @@ import 'maeve_oklch.dart';
 
 import 'package:flutter/painting.dart';
 
-/// Maeve 的六套配色。取名来自《西部世界》的意象,颜色全部落在暖侧——
-/// 这套界面是纸,纸上的色不能是屏幕蓝。
-///
-/// | id | 名字 | 意象 |
-/// |---|---|---|
-/// | [reverie] | 梅子 | 默认。Maeve 的戏服色,深紫里带一点血 |
-/// | [dolores] | 黄铜 | 首发代号。甜水镇的灯与铜件 |
-/// | [maze] | 沙原 | 迷宫。她找路的那座 |
-/// | [pearl] | 珍珠 | 冷静的旁观者 |
-/// | [sublime] | 夜靛 | 升华。甜水镇的夜 |
-/// | [graphite] | 石墨 | 近无色。摇篮的金属 |
-///
-/// 每套只定**种子**(浅/深各一枚)和中性色的彩度倍率,其余色位按 [MaeveAccent] 的
-/// 阶梯现推,推完过对比度守卫。数值与 Compose 侧 `MaeveAccent.kt` 同一组决策。
+/// Six complete atmospheres, with stable IDs for existing appearance choices.
+/// Accent, canvas temperature and surface depth belong to the same palette.
 enum MaeveAccentPreset {
-  reverie('reverie', '梅子', 0xFF6B3D57, 0xFFB98CA8, 1),
-  dolores('dolores', '黄铜', 0xFF7A5626, 0xFFD2AE74, .85),
-  maze('maze', '沙原', 0xFF6E5740, 0xFFC6AE90, .9),
-  pearl('pearl', '珍珠', 0xFF4E5F6B, 0xFFAFC2CE, .7),
-  sublime('sublime', '夜靛', 0xFF3B4A72, 0xFF9CAEDD, .9),
-  graphite('graphite', '石墨', 0xFF34312E, 0xFFDED8D0, .15);
+  reverie('reverie', '觉醒紫', 0xFF7651C7, 0xFFCBB7FF, 1),
+  dolores('dolores', '丝绒红', 0xFF944666, 0xFFF0B2CF, .95),
+  maze('maze', '雾松', 0xFF38634B, 0xFFB5D5A4, .7),
+  pearl('pearl', '冰川', 0xFF31667F, 0xFFA0D5DF, .8),
+  sublime('sublime', '暮光', 0xFF4A57A4, 0xFFB4BFF5, .9),
+  graphite('graphite', '月白', 0xFF514B42, 0xFFE2D9C9, .3);
 
   const MaeveAccentPreset(
     this.id,
@@ -39,8 +27,7 @@ enum MaeveAccentPreset {
   final int lightSeed;
   final int darkSeed;
 
-  /// 中性色的彩度倍率。注意:中性色的**色相是固定的**(偏冷 250),
-  /// 不随配色转 —— 否则配色一换,整张纸的色相跟着跑,界面失去稳定性。
+  /// Relative warmth/saturation of the accompanying neutral surfaces.
   final double tintChroma;
 
   static MaeveAccentPreset byId(String? id) =>
@@ -185,9 +172,10 @@ MaeveAccent _spec({
     darkOnContainer: at(.909, cd * .24),
     darkBubble: at(.314, cd * .29),
     darkOnBubble: at(.93, cd * .06),
-    darkGlow: at(.52, cd * .72),
+    // 极光要抬到 .58:极光是背景里唯一有颜色的光,太暗读作"一块脏印子"。
+    darkGlow: at(.580, cd * .72),
     hazeLight: at(.80, c * .45, _normDeg(hue + 24)),
-    hazeDark: at(.45, cd * .55, _normDeg(hue + 24)),
+    hazeDark: at(.50, cd * .62, _normDeg(hue + 24)),
   );
 }
 

@@ -282,24 +282,46 @@ class _WelcomeStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const MaeveMark(size: 68, state: MarkState.armed),
-        const SizedBox(height: MaeveSpace.s20),
+        Container(
+          width: 112,
+          height: 112,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                colors.accentSoft,
+                colors.accentSoft.withValues(alpha: 0),
+              ],
+            ),
+          ),
+          child: MaeveMark(
+            size: 56,
+            state: MarkState.armed,
+            color: colors.accent,
+          ),
+        ),
+        const SizedBox(height: MaeveSpace.s24),
         Text(
           'SHE RUNS THE LOOP',
           style: MaeveType.eyebrow.copyWith(color: colors.ink3),
         ),
         const SizedBox(height: MaeveSpace.s10),
         Text(
-          '一个念头，从这里开始。',
-          style: MaeveType.display.copyWith(color: colors.ink),
+          '一个念头，\n从这里开始。',
+          style: MaeveType.display.copyWith(
+            fontSize: 36,
+            height: 42 / 36,
+            color: colors.ink,
+          ),
         ),
-        const SizedBox(height: MaeveSpace.s12),
+        const SizedBox(height: MaeveSpace.s16),
         Text(
           'Maeve 住在你的设备里：她在另一块屏上把事办完，你的主屏始终是你的。'
           '接下来四个问题，决定她默认怎么工作。',
           style: MaeveType.body.copyWith(color: colors.ink2),
         ),
-        const SizedBox(height: MaeveSpace.s20),
+        const SizedBox(height: MaeveSpace.s24),
         const BriefNotice(
           text: '不登录也能用完整功能；登录只是为了同步。',
           icon: Icons.lock_outline_rounded,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'haptics.dart';
+import 'status.dart';
 
 import '../../design/maeve_motion.dart';
 import '../../design/maeve_surfaces.dart';
@@ -8,6 +9,7 @@ import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 
 import '../../widgets/glass_surface.dart';
+import '../../widgets/maeve_mark.dart';
 
 /// 二级页骨架:**整条玻璃顶栏 + 可滚动内容**。
 ///
@@ -138,24 +140,35 @@ class _AppPageState extends State<AppPage> {
   }
 }
 
-/// 顶栏:整条玻璃 + 左圆钮 + 居中标题列(眉标 / 标题 / 副标题) + 右动作区。
+/// 顶栏:整条玻璃 + 左圆钮 + 居中标题列(标题 / 一行状态) + 右动作区。
+///
+/// **一行状态,不是三行。** 上一版同时给眉标(`HOST · READY`)、标题、副标题,
+/// 三行等宽小字叠在 74 高的条里,远看是一团灰。现在顶栏只说两件事:
+/// 这是哪一页(标题),现在是什么状态(一个点 + 一句话)。
+/// [eyebrow] 只在没有 [subtitle] 时兜底显示,页面不该两个都给。
 class TopBar extends StatelessWidget {
   const TopBar({
     super.key,
     required this.title,
     this.subtitle,
     this.eyebrow,
+    this.statusTone,
     this.actions = const [],
     this.showBack = true,
     this.onBack,
     this.leading,
     this.brand = false,
     this.elevated = false,
+    this.working = false,
   });
 
   final String title;
   final String? subtitle;
   final String? eyebrow;
+
+  /// 副标题前面那个状态点(给了才画)。状态色只是辅助,文字才是主体。
+  final MaeveTone? statusTone;
+
   final List<Widget> actions;
   final bool showBack;
   final VoidCallback? onBack;
@@ -163,11 +176,14 @@ class TopBar extends StatelessWidget {
   /// 覆盖左侧按钮(聊天页放抽屉键)。
   final Widget? leading;
 
-  /// 标题左边带品牌标(对话页),顶栏高出一档给三层文字。
+  /// 标题左边带品牌标(对话页),顶栏高出一档给两层文字。
   final bool brand;
 
   /// 内容已滚到下面:填充更实一点。
   final bool elevated;
+
+  /// 副标题是「正在进行」的状态行:强调色慢流渐变(WorkingLine)。空闲别开。
+  final bool working;
 
   @override
   Widget build(BuildContext context) {
@@ -177,6 +193,7 @@ class TopBar extends StatelessWidget {
     final height = brand ? MaeveSize.topBarBrand : MaeveSize.topBar;
     // 左右两格等宽,标题才真的居中;右侧有几个动作就按几个 48 算。
     final sideWidth = 48.0 * (actions.isEmpty ? 1 : actions.length);
+    final eyebrowText = subtitle == null ? eyebrow : null;
 
     return BackdropGroup(
       child: Container(
@@ -185,6 +202,7 @@ class TopBar extends StatelessWidget {
         child: MaeveGlassSurface(
           tier: MaeveGlassTier.chrome,
           grouped: true,
+          framed: false,
           shape: const RoundedRectangleBorder(),
           blur: true,
           // 滚动后不用换材质,玻璃本身会采样;这里只在滚动时把填充压得更实一档。
@@ -195,51 +213,32 @@ class TopBar extends StatelessWidget {
             child: Row(
               children: [
                 SizedBox(
-                  width: 48,
-                  child:
-                      leading ??
-                      (showBack && canPop
-                          ? _BarButton(
-                              icon: Icons.arrow_back_ios_new_rounded,
-                              label: '返回',
-                              onTap:
-                                  onBack ??
-                                  () => Navigator.of(context).maybePop(),
-                            )
-                          : const SizedBox.shrink()),
+                  width: sideWidth,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child:
+                        leading ??
+                        (showBack && canPop
+                            ? _BarButton(
+                                icon: Icons.arrow_back_ios_new_rounded,
+                                label: '返回',
+                                onTap:
+                                    onBack ??
+                                    () => Navigator.of(context).maybePop(),
+                              )
+                            : const SizedBox.shrink()),
+                  ),
                 ),
                 Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (eyebrow != null) ...[
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 4,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: colors.accent,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              eyebrow!,
-                              style: MaeveType.eyebrowFor(eyebrow!)
-                                  .copyWith(color: colors.ink3),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                      ],
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (brand) ...[
                             const _BrandDot(),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 7),
                           ],
                           Flexible(
                             child: Text(
@@ -248,22 +247,53 @@ class TopBar extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               textAlign: TextAlign.center,
                               style: MaeveType.title.copyWith(
+                                fontSize: brand ? 21 : 17,
+                                height: 1.1,
+                                fontWeight: FontWeight.w600,
                                 color: colors.ink,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 1),
+                      const SizedBox(height: 1),
+                      if (subtitle != null)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (statusTone != null) ...[
+                              StatusDot(tone: statusTone!, size: 5),
+                              const SizedBox(width: 5),
+                            ],
+                            Flexible(
+                              child: working
+                                  ? WorkingLine(
+                                      text: subtitle!,
+                                      active: true,
+                                      style: MaeveType.hint,
+                                    )
+                                  : Text(
+                                      subtitle!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: MaeveType.hint.copyWith(
+                                        color: colors.ink3,
+                                        height: 1.1,
+                                      ),
+                                    ),
+                            ),
+                          ],
+                        )
+                      else if (eyebrowText != null)
                         Text(
-                          subtitle!,
+                          eyebrowText,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           textAlign: TextAlign.center,
-                          style: MaeveType.hint.copyWith(color: colors.ink3),
+                          style: MaeveType.eyebrowFor(eyebrowText)
+                              .copyWith(color: colors.ink3, height: 1.1),
                         ),
-                      ],
                     ],
                   ),
                 ),
@@ -321,21 +351,13 @@ class _BarButton extends StatelessWidget {
   }
 }
 
-/// 标题左边那个小环:Maeve 的品牌标缩到 18 的尺寸。
+/// 标题左边那个小标:Maeve 的品牌标缩到 16 的尺寸。
 class _BrandDot extends StatelessWidget {
   const _BrandDot();
 
   @override
-  Widget build(BuildContext context) => SizedBox.square(
-    dimension: 18,
-    child: Center(
-      child: Icon(
-        Icons.circle_outlined,
-        size: 14,
-        color: MaeveTheme.of(context).colors.accent,
-      ),
-    ),
-  );
+  Widget build(BuildContext context) =>
+      const SizedBox.square(dimension: 16, child: MaeveMark(size: 16));
 }
 
 /// iOS 式水平推入:进场 220ms 减速,退场 220ms 加速离开。

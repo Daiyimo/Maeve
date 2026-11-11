@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'maeve_shell.dart';
 
 import 'maeve_controller.dart';
+
+import '../bridge/maeve_bridge.dart';
 
 import '../design/maeve_theme.dart';
 
@@ -10,17 +14,39 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 /// 应用外壳:主题、语言、全局状态。
 class MaeveApp extends StatefulWidget {
-  const MaeveApp({super.key});
+  const MaeveApp({super.key, this.controller});
+
+  /// 注入控制器(测试里带假桥用);不传就用真的。
+  final MaeveController? controller;
 
   @override
   State<MaeveApp> createState() => _MaeveAppState();
 }
 
 class _MaeveAppState extends State<MaeveApp> {
-  final MaeveController controller = MaeveController();
+  late final MaeveController controller =
+      widget.controller ?? MaeveController();
+
+  StreamSubscription? _entries;
+
+  @override
+  void initState() {
+    super.initState();
+    controller.attach();
+    _entries = MaeveBridge.entries.listen(_onEntry);
+  }
+
+  /// 通知点击 / 深链接:{kind, threadId}。壳永显对话页,入口就是切到那个对话。
+  void _onEntry(dynamic event) {
+    if (event is! Map) return;
+    final threadId = event['threadId'];
+    if (threadId is! String || threadId.isEmpty) return;
+    controller.openThread(threadId);
+  }
 
   @override
   void dispose() {
+    _entries?.cancel();
     controller.dispose();
     super.dispose();
   }

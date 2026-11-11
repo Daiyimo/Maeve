@@ -692,3 +692,224 @@ class StatusChip extends StatelessWidget {
 extension MaeveColorsOf on BuildContext {
   MaeveColors get maeveColors => MaeveTheme.of(this).colors;
 }
+
+/// 工作进行中的一行字:强调色慢流渐变 + 极轻的明度呼吸。
+///
+/// 参考 desktop-for-step-code 的工作标签处理(品牌渐变慢流 + 立方呼吸),但遵守
+/// Maeve 自己的「唯一彩色」:渐变只在强调色与墨色之间流动,不引入第二套色相。
+/// 空闲时就是普通一行字;reduced-motion 时渐变静止、呼吸关闭。
+///
+/// 注意:进行中是无限动画,别在需要 `pumpAndSettle` 的测试里开 active。
+class WorkingLine extends StatefulWidget {
+  const WorkingLine({
+    super.key,
+    required this.text,
+    required this.active,
+    this.style,
+  });
+
+  final String text;
+  final bool active;
+
+  /// 传入的样式只取字号字重,颜色由这里给(渐变要吃文字形状)。
+  final TextStyle? style;
+
+  @override
+  State<WorkingLine> createState() => _WorkingLineState();
+}
+
+class _WorkingLineState extends State<WorkingLine>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _flow = AnimationController(
+    vsync: this,
+    duration: MaeveMotion.breath,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sync();
+  }
+
+  @override
+  void didUpdateWidget(WorkingLine oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.active != widget.active) _sync();
+  }
+
+  void _sync() {
+    final run = widget.active && !AppMotion.of(context).reduced;
+    if (run && !_flow.isAnimating) {
+      _flow.repeat();
+    } else if (!run && _flow.isAnimating) {
+      _flow.stop();
+    }
+  }
+
+  @override
+  void dispose() {
+    _flow.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    final base = (widget.style ?? MaeveType.hint).copyWith(color: colors.ink2);
+    if (!widget.active) return Text(widget.text, style: base);
+    if (AppMotion.of(context).reduced) {
+      return Text(widget.text, style: base.copyWith(color: colors.accent));
+    }
+    return AnimatedBuilder(
+      animation: _flow,
+      builder: (context, _) {
+        // 渐变比文字宽一倍,平移一个身位:流过去再回来,不断线。
+        final t = _flow.value * 2 - 1;
+        return ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              colors.accent,
+              colors.ink,
+              colors.accent,
+              colors.ink,
+              colors.accent,
+            ],
+            stops: const [-.5, -.25, 0, .25, .5],
+            transform: _FlowTransform(t),
+          ).createShader(bounds),
+          child: Text(widget.text, style: base.copyWith(color: colors.ink)),
+        );
+      },
+    );
+  }
+}
+
+/// 把渐变平移 [t] 个文字宽(负半周向左、正半周向右),接起来就是慢流。
+class _FlowTransform extends GradientTransform {
+  const _FlowTransform(this.t);
+
+  final double t;
+
+  @override
+  Matrix4 transform(Rect bounds, {TextDirection? textDirection}) =>
+      Matrix4.translationValues(bounds.width * t, 0, 0);
+}
+
+/// 空态扉页的标题:从左往右逐个字打出,实心块光标跟在最后一个字后面。
+///
+/// 宽度按整句预置(隐形全文占位),打字过程中不跳版;reduced-motion 时整句直接
+/// 显示、不出光标。参考 desktop-for-step-code 首页标题的打字处理。
+class TypedHeadline extends StatefulWidget {
+  const TypedHeadline({
+    super.key,
+    required this.text,
+    this.style,
+    this.textAlign = TextAlign.center,
+  });
+
+  final String text;
+  final TextStyle? style;
+  final TextAlign textAlign;
+
+  @override
+  State<TypedHeadline> createState() => _TypedHeadlineState();
+}
+
+class _TypedHeadlineState extends State<TypedHeadline>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _type = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: 90 * widget.text.characters.length),
+  );
+
+  bool _started = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // MediaQuery 只能在 didChangeDependencies / build 里读,initState 里不行。
+    if (AppMotion.of(context).reduced) {
+      _type.value = 1;
+    } else if (!_started) {
+      _type.forward();
+    }
+    _started = true;
+  }
+
+  @override
+  void didUpdateWidget(TypedHeadline oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text) {
+      _type.duration = Duration(
+        milliseconds: 90 * widget.text.characters.length,
+      );
+      if (AppMotion.of(context).reduced) {
+        _type.value = 1;
+      } else {
+        _type.forward(from: 0);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _type.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = widget.style ?? MaeveType.display;
+    final colors = MaeveTheme.of(context).colors;
+    final characters = widget.text.characters;
+    return Semantics(
+      label: widget.text,
+      excludeSemantics: true,
+      child: AnimatedBuilder(
+        animation: _type,
+        builder: (context, _) {
+          if (_type.isCompleted) {
+            return Text(
+              widget.text,
+              key: const ValueKey('typed-headline-visible'),
+              textAlign: widget.textAlign,
+              style: style,
+            );
+          }
+          final shown = (characters.length * _type.value).floor();
+          return Stack(
+            children: [
+              // 隐形全文占位:宽度一次性给足,打字不跳版。
+              Text(
+                widget.text,
+                textAlign: widget.textAlign,
+                style: style.copyWith(color: Colors.transparent),
+              ),
+              Positioned.fill(
+                child: RichText(
+                  key: const ValueKey('typed-headline-visible'),
+                  textAlign: widget.textAlign,
+                  text: TextSpan(
+                    style: style,
+                    children: [
+                      TextSpan(text: characters.take(shown).toString()),
+                      // 实心块光标:和文字同色,盖在下一个字的位置上。
+                      WidgetSpan(
+                        child: ColoredBox(
+                          color: colors.accent,
+                          child: const SizedBox(width: 8, height: 3),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}

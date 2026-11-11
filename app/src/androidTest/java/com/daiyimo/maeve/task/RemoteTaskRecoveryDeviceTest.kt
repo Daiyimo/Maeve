@@ -1,6 +1,6 @@
 package com.daiyimo.maeve.task
 
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -29,7 +29,14 @@ import java.util.concurrent.Executors
 
 @RunWith(AndroidJUnit4::class)
 class RemoteTaskRecoveryDeviceTest {
-    @get:Rule val ui = createAndroidComposeRule<MainActivity>()
+    @get:Rule val ui = ActivityScenarioRule(MainActivity::class.java)
+    private fun awaitCondition(timeout: Long, condition: () -> Boolean) {
+        val deadline = android.os.SystemClock.elapsedRealtime() + timeout
+        while (!condition()) {
+            check(android.os.SystemClock.elapsedRealtime() < deadline) { "Condition did not become true in ${timeout}ms" }
+            android.os.SystemClock.sleep(50)
+        }
+    }
     private val app get() = ApplicationProvider.getApplicationContext<MaeveApp>()
 
     @Test fun retainedIdsAndTerminalResultsSurviveReopening() {
@@ -107,10 +114,10 @@ class RemoteTaskRecoveryDeviceTest {
             testTasks.lightModelFactory = { _, _ -> null }
             testTasks.visionModelFactory = { _, _ -> null }
             if (driver != null) {
-                ui.runOnIdle { app.mcp.setUsbEnabled(true) }
-                ui.waitUntil(30_000) { app.mcp.state.value is McpServerState.Listening }
+                InstrumentationRegistry.getInstrumentation().runOnMainSync { app.mcp.setUsbEnabled(true) }
+                awaitCondition(30_000) { app.mcp.state.value is McpServerState.Listening }
                 File(app.cacheDir, "recovery-listening-$id").writeText("ready")
-                ui.waitUntil(90_000) { app.remoteTasks.get(id) != null }
+                awaitCondition(90_000) { app.remoteTasks.get(id) != null }
             }
             val tasks = pool.invokeAll(List(12) { Callable { service.start(goal, null, id) } }).map { it.get() }
             val conversation = tasks.first().conversation
@@ -133,22 +140,22 @@ class RemoteTaskRecoveryDeviceTest {
                         WHEN NEW.id='$id' BEGIN SELECT RAISE(ABORT,'test write failure'); END""")
                     try {
                         model.answer("Recovered answer")
-                        ui.waitUntil(30_000) { app.conversations.turns(conversation).any { it.userText == goal } }
+                        awaitCondition(30_000) { app.conversations.turns(conversation).any { it.userText == goal } }
                         val failure = runCatching { service.get(id) }.exceptionOrNull() as RemoteTaskError
                         assertEquals(RemoteTaskError.Code.UNAVAILABLE, failure.code)
                     } finally { db.execSQL("DROP TRIGGER reject_test_result") }
                 }
             } else model.answer("Recovered answer")
-            ui.waitUntil(30_000) { service.get(id).state is TaskState.Succeeded }
+            awaitCondition(30_000) { service.get(id).state is TaskState.Succeeded }
             assertEquals("Recovered answer", (service.start(goal, null, id).state as TaskState.Succeeded).answer)
-            ui.waitUntil(20_000) { app.conversations.turns(conversation).count { it.userText == goal } == 1 }
+            awaitCondition(20_000) { app.conversations.turns(conversation).count { it.userText == goal } == 1 }
             if (driver != null) {
                 val interrupted = requireNotNull(InstrumentationRegistry.getArguments().getString("interruptId"))
                 service.start("Interrupt check $interrupted", conversation, interrupted)
                 model.awaitCall()
                 File(app.cacheDir, "recovery-ready-$id").writeText("ready")
                 // The disposable emulator driver force-stops this process here.
-                ui.waitUntil(90_000) { false }
+                awaitCondition(90_000) { false }
             }
             runBlocking { app.conversationDeleter.delete(conversation) }
             chat = null
@@ -159,7 +166,7 @@ class RemoteTaskRecoveryDeviceTest {
             testTasks.modelFactory = TaskEnvironment.defaultModelFactory
             testTasks.lightModelFactory = TaskEnvironment.defaultLightModelFactory
             testTasks.visionModelFactory = TaskEnvironment.defaultVisionModelFactory
-            if (driver != null && !usb) ui.runOnIdle { app.mcp.setUsbEnabled(false) }
+            if (driver != null && !usb) InstrumentationRegistry.getInstrumentation().runOnMainSync { app.mcp.setUsbEnabled(false) }
             chat?.let { runBlocking { app.conversationDeleter.delete(it) } }
         }
     }

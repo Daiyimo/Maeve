@@ -35,8 +35,8 @@ void main() {
   test('六套预设 × 浅深,一共 12 组', () {
     expect(MaeveAccentPreset.values.length, 6);
     expect(cases.length, 12);
-    // 默认是梅子。
-    expect(MaeveAccentPreset.reverie.label, '梅子');
+    // 默认是觉醒紫。
+    expect(MaeveAccentPreset.reverie.label, '觉醒紫');
   });
 
   for (final (preset, brightness) in cases) {
@@ -122,23 +122,15 @@ void main() {
     });
   }
 
-  test('换预设时各级文字对比度完全不变(中性色不随强调色转)', () {
+  test('完整氛围各有底色，并保持辅助文字可读', () {
     for (final brightness in Brightness.values) {
-      double spread(Color Function(MaeveColors) pick) {
-        final ratios = [
-          for (final preset in MaeveAccentPreset.values)
-            MaeveOklch.contrast(
-              pick(colorsOf(preset, brightness)),
-              colorsOf(preset, brightness).bg,
-            ),
-        ];
-        return ratios.reduce((a, b) => a > b ? a : b) -
-            ratios.reduce((a, b) => a < b ? a : b);
+      final canvases = <Color>{};
+      for (final preset in MaeveAccentPreset.values) {
+        final c = colorsOf(preset, brightness);
+        canvases.add(c.bg);
+        expect(MaeveOklch.contrast(c.ink3, c.bg), greaterThanOrEqualTo(4.5));
       }
-
-      expect(spread((c) => c.ink), lessThan(1e-9));
-      expect(spread((c) => c.ink2), lessThan(1e-9));
-      expect(spread((c) => c.ink3), lessThan(1e-9));
+      expect(canvases.length, greaterThan(3));
     }
   });
 

@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.cap.phone.setup
 
+import com.daiyimo.maeve.ui.MainActivity
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -15,7 +16,6 @@ import com.daiyimo.maeve.core.shell.BuiltinShellStatus
 import com.daiyimo.maeve.core.shell.PairingChannelHealth
 import com.daiyimo.maeve.core.shell.PairingDiscovery
 import com.daiyimo.maeve.core.shell.PhoneSetupFlow
-import com.daiyimo.maeve.ui.MainActivity
 import com.daiyimo.maeve.ui.PhoneSetupCopy
 import com.daiyimo.maeve.setup.PairingCodeReceiver
 

@@ -8,10 +8,11 @@ import 'maeve_colors.dart';
 ///
 /// 界面只有两种字体:**系统无衬线**说人话,**等宽**说机器话。这不是装饰,是分层:
 ///
-/// 1. **等宽微标签**([eyebrow])——`LOOP 03`、`CRADLE · RUNNING`。它是整套界面最省力的
-///    记忆点:任何一行字加上这层壳,立刻从"正文"变成"读数"。
-/// 2. **等宽读数**([mono]/[numeral])——耗时、步数、token、版本号、时间。数字一律 tabular,
-///    跳动时不左右抖。
+/// 1. **等宽微标签**([eyebrow])——`LOOP 03`、`CRADLE · RUNNING`。宽字距是它的
+///    全部意义:等宽 + 宽字距 = 读数,不是正文。**用一次是签名,用五次是噪音**,
+///    所以顶栏只留一行,分组标题一律用无衬线的 [label]。
+/// 2. **等宽读数**([mono]/[numeral])——耗时、步数、token、版本号、时间。数字一律
+///    tabular,跳动时不左右抖。
 /// 3. **无衬线正文**——其余一切。
 ///
 /// ## 字重只用 400 / 500 / 600
@@ -19,6 +20,13 @@ import 'maeve_colors.dart';
 /// AOSP 只带 Noto Sans CJK Regular,w500 会被映射回 Regular、w600+ 走合成加粗。
 /// 所以层级主要靠**字号 + 颜色 + 字距**,字重只在真正需要压住的地方用 600。
 /// 大号展示字用 500(不用 Bold 合成,中文加粗合成后笔画会糊)。
+///
+/// ## 行高与 baseline
+///
+/// 全部样式带 `leadingDistribution: even` —— 中文字形没有西文的降部,默认的
+/// `proportional` 分布会让中文行看起来**偏上**,多行段落的上浓下空。改成 even 之后
+/// 中文在行盒里居中,同样的行高读起来更松。正文行高从 1.48 抬到 1.55,
+/// 她的回答([script])抬到 1.68 —— 那是全 App 唯一需要被"读"的文本。
 ///
 /// ## 不打包中文字体
 ///
@@ -40,59 +48,73 @@ abstract final class MaeveType {
     FontFeature.disable('calt'),
   ];
 
+  /// 中文行盒居中(见类注释)。每个样式都带上。
+  static const _even = TextLeadingDistribution.even;
+
   // ---------- 无衬线 ----------
 
   /// 展示字:欢迎页、空状态问候。负字距是"精密感"的来源。
+  ///
+  /// 33 而不是 30:上一版的标题和卡片标题只差一档,读起来像"加粗的正文"。
+  /// 标题要敢大,层级才立得住。
   static const display = TextStyle(
-    fontSize: 30,
-    height: 37 / 30,
-    fontWeight: FontWeight.w500,
-    letterSpacing: -.66,
+    fontSize: 38,
+    height: 44 / 38,
+    fontWeight: FontWeight.w600,
+    letterSpacing: -1.1,
+    leadingDistribution: _even,
   );
 
-  /// 大标题。
+  /// 页面级大标题。
   static const largeTitle = TextStyle(
-    fontSize: 24,
-    height: 30 / 24,
+    fontSize: 30,
+    height: 38 / 30,
     fontWeight: FontWeight.w500,
-    letterSpacing: -.48,
+    letterSpacing: -.7,
+    leadingDistribution: _even,
   );
 
   /// 页面标题:顶栏。
   static const title = TextStyle(
-    fontSize: 17,
-    height: 22 / 17,
+    fontSize: 16.5,
+    height: 22 / 16.5,
     fontWeight: FontWeight.w500,
-    letterSpacing: -.17,
+    letterSpacing: -.2,
+    leadingDistribution: _even,
   );
 
   /// 正文、行标题。
   static const body = TextStyle(
     fontSize: 15.5,
-    height: 23 / 15.5,
+    height: 24 / 15.5,
     fontWeight: FontWeight.w400,
     letterSpacing: -.05,
+    leadingDistribution: _even,
   );
 
   /// 需要强调的正文(卡片标题)。
   static const bodyStrong = TextStyle(
     fontSize: 15.5,
-    height: 23 / 15.5,
+    height: 24 / 15.5,
     fontWeight: FontWeight.w500,
+    leadingDistribution: _even,
   );
 
   /// 说明文字。
   static const caption = TextStyle(
-    fontSize: 13,
-    height: 19 / 13,
+    fontSize: 13.5,
+    height: 20 / 13.5,
     fontWeight: FontWeight.w400,
+    leadingDistribution: _even,
   );
 
   /// 分组小标题。
   static const label = TextStyle(
-    fontSize: 13,
-    height: 18 / 13,
+    fontSize: 12.5,
+    height: 18 / 12.5,
     fontWeight: FontWeight.w500,
+    letterSpacing: .1,
+    leadingDistribution: _even,
   );
 
   /// 提示、页脚。
@@ -100,32 +122,37 @@ abstract final class MaeveType {
     fontSize: 12,
     height: 17 / 12,
     fontWeight: FontWeight.w400,
+    leadingDistribution: _even,
   );
 
   /// 行尾的值。
   static const value = TextStyle(
     fontSize: 15,
-    height: 20 / 15,
+    height: 21 / 15,
     fontWeight: FontWeight.w400,
+    leadingDistribution: _even,
   );
 
-  /// 她的回答正文:全 App 唯一需要被"读"的文本,行高给到 1.58。
+  /// 她的回答正文:全 App 唯一需要被"读"的文本,行高给到 1.68。
   static const script = TextStyle(
-    fontSize: 15.5,
-    height: 24.5 / 15.5,
+    fontSize: 16,
+    height: 27 / 16,
     fontWeight: FontWeight.w400,
+    letterSpacing: -.05,
+    leadingDistribution: _even,
   );
 
   // ---------- 等宽 ----------
 
-  /// 微标签:小号、中灰、正常字距 —— 它只是一行比正文更轻的说明。
+  /// 微标签:小号、宽字距 —— 它是一行读数,不是一句说明。
   static const eyebrow = TextStyle(
     fontFamily: monoFamily,
     fontFamilyFallback: monoFallback,
     fontSize: 10.5,
     height: 14 / 10.5,
-    fontWeight: FontWeight.w400,
-    letterSpacing: .1,
+    fontWeight: FontWeight.w500,
+    letterSpacing: .7,
+    leadingDistribution: _even,
   );
 
   /// 更小一档的微标签:卡片角标、行内分类。
@@ -134,8 +161,9 @@ abstract final class MaeveType {
     fontFamilyFallback: monoFallback,
     fontSize: 9.5,
     height: 13 / 9.5,
-    fontWeight: FontWeight.w400,
-    letterSpacing: .1,
+    fontWeight: FontWeight.w500,
+    letterSpacing: .6,
+    leadingDistribution: _even,
   );
 
   /// 等宽读数:耗时、步数、token、版本号。
@@ -147,6 +175,7 @@ abstract final class MaeveType {
     fontWeight: FontWeight.w400,
     letterSpacing: .2,
     fontFeatures: _tabular,
+    leadingDistribution: _even,
   );
 
   /// 小一档读数。
@@ -157,6 +186,7 @@ abstract final class MaeveType {
     height: 14 / 10.5,
     fontWeight: FontWeight.w400,
     fontFeatures: _tabular,
+    leadingDistribution: _even,
   );
 
   /// 大一号读数:用量页、关于页的主数字。
@@ -168,6 +198,7 @@ abstract final class MaeveType {
     fontWeight: FontWeight.w500,
     letterSpacing: -.3,
     fontFeatures: _tabular,
+    leadingDistribution: _even,
   );
 
   /// 台词轨上的轮次号。
@@ -178,11 +209,14 @@ abstract final class MaeveType {
     height: 12 / 10,
     fontWeight: FontWeight.w500,
     fontFeatures: _tabular,
+    leadingDistribution: _even,
   );
 
-  /// 微标签的中文档:含中文时自动升到 11.5(汉字 10.5 会把笔锋糊掉)。
-  static TextStyle eyebrowFor(String text) =>
-      _hasCjk(text) ? eyebrow.copyWith(fontSize: 11.5) : eyebrow;
+  /// 微标签的中文档:含中文时自动升到 11.5(汉字 10.5 会把笔锋糊掉),
+  /// 同时收掉字距 —— 汉字不需要西文那种宽字距。
+  static TextStyle eyebrowFor(String text) => _hasCjk(text)
+      ? eyebrow.copyWith(fontSize: 11.5, letterSpacing: .2)
+      : eyebrow;
 
   /// 判断一段文字里有没有中日韩字符。
   static bool _hasCjk(String text) => text.runes.any((rune) => rune > 0x2E80);
@@ -223,12 +257,12 @@ abstract final class MaeveSize {
   static const topBar = 56.0;
 
   /// 带品牌标的顶栏(三层:标志 / 标题 / 状态)。
-  static const topBarBrand = 74.0;
+  static const topBarBrand = 70.0;
 
   static const iconButton = 40.0;
   static const rowMin = 52.0;
   static const button = 52.0;
-  static const composer = 52.0;
+  static const composer = 104.0;
   static const icon = 22.0;
 
   /// 列表行左边的图标块,里面的图形是 [tileIcon]。

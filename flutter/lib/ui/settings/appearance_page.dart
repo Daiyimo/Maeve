@@ -25,7 +25,7 @@ class AppearancePage extends StatelessWidget {
     final colors = MaeveTheme.of(context).colors;
     return AppPage.list(
       title: '外观',
-      subtitle: '配色会同时换掉极光与强调色',
+      subtitle: '选择适合你的色彩与明暗',
       eyebrow: 'APPEARANCE',
       children: [
         SettingsSection(
@@ -78,8 +78,7 @@ class AppearancePage extends StatelessWidget {
         ),
         const SizedBox(height: MaeveSpace.s10),
         Text(
-          '换配色只换强调色一族;画布、四级文字和玻璃的色相固定不变 —— '
-          '所以每一套都同样好读，界面也不会跟着色相跑。',
+          '色彩会一起改变背景的光、玻璃的温度与细节。选一个此刻喜欢的氛围。',
           style: MaeveType.hint.copyWith(color: colors.ink3),
         ),
         const SizedBox(height: MaeveSpace.s24),
@@ -158,11 +157,15 @@ class _PresetCard extends StatelessWidget {
         duration: AppMotion.of(context).quick,
         padding: const EdgeInsets.all(MaeveSpace.s12),
         decoration: BoxDecoration(
-          color: colors.surface,
+          // 选中只加一点点强调色洗染 + 一道亮边:六张色卡里出现一整块淡紫实底,
+          // 会让"当前配色"看起来像一个新按钮。
+          color: selected
+              ? colors.accent.withValues(alpha: .09)
+              : colors.surfaceHigh,
           borderRadius: BorderRadius.circular(MaeveRadius.md),
           border: Border.all(
             color: selected ? seed : colors.edge,
-            width: selected ? 1.4 : .5,
+            width: selected ? 1.6 : .5,
           ),
         ),
         child: Column(
@@ -180,14 +183,30 @@ class _PresetCard extends StatelessWidget {
                   Icon(Icons.check_circle_rounded, size: 16, color: seed),
               ],
             ),
-            const SizedBox(height: MaeveSpace.s8),
+            const SizedBox(height: MaeveSpace.s10),
             Text(
               preset.label,
               style: MaeveType.bodyStrong.copyWith(color: colors.ink),
             ),
+            const SizedBox(height: 1),
+            // 第二行是**这枚种子的读数**,不是又一句"轻点切换"。
+            // 六张卡各写一遍"轻点切换",等于什么都没说;色值至少能对比。
             Text(
-              selected ? '当前配色' : '轻点切换',
-              style: MaeveType.hint.copyWith(color: colors.ink3),
+              selected
+                  ? '正在使用'
+                  : switch (preset) {
+                      MaeveAccentPreset.reverie => '清醒而自由',
+                      MaeveAccentPreset.dolores => '柔软的力量',
+                      MaeveAccentPreset.maze => '安静生长',
+                      MaeveAccentPreset.pearl => '清透与轻盈',
+                      MaeveAccentPreset.sublime => '夜色渐深',
+                      MaeveAccentPreset.graphite => '光的本色',
+                    },
+              style: MaeveType.monoSmall.copyWith(
+                fontSize: 10.5,
+                color: selected ? colors.accent : colors.ink3,
+                letterSpacing: .3,
+              ),
             ),
           ],
         ),
@@ -278,6 +297,8 @@ class _Preview extends StatelessWidget {
                   horizontal: MaeveSpace.s16,
                   vertical: 8,
                 ),
+                // 和真实的 FilledButton 一致(墨底):预览必须说真话 ——
+                // 按强调色画一个"假主按钮",切过去就会发现不是那样。
                 decoration: BoxDecoration(
                   color: colors.accent,
                   borderRadius: BorderRadius.circular(MaeveRadius.md),

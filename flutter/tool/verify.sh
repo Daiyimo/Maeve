@@ -42,7 +42,7 @@ fi
 
 # flutter test talks to flutter_tester over a loopback WebSocket. A machine-wide
 # HTTP proxy breaks the upgrade, so keep loopback out of it for every run.
-export NO_PROXY="${NO_PROXY:-127.0.0.1,localhost,::1}"
+export NO_PROXY="127.0.0.1,localhost,::1${NO_PROXY:+,$NO_PROXY}"
 export no_proxy="$NO_PROXY"
 
 cd "$ROOT/flutter"
@@ -50,11 +50,16 @@ cd "$ROOT/flutter"
 echo "== flutter --version =="
 "$FLUTTER_CMD" --version | head -4
 
+echo "== locked dependencies =="
+"$FLUTTER_CMD" pub get --enforce-lockfile
+
 echo "== dart format =="
-"$DART_CMD" format --output=none --set-exit-if-changed lib test
+"$DART_CMD" format --output=none --set-exit-if-changed lib test tool
 
 echo "== flutter analyze =="
-"$FLUTTER_CMD" analyze
+"$FLUTTER_CMD" analyze --no-pub --fatal-infos
 
 echo "== flutter test =="
-"$FLUTTER_CMD" test
+"$FLUTTER_CMD" test --no-pub --concurrency=2 --reporter=expanded \
+  --file-reporter=json:build/test-results/flutter.json \
+  --test-randomize-ordering-seed="${MAEVE_TEST_SEED:-20261111}"

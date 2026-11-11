@@ -1,6 +1,6 @@
 # amoo 快速连接页
 
-设置 → 常用 → **Amoo**（「手机操作」与「微信」之间；`SettingsPage.Amoo` → `app/src/main/java/com/daiyimo/maeve/ui/AmooScreen.kt`）。
+设置 → 常用 → **Amoo**（「手机操作」与「微信」之间；`SettingsPage.Amoo` → `app/src/main/java/com/daiyimo/maeve/ui/AmooModels.kt`）。
 它解决的是「把 Maeve 的地址发进 amoo 聊天，amoo 连不上」这件事。
 
 ## 为什么发地址、发命令都没用

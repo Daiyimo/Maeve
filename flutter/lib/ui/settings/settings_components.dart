@@ -7,6 +7,7 @@ import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 
 import '../../widgets/glass_surface.dart';
+import '../../widgets/maeve_mark.dart';
 import '../common/pressable.dart';
 import '../common/status.dart';
 
@@ -29,8 +30,8 @@ class GroupLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(
-      top: MaeveSpace.s20,
-      bottom: MaeveSpace.s8,
+      top: MaeveSpace.s32,
+      bottom: MaeveSpace.s12,
       left: 2,
       right: 2,
     ),
@@ -38,9 +39,8 @@ class GroupLabel extends StatelessWidget {
       children: [
         Text(
           text,
-          style: MaeveType.label.copyWith(
-            fontSize: 12.5,
-            color: MaeveTheme.of(context).colors.ink3,
+          style: MaeveType.bodyStrong.copyWith(
+            color: MaeveTheme.of(context).colors.ink,
           ),
         ),
         const Spacer(),
@@ -72,13 +72,19 @@ class FooterNote extends StatelessWidget {
 }
 
 /// 图标块的颜色语义。普通行中性,只有状态上色。
+///
+/// **一个分组里所有行的图标必须是同一个色调。** 上一版按分组上色(能力=绿、
+/// 外观=梅子),一屏里同时出现梅子、绿、琥珀三种低饱和色 —— 每种都只有一点点,
+/// 结果不是"丰富",是"脏"。现在默认全中性,颜色只留给真正表示状态的那一个 chip。
 enum Tone { neutral, accent, ok, warn, bad }
 
 (Color, Color) toneColors(BuildContext context, Tone tone) {
   final theme = MaeveTheme.of(context);
   final c = theme.colors;
   return switch (tone) {
-    Tone.neutral => (c.neutralSoft, c.ink2),
+    // 中性图标块要用 [MaeveColors.greySoft] 而不是 neutralSoft:后者只有 6% 墨,
+    // 叠在玻璃上几乎看不见,整排图标像浮在空气里。
+    Tone.neutral => (c.accent.withValues(alpha: .09), c.accent),
     Tone.accent => (c.accentSoft, c.accent),
     Tone.ok => (c.okSoft, theme.semantic.ok),
     Tone.warn => (c.warnSoft, theme.semantic.warn),
@@ -103,7 +109,10 @@ class SettingsHue extends InheritedWidget {
   bool updateShouldNotify(SettingsHue oldWidget) => oldWidget.tone != tone;
 }
 
-/// 行左边的图标块:30、圆角 7,里面图形 17。
+/// 行左边的图标块:30、圆角 9,里面图形 17。
+///
+/// 它是一块"安静的印章",不是按钮:中性底 + 墨色图形,只靠一点点色差和字形
+/// 提供可扫读的锚点。
 class IconTile extends StatelessWidget {
   const IconTile({super.key, required this.icon, this.tone = Tone.neutral});
 
@@ -118,9 +127,9 @@ class IconTile extends StatelessWidget {
       height: MaeveSize.tile,
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(9),
       ),
-      child: Icon(icon, size: MaeveSize.tileIcon * .95, color: fg),
+      child: Icon(icon, size: 17, color: fg),
     );
   }
 }
@@ -166,6 +175,21 @@ class RowChevron extends StatelessWidget {
   );
 }
 
+/// 告诉行"你在组里的第几个":首行不画上分隔线。
+class _RowPosition extends InheritedWidget {
+  const _RowPosition({required this.isFirst, required super.child});
+
+  final bool isFirst;
+
+  static bool firstOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_RowPosition>()?.isFirst ??
+      false;
+
+  @override
+  bool updateShouldNotify(_RowPosition oldWidget) =>
+      oldWidget.isFirst != isFirst;
+}
+
 /// 列表行:图标块 + 标题(+副标题) + 右栏。
 class SettingsRow extends StatelessWidget {
   const SettingsRow({
@@ -199,6 +223,7 @@ class SettingsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = MaeveTheme.of(context).colors;
     final resolvedTone = tone ?? SettingsHue.of(context);
+    final isFirst = first || _RowPosition.firstOf(context);
     final start = icon != null
         ? RowMetrics.textStartWithIcon
         : RowMetrics.endPadding;
@@ -211,7 +236,7 @@ class SettingsRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(MaeveRadius.sm),
         child: Container(
           decoration: BoxDecoration(
-            border: first
+            border: isFirst
                 ? null
                 : Border(top: BorderSide(color: colors.hair, width: .5)),
           ),
@@ -219,53 +244,55 @@ class SettingsRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(
             horizontal: RowMetrics.endPadding,
           ),
-          child: Row(
-            children: [
-              if (icon != null) ...[
-                IconTile(icon: icon!, tone: resolvedTone),
-                const SizedBox(width: 14),
-              ] else
-                SizedBox(width: start - RowMetrics.endPadding),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 11),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: MaeveType.body.copyWith(
-                          color: destructive ? colors.bad : colors.ink,
-                        ),
-                      ),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
+          child: LayoutBuilder(
+            builder: (context, rowBox) => Row(
+              children: [
+                if (icon != null) ...[
+                  IconTile(icon: icon!, tone: resolvedTone),
+                  const SizedBox(width: 14),
+                ] else
+                  SizedBox(width: start - RowMetrics.endPadding),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Text(
-                          subtitle!,
+                          title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: MaeveType.caption.copyWith(color: colors.ink3),
+                          style: MaeveType.body.copyWith(
+                            color: destructive ? colors.bad : colors.ink,
+                          ),
                         ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle!,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: MaeveType.caption.copyWith(
+                              color: colors.ink3,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
-              ),
-              if (trailing != null) ...[
-                const SizedBox(width: RowMetrics.gap),
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth:
-                        MediaQuery.sizeOf(context).width *
-                        RowMetrics.maxValueFraction,
+                if (trailing != null) ...[
+                  const SizedBox(width: RowMetrics.gap),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: rowBox.maxWidth * RowMetrics.maxValueFraction,
+                    ),
+                    child: trailing,
                   ),
-                  child: trailing,
-                ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -337,7 +364,10 @@ class SettingsTile extends StatelessWidget {
   );
 }
 
-/// 开关行:整行可点,右侧是开关态文案 + 开关(双编码)。
+/// 开关行:整行可点,右侧只有开关。
+///
+/// 上一版在开关左边又写一句"已开启/已关闭":开关本身 + 读屏的 `toggled` 语义已经
+/// 表达了两遍,第三遍只是把行内文字挤成两行("按一下有回应,关掉就完 / 全安静")。
 class SettingsSwitchTile extends StatelessWidget {
   const SettingsSwitchTile({
     super.key,
@@ -371,22 +401,10 @@ class SettingsSwitchTile extends StatelessWidget {
       tone: tone,
       enabled: enabled,
       onTap: enabled && onChanged != null ? () => onChanged!(!value) : null,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            value ? '已开启' : '已关闭',
-            style: MaeveType.hint.copyWith(
-              color: MaeveTheme.of(context).colors.ink3,
-            ),
-          ),
-          const SizedBox(width: RowMetrics.gap),
-          Switch.adaptive(
-            value: value,
-            onChanged: enabled ? onChanged : null,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ],
+      trailing: Switch.adaptive(
+        value: value,
+        onChanged: enabled ? onChanged : null,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     ),
   );
@@ -422,7 +440,7 @@ class SettingsSegmentTile extends StatelessWidget {
     final colors = MaeveTheme.of(context).colors;
     return Container(
       decoration: BoxDecoration(
-        border: first
+        border: (first || _RowPosition.firstOf(context))
             ? null
             : Border(top: BorderSide(color: colors.hair, width: .5)),
       ),
@@ -476,11 +494,26 @@ class SettingsSegmentTile extends StatelessWidget {
                       child: AnimatedContainer(
                         duration: AppMotion.of(context).quick,
                         curve: Curves.easeOut,
-                        height: 32,
+                        constraints: const BoxConstraints(minHeight: 44),
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 4,
+                        ),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: i == value ? colors.accent : colors.fill,
+                          // 选中态是"淡淡洗一层 + 一道强调色描边 + 强调色文字",
+                          // 不是一整块强调色实底 —— 三个分段里有一个是实心色块,
+                          // 整行就会重得像个开关面板。
+                          color: i == value
+                              ? colors.accent.withValues(alpha: .16)
+                              : colors.fill,
                           borderRadius: BorderRadius.circular(MaeveRadius.sm),
+                          border: Border.all(
+                            color: i == value
+                                ? colors.accent.withValues(alpha: .42)
+                                : Colors.transparent,
+                            width: .75,
+                          ),
                         ),
                         child: Text(
                           options[i],
@@ -488,7 +521,7 @@ class SettingsSegmentTile extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: MaeveType.label.copyWith(
                             fontSize: 12.5,
-                            color: i == value ? colors.onAccent : colors.ink3,
+                            color: i == value ? colors.accent : colors.ink3,
                           ),
                         ),
                       ),
@@ -533,7 +566,12 @@ class SettingsSection extends StatelessWidget {
           tier: MaeveGlassTier.card,
           shape: MaeveShapes.card,
           padding: const EdgeInsets.symmetric(vertical: MaeveSpace.s4),
-          child: Column(children: rows),
+          child: Column(
+            children: [
+              for (var i = 0; i < rows.length; i++)
+                _RowPosition(isFirst: i == 0, child: rows[i]),
+            ],
+          ),
         ),
       ),
       if (footnote != null) FooterNote(text: footnote!),
@@ -541,7 +579,7 @@ class SettingsSection extends StatelessWidget {
   );
 }
 
-/// 设置页顶部的一览卡:账号 / 余额 / 引擎。
+/// Device identity and actual workspace information, without decorative balances.
 class SettingsOverview extends StatelessWidget {
   const SettingsOverview({
     super.key,
@@ -552,122 +590,101 @@ class SettingsOverview extends StatelessWidget {
     this.onTap,
     this.avatar,
   });
-
   final String name;
   final String detail;
   final List<({String label, String value, bool mono})> stats;
   final MaeveTone tone;
   final VoidCallback? onTap;
   final Widget? avatar;
-
   @override
   Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
+    final c = MaeveTheme.of(context).colors;
     return MaeveGlassSurface(
+      // Scrolling content uses static optical layers; chrome belongs to anchors.
       tier: MaeveGlassTier.card,
-      shape: MaeveShapes.card,
+      shape: RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(24)),
+      tint: c.accent,
+      tintAlpha: .05,
+      padding: const EdgeInsets.all(20),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Pressable(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(MaeveRadius.lg),
             scale: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                MaeveSpace.s16,
-                MaeveSpace.s12,
-                MaeveSpace.s16,
-                MaeveSpace.s12,
-              ),
-              child: Row(
-                children: [
-                  avatar ??
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: colors.accentSoft,
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.person_outline,
-                          size: 18,
-                          color: colors.accent,
-                        ),
-                      ),
-                  const SizedBox(width: MaeveSpace.s12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: MaeveType.bodyStrong.copyWith(
-                            color: colors.ink,
-                          ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          detail,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: MaeveType.hint.copyWith(color: colors.ink3),
-                        ),
-                      ],
-                    ),
-                  ),
-                  StatusChip(
-                    label: switch (tone) {
-                      MaeveTone.ready => '已连接',
-                      MaeveTone.running => '运行中',
-                      MaeveTone.warning => '待处理',
-                      MaeveTone.danger => '异常',
-                      MaeveTone.idle => '离线',
-                    },
-                    tone: tone,
-                    filled: true,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Container(height: .5, color: colors.hair),
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: MaeveSpace.s16,
-              vertical: MaeveSpace.s12,
-            ),
             child: Row(
               children: [
-                for (final stat in stats)
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          stat.label,
-                          style: MaeveType.eyebrowFor(stat.label)
-                              .copyWith(color: colors.ink3),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          stat.value,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: stat.mono
-                              ? MaeveType.mono.copyWith(
-                                  fontSize: 13,
-                                  color: colors.ink,
-                                )
-                              : MaeveType.body.copyWith(color: colors.ink),
-                        ),
-                      ],
+                avatar ??
+                    Container(
+                      width: 52,
+                      height: 52,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: c.accent,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: MaeveMark(
+                        size: 32,
+                        state: MarkState.armed,
+                        color: c.onAccent,
+                      ),
                     ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: MaeveType.title.copyWith(
+                          color: c.ink,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        detail,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: MaeveType.hint.copyWith(color: c.ink2),
+                      ),
+                    ],
                   ),
+                ),
+                const SizedBox(width: 8),
+                Icon(Icons.north_east_rounded, size: 20, color: c.accent),
               ],
             ),
+          ),
+          const SizedBox(height: 20),
+          Container(height: .5, color: c.accent.withValues(alpha: .18)),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final stat in stats)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        stat.label,
+                        style: MaeveType.hint.copyWith(color: c.ink2),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        stat.value,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            (stat.mono ? MaeveType.mono : MaeveType.bodyStrong)
+                                .copyWith(color: c.ink, fontSize: 15),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
         ],
       ),
@@ -694,8 +711,8 @@ class SearchCapsuleButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(MaeveRadius.md),
       semanticLabel: hint,
       child: Container(
-        height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.s12),
+        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.s16),
         decoration: BoxDecoration(
           color: colors.surface,
           borderRadius: BorderRadius.circular(MaeveRadius.md),
@@ -741,33 +758,22 @@ class FeatureTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = MaeveTheme.of(context).colors;
     final resolved = tone ?? SettingsHue.of(context);
-    final (bg, fg) = toneColors(context, resolved);
     return Pressable(
       onTap: onTap,
       borderRadius: BorderRadius.circular(MaeveRadius.md),
       scale: false,
-      child: Container(
-        padding: const EdgeInsets.all(MaeveSpace.s12),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(MaeveRadius.md),
-          border: Border.all(color: colors.edge, width: .5),
-        ),
+      child: MaeveGlassSurface(
+        shape: MaeveShapes.card,
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Container(
-                  width: MaeveSize.tile,
-                  height: MaeveSize.tile,
-                  decoration: BoxDecoration(
-                    color: bg,
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                  child: Icon(icon, size: 16, color: fg),
-                ),
+                IconTile(icon: icon, tone: resolved),
                 const Spacer(),
+                if (badge == null)
+                  Icon(Icons.north_east_rounded, size: 14, color: colors.ink3),
                 if (badge != null)
                   Text(
                     badge!,
@@ -776,7 +782,7 @@ class FeatureTile extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: MaeveSpace.s10),
+            const SizedBox(height: MaeveSpace.s12),
             Text(
               title,
               style: MaeveType.bodyStrong.copyWith(color: colors.ink),

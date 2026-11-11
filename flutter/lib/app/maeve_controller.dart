@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../design/maeve_accent.dart';
 
+import '../bridge/maeve_chat_bridge.dart';
 import '../models/conversation.dart';
 import '../ui/common/haptics.dart';
 
@@ -39,12 +40,18 @@ class MaevePrefs {
 
 /// 全局状态:外观、对话、记忆、运行态。
 ///
-/// 原型阶段全部在进程内存里(不落盘),接桥后由 Android 侧提供持久化与真实回复。
+/// 会话列表与轮次是**真实数据**:来自宿主的 ConversationStore / ChatViewModel
+/// (桥接面见 MaeveChatBridge / 宿主 MaeveChatPlugin)。壳这边只留本地 Concerns:
+/// 归档隐藏([_archivedIds],宿主没有归档概念)、搜索与筛选。发送/停止/置顶/删除
+/// 都转发给宿主,不本地伪造。接桥前的演示态(_seed/_demoReply)已移除。
 class MaeveController extends ChangeNotifier {
-  MaeveController() {
+  MaeveController({MaeveChatBridge? bridge})
+    : _bridge = bridge ?? const HostChatBridge() {
     MaeveHaptics.enabled = haptics;
-    _seed();
   }
+
+  /// 对话桥:真机走平台通道,测试换假实现(见 MaeveChatBridge)。
+  final MaeveChatBridge _bridge;
 
   // —— 外观 ——
   ThemeMode mode = ThemeMode.dark;
@@ -68,14 +75,25 @@ class MaeveController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // —— 会话 ——
+  // —— 会话(桥接真实数据)——
   final List<Conversation> conversations = [];
   final List<String> memories = [];
-  String activeId = 'c1';
+  String activeId = '';
   String search = '';
 
   /// 会话抽屉的筛选:全部 / 未读 / 置顶。
   int listFilter = 0;
+
+  /// 宿主当前对话(ui.conversationId);壳里没有对话时为 null。
+  String? hostConversationId;
+
+  /// 发送被前置条件拦下时的问题码(no_model / accessibility / …);为空表示没被拦。
+  List<String> blocked = const [];
+
+  /// 壳内的本地归档隐藏:宿主没有归档概念,不写过去;重启即忘。
+  final Set<String> _archivedIds = {};
+
+  StreamSubscription? _chatSub;
 
   bool generating = false;
   bool connected = true;
@@ -85,46 +103,173 @@ class MaeveController extends ChangeNotifier {
   /// 本会话是否自动同意(默认关;开着时输入条上方一直有胶囊)。
   bool autoApprove = false;
 
-  int _generation = 0;
-  int _sequence = 3;
-
-  void _seed() {
-    conversations
-      ..clear()
-      ..addAll([
-        Conversation(
-          id: 'c1',
-          title: '选择之道',
-          pinned: true,
-          updatedAt: DateTime.now().subtract(const Duration(minutes: 6)),
-        ),
-        Conversation(
-          id: 'c2',
-          title: '搭一个安静的工作台',
-          folder: '工作',
-          updatedAt: DateTime.now().subtract(const Duration(hours: 5)),
-        ),
-        Conversation(
-          id: 'c3',
-          title: '新的开始',
-          unread: 2,
-          updatedAt: DateTime.now().subtract(const Duration(days: 2)),
-        ),
-      ]);
+  /// 接上对话桥:拉会话列表、订事件流、打开当前(或第一个)对话。
+  /// 在 MaeveApp.initState 里调一次。
+  void attach() {
+    if (_chatSub != null) return;
+    _chatSub = _bridge.chatStream.listen(_onChatEvent);
+    unawaited(_bootstrap());
   }
 
-  Conversation get active => conversations.firstWhere(
-    (conversation) => conversation.id == activeId,
-    orElse: () => conversations.first,
-  );
+  Future<void> _bootstrap() async {
+    try {
+      final items = await _bridge.conversations();
+      _applyConversations(items);
+      final current = hostConversationId;
+      if (current != null && conversations.any((c) => c.id == current)) {
+        activeId = current;
+      } else if (conversations.isNotEmpty) {
+        activeId = conversations.first.id;
+        await _bridge.openConversation(activeId);
+      }
+      notifyListeners();
+    } catch (_) {
+      // 桥不在(理论上同进程不可能):保持空态,不假装有数据
+      notifyListeners();
+    }
+  }
 
-  /// 抽屉列表:置顶 → 文件夹 → 按天分组,搜索与筛选在这里生效。
+  void _onChatEvent(dynamic event) {
+    if (event is! Map) return;
+    switch (event['kind']) {
+      case 'conversations':
+        _applyConversations(event['items']);
+        notifyListeners();
+      case 'ui':
+        _applyUi(event);
+        notifyListeners();
+    }
+  }
+
+  void _applyConversations(dynamic raw) {
+    final items = (raw as List<dynamic>? ?? [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    conversations
+      ..clear()
+      ..addAll(
+        items.map(
+          (m) => Conversation(
+            id: m['id'] as String,
+            title: (m['title'] as String?) ?? '',
+            updatedAt: DateTime.fromMillisecondsSinceEpoch(
+              (m['updatedAt'] as num).toInt(),
+            ),
+            pinned: m['pinned'] == true,
+            archived: _archivedIds.contains(m['id'] as String),
+          ),
+        ),
+      );
+    if (activeId.isNotEmpty && conversations.every((c) => c.id != activeId)) {
+      // 当前对话被删了:落到还剩的第一个
+      activeId = conversations.isNotEmpty ? conversations.first.id : '';
+    }
+  }
+
+  /// 宿主轮次快照 → 壳的消息列表。一问一答 = 用户气泡 + 助手轮次。
+  void _applyUi(Map event) {
+    hostConversationId = event['conversationId'] as String?;
+    final conversationId = hostConversationId;
+    if (conversationId != null && conversationId.isNotEmpty) {
+      if (conversations.every((c) => c.id != conversationId)) {
+        // 新对话(第一次发送才在 store 里建档):先放个占位,标题等 conversations 事件
+        conversations.insert(0, Conversation(id: conversationId, title: '新对话'));
+      }
+      activeId = conversationId;
+    }
+    blocked = ((event['blocked'] as List<dynamic>?) ?? const [])
+        .map((e) => e.toString())
+        .toList(growable: false);
+    final exchanges = event['exchanges'] as List<dynamic>? ?? const [];
+    final live = exchanges.any((e) => e is Map && e['live'] == true);
+    generating = event['composer'] == 'busy' || live;
+
+    final conversation = _find(activeId);
+    conversation.messages
+      ..clear()
+      ..addAll(exchanges.whereType<Map>().expand(_messagesOfExchange));
+  }
+
+  Iterable<Message> _messagesOfExchange(Map exchange) sync* {
+    final goal = exchange['goal'] as String? ?? '';
+    final quoted = _splitQuote(goal);
+    yield Message(
+      quoted.words,
+      isUser: true,
+      quote: quoted.quote,
+      quoteFromUser: quoted.fromUser,
+    );
+    final status = exchange['status'] as String? ?? '';
+    final text =
+        (exchange['answer'] as String?) ??
+        (exchange['detail'] as String?) ??
+        '';
+    final line = exchange['line'] as String? ?? '';
+    final steps = (exchange['steps'] as num?)?.toInt() ?? 0;
+    if (text.isEmpty && line.isEmpty && steps == 0) return;
+    yield Message(
+      text.isNotEmpty ? text : line,
+      isUser: false,
+      steps: steps,
+      failed: status == 'failed',
+    );
+  }
+
+  /// 宿主持久化的用户话可能带着引用块(QuoteMessage 格式:首行 header,随后每行
+  /// 「> 」是引的内容,空行后是这次说的话)。拆回 引用 + 正文,和本地发出时一致。
+  /// 格式的定义在宿主 core/agent/QuoteMessage.kt,这边只做渲染用的解析。
+  ({String? quote, String words, bool fromUser}) _splitQuote(String goal) {
+    const headerMaeve = '> [Quoting your earlier reply]';
+    const headerYou = '> [Quoting my earlier message]';
+    final lines = goal.split('\n');
+    final header = lines.isEmpty ? '' : lines.first.trim();
+    final fromUser = header == headerYou;
+    if (header != headerMaeve && !fromUser) {
+      return (quote: null, words: goal, fromUser: false);
+    }
+    final quoted = <String>[];
+    var i = 1;
+    while (i < lines.length && lines[i].startsWith('>')) {
+      var line = lines[i].substring(1);
+      if (line.startsWith(' ')) line = line.substring(1);
+      quoted.add(line);
+      i++;
+    }
+    return (
+      quote: quoted.join('\n').trim(),
+      words: lines.skip(i).join('\n').trim(),
+      fromUser: fromUser,
+    );
+  }
+
+  @override
+  void dispose() {
+    _chatSub?.cancel();
+    super.dispose();
+  }
+
+  Conversation get active => _find(activeId);
+
+  /// 入口事件:打开某个对话(通知点击、任务深链接带进来的 threadId)。
+  ///
+  /// 命中真实会话就切过去;miss 时(壳还没同步到这条)放一个以 threadId 为标题的
+  /// 占位会话——它是"这个入口接到了"的可见证据,不是真实内容。宿主那边的
+  /// openConversation 会把真实轮次带回来(对话不存在时是空的)。
+  void openThread(String threadId) {
+    if (conversations.every((conversation) => conversation.id != threadId)) {
+      conversations.insert(0, Conversation(id: threadId, title: threadId));
+    }
+    activeId = threadId;
+    notifyListeners();
+    unawaited(_bridge.openConversation(threadId));
+  }
+
+  /// 抽屉列表:置顶 → 按天分组,搜索与筛选在这里生效。
   List<Conversation> get visibleConversations {
     final query = search.trim().toLowerCase();
     var items = conversations.where((conversation) {
       if (conversation.archived) return false;
-      if (listFilter == 1 && conversation.unread == 0) return false;
-      if (listFilter == 2 && !conversation.pinned) return false;
+      if (listFilter == 1 && !conversation.pinned) return false;
       if (query.isEmpty) return true;
       return conversation.title.toLowerCase().contains(query) ||
           conversation.messages.any(
@@ -157,6 +302,24 @@ class MaeveController extends ChangeNotifier {
     if (autoApprove) return '就绪 · 自动同意';
     return '本机 · 就绪';
   }
+
+  /// 发送被拦下时给人看的一句话。问题码来自宿主的 Prerequisites.blockers
+  /// (maeve/chat 的 send 返回 false 后,ui 事件把码带回来);空 = 没被拦。
+  String? get blockedNotice {
+    if (blocked.isEmpty) return null;
+    final lines = blocked.map((code) => _blockedText[code] ?? code);
+    return '发不出去：${lines.join('；')}。';
+  }
+
+  static const _blockedText = {
+    'no_model': '还没配模型，去设置里加一个',
+    'accessibility': '无障碍服务没开',
+    'phone_helper': '手机助手没就绪',
+    'system_too_old': '系统版本太低（手机操作需要 Android 12 以上）',
+    'notifications_off': '通知被关了',
+    'attention_lowered': '提醒频道被调低了',
+    'focus_may_leak': '后台操作可能让主屏输入焦点短暂丢失',
+  };
 
   // —— 外观动作 ——
   void toggleMode() {
@@ -214,36 +377,36 @@ class MaeveController extends ChangeNotifier {
 
   void select(String id) {
     if (activeId == id) return;
-    _generation++;
-    generating = false;
     activeId = id;
-    conversations.firstWhere((conversation) => conversation.id == id).unread =
-        0;
     notifyListeners();
+    unawaited(_bridge.openConversation(id));
   }
 
-  void create({bool selectNew = true}) {
-    _generation++;
+  /// 新对话:宿主切到新状态(还没说话就没有 id),壳进入空态;第一句话发出去时
+  /// 宿主才建档,conversations 事件随之带来真实列表。
+  void create() {
+    _bridge.newConversation();
+    activeId = '';
     generating = false;
-    final id = 'c${++_sequence}';
-    conversations.insert(0, Conversation(id: id, title: '新对话'));
-    if (selectNew) activeId = id;
     notifyListeners();
   }
 
   void togglePin(String id) {
     final conversation = _find(id);
-    conversation.pinned = !conversation.pinned;
+    final pinned = !conversation.pinned;
+    conversation.pinned = pinned;
     notifyListeners();
+    unawaited(_bridge.setPinned(id, pinned));
   }
 
+  /// 归档只是壳内的本地隐藏:宿主没有归档概念,不写过去,重启即忘。
   void archive(String id) {
-    final conversation = _find(id);
-    conversation.archived = true;
+    _archivedIds.add(id);
+    _find(id).archived = true;
     if (activeId == id) {
       final next = conversations.firstWhere(
         (item) => !item.archived && item.id != id,
-        orElse: () => conversation,
+        orElse: () => _find(id),
       );
       activeId = next.id;
     }
@@ -251,88 +414,47 @@ class MaeveController extends ChangeNotifier {
   }
 
   void restore(String id) {
+    _archivedIds.remove(id);
     _find(id).archived = false;
     notifyListeners();
   }
 
   void delete(String id) {
     conversations.removeWhere((conversation) => conversation.id == id);
-    if (conversations.isEmpty) create();
-    if (activeId == id) activeId = conversations.first.id;
+    _archivedIds.remove(id);
+    if (activeId == id) {
+      activeId = conversations.isNotEmpty ? conversations.first.id : '';
+      if (activeId.isNotEmpty) {
+        unawaited(_bridge.openConversation(activeId));
+      }
+    }
     notifyListeners();
+    unawaited(_bridge.delete(id));
   }
 
   Conversation _find(String id) => conversations.firstWhere(
     (conversation) => conversation.id == id,
-    orElse: () => conversations.first,
+    orElse: () => _empty,
   );
 
-  /// 发送。生成中再发 = 插话排队,不打断当前这一轮。
-  ///
-  /// [quote] 是引用的上一条消息摘要,发出去后留在气泡里(不只是输入框里的装饰)。
+  /// 列表空(新装机、还没说过话)时的临时对话:不进列表,只为让界面有东西可绑。
+  Conversation get _empty => Conversation(id: '', title: 'Maeve');
+
+  /// 发送:转发给宿主(建档、落盘、跑任务都归它)。界面先不动——用户这句话会随
+  /// 下一个 ui 事件回来(宿主把它加进 exchanges)。被拦下时(缺模型、无障碍没开…)
+  /// 宿主把问题码放在 ui.blocked,输入区据此提示。
   void send(String raw, {String? quote, bool quoteFromUser = false}) {
     final text = raw.trim();
-    if (text.isEmpty || !connected) return;
-    final conversation = active;
-    if (generating) {
-      conversation.messages.add(
-        Message(
-          text,
-          isUser: true,
-          queued: true,
-          quote: quote,
-          quoteFromUser: quoteFromUser,
-        ),
-      );
-      notifyListeners();
-      return;
-    }
-    final generation = ++_generation;
-    conversation.messages.add(
-      Message(text, isUser: true, quote: quote, quoteFromUser: quoteFromUser),
-    );
-    if (conversation.title == '新对话') {
-      conversation.title = text.length > 34
-          ? '${text.substring(0, 34)}…'
-          : text;
-    }
-    conversation.updatedAt = DateTime.now();
-    generating = true;
-    notifyListeners();
-    unawaited(_demoReply(generation, conversation.id));
+    if (text.isEmpty) return;
+    unawaited(_bridge.send(text, quote: quote, quoteFromUser: quoteFromUser));
   }
 
-  /// 排队中的插话:立刻发出去(停止当前这一轮)。
-  void sendQueued(Message message) {
-    final conversation = active;
-    conversation.messages.remove(message);
-    generating = false;
-    send(message.text);
-  }
+  /// 重发(失败轮次的重试):当新的一句话发给宿主。
+  void sendQueued(Message message) => send(message.text);
 
-  Future<void> _demoReply(int generation, String conversationId) async {
-    await Future<void>.delayed(const Duration(milliseconds: 700));
-    if (generation != _generation || !generating) return;
-    final index = conversations.indexWhere((item) => item.id == conversationId);
-    if (index < 0) return;
-    final conversation = conversations[index];
-    conversation.messages.add(
-      Message(
-        '我收到了，接下来交给你。',
-        isUser: false,
-        steps: 3,
-        thinking: const ['理解了你的目标', '整理了两条可行路径', '把选择权交回给你'],
-      ),
-    );
-    conversation.updatedAt = DateTime.now();
-    generating = false;
-    notifyListeners();
-  }
-
+  /// 停止当前任务:宿主 TaskService.cancel。
   void stop() {
-    _generation++;
-    generating = false;
-    notifyListeners();
+    _bridge.cancel();
   }
 
   // —— 记忆 ——

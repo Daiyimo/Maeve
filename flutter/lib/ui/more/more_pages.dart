@@ -118,9 +118,11 @@ class _TerminalPageState extends State<TerminalPage> {
   final TextEditingController _input = TextEditingController();
 
   // 终端有自己的主题:固定深底,不跟配色走。
-  static const _background = Color(0xFF0B0F0D);
-  static const _foreground = Color(0xFFD7E6DB);
-  static const _accent = Color(0xFF7FD1A6);
+  // 上一版是绿黑(Matrix);换成**琥珀磷光** —— 一是和暖色画布同源,
+  // 二是在这套"西部的夜晚"里,CRT 的琥珀比荧光绿更像那个年代的东西。
+  static const _background = Color(0xFF15110D);
+  static const _foreground = Color(0xFFE9DFD2);
+  static const _accent = Color(0xFFE9BC7A);
 
   @override
   void dispose() {

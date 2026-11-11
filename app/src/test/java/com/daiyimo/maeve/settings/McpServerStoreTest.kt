@@ -5,10 +5,11 @@ import com.daiyimo.maeve.core.cap.mcp.McpStdioLauncher
 import com.daiyimo.maeve.core.cap.mcp.McpStdioProcess
 import com.daiyimo.maeve.core.resource.ResourceScope
 import com.daiyimo.maeve.core.workspace.SandboxTree
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
@@ -187,8 +188,17 @@ class McpServerStoreTest {
     }
 
     /** 不回话的 stdio server:握手一直等不到回答。 */
-    private fun silentProcess(): McpStdioProcess {
-        val toServer = PipedOutputStream()
+    private fun silentProcess(onWrite: () -> Unit = {}): McpStdioProcess {
+        val toServer = object : PipedOutputStream() {
+            override fun write(bytes: ByteArray, offset: Int, length: Int) {
+                super.write(bytes, offset, length)
+                onWrite()
+            }
+            override fun write(value: Int) {
+                super.write(value)
+                onWrite()
+            }
+        }
         val fromClient = PipedInputStream(toServer, 1 shl 16)
         val fromServer = PipedOutputStream()
         val toClient = PipedInputStream(fromServer)
@@ -206,10 +216,15 @@ class McpServerStoreTest {
     }
 
     /** 像沙箱那样:进程活着时拿着树的租约,关掉时交还;被独占的收回时停进程、记进 [revokes]。命令是 silent 的不回话。 */
-    private fun leasingLauncher(tree: SandboxTree, closes: AtomicInteger, revokes: AtomicInteger = AtomicInteger()): McpStdioLauncher {
+    private fun leasingLauncher(
+        tree: SandboxTree,
+        closes: AtomicInteger,
+        revokes: AtomicInteger = AtomicInteger(),
+        onSilentWrite: () -> Unit = {},
+    ): McpStdioLauncher {
         val inner = stdioLauncher()
         return McpStdioLauncher { ws, argv ->
-            val p = if (argv.first() == "silent") silentProcess() else inner.launch(ws, argv)
+            val p = if (argv.first() == "silent") silentProcess(onSilentWrite) else inner.launch(ws, argv)
             val lease = tree.lease { revokes.incrementAndGet(); p.close() }
             object : McpStdioProcess by p {
                 override fun close() {
@@ -258,14 +273,24 @@ class McpServerStoreTest {
     @Test fun cancelDuringConnectClosesWhatConnected() = runBlocking {
         val tree = SandboxTree()
         val closes = AtomicInteger()
-        val s = McpServerStore(tmp.root, ReverseCipher(), OkHttpClient(), stdio = leasingLauncher(tree, closes))
+        val silentWriting = CompletableDeferred<Unit>()
+        val s = McpServerStore(tmp.root, ReverseCipher(), OkHttpClient(), stdio = leasingLauncher(tree, closes,
+            onSilentWrite = { silentWriting.complete(Unit) }))
         val ok = s.add(McpServerConfig(name = "local", url = "", transport = "stdio", command = "fake-server")).getOrThrow()
         s.add(McpServerConfig(name = "silent", url = "", transport = "stdio", command = "silent")).getOrThrow()
         val resources = ResourceScope()
         val job = launch(Dispatchers.IO) { s.connectionsFor(resources, workspace = "ws") }
-        withTimeout(5_000) { while (s.health.value[ok.id] == null) delay(20) } // 回话的那个先连上
-        job.cancelAndJoin()
-        resources.close()
+        try {
+            // Both processes must exist: a healthy peer alone says nothing about
+            // whether the concurrent silent connection has started yet.
+            withTimeout(5_000) {
+                silentWriting.await()
+                s.health.first { it[ok.id]?.ok == true }
+            }
+        } finally {
+            job.cancelAndJoin()
+            resources.close()
+        }
         assertEquals(2, closes.get()) // 连上的那个关掉,连到一半的那个也关掉
         withTimeout(5_000) { tree.exclusive { } }
     }

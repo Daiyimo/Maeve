@@ -1,6 +1,6 @@
 package com.daiyimo.maeve.task
 
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.SdkSuppress
 import androidx.test.platform.app.InstrumentationRegistry
@@ -25,7 +25,7 @@ import java.util.UUID
 @SdkSuppress(minSdkVersion = 30, maxSdkVersion = 30)
 class OlderAndroidTaskDeviceTest {
     @get:Rule(order = Int.MIN_VALUE) val chinese = ChineseUi()
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    @get:Rule val compose = ActivityScenarioRule(MainActivity::class.java)
 
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
     private val model = ScriptedModel().apply { intent = "ACT" }

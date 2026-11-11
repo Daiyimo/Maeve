@@ -180,15 +180,15 @@ void main() {
   });
 
   group('配色预设', () {
-    test('六套、Maeve 命名、默认梅子', () {
+    test('六套、Maeve 命名、默认觉醒紫', () {
       expect(MaeveAccentPreset.values.length, 6);
       expect(MaeveAccentPreset.values.map((p) => p.label).toList(), [
-        '梅子',
-        '黄铜',
-        '沙原',
-        '珍珠',
-        '夜靛',
-        '石墨',
+        '觉醒紫',
+        '丝绒红',
+        '雾松',
+        '冰川',
+        '暮光',
+        '月白',
       ]);
       expect(MaeveAccentPreset.reverie.id, 'reverie');
       expect(MaeveAccentPreset.byId('nope'), MaeveAccentPreset.reverie);

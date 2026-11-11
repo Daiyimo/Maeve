@@ -17,8 +17,10 @@ import java.io.File
  *  - 路径:带 / 的,只有第一段是仓库根下真有的目录或文件才查(`files/sandbox/rootfs`、`read/system` 这类是运行时产物或分类名);
  *    不带 / 的,只有代码类扩展名(kt、py、xml 等)才查,json、md、txt 这类常是运行时产物;
  *    查的时候:根目录下直接存在,或「模块/包路径/文件」的简写(`app/task/X.kt`),或中间用 ... 省略(`core/.../X.kt`),或短文件名在仓库任意位置;
- *  - 类名或函数名:大驼峰且至少两个大写字母(`Maeve` 这样的单词不当符号);在 core、app 的源码(含测试)里有
- *    class/object/interface/typealias/fun 声明或同名文件;源码里从本仓库以外的包导入过的(安卓、JDK、库的类)不归本仓库管;
+ *  - 类名或函数名:大驼峰且至少两个大写字母(`Maeve` 这样的单词不当符号);在 core、app 的 Kotlin/Java 源码(含测试)
+ *    或 flutter/lib 的 Dart 源码里有 class/object/interface/typealias/fun/enum/mixin/typedef/extension 声明或同名文件;
+ *    源码里从本仓库以外的包导入过的(安卓、JDK、库的类)不归本仓库管;Flutter 框架类见 [frameworkOnly],
+ *    迁移台账里点名作废的旧名见 [retiredOnly];
  *  - 工具名:只查「第一段是现有工具名的第一段」的 snake_case(`max_seconds` 这样的参数名不查),对照 [knownToolNames],
  *    那是工具注册处的名单,不是金样快照。
  */
@@ -36,8 +38,12 @@ class DocsConsistencyTest {
     }
 
     private val sourceFiles: List<File> by lazy {
-        listOf("core/src", "app/src").map { File(root, it) }.filter { it.isDirectory }
+        val kotlin = listOf("core/src", "app/src").map { File(root, it) }.filter { it.isDirectory }
             .flatMap { d -> d.walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "java") }.toList() }
+        // UI 迁到 Flutter 后,壳的符号声明在 Dart 里;文档对照表两头都要认。
+        val dart = File(root, "flutter/lib").takeIf { it.isDirectory }
+            ?.walkTopDown()?.filter { it.isFile && it.extension == "dart" }?.toList().orEmpty()
+        kotlin + dart
     }
     private val sourceText: String by lazy { sourceFiles.joinToString("\n") { it.readText() } }
     private val sourceNames: Set<String> by lazy { sourceFiles.map { it.nameWithoutExtension }.toSet() }
@@ -79,19 +85,39 @@ class DocsConsistencyTest {
         "connect-computer.sh" to "电脑连接脚本由 App 写到设备外部文件目录,不进仓库",
     )
 
+    /** 迁移台账(flutter-visual-parity.md)里点名「已作废」的 Compose 时代旧名:仓库里确实没有了,逐个写明去向。 */
+    private val retiredOnly = mapOf(
+        "MaeveTokens" to "Flutter 重写后作废的 Compose 扁平令牌,对照表左列",
+        "MaeveContrast" to "同上,Compose 时代的对比度工具名",
+        "ComposerShape" to "同上,Compose 时代输入条的形状名",
+    )
+
+    /** Flutter 框架自己的类:壳在用,但不声明在本仓库。 */
+    private val frameworkOnly = mapOf(
+        "BackdropFilter" to "Flutter 框架组件(dart:ui),壳的玻璃材质在用",
+        "RoundedSuperellipseBorder" to "Flutter 框架形状类(painting),壳的连续曲率在用",
+    )
+
+    /** 迁移后删掉的文件,台账作为历史对照还提到:逐个写明接替者。 */
+    private val retiredPaths = mapOf(
+        "MaeveSize.kt" to "Compose 时代的尺寸文件,由 design/maeve_type.dart 的 MaeveSize 接替",
+    )
+
     /** 只有仓库根下确有的一级目录或文件开头的路径、以及代码类的短文件名,才是在指仓库里的东西;其余是运行时产物或相对写法。 */
     private val topLevel: Set<String> by lazy { File(root, ".").list().orEmpty().filter { it !in skipDirs }.toSet() }
     private val codeExtensions = setOf("kt", "kts", "java", "py", "sh", "gradle", "xml", "aidl", "cpp", "h")
 
     private fun pathExists(rel: String): Boolean {
         val clean = rel.removePrefix("./").trimEnd('/')
-        if (clean.isEmpty() || clean in runtimeOnly) return true
+        if (clean.isEmpty() || clean in runtimeOnly || clean in retiredPaths) return true
         val dir = rel.endsWith("/")
         // 中间用 ... 省略的写法:开头是真目录前缀,结尾是某个文件路径的结尾(可不带扩展名)
         if ("..." in clean) {
             val head = clean.substringBefore("...").trimEnd('/')
             val tail = clean.substringAfterLast("...").trimStart('/')
-            return repoFiles.any { f -> f.startsWith(head) && (f.endsWith("/$tail") || f.substringBeforeLast('.').endsWith("/$tail")) }
+            return repoFiles.any { f -> f.startsWith(head) && (f.endsWith("/$tail") || f.substringBeforeLast('.').endsWith("/$tail")) } ||
+                // 结尾带 / 是目录:模块下任一路径以这个目录结尾
+                (dir && repoDirs.any { d -> d.startsWith("$head/") && d.endsWith("/${tail.trimEnd('/')}") })
         }
         if ('/' !in clean) {
             return if (clean.substringAfterLast('.', "") in codeExtensions) repoFiles.any { it == clean || it.endsWith("/$clean") } else true
@@ -105,9 +131,10 @@ class DocsConsistencyTest {
         else repoFiles.any { it.startsWith("$first/") && it.endsWith("/$rest") }
     }
 
+    /** 声明就算存在:Kotlin 的 class/object/interface/typealias/fun,Dart 的 class/enum/mixin/typedef/extension。 */
     private fun symbolExists(name: String): Boolean =
         name in sourceNames ||
-            Regex("""\b(class|object|interface|typealias|fun)\s+$name\b""").containsMatchIn(sourceText)
+            Regex("""\b(class|object|interface|typealias|fun|enum|mixin|typedef|extension)\s+$name\b""").containsMatchIn(sourceText)
 
     private fun importedFromOutside(name: String): Boolean =
         Regex("""(?m)^import\s+(?!com\.daiyimo\.maeve\.)[\w.]+\.$name\b""").containsMatchIn(sourceText)
@@ -125,7 +152,8 @@ class DocsConsistencyTest {
                 isPath(s) -> if (pathExists(s)) null else "$rel: 路径 `$s` 在仓库里找不到"
                 tool.matches(s) -> if (s.substringBefore('_') !in toolPrefixes || s in toolNames) null else "$rel: 工具名 `$s` 不在现有工具里"
                 classLike.matches(s) && s.count { it.isUpperCase() } >= 2 && s.any { it.isLowerCase() } ->
-                    if (symbolExists(s) || importedFromOutside(s)) null else "$rel: 类名或函数名 `$s` 在 core/app 的源码里找不到"
+                    if (symbolExists(s) || importedFromOutside(s) || s in retiredOnly || s in frameworkOnly) null
+                    else "$rel: 类名或函数名 `$s` 在 core/app 的源码里找不到"
                 else -> null
             }
         }

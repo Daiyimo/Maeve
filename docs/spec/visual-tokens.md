@@ -1,110 +1,41 @@
-# Visual tokens — M2 design contract
+# Maeve 视觉语言 v4 · 紫色的下一幕
 
-> Source of truth: [SPEC.md](../../SPEC.md) §2.2 and §3. This file is the hand-off between
-> design and implementation. **All values below are design decisions, not code.** dsh-Go is
-> AGPL-3.0; only its decisions (colour-derivation rules, contrast guards, motion durations)
-> may be consulted. Re-implement everything in the app's own stack (Flutter now, Compose for
-> the surfaces still in service); copy no source, icon, font or asset.
->
-> **Status (2026-11-09):** the Flutter shell implements its own tokens in
-> `flutter/lib/design/maeve_tokens.dart`; this contract remains the design reference until
-> the Flutter theme reaches parity.
+2026-11-11。Flutter 是唯一应用界面；Android 保留能力与平台服务。
 
-## 1. Colour derivation (OKLCH)
+## 品牌
 
-Do **not** use `ColorScheme.fromSeed` or `dynamicColorScheme`. Build the scheme by hand.
+默认「觉醒紫」：浅色种子 #7651C7，深色种子 #CBB7FF。以《西部世界》中 Maeve 的深紫丝绒、清醒、选择与对具体人的关切为叙事灵感。品牌文案「下一幕，由你决定」，关于页解释名字来由。人物叙事由项目资料提炼，文案为本项目原创。
 
-| Rule | Value | Why |
-|---|---|---|
-| Hue change | Rotate hue at **constant lightness** | Neutral surfaces must not get brighter/darker when the accent changes. |
-| Max chroma | `0.13` | Keeps every preset quiet; high saturation reads as an alert. |
-| Lightness band | `0.30–0.60`, dark theme `+0.234` | Predictable contrast without per-colour fudging. |
-| Out-of-gamut | Reduce chroma only, **never lightness** | sRGB clipping otherwise shifts perceived brightness. |
-| Non-text contrast | ≥ `3:1` | Icons, hairlines, focus rings. |
-| Text contrast | ≥ `4.5:1` | WCAG AA for body text. |
-| Usage ratio | 70 neutral / 25 text / 5 accent | Accent is a signal, not a surface. |
-| Elevation | `surfaceTint = transparent`, `elevation = 0` | Depth comes from hairlines and outer shadow, not tint. |
+品牌标在 `flutter/lib/widgets/maeve_mark.dart`：两片折幕构成 M，中间保留一道开放的光。`MaeveEmblem` 是首页和关于页的悬浮控制珠；小尺寸使用纯矢量轮廓。Android 自适应图标使用相同几何，默认背景为紫色渐变。
 
-Wallpaper picking (API 31+) reads `system_accent1_500/600/200` and `system_neutral1_500`
-and returns **hue + chroma only** — it is not Material You. Hide the option below API 31.
-Custom colour-wheel drags are throttled to ~100 ms before calling `derive()`.
+参考 [Desktop for Step Code](https://github.com/7oMB2006/desktop-for-step-code) 的内容层级、焦点完整性与减少动效约定，结合 iOS 玻璃的透色和边缘光感，重新实现手机端布局；不复制其布局、logo、代码或资产。
 
-## 2. Presets
+## 色彩
 
-| id | Name | Light seed | Dark seed | Note |
-|---|---|---|---|---|
-| `reverie` | 雾紫 (**default**) | `#6E6296` | `#B3A8D6` | reveries |
-| `dolores` | 晨金 | `#8A6A3E` | `#D8BC93` | first release codename |
-| `maze` | 沙褐 | `#7A6248` | `#C9AE93` | |
-| `pearl` | 珠白 | `#4F6472` | `#AFC3CE` | |
-| `sublime` | 深靛 | `#3A4A7A` | `#9BAEDD` | internal codename only — never a product name |
-| `graphite` | 石墨 | `#2C2E32` | `#E5E8ED` | near-achromatic |
+六套完整氛围：觉醒紫、丝绒红、雾松、冰川、暮光、月白。稳定 ID 保留，背景、文字温度、强调色与玻璃共同变化。OKLCH 推导与守卫位于 `flutter/lib/design/maeve_accent.dart` 和 `flutter/lib/design/maeve_colors.dart`。所有配色均有浅深两种模式；语义状态色独立于装饰色。
 
-`AccentSource = Preset | Custom | Wallpaper`; all three go through the same `derive()` then
-`guard()`. There is no separate code path for custom colours.
+正文、次级和辅助文字对各自画布至少 4.5:1；主按钮文字至少 4.5:1。玻璃对比度按透明层压在画布后的实际颜色计算。色彩不是状态唯一线索，状态保留文字和图形。
 
-## 3. Surfaces, shape, motion
+## 玻璃
 
-Four surface tiers, each with `fill / blurSigma / saturation / hairline / rim / outerShadow`:
+`MaeveGlassSurface` 是唯一材质入口：有界模糊、饱和度、透明填充、方向性 sheen、顶边高光、外部投影。四档为 chrome / sheet / card / pill；只有前两档默认真实采样，列表卡片以静态光学层次避免反复模糊。首页最多三层采样：顶栏、品牌珠、输入栏；设置首屏仅顶栏一层。顶栏合并采样。真机发现列表卡片额外采样会出现水平条纹，因此设置概览与工作台主卡仅使用静态光学层次，禁止在已模糊的弹层内再对卡片采样。
 
-| tier | alpha | blur | saturation |
-|---|---|---|---|
-| `chrome` | 0.70 | 18 | 1.3 |
-| `sheet` | 0.82 | 24 | 1.4 |
-| `card` | 0.62 | — | — |
-| `pill` | 0.55 | — | — |
+静态光源来自背景的主题光晕。交互时，`Pressable` 按触点位置出现径向流光并按压回弹；品牌珠有有限入场动画，抽屉跟手移动后落位，弹层落位后透出玻璃。没有空闲装饰循环。
 
-- Only **outer** shadows; no inner glow, no elevation tint.
-- One full-screen backdrop per page; the backdrop veil fades only inside its band. Switching
-  tabs must not rebuild or flash the backdrop.
-- When `blurEnabled = false`, use an opaque `fallbackFill` and **do not create** a blur layer.
-- Grouped backdrop sampling: one `BackdropFilter.grouped` for a group of glass siblings.
+减少透明效果或高对比度时不创建 `BackdropFilter`，使用合成后的不透明填充；减少动效时不缩放、入场立即完成。这里是 Flutter 绘制的玻璃视觉，不依赖原生 iOS 材质或系统折射 API。
 
-Tokens:
+## 布局与字阶
 
-```
-radius   xs6 sm10 md14 lg20 xl28          (continuous curvature)
-spacing  2 4 8 12 16 20 24 32            (multiples of 4)
-hairline 0.5px
-readingWidth 720dp
-motion   press90 quick160 standard240 collapse280 emphasized340
-         sheetIn380 glassIn120 breath2400   (ms; all → 0 when reduced motion is on)
-```
+手机内容保留 16–24dp 水平留白，主页建议入口采用单列，避免长中文在双列中孤立断字。主视觉居中，列表共享左基线。正文最大阅读宽度由 `MaeveSpace.readingWidth` 控制；系统安全区、键盘和大字场景均需可滚动。
 
-## 4. Icons
+设置分组间隔 32dp、组标题下 12dp；触控行最小高度 48dp，顶栏动作 48dp；设置分段按钮至少 44dp。行尾值按行的实际宽度限制，不能按整屏宽度挤压标题。色彩快捷入口每项至少 44dp 宽，配色详情展示名字和气质，不向用户暴露十六进制参数。
 
-Motif: **two offset rings + one off-centre light point** — outer ring = main screen, inner
-ring = hidden display, the dot = the step currently running. Light theme uses foggy
-violet-grey; dark theme uses low-saturation indigo. No high saturation, no glow effects.
+大字只用 400 / 500 / 600 三档字重，品牌标题 29dp，设置页标题与状态单独排版。正文与代码使用系统无衬线和等宽回退，中文优先。
 
-Adaptive icon: 108 dp grid, 72 dp visible area, plus a `monochrome` layer for Android 13+
-themed icons. Four launcher variants via `activity-alias`:
+## 验证
 
-| variant | background | rule |
-|---|---|---|
-| `reverie` (default) | foggy violet gradient + double ring | only alias enabled in manifest |
-| `pearl` | pearl + single ring | |
-| `night` | deep indigo + light point | |
-| `mono` | graphite + monochrome glyph | |
+`flutter/test/ui/layout_audit_test.dart` 覆盖全部 27 个 Flutter 页面，在 320×568、412×915（1.6 倍字）、768×1024 下检查顶部与底部排版异常。另有真实聊天事件、发送/停止、引用、会话、抽屉、权限确认、键盘和配色对比度测试。
 
-Switching rules (easy to get wrong): **enable the new alias first, then disable the old**;
-disable with `STATE_DEFAULT (0)`, never `STATE_DISABLED (2)`; defer disabling the original
-alias until its task is no longer visible or Android clears the already-open task.
+`flutter/tool/preview_test.dart` 使用本地 CJK 字体生成深浅页面、全部配色和长页面末尾截图，供人工逐屏检查。输出只在 build 目录；不把环境字体或截图金样作为 CI 依赖。
 
-In-app tile styles — `duotone` (default) / `geometric` / `glass` — affect only home tiles and
-tool cards, never launcher icons.
-
-## 5. Deliverables and acceptance
-
-`ui/theme/`: `MaeveColors` (OKLCH + presets + derive/guard), `MaevePalette`,
-`MaeveSurfaces`, `MaeveShapes`, `MaeveMotion`, `MaeveSemantic`, `MaeveTheme`.
-`res/mipmap-anydpi-v26/`: four adaptive icons + monochrome. `app/ui/LauncherIcon.kt`.
-
-Acceptance (M2):
-
-- [ ] All six presets × light/dark: text ≥ 4.5:1, non-text ≥ 3:1 — verified by a unit test
-      computing contrast, not by eye.
-- [ ] Switching launcher icon does not clear an already-open task.
-- [ ] `blurEnabled=false` produces no blur layer and no crash on API 30.
-- [ ] Reduced motion zeroes every duration.
-- [ ] No dsh-Go source, string resource, drawable, font or colour literal copied.
+旧视觉契约保存在 [迁移前参考](../reference/compose-before-flutter/visual-tokens.md)，不能作为当前数值依据。

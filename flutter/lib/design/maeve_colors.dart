@@ -5,23 +5,8 @@ import 'maeve_oklch.dart';
 
 import 'package:flutter/painting.dart';
 
-/// 界面用到的全部颜色。页面一律从这里取,不写死色值。
-///
-/// ## 这套配色照 Linear 的规矩来
-///
-/// 四条硬规矩(与 Compose 侧 `MaeveColors.kt` 同一组决策):
-///
-/// 1. **一个彩色。** 全站只有 [accent] 一种有彩度的颜色,只用在品牌标、焦点环、
-///    每屏一个主按钮。状态(成功/警告/失败)**不靠色相**,靠图形、字重和表面层级。
-/// 2. **表面阶梯代替阴影。** [surfaceLowest] → [bg] → [surface] → [surfaceHigh] →
-///    [surfaceHighest] 五级,相邻两级只差 4–6 个明度点,几乎看不出来;
-///    层级由**发丝线**([hair]/[rule]/[edge])承担。全站零投影(浮件例外)。
-/// 3. **画布是中性灰,不是暖白。** 大面积铺开不显脏、不显旧;色相固定偏冷 250,
-///    彩度千分之二,和屏幕、系统 UI 都不打架。
-/// 4. **文字用四级灰,不用彩色说话。** ink / ink2 / ink3 / ink4 全是从画布底色
-///    按明度阶梯推出来的同一个灰。
-///
-/// 中性色的色相**不随强调色转**:配色一换整张纸的色相跟着跑,界面就失去稳定性。
+/// A complete atmosphere: tinted canvas, guarded inks, accent and optical layers.
+/// Scrolling cards use static highlights; anchored chrome samples the backdrop.
 @immutable
 class MaeveColors {
   const MaeveColors({
@@ -62,12 +47,15 @@ class MaeveColors {
     required this.glassPill,
     required this.glassEdge,
     required this.glassRim,
+    required this.sheen,
     required this.floatShadow,
     required this.thumb,
     required this.scrim,
     required this.glowPrimary,
     required this.glowSecondary,
     required this.glowTertiary,
+    required this.bloom,
+    required this.vignette,
     required this.grid,
   });
 
@@ -128,6 +116,10 @@ class MaeveColors {
   final Color glassEdge;
   final Color glassRim;
 
+  /// 玻璃内部自上而下的一道提亮(顶部起,到底部收成透明)。
+  /// 不是白描边:它让玻璃看起来被上方的光"照到"了。
+  final Color sheen;
+
   final Color floatShadow;
   final Color thumb;
   final Color scrim;
@@ -138,109 +130,133 @@ class MaeveColors {
   final Color glowSecondary;
   final Color glowTertiary;
 
+  /// 背景里唯一的光源:一小团更亮、更集中的光。极光负责铺,它负责"亮"。
+  final Color bloom;
+
+  /// 四角压暗。有它才有纵深:没有暗角,极光看起来像一块脏印子。
+  final Color vignette;
+
   /// 极淡的网格线(叶子面板用)。
   final Color grid;
 
-  /// 中性画布的色相:偏冷一点点(蓝侧),彩度极低,固定不转。
-  static const neutralHue = 250.0;
+  static const neutralHue = 300.0;
 
-  static Color _n(double l, double c) =>
-      MaeveOklch.color(l: l, c: c, hue: neutralHue);
+  static (double, double) _atmosphere(MaeveAccent accent) =>
+      switch (accent.id) {
+        'reverie' => (300, .020),
+        'dolores' => (345, .018),
+        'maze' => (145, .014),
+        'pearl' => (220, .015),
+        'sublime' => (275, .016),
+        'graphite' => (80, .006),
+        _ => (accent.hue, .010),
+      };
+
+  /// 玻璃的高光一律是纯白:暖色高光会让玻璃发黄,读作"旧"。
+  static const _light = Color(0xFFFFFFFF);
 
   static MaeveColors light(MaeveAccent accent) {
-    final canvas = _n(.973, .0016);
-    final ink = _n(.208, .006);
-    final ink2 = MaeveOklch.guard(_n(.452, .005), canvas, 4.5);
-    final ink3 = MaeveOklch.guard(_n(.585, .004), canvas, 3);
+    final (hue, chroma) = _atmosphere(accent);
+    Color neutral(double l, double c) => MaeveOklch.color(l: l, c: c, hue: hue);
+    final canvas = neutral(.973, chroma * .6);
+    final ink = neutral(.205, .0130);
+    final ink2 = MaeveOklch.guard(neutral(.450, .0115), canvas, 4.5);
+    final ink3 = MaeveOklch.guard(neutral(.490, .0105), canvas, 4.5);
     return MaeveColors(
       isDark: false,
       bg: canvas,
-      bgTop: _n(.978, .0014),
-      bgBottom: _n(.963, .0018),
+      bgTop: neutral(.980, chroma * .4),
+      bgBottom: neutral(.965, chroma * .7),
       // 半透明白:几十处直接拿它当底画矩形,给不透明值就永远成不了玻璃。
-      // 白度 0.58:太低会和背景只差一两个色阶(太透等于没有层),太高退回白纸。
-      surface: const Color(0xFFFFFFFF).withValues(alpha: .58),
-      surfaceLowest: const Color(0xFFFFFFFF).withValues(alpha: .30),
-      surfaceHigh: const Color(0xFFFFFFFF).withValues(alpha: .68),
-      surfaceHighest: const Color(0xFFFFFFFF).withValues(alpha: .74),
-      fill: ink.withValues(alpha: .045),
+      surface: _light.withValues(alpha: .72),
+      surfaceLowest: _light.withValues(alpha: .46),
+      surfaceHigh: _light.withValues(alpha: .82),
+      surfaceHighest: _light.withValues(alpha: .92),
+      fill: ink.withValues(alpha: .050),
       ink: ink,
       ink2: ink2,
       ink3: ink3,
-      ink4: MaeveOklch.guard(_n(.700, .003), canvas, 2.2),
-      hair: ink.withValues(alpha: .07),
-      rule: ink.withValues(alpha: .135),
-      edge: ink.withValues(alpha: .08),
+      ink4: MaeveOklch.guard(neutral(.700, .0090), canvas, 2.2),
+      hair: ink.withValues(alpha: .085),
+      rule: ink.withValues(alpha: .150),
+      edge: ink.withValues(alpha: .110),
       accent: accent.lightSeed,
       accentPressed: accent.lightPressed,
-      accentContainer: accent.lightContainer.withValues(alpha: .60),
+      accentContainer: accent.lightContainer.withValues(alpha: .72),
       onAccentContainer: MaeveOklch.guard(
         accent.lightOnContainer,
         accent.lightContainer,
         4.5,
       ),
-      accentSoft: accent.lightContainer.withValues(alpha: .55),
-      onAccent: const Color(0xFFFFFFFF),
-      ok: MaeveOklch.color(l: .478, c: .088, hue: 152),
+      accentSoft: accent.lightContainer.withValues(alpha: .66),
+      onAccent: _light,
+      ok: MaeveOklch.color(l: .455, c: .105, hue: 150),
       okSoft: MaeveOklch.color(
-        l: .945,
-        c: .022,
-        hue: 152,
-      ).withValues(alpha: .55),
-      warn: MaeveOklch.color(l: .500, c: .105, hue: 60),
-      warnSolid: MaeveOklch.color(l: .580, c: .115, hue: 60),
+        l: .930,
+        c: .030,
+        hue: 150,
+      ).withValues(alpha: .62),
+      warn: MaeveOklch.color(l: .470, c: .105, hue: 68),
+      warnSolid: MaeveOklch.color(l: .620, c: .120, hue: 68),
       warnSoft: MaeveOklch.color(
-        l: .950,
-        c: .028,
-        hue: 60,
-      ).withValues(alpha: .55),
-      bad: MaeveOklch.color(l: .492, c: .140, hue: 26),
+        l: .938,
+        c: .038,
+        hue: 68,
+      ).withValues(alpha: .62),
+      bad: MaeveOklch.color(l: .470, c: .145, hue: 22),
       badSoft: MaeveOklch.color(
-        l: .948,
-        c: .026,
-        hue: 26,
-      ).withValues(alpha: .55),
-      neutralSoft: ink.withValues(alpha: .048),
-      greySoft: ink.withValues(alpha: .075),
-      glass: const Color(0xFFFFFFFF).withValues(alpha: .62),
-      glassSheet: const Color(0xFFFFFFFF).withValues(alpha: .74),
-      glassCard: const Color(0xFFFFFFFF).withValues(alpha: .58),
-      glassPill: const Color(0xFFFFFFFF).withValues(alpha: .62),
-      // 边是玻璃唯一"硬"的轮廓:0.085 时整块玻璃没有边界,读作一片发白的水渍。
-      glassEdge: ink.withValues(alpha: .16),
-      glassRim: const Color(0xFFFFFFFF).withValues(alpha: .95),
-      floatShadow: const Color(0xFF000000),
-      thumb: const Color(0xFFFFFFFF),
-      scrim: const Color(0xFF000000).withValues(alpha: .30),
-      glowPrimary: accent.lightGlow.withValues(alpha: .26),
-      glowSecondary: accent.hazeLight.withValues(alpha: .18),
-      glowTertiary: const Color(0xFF3E6C9E).withValues(alpha: .11),
+        l: .936,
+        c: .032,
+        hue: 22,
+      ).withValues(alpha: .62),
+      neutralSoft: ink.withValues(alpha: .052),
+      greySoft: ink.withValues(alpha: .090),
+      glass: _light.withValues(alpha: .58),
+      glassSheet: _light.withValues(alpha: .78),
+      glassCard: _light.withValues(alpha: .52),
+      glassPill: _light.withValues(alpha: .78),
+      // 边是玻璃唯一"硬"的轮廓:太淡整块玻璃没有边界,读作一片发白的水渍。
+      glassEdge: ink.withValues(alpha: .12),
+      glassRim: _light.withValues(alpha: .45),
+      sheen: _light.withValues(alpha: .16),
+      floatShadow: const Color(0xFF3A2E24),
+      thumb: _light,
+      scrim: const Color(0xFF2A211A).withValues(alpha: .32),
+      // 浅色下极光必须非常淡:奶色纸上只要有一点带色光的雾,整屏立刻读作"粉紫"
+      // 而不是"暖纸"。层次交给白卡片和那道暖阴影,极光只负责让纸不要死平。
+      glowPrimary: accent.lightGlow.withValues(alpha: .17),
+      glowSecondary: accent.hazeLight.withValues(alpha: .12),
+      glowTertiary: const Color(0xFF7E9BC0).withValues(alpha: .012),
+      bloom: _light.withValues(alpha: .08),
+      vignette: neutral(.760, .0140).withValues(alpha: .025),
       grid: ink.withValues(alpha: .055),
     );
   }
 
   static MaeveColors dark(MaeveAccent accent) {
-    final canvas = _n(.145, .0022);
-    final ink = _n(.962, .0016);
-    final ink2 = MaeveOklch.guard(_n(.740, .003), canvas, 4.5);
-    final ink3 = MaeveOklch.guard(_n(.580, .004), canvas, 3);
+    final (hue, chroma) = _atmosphere(accent);
+    Color neutral(double l, double c) => MaeveOklch.color(l: l, c: c, hue: hue);
+    final canvas = neutral(.175, chroma);
+    final ink = neutral(.966, .0050);
+    final ink2 = MaeveOklch.guard(neutral(.780, .0072), canvas, 4.5);
+    final ink3 = MaeveOklch.guard(neutral(.720, .0086), canvas, 4.5);
     return MaeveColors(
       isDark: true,
       bg: canvas,
-      bgTop: _n(.157, .0024),
-      bgBottom: _n(.132, .0020),
-      surface: const Color(0xFFFFFFFF).withValues(alpha: .062),
-      surfaceLowest: const Color(0xFFFFFFFF).withValues(alpha: .028),
-      surfaceHigh: const Color(0xFFFFFFFF).withValues(alpha: .088),
-      surfaceHighest: const Color(0xFFFFFFFF).withValues(alpha: .115),
-      fill: ink.withValues(alpha: .058),
+      bgTop: neutral(.188, chroma),
+      bgBottom: neutral(.163, chroma * .9),
+      surface: _light.withValues(alpha: .075),
+      surfaceLowest: _light.withValues(alpha: .040),
+      surfaceHigh: _light.withValues(alpha: .100),
+      surfaceHighest: _light.withValues(alpha: .130),
+      fill: ink.withValues(alpha: .065),
       ink: ink,
       ink2: ink2,
       ink3: ink3,
-      ink4: MaeveOklch.guard(_n(.470, .004), canvas, 2.2),
-      hair: ink.withValues(alpha: .085),
-      rule: ink.withValues(alpha: .155),
-      edge: ink.withValues(alpha: .095),
+      ink4: MaeveOklch.guard(neutral(.505, .0098), canvas, 2.2),
+      hair: ink.withValues(alpha: .080),
+      rule: ink.withValues(alpha: .150),
+      edge: ink.withValues(alpha: .120),
       accent: accent.darkSeed,
       accentPressed: accent.darkPressed,
       accentContainer: accent.darkContainer,
@@ -249,43 +265,54 @@ class MaeveColors {
         accent.darkContainer,
         4.5,
       ),
-      accentSoft: accent.darkContainer.withValues(alpha: .60),
+      accentSoft: accent.darkContainer.withValues(alpha: .72),
       onAccent: accent.darkOnSeed,
-      ok: MaeveOklch.color(l: .760, c: .100, hue: 152),
+      // 状态绿降一档彩度:高饱和的荧光绿在这张暖画布上像一条告警灯带。
+      // 就绪不是告警,它只需要比墨色多一点点"活着"的意思。
+      ok: MaeveOklch.color(l: .780, c: .075, hue: 150),
       okSoft: MaeveOklch.color(
-        l: .268,
-        c: .038,
-        hue: 152,
-      ).withValues(alpha: .60),
-      warn: MaeveOklch.color(l: .780, c: .110, hue: 62),
-      warnSolid: MaeveOklch.color(l: .740, c: .115, hue: 62),
-      warnSoft: MaeveOklch.color(
         l: .300,
         c: .045,
-        hue: 62,
-      ).withValues(alpha: .60),
-      bad: MaeveOklch.color(l: .700, c: .150, hue: 26),
+        hue: 150,
+      ).withValues(alpha: .72),
+      warn: MaeveOklch.color(l: .800, c: .112, hue: 78),
+      warnSolid: MaeveOklch.color(l: .740, c: .120, hue: 78),
+      warnSoft: MaeveOklch.color(
+        l: .320,
+        c: .052,
+        hue: 78,
+      ).withValues(alpha: .72),
+      bad: MaeveOklch.color(l: .700, c: .145, hue: 22),
       badSoft: MaeveOklch.color(
-        l: .300,
-        c: .055,
-        hue: 26,
-      ).withValues(alpha: .60),
-      neutralSoft: ink.withValues(alpha: .055),
-      greySoft: ink.withValues(alpha: .125),
-      // 深色玻璃靠「白度」立起来:填充是「黑 + 一点点白」,不是「白 + 一点点黑」。
-      glass: _n(.215, .0026).withValues(alpha: .68),
-      glassSheet: _n(.245, .0028).withValues(alpha: .82),
-      glassCard: _n(.195, .0026).withValues(alpha: .50),
-      glassPill: _n(.215, .0026).withValues(alpha: .60),
-      glassEdge: ink.withValues(alpha: .11),
+        l: .320,
+        c: .062,
+        hue: 22,
+      ).withValues(alpha: .72),
+      neutralSoft: ink.withValues(alpha: .060),
+      greySoft: ink.withValues(alpha: .135),
+      // Tinted neutral fills preserve separation without white bloom.
+      glass: neutral(.310, chroma).withValues(alpha: .58),
+      glassSheet: neutral(.245, chroma).withValues(alpha: .84),
+      glassCard: neutral(.300, chroma).withValues(alpha: .48),
+      glassPill: neutral(.350, chroma).withValues(alpha: .62),
+      glassEdge: ink.withValues(alpha: .12),
       // 深色玻璃的边光要比浅色弱:强了会变成一圈白描边。
-      glassRim: const Color(0xFFFFFFFF).withValues(alpha: .20),
+      glassRim: _light.withValues(alpha: .40),
+      sheen: _light.withValues(alpha: .055),
       floatShadow: const Color(0xFF000000),
-      thumb: const Color(0xFFFFFFFF),
-      scrim: const Color(0xFF000000).withValues(alpha: .50),
-      glowPrimary: accent.darkGlow.withValues(alpha: .30),
+      thumb: _light,
+      scrim: const Color(0xFF000000).withValues(alpha: .52),
+      glowPrimary: accent.darkGlow.withValues(alpha: .38),
       glowSecondary: accent.hazeDark.withValues(alpha: .22),
-      glowTertiary: const Color(0xFF2B5A94).withValues(alpha: .20),
+      glowTertiary: const Color(0xFF2F5E8C).withValues(alpha: .020),
+      // 光源比极光更亮、彩度更低:极光是"有颜色的空气",光源是"灯"。
+      // 彩度只留强调色的三分之一,否则整块背景变成一块彩色果冻。
+      bloom: MaeveOklch.color(
+        l: .760,
+        c: accent.chroma * .34,
+        hue: accent.hue,
+      ).withValues(alpha: .12),
+      vignette: const Color(0xFF000000).withValues(alpha: .08),
       grid: ink.withValues(alpha: .065),
     );
   }

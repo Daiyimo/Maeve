@@ -1,0 +1,59 @@
+package com.daiyimo.maeve.ui
+
+import androidx.compose.material3.Text
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+object Licenses {
+    data class Entry(val name: String, val license: String, val note: String)
+
+    const val GPL_SOURCE_OFFER =
+        "PRoot(GPL-2.0-or-later)与 talloc(LGPL-3.0-or-later)以独立程序的形式随 Maeve 安装包发布,Maeve 不链接它们。" +
+            "它们的完整源码、补丁和编译脚本随每个版本放在 Maeve 的发布页,文件名 maeve-<版本>-gpl-sources.tar.gz;" +
+            "源码仓库的 tools/sandbox/ 与 licenses/SOURCE_OFFER.md 里也有源码地址、校验值、补丁与编译脚本,可以自己重新编译。"
+
+    const val RUNTIME_NOTE =
+        "运行 Python、Node 等程序用的系统随 Maeve 安装包发布,来自 Alpine Linux 3.22,下面逐个列出其中的软件包与许可证。" +
+            "其中 GPL、LGPL、MPL 软件包的源码(Alpine 的构建配方与上游源码)同样放在 maeve-<版本>-gpl-sources.tar.gz 里。"
+
+    /** 自带运行环境里的软件包(assets/runtime/packages.json,由 tools/sandbox/build-runtime.py 生成)。 */
+    fun runtimePackages(json: String): List<Entry> =
+        Json.parseToJsonElement(json).jsonObject.getValue("packages").jsonArray.map { e ->
+            val o = e.jsonObject
+            fun f(k: String) = o[k]?.jsonPrimitive?.content.orEmpty()
+            Entry(f("name"), f("license"), "版本 ${f("version")}。${f("url")}")
+        }
+
+    val ENTRIES = listOf(
+        Entry("Maeve", "Apache-2.0", "Maeve 本身,包括运行环境的启动器、其中的 maeve 命令与技能脚本。许可证全文见本页顶上。"),
+        Entry("Mika (wangzan101)", "Apache-2.0", "Maeve 的上游项目,Apache-2.0。归属声明依 §4(d) 保留。"),
+        Entry("PRoot", "GPL-2.0-or-later", "运行 Python、Node 等程序用的环境,版本 5.4.0,打了一个补丁(PRoot 退出时结束所有子进程)。$GPL_SOURCE_OFFER"),
+        Entry("talloc", "LGPL-3.0-or-later", "版本 2.4.3,未修改,静态链接进 PRoot 程序。可用 tools/sandbox/ 的源码与脚本重新链接。"),
+        Entry("Apache Commons Compress", "Apache-2.0", "首次启动时解包自带的运行环境。Copyright 2002-2025 The Apache Software Foundation."),
+        Entry("Apache Commons Codec", "Apache-2.0", "Apache Commons Compress 的依赖。Copyright 2002-2025 The Apache Software Foundation."),
+        Entry("Apache Commons IO", "Apache-2.0", "Apache Commons Compress 的依赖。Copyright 2002-2025 The Apache Software Foundation."),
+        Entry("Apache Commons Lang", "Apache-2.0", "Apache Commons Compress 的依赖。Copyright 2001-2025 The Apache Software Foundation."),
+        Entry("Kotlin 标准库", "Apache-2.0", "kotlin-stdlib 2.1.20 等,以及 JetBrains annotations 23.0.0。https://kotlinlang.org/"),
+        Entry("kotlinx.coroutines", "Apache-2.0", "版本 1.9.0。https://github.com/Kotlin/kotlinx.coroutines"),
+        Entry("kotlinx.serialization", "Apache-2.0", "版本 1.7.3。https://github.com/Kotlin/kotlinx.serialization"),
+        Entry("OpenTelemetry", "Apache-2.0", "详细 Trace 的 OTLP 消息定义。 https://opentelemetry.io/"),
+        Entry("Protocol Buffers", "BSD-3-Clause", "详细 Trace 的 Protobuf 编码。 https://protobuf.dev/"),
+        Entry("OkHttp", "Apache-2.0", "版本 4.12.0,用于访问模型接口。https://square.github.io/okhttp/"),
+        Entry("Okio", "Apache-2.0", "版本 3.6.0,OkHttp 的依赖。https://github.com/square/okio/"),
+        Entry("AndroidX(含 Jetpack Compose)", "Apache-2.0", "Compose 1.7.6、Material3 1.3.1、Activity 1.9.3、Lifecycle 2.8.3、Core 1.13.1、WebKit 1.12.1 等界面与系统组件库。https://developer.android.com/jetpack/androidx"),
+        Entry("Guava ListenableFuture(由 AndroidX 库引入)", "Apache-2.0", "listenablefuture 1.0。https://github.com/google/guava"),
+        Entry("scrcpy", "Apache-2.0", "以 shell 身份取得系统上下文的做法仿照 scrcpy,相关源文件头部保留出处。"),
+        Entry("Alpine Linux", "各软件包各自的许可证", RUNTIME_NOTE),
+        Entry("XZ for Java", "0BSD", "版本 1.10,首次启动时解压自带的运行环境。https://tukaani.org/xz/java.html"),
+        Entry("ZXing", "Apache-2.0", "版本 3.5.3,在本机生成微信绑定二维码。https://github.com/zxing/zxing"),
+        Entry("commonmark-java", "BSD-2-Clause", "版本 0.30.1(含表格、删除线扩展),把回答里的 Markdown 解析成结构后显示。Copyright (c) 2015, Atlassian Pty Ltd. https://github.com/commonmark/commonmark-java"),
+        Entry("Google ML Kit Text Recognition", "条款待核查", "版本 16.0.1,无障碍树信息不足时补读屏幕文字。上游完全未披露本依赖;适用的是 Google ML Kit / Play services 条款,并非无条件的 Apache-2.0,公开发布前必须核实并补全文。详见 licenses/THIRD_PARTY_NOTICES.md。"),
+        Entry("Distribution obligations: GPL / LGPL components", "GPL / LGPL / MPL(逐包)", "随 APK 分发的独立子进程所需:许可证全文、NOTICE 逐字副本与 ≥3 年完整对应源码书面要约,见 licenses/SOURCE_OFFER.md 与本页顶上的许可证文本。"),
+        Entry("dsh-Go (design reference only)", "AGPL-3.0(未随 APK 分发)", "只参考了配色推导、对比度守卫、动效时长、触感语义与图标切换策略等设计决策;未复制任何源码、图标、字体或素材。AGPL-3.0 与本仓库的 Apache-2.0 衍生许可不兼容。"),
+    )
+}
+
+
+private const val LICENSE_ASSET = "licenses/Apache-2.0.txt"

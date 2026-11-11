@@ -55,6 +55,7 @@ class Pressable extends StatefulWidget {
 class _PressableState extends State<Pressable> {
   bool _down = false;
   bool _rippleVisible = false;
+  Alignment _light = Alignment.topLeft;
   Timer? _rippleTimer;
 
   bool get _scrolling {
@@ -108,7 +109,17 @@ class _PressableState extends State<Pressable> {
                 curve: Curves.easeOut,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: colors.ink.withValues(alpha: .04),
+                    gradient: RadialGradient(
+                      center: _light,
+                      radius: 1.25,
+                      colors: [
+                        Colors.white.withValues(
+                          alpha: colors.isDark ? .18 : .42,
+                        ),
+                        colors.accent.withValues(alpha: .06),
+                        Colors.transparent,
+                      ],
+                    ),
                     borderRadius: widget.borderRadius,
                   ),
                 ),
@@ -123,7 +134,7 @@ class _PressableState extends State<Pressable> {
       content = AnimatedScale(
         scale: _down ? motion.pressedScale : 1,
         duration: motion.press,
-        curve: Curves.easeOut,
+        curve: MaeveMotion.glide,
         child: content,
       );
     }
@@ -134,7 +145,16 @@ class _PressableState extends State<Pressable> {
       label: widget.semanticLabel,
       child: GestureDetector(
         behavior: widget.behavior,
-        onTapDown: (_) => _press(),
+        onTapDown: (details) {
+          final box = context.findRenderObject();
+          if (box is RenderBox && box.hasSize) {
+            _light = Alignment(
+              (details.localPosition.dx / box.size.width * 2 - 1).clamp(-1, 1),
+              (details.localPosition.dy / box.size.height * 2 - 1).clamp(-1, 1),
+            );
+          }
+          _press();
+        },
         onTapCancel: _release,
         onTapUp: (_) => _release(),
         onTap: widget.enabled && widget.onTap != null

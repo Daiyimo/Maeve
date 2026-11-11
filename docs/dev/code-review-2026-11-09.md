@@ -283,17 +283,17 @@ ROM 补发 `BOOT_COMPLETED` 也触发，实测复现，进程被杀）。
 必崩：`IllegalStateException: Asking for intrinsic measurements of SubcomposeLayout
 layouts is not supported`。完整堆栈自外向内还原出层级：
 
-1. 聊天 `LazyColumn` 的 item → `ActLine`
-2. `ActLine` = `Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min))` —— 对内容发起 minIntrinsicHeight 查询
-3. 内容列 `Box(Modifier.weight(1f))` → `UserBubble` 的 `BoxWithConstraints`（SubcomposeLayout）
+1. 聊天 `LazyColumn` 的 item → 原 Compose 的 ActLine
+2. 原 Compose 的 ActLine = `Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min))` —— 对内容发起 minIntrinsicHeight 查询
+3. 内容列 `Box(Modifier.weight(1f))` → 原 Compose 的 UserBubble 的 `BoxWithConstraints`（SubcomposeLayout）
 4. `BoxWithConstraints` 的 measure policy 是 NoIntrinsicsMeasurePolicy（Compose 内部类，
    不出现在任何 import 里），被固有测量击中即抛
 
-判定为**存量缺陷**而非本次改造引入：`ChatScreen.kt` 不在本次会话改动清单，且此前设备上
+判定为**存量缺陷**而非本次改造引入：已退役的 ChatScreen.kt 不在本次会话改动清单，且此前设备上
 从未打开过带用户消息的对话，该路径从未被触发。同文件另两处 `IntrinsicSize` 宿主
 （`MarkdownText` 引言行、`StepItem`）子树里没有 SubcomposeLayout 组件，无风险。
 
-修复：`ActLine` 改自定义 `Layout`（自己量、自己放，`layoutId` 分幕号列/竖轨/内容三个
+修复：原 Compose 的 ActLine 改自定义 `Layout`（自己量、自己放，`layoutId` 分幕号列/竖轨/内容三个
 slot），从根上不再对内容发起任何固有查询——竖轨高度改由「内容高度 − 幕号列高度」推导，
 与原 `IntrinsicSize.Min` 的视觉效果一致。复验：「你好」对话完整渲染（你好/你好呀/
 第 01 轮），上下滚动重测量、返回再进均正常，整场零 FATAL。
