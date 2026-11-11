@@ -9,6 +9,7 @@ import 'package:maeve_flutter/bridge/maeve_bridge.dart';
 import 'package:maeve_flutter/ui/common/app_page.dart';
 
 import '../support/fake_chat_bridge.dart';
+import '../support/fake_settings_bridge.dart';
 import '../support/visual_scenarios.dart';
 
 void main() {
@@ -25,17 +26,49 @@ void main() {
       tester.view.padding = const FakeViewPadding(top: 28, bottom: 24);
       tester.platformDispatcher.textScaleFactorTestValue = scale;
       final bridge = FakeChatBridge();
-      final controller = MaeveController(bridge: bridge)..mode = mode;
+      final controller = MaeveController(
+        bridge: bridge,
+        settingsBridge: FakeSettingsBridge(mode: mode.name),
+      )..mode = mode;
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
       final entry = MethodChannel(MaeveBridge.entryEvents.name);
       messenger.setMockMethodCallHandler(entry, (_) async => null);
+      messenger.setMockMethodCallHandler(MaeveBridge.methods, (call) async {
+        if (call.method == 'status') return {'version': 'test'};
+        if (call.method == 'legal_notices') {
+          return {
+            'documents': [
+              for (final name in [
+                'NOTICE.txt',
+                'Apache-2.0.txt',
+                'GPL-2.0.txt',
+                'GPL-3.0.txt',
+                'LGPL-3.0.txt',
+                'Protocol-Buffers.txt',
+                'SOURCE_OFFER.md',
+              ])
+                {'name': name, 'text': 'Fixture packaged license text'},
+            ],
+            'sourceOffer': '完整对应源码与构建说明随应用提供。',
+            'entries': [
+              {
+                'name': 'Maeve',
+                'license': 'Apache-2.0',
+                'note': 'Fixture attribution',
+              },
+            ],
+          };
+        }
+        return null;
+      });
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox.shrink());
         await bridge.dispose();
         tester.view.reset();
         tester.platformDispatcher.clearTextScaleFactorTestValue();
         messenger.setMockMethodCallHandler(entry, null);
+        messenger.setMockMethodCallHandler(MaeveBridge.methods, null);
       });
       await tester.pumpWidget(MaeveApp(controller: controller));
       await tester.pumpAndSettle();

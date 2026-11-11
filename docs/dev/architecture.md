@@ -148,12 +148,12 @@
 
 所有启动器别名与通知入口统一回到 `MainActivity`，它是缓存 Flutter 引擎的宿主。默认即为 Flutter，冗余 Compose Activity 和应用页面已移除。引擎由宿主注册 UI、入口事件和聊天桥插件；Activity 重建不销毁缓存引擎。
 
-- `flutter/lib/app/`：应用状态、聊天、会话抽屉、工作台与引导。
-- `flutter/lib/ui/`：设置、手机操控、运行、记忆及其他 Flutter 页面。
+- `flutter/lib/app/`：应用状态、聊天、会话抽屉与工作台。
+- `flutter/lib/ui/`：设置、真实模型配置、系统授权、外观与关于页面。
 - `flutter/lib/design/`：完整配色、对比度、字阶、动效和材质。
 - `flutter/lib/bridge/`：平台通道与聊天事件契约。
 
-聊天仍以 Android 的真实会话和执行事件为数据来源。Flutter 不另造一个任务循环。部分能力页面保留接桥提示，不能把视觉就绪视为平台功能已迁移。
+聊天仍以 Android 的真实会话和执行事件为数据来源。Flutter 不另造一个任务循环。未接通原生能力的原型页面与控制已删除；模型、系统授权与外观使用 MaeveSettingsPlugin。详细范围见 [入口审计](flutter-capability-audit.md)。
 
 当前设计是 [紫色的下一幕](../spec/visual-tokens.md)；宿主与 UI 的边界见 [迁移契约](../spec/flutter-visual-parity.md)。
 
@@ -161,7 +161,7 @@
 
 core 的纯逻辑测试覆盖能力依赖、任务运行、工具与存储边界；Android JVM 测试覆盖 ViewModel、服务协调和平台适配逻辑。设备测试覆盖 Flutter 启动、平台服务、虚拟屏和原生悬浮层。旧 Compose 应用页面测试随页面退役，Flutter 行为与布局测试接替它们。
 
-Flutter 页面布局矩阵覆盖 27 页的顶部与末尾、窄屏、大字和宽屏；行为测试用假平台事件驱动真实组件，测试发送、停止、引用、会话管理和抽屉等。CI 编译设备测试 APK，避免设备夹具只在运行时才暴露编译问题。
+Flutter 页面布局矩阵覆盖 8 个设置页的顶部与末尾、窄屏、大字和宽屏；行为测试用假平台事件驱动真实组件，测试发送、停止、引用、会话管理和抽屉等。CI 编译设备测试 APK，避免设备夹具只在运行时才暴露编译问题。
 
 ## 历史详细说明
 

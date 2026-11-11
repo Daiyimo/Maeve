@@ -143,7 +143,7 @@ class MaeveColors {
 
   static (double, double) _atmosphere(MaeveAccent accent) =>
       switch (accent.id) {
-        'reverie' => (300, .020),
+        'reverie' => (290, .010),
         'dolores' => (345, .018),
         'maze' => (145, .014),
         'pearl' => (220, .015),
@@ -216,7 +216,7 @@ class MaeveColors {
       glassCard: _light.withValues(alpha: .52),
       glassPill: _light.withValues(alpha: .78),
       // 边是玻璃唯一"硬"的轮廓:太淡整块玻璃没有边界,读作一片发白的水渍。
-      glassEdge: ink.withValues(alpha: .12),
+      glassEdge: ink.withValues(alpha: .085),
       glassRim: _light.withValues(alpha: .45),
       sheen: _light.withValues(alpha: .16),
       floatShadow: const Color(0xFF3A2E24),
@@ -224,8 +224,8 @@ class MaeveColors {
       scrim: const Color(0xFF2A211A).withValues(alpha: .32),
       // 浅色下极光必须非常淡:奶色纸上只要有一点带色光的雾,整屏立刻读作"粉紫"
       // 而不是"暖纸"。层次交给白卡片和那道暖阴影,极光只负责让纸不要死平。
-      glowPrimary: accent.lightGlow.withValues(alpha: .17),
-      glowSecondary: accent.hazeLight.withValues(alpha: .12),
+      glowPrimary: accent.lightGlow.withValues(alpha: .09),
+      glowSecondary: accent.hazeLight.withValues(alpha: .04),
       glowTertiary: const Color(0xFF7E9BC0).withValues(alpha: .012),
       bloom: _light.withValues(alpha: .08),
       vignette: neutral(.760, .0140).withValues(alpha: .025),
@@ -236,15 +236,15 @@ class MaeveColors {
   static MaeveColors dark(MaeveAccent accent) {
     final (hue, chroma) = _atmosphere(accent);
     Color neutral(double l, double c) => MaeveOklch.color(l: l, c: c, hue: hue);
-    final canvas = neutral(.175, chroma);
+    final canvas = neutral(.225, chroma);
     final ink = neutral(.966, .0050);
     final ink2 = MaeveOklch.guard(neutral(.780, .0072), canvas, 4.5);
     final ink3 = MaeveOklch.guard(neutral(.720, .0086), canvas, 4.5);
     return MaeveColors(
       isDark: true,
       bg: canvas,
-      bgTop: neutral(.188, chroma),
-      bgBottom: neutral(.163, chroma * .9),
+      bgTop: neutral(.246, chroma),
+      bgBottom: neutral(.215, chroma * .8),
       surface: _light.withValues(alpha: .075),
       surfaceLowest: _light.withValues(alpha: .040),
       surfaceHigh: _light.withValues(alpha: .100),
@@ -291,19 +291,19 @@ class MaeveColors {
       neutralSoft: ink.withValues(alpha: .060),
       greySoft: ink.withValues(alpha: .135),
       // Tinted neutral fills preserve separation without white bloom.
-      glass: neutral(.310, chroma).withValues(alpha: .58),
-      glassSheet: neutral(.245, chroma).withValues(alpha: .84),
-      glassCard: neutral(.300, chroma).withValues(alpha: .48),
+      glass: neutral(.410, chroma).withValues(alpha: .48),
+      glassSheet: neutral(.315, chroma).withValues(alpha: .88),
+      glassCard: neutral(.460, chroma).withValues(alpha: .30),
       glassPill: neutral(.350, chroma).withValues(alpha: .62),
-      glassEdge: ink.withValues(alpha: .12),
+      glassEdge: ink.withValues(alpha: .085),
       // 深色玻璃的边光要比浅色弱:强了会变成一圈白描边。
-      glassRim: _light.withValues(alpha: .40),
-      sheen: _light.withValues(alpha: .055),
+      glassRim: _light.withValues(alpha: .24),
+      sheen: _light.withValues(alpha: .035),
       floatShadow: const Color(0xFF000000),
       thumb: _light,
       scrim: const Color(0xFF000000).withValues(alpha: .52),
-      glowPrimary: accent.darkGlow.withValues(alpha: .38),
-      glowSecondary: accent.hazeDark.withValues(alpha: .22),
+      glowPrimary: accent.darkGlow.withValues(alpha: .16),
+      glowSecondary: accent.hazeDark.withValues(alpha: .065),
       glowTertiary: const Color(0xFF2F5E8C).withValues(alpha: .020),
       // 光源比极光更亮、彩度更低:极光是"有颜色的空气",光源是"灯"。
       // 彩度只留强调色的三分之一,否则整块背景变成一块彩色果冻。

@@ -15,6 +15,7 @@ import 'package:maeve_flutter/design/maeve_accent.dart';
 import 'package:maeve_flutter/ui/common/app_page.dart';
 
 import '../test/support/fake_chat_bridge.dart';
+import '../test/support/fake_settings_bridge.dart';
 import '../test/support/visual_scenarios.dart';
 
 void main() {
@@ -57,16 +58,42 @@ void main() {
       tester.view.padding = const FakeViewPadding(top: 28, bottom: 24);
       addTearDown(tester.view.reset);
       final bridge = FakeChatBridge();
-      final controller = MaeveController(bridge: bridge)..mode = mode;
+      final controller = MaeveController(
+        bridge: bridge,
+        settingsBridge: FakeSettingsBridge(mode: mode.name),
+      )..mode = mode;
       const key = ValueKey('preview');
       final messenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
       final entries = MethodChannel(MaeveBridge.entryEvents.name);
       messenger.setMockMethodCallHandler(entries, (_) async => null);
+      messenger.setMockMethodCallHandler(MaeveBridge.methods, (call) async {
+        if (call.method == 'status') return {'version': 'visual preview'};
+        if (call.method == 'legal_notices') {
+          return {
+            'documents': [
+              {
+                'name': 'NOTICE.txt',
+                'text': 'Visual preview of bundled notices',
+              },
+            ],
+            'sourceOffer': '完整许可与源码提供说明随应用打包，可在真机查阅。',
+            'entries': [
+              {
+                'name': 'Maeve',
+                'license': 'Apache-2.0',
+                'note': 'Visual fixture',
+              },
+            ],
+          };
+        }
+        return null;
+      });
       addTearDown(() async {
         await tester.pumpWidget(const SizedBox.shrink());
         await bridge.dispose();
         messenger.setMockMethodCallHandler(entries, null);
+        messenger.setMockMethodCallHandler(MaeveBridge.methods, null);
       });
       await tester.pumpWidget(
         RepaintBoundary(
@@ -101,12 +128,12 @@ void main() {
       await tester.tap(find.byTooltip('快捷面板'));
       await tester.pumpAndSettle();
       await capture('workbench');
-      await tester.tap(find.bySemanticsLabel('关闭快捷面板'));
+      await tester.tap(find.byTooltip('关闭快捷面板'));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('打开对话列表'));
       await tester.pumpAndSettle();
       await capture('drawer');
-      await tester.tap(find.byIcon(Icons.settings_outlined));
+      await tester.tap(find.text('设置'));
       await tester.pumpAndSettle();
       await capture('settings');
       final navigator = tester.state<NavigatorState>(

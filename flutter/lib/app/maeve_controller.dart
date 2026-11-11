@@ -1,3 +1,5 @@
+import '../bridge/maeve_settings_bridge.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -8,50 +10,79 @@ import '../bridge/maeve_chat_bridge.dart';
 import '../models/conversation.dart';
 import '../ui/common/haptics.dart';
 
-/// 细分偏好:设置二级页里的开关,集中放一处,免得控制器字段膨胀。
-class MaevePrefs {
-  /// 回复长度:0 简洁 / 1 适中 / 2 详细。
-  int replyLength = 0;
-
-  /// 思考过程默认展开。
-  bool expandThinking = false;
-
-  /// 回答里给来源。
-  bool citeSources = true;
-
-  /// 语音输入 / 朗读回复。
-  bool voiceInput = false;
-  bool readAloud = false;
-
-  /// 通知:完成 / 需要确认 / 每日摘要。
-  bool notifyDone = true;
-  bool notifyAsk = true;
-  bool notifyDigest = false;
-
-  /// 低端机模式:自动关模糊、缩短动效。
-  bool lowEndMode = false;
-
-  /// 图标风格:0 圆润 / 1 单色。
-  int iconStyle = 0;
-
-  /// 日志级别:0 安静 / 1 标准 / 2 详细。
-  int logLevel = 1;
-}
-
-/// 全局状态:外观、对话、记忆、运行态。
+/// 全局状态:持久化外观、原生模型配置、真实对话与运行态。
 ///
 /// 会话列表与轮次是**真实数据**:来自宿主的 ConversationStore / ChatViewModel
 /// (桥接面见 MaeveChatBridge / 宿主 MaeveChatPlugin)。壳这边只留本地 Concerns:
-/// 归档隐藏([_archivedIds],宿主没有归档概念)、搜索与筛选。发送/停止/置顶/删除
+/// 仅保留真实会话与配置、搜索和筛选。发送/停止/置顶/删除
 /// 都转发给宿主,不本地伪造。接桥前的演示态(_seed/_demoReply)已移除。
 class MaeveController extends ChangeNotifier {
-  MaeveController({MaeveChatBridge? bridge})
-    : _bridge = bridge ?? const HostChatBridge() {
+  MaeveController({
+    MaeveChatBridge? bridge,
+    MaeveSettingsBridge? settingsBridge,
+  }) : settingsBridge = settingsBridge ?? const HostSettingsBridge(),
+       _bridge = bridge ?? const HostChatBridge() {
     MaeveHaptics.enabled = haptics;
   }
 
   /// 对话桥:真机走平台通道,测试换假实现(见 MaeveChatBridge)。
   final MaeveChatBridge _bridge;
+  final MaeveSettingsBridge settingsBridge;
+  NativeSettings native = const NativeSettings();
+  String? settingsError;
+  bool settingsLoaded = false;
+  bool _disposed = false;
+  int _settingsRevision = 0;
+
+  Future<void> refreshSettings() async {
+    final revision = ++_settingsRevision;
+    try {
+      final next = await settingsBridge.load();
+      if (revision == _settingsRevision) _applySettings(next);
+    } catch (_) {
+      if (!_disposed) {
+        settingsError = '暂时无法读取设备设置，请重试';
+        notifyListeners();
+      }
+    }
+  }
+
+  void _applySettings(NativeSettings next, {bool appearance = true}) {
+    if (_disposed) return;
+    native = next;
+    settingsLoaded = true;
+    settingsError = null;
+    if (appearance) {
+      mode = switch (next.mode) {
+        'light' => ThemeMode.light,
+        'system' => ThemeMode.system,
+        _ => ThemeMode.dark,
+      };
+      accentPreset = MaeveAccentPreset.byId(next.accent);
+      haptics = next.haptics;
+      MaeveHaptics.enabled = haptics;
+      reduceTransparency = next.reduceTransparency;
+    }
+    model = next.modelName ?? '选择模型';
+    notifyListeners();
+  }
+
+  Future<void> _saveAppearance(Map<String, Object> values) async {
+    _settingsRevision++;
+    try {
+      await settingsBridge.appearance(values);
+    } catch (_) {
+      if (!_disposed) {
+        settingsError = '外观设置未能保存，请重试';
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> selectModel(String id) async =>
+      _applySettings(await settingsBridge.selectModel(id), appearance: false);
+  Future<void> saveModel(Map<String, String> values) async =>
+      _applySettings(await settingsBridge.saveModel(values), appearance: false);
 
   // —— 外观 ——
   ThemeMode mode = ThemeMode.dark;
@@ -64,24 +95,12 @@ class MaeveController extends ChangeNotifier {
   bool reduceTransparency = false;
   bool haptics = true;
 
-  /// 设置页里"外观"的图标风格(圆角/圆环),只影响图标画法。
-  bool monochromeIcons = false;
-
-  /// 细分偏好。
-  final MaevePrefs prefs = MaevePrefs();
-
-  void updatePrefs(void Function(MaevePrefs prefs) change) {
-    change(prefs);
-    notifyListeners();
-  }
-
   // —— 会话(桥接真实数据)——
   final List<Conversation> conversations = [];
-  final List<String> memories = [];
   String activeId = '';
   String search = '';
 
-  /// 会话抽屉的筛选:全部 / 未读 / 置顶。
+  /// 会话抽屉的筛选:全部 / 置顶。
   int listFilter = 0;
 
   /// 宿主当前对话(ui.conversationId);壳里没有对话时为 null。
@@ -90,22 +109,16 @@ class MaeveController extends ChangeNotifier {
   /// 发送被前置条件拦下时的问题码(no_model / accessibility / …);为空表示没被拦。
   List<String> blocked = const [];
 
-  /// 壳内的本地归档隐藏:宿主没有归档概念,不写过去;重启即忘。
-  final Set<String> _archivedIds = {};
-
   StreamSubscription? _chatSub;
 
   bool generating = false;
-  bool connected = true;
-  String model = 'Maeve';
-  String modelTier = '高';
-
-  /// 本会话是否自动同意(默认关;开着时输入条上方一直有胶囊)。
-  bool autoApprove = false;
+  bool connected = false;
+  String model = '选择模型';
 
   /// 接上对话桥:拉会话列表、订事件流、打开当前(或第一个)对话。
   /// 在 MaeveApp.initState 里调一次。
   void attach() {
+    unawaited(refreshSettings());
     if (_chatSub != null) return;
     _chatSub = _bridge.chatStream.listen(_onChatEvent);
     unawaited(_bootstrap());
@@ -114,6 +127,8 @@ class MaeveController extends ChangeNotifier {
   Future<void> _bootstrap() async {
     try {
       final items = await _bridge.conversations();
+      if (_disposed) return;
+      connected = true;
       _applyConversations(items);
       final current = hostConversationId;
       if (current != null && conversations.any((c) => c.id == current)) {
@@ -124,6 +139,8 @@ class MaeveController extends ChangeNotifier {
       }
       notifyListeners();
     } catch (_) {
+      if (_disposed) return;
+      connected = false;
       // 桥不在(理论上同进程不可能):保持空态,不假装有数据
       notifyListeners();
     }
@@ -156,7 +173,6 @@ class MaeveController extends ChangeNotifier {
               (m['updatedAt'] as num).toInt(),
             ),
             pinned: m['pinned'] == true,
-            archived: _archivedIds.contains(m['id'] as String),
           ),
         ),
       );
@@ -244,6 +260,7 @@ class MaeveController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _chatSub?.cancel();
     super.dispose();
   }
@@ -268,7 +285,6 @@ class MaeveController extends ChangeNotifier {
   List<Conversation> get visibleConversations {
     final query = search.trim().toLowerCase();
     var items = conversations.where((conversation) {
-      if (conversation.archived) return false;
       if (listFilter == 1 && !conversation.pinned) return false;
       if (query.isEmpty) return true;
       return conversation.title.toLowerCase().contains(query) ||
@@ -284,14 +300,10 @@ class MaeveController extends ChangeNotifier {
     return items;
   }
 
-  List<Conversation> get archivedConversations =>
-      conversations.where((conversation) => conversation.archived).toList();
-
   /// 顶栏标题上方那行等宽标签(机器声部):一眼看出她此刻在什么状态。
   String get eyebrow {
     if (!connected) return 'HOST · OFFLINE';
     if (generating) return 'HOST · RUNNING';
-    if (autoApprove) return 'HOST · AUTO';
     return 'HOST · READY';
   }
 
@@ -299,7 +311,7 @@ class MaeveController extends ChangeNotifier {
   String get statusLine {
     if (!connected) return '本机 · 未连接';
     if (generating) return '正在思考';
-    if (autoApprove) return '就绪 · 自动同意';
+    if (settingsLoaded && native.currentModelId == null) return '等待模型配置';
     return '本机 · 就绪';
   }
 
@@ -322,23 +334,21 @@ class MaeveController extends ChangeNotifier {
   };
 
   // —— 外观动作 ——
-  void toggleMode() {
-    mode = mode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
-    notifyListeners();
-  }
-
   void setMode(ThemeMode next) {
     mode = next;
+    unawaited(_saveAppearance({'mode': next.name}));
     notifyListeners();
   }
 
   void setAccent(MaeveAccentPreset next) {
     accentPreset = next;
+    unawaited(_saveAppearance({'accent': next.id}));
     notifyListeners();
   }
 
   void toggleReduceTransparency() {
     reduceTransparency = !reduceTransparency;
+    unawaited(_saveAppearance({'reduceTransparency': reduceTransparency}));
     notifyListeners();
   }
 
@@ -346,21 +356,7 @@ class MaeveController extends ChangeNotifier {
     haptics = !haptics;
     // 触感只有一个入口:这里关掉,整棵树都静音。
     MaeveHaptics.enabled = haptics;
-    notifyListeners();
-  }
-
-  void toggleMonochromeIcons() {
-    monochromeIcons = !monochromeIcons;
-    notifyListeners();
-  }
-
-  void setModelTier(String tier) {
-    modelTier = tier;
-    notifyListeners();
-  }
-
-  void toggleAutoApprove() {
-    autoApprove = !autoApprove;
+    unawaited(_saveAppearance({'haptics': haptics}));
     notifyListeners();
   }
 
@@ -399,29 +395,8 @@ class MaeveController extends ChangeNotifier {
     unawaited(_bridge.setPinned(id, pinned));
   }
 
-  /// 归档只是壳内的本地隐藏:宿主没有归档概念,不写过去,重启即忘。
-  void archive(String id) {
-    _archivedIds.add(id);
-    _find(id).archived = true;
-    if (activeId == id) {
-      final next = conversations.firstWhere(
-        (item) => !item.archived && item.id != id,
-        orElse: () => _find(id),
-      );
-      activeId = next.id;
-    }
-    notifyListeners();
-  }
-
-  void restore(String id) {
-    _archivedIds.remove(id);
-    _find(id).archived = false;
-    notifyListeners();
-  }
-
   void delete(String id) {
     conversations.removeWhere((conversation) => conversation.id == id);
-    _archivedIds.remove(id);
     if (activeId == id) {
       activeId = conversations.isNotEmpty ? conversations.first.id : '';
       if (activeId.isNotEmpty) {
@@ -455,19 +430,6 @@ class MaeveController extends ChangeNotifier {
   /// 停止当前任务:宿主 TaskService.cancel。
   void stop() {
     _bridge.cancel();
-  }
-
-  // —— 记忆 ——
-  void addMemory(String value) {
-    final text = value.trim();
-    if (text.isEmpty) return;
-    memories.insert(0, text);
-    notifyListeners();
-  }
-
-  void removeMemory(String value) {
-    memories.remove(value);
-    notifyListeners();
   }
 }
 

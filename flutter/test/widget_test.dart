@@ -6,7 +6,6 @@ import 'package:maeve_flutter/design/maeve_accent.dart';
 import 'package:maeve_flutter/main.dart';
 import 'package:maeve_flutter/app/quick_panel.dart';
 import 'package:maeve_flutter/ui/common/app_page.dart';
-import 'package:maeve_flutter/ui/phone/phone_control_page.dart';
 import 'package:maeve_flutter/ui/settings/appearance_page.dart';
 import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 
@@ -44,13 +43,6 @@ void main() {
       .hitTestable()
       .evaluate()
       .isNotEmpty;
-
-  /// 页面上有"呼吸"的状态点时 pumpAndSettle 永远不会停,用固定帧推进。
-  Future<void> settleFrames(WidgetTester tester) async {
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 420));
-    await tester.pump(const Duration(milliseconds: 420));
-  }
 
   /// 把某一行滚到**顶栏下面、看得见**的位置:整条玻璃顶栏会挡住滚动内容,
   /// 停在它底下的行点不到。
@@ -144,10 +136,7 @@ void main() {
     await tester.pumpAndSettle();
     final send = find.byKey(const ValueKey('send-message'));
     expect(send.hitTestable(), findsOneWidget);
-    expect(
-      find.byKey(const ValueKey('attach-file')).hitTestable(),
-      findsOneWidget,
-    );
+    expect(find.byTooltip('模型配置').hitTestable(), findsOneWidget);
     expect(
       tester.getRect(send).bottom,
       lessThanOrEqualTo(
@@ -173,8 +162,8 @@ void main() {
     expect(find.byKey(const ValueKey('send-message')), findsOneWidget);
     // 空状态:一句展示字 + 一张示例卡(断句由设计给,断在逗号后)。
     // 打字机入场由 pumpAndSettle 推到完成,所以这里拿到整句。
-    expect(find.text('下一幕，由你决定。'), findsOneWidget);
-    expect(find.text('帮我理清一个决定'), findsOneWidget);
+    expect(find.text('下一幕，\n由你决定。'), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-prompt-0')), findsOneWidget);
   });
 
   testWidgets('发送:宿主应答回来后出现你的气泡、过程,然后是回答', (tester) async {
@@ -276,7 +265,7 @@ void main() {
   testWidgets('空状态示例点一下直接发出去', (tester) async {
     final bridge = FakeChatBridge();
     await pumpApp(tester, controller: MaeveController(bridge: bridge));
-    await tester.tap(find.text('帮我理清一个决定'));
+    await tester.tap(find.byKey(const ValueKey('home-prompt-0')));
     await tester.pump();
     // 点示例 = 把示例当话发给宿主
     expect(bridge.sent, ['帮我理清一个决定']);
@@ -336,16 +325,6 @@ void main() {
     expect(find.text('我收到了，接下来交给你。'), findsNWidgets(2));
   });
 
-  testWidgets('附件入口列出来源,并说明还要接桥', (tester) async {
-    await pumpApp(tester);
-    await tester.tap(find.byKey(const ValueKey('attach-file')));
-    await tester.pumpAndSettle();
-    expect(find.text('添加内容'), findsOneWidget);
-    expect(find.text('照片'), findsOneWidget);
-    expect(find.text('文件'), findsOneWidget);
-    expect(find.text('当前屏幕'), findsOneWidget);
-  });
-
   testWidgets('抽屉:分组、搜索、新对话', (tester) async {
     final bridge = FakeChatBridge(
       conversations: [
@@ -389,7 +368,41 @@ void main() {
     // 新对话转发给宿主;宿主还没给出 id,壳回到空态(标题回落成 App 名)。
     expect(bridge.newCalls, 1);
     expect(find.text('搭一个安静的工作台'), findsNothing);
-    expect(find.text('下一幕，由你决定。'), findsOneWidget);
+    expect(find.text('下一幕，\n由你决定。'), findsOneWidget);
+  });
+
+  testWidgets('会话置顶走宿主，删除必须确认后才提交', (tester) async {
+    final bridge = FakeChatBridge(
+      conversations: [FakeChatBridge.conversation('c1', '保留的重要对话')],
+    );
+    addTearDown(bridge.dispose);
+    await pumpApp(tester, controller: MaeveController(bridge: bridge));
+    await tester.tap(find.byTooltip('打开对话列表'));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('保留的重要对话'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('置顶').last);
+    await tester.pumpAndSettle();
+    expect(bridge.pinned, {'c1': true});
+
+    Future<void> requestDelete() async {
+      await tester.longPress(find.text('保留的重要对话'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('删除'));
+      await tester.pumpAndSettle();
+    }
+
+    await requestDelete();
+    expect(bridge.deleted, isEmpty);
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(bridge.deleted, isEmpty);
+    expect(find.text('保留的重要对话'), findsOneWidget);
+    await requestDelete();
+    await tester.tap(find.widgetWithText(TextButton, '删除'));
+    await tester.pumpAndSettle();
+    expect(bridge.deleted, ['c1']);
+    expect(find.text('保留的重要对话'), findsNothing);
   });
 
   testWidgets('抽屉遮罩点一下关掉,不换页', (tester) async {
@@ -402,7 +415,7 @@ void main() {
     await tester.tapAt(Offset(scrim.right - 24, scrim.center.dy));
     await tester.pumpAndSettle();
     expect(drawerOnScreen(tester), isFalse);
-    expect(find.text('下一幕，由你决定。'), findsOneWidget);
+    expect(find.text('下一幕，\n由你决定。'), findsOneWidget);
   });
 
   testWidgets('A7:窄屏靠顶栏按钮打开快捷面板', (tester) async {
@@ -419,7 +432,7 @@ void main() {
     );
     // 面板标题走人话("快捷"),不再是等宽大写眉标。
     expect(find.text('工作台'), findsOneWidget);
-    expect(find.text('手机操控'), findsOneWidget);
+    expect(find.text('系统授权'), findsOneWidget);
   });
 
   testWidgets('两个抽屉互斥:拉开一个,另一个让位', (tester) async {
@@ -437,7 +450,7 @@ void main() {
     await pumpApp(tester, size: const Size(412, 915));
     // 旧壳是四枚浮动胶囊各建一层;新壳顶栏是**一条**玻璃,输入条一条。
     expect(find.byType(BackdropGroup), findsOneWidget);
-    expect(find.byType(BackdropFilter), findsNWidgets(3));
+    expect(find.byType(BackdropFilter), findsNWidgets(2));
 
     // 设置页同样是整条顶栏玻璃。
     await tester.tap(find.byTooltip('打开对话列表'));
@@ -447,41 +460,18 @@ void main() {
     expect(find.byType(BackdropFilter), findsNWidgets(1));
   });
 
-  testWidgets('设置 hub:六组卡 + 一览 + 底部版本', (tester) async {
-    await pumpApp(tester);
-    await tester.tap(find.byTooltip('打开对话列表'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.settings_outlined));
-    await tester.pumpAndSettle();
-
-    expect(find.text('把 Maeve 调成你的习惯'), findsOneWidget);
-    for (final group in ['AI', '能力', '外观', '通用', '主机', '帮助与关于']) {
-      await scrollTo(
-        tester,
-        find.text(group),
-        page: find.byType(SettingsHubPage),
-      );
-      expect(find.text(group), findsOneWidget, reason: group);
-    }
-    await scrollTo(
-      tester,
-      find.textContaining('MAEVE 0.1.0'),
-      page: find.byType(SettingsHubPage),
-    );
-    expect(find.textContaining('MAEVE 0.1.0'), findsOneWidget);
-    // hub 上不能出现放宽保护或删数据的入口。
-    expect(find.textContaining('解除限制'), findsNothing);
-    expect(find.textContaining('清除'), findsNothing);
-  });
-
   testWidgets('外观页换配色:整棵树换强调色', (tester) async {
     await pumpApp(tester);
     await tester.tap(find.byTooltip('打开对话列表'));
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
-    await scrollTo(tester, find.text('配色'), page: find.byType(SettingsHubPage));
-    await tester.tap(find.text('配色'));
+    await scrollTo(
+      tester,
+      find.text('主题与配色'),
+      page: find.byType(SettingsHubPage),
+    );
+    await tester.tap(find.text('主题与配色'));
     await tester.pumpAndSettle();
 
     expect(find.byType(MaeveAccentGrid), findsOneWidget);
@@ -508,10 +498,10 @@ void main() {
     await tester.pumpAndSettle();
     await scrollTo(
       tester,
-      find.text('动效与性能'),
+      find.text('透明与动效'),
       page: find.byType(SettingsHubPage),
     );
-    await tester.tap(find.text('动效与性能'));
+    await tester.tap(find.text('透明与动效'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('减少透明效果'));
     await tester.pumpAndSettle();
@@ -523,28 +513,7 @@ void main() {
     await tester.tap(find.bySemanticsLabel('返回'));
     await tester.pumpAndSettle();
     expect(find.byType(BackdropFilter), findsNothing);
-    expect(find.text('下一幕，由你决定。'), findsOneWidget);
-  });
-
-  testWidgets('手机操控:首次开启要按住确认', (tester) async {
-    await pumpApp(tester, size: const Size(412, 915));
-    await tester.tap(find.byTooltip('快捷面板'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('手机操控'));
-    await settleFrames(tester);
-
-    expect(find.byType(PhoneControlPage), findsOneWidget);
-    expect(find.text('允许 Maeve 操作这台手机'), findsOneWidget);
-
-    await tester.tap(find.text('允许 Maeve 操作这台手机'));
-    await settleFrames(tester);
-    expect(find.text('开启前，请先看清楚'), findsOneWidget);
-    expect(find.text('按住开启'), findsOneWidget);
-
-    // 直接点不会开启。
-    await tester.tap(find.text('按住开启'));
-    await tester.pump();
-    expect(find.text('开启前，请先看清楚'), findsOneWidget);
+    expect(find.text('下一幕，\n由你决定。'), findsOneWidget);
   });
 
   testWidgets('宽屏:列表常驻,≡ 折叠', (tester) async {
@@ -558,21 +527,5 @@ void main() {
     await tester.tap(find.byTooltip('打开对话列表'));
     await tester.pumpAndSettle();
     expect(drawerOnScreen(tester), isTrue);
-  });
-
-  testWidgets('设置搜索:输入即过滤', (tester) async {
-    await pumpApp(tester);
-    await tester.tap(find.byTooltip('打开对话列表'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.settings_outlined));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('搜索设置'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(SettingsSearchPage), findsOneWidget);
-    await tester.enterText(find.byKey(const ValueKey('settings-search')), '配色');
-    await tester.pumpAndSettle();
-    expect(find.text('外观'), findsOneWidget);
-    expect(find.text('手机操控'), findsNothing);
   });
 }

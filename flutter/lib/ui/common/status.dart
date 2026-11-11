@@ -607,43 +607,6 @@ class PermissionPill extends StatelessWidget {
   }
 }
 
-/// 自动同意胶囊:开着的时候一直可见,关掉就消失(不能默默开着)。
-class AutoApprovePill extends StatelessWidget {
-  const AutoApprovePill({super.key, this.onTap, this.scope = '本次会话'});
-
-  final VoidCallback? onTap;
-  final String scope;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = MaeveTheme.of(context);
-    final color = theme.semantic.warn;
-    return Pressable(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(MaeveRadius.pill),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
-        decoration: BoxDecoration(
-          color: theme.colors.warnSoft,
-          borderRadius: BorderRadius.circular(MaeveRadius.pill),
-          border: Border.all(color: color.withValues(alpha: .35), width: .5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.bolt_rounded, size: 13, color: color),
-            const SizedBox(width: 4),
-            Text(
-              '自动同意 · $scope',
-              style: MaeveType.label.copyWith(fontSize: 12, color: color),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// 状态 chip:设置行右侧的值(带文字,不只靠颜色)。
 class StatusChip extends StatelessWidget {
   const StatusChip({

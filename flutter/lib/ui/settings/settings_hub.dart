@@ -1,465 +1,102 @@
 import 'package:flutter/material.dart';
 
 import '../../app/maeve_controller.dart';
-import '../../design/maeve_shapes.dart';
-import 'palette_strip.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
-import '../../widgets/maeve_mark.dart';
 import '../common/app_page.dart';
-import '../common/status.dart';
-import '../memory/memory_page.dart';
-import '../phone/phone_control_page.dart';
-import 'about_pages.dart';
+import 'settings_components.dart';
 import 'appearance_page.dart';
 import 'general_pages.dart';
-import 'settings_components.dart';
+import 'model_settings_page.dart';
+import 'system_access_page.dart';
+import 'about_pages.dart';
+import 'palette_strip.dart';
 
-/// 设置 hub:搜索胶囊 + 一览卡 + 六组卡 + 底部品牌标。
-///
-/// 分组按"人要做的一件事"组织,不是按代码模块。hub 上**不放**任何会放宽保护
-/// 或删数据的东西 —— 那些都在二级页里,而且要长按确认。
-class SettingsHubPage extends StatefulWidget {
-  const SettingsHubPage({super.key, this.openSearch = false});
-
-  /// QuickPanel 长按 ⚙ 直接落到搜索。
-  final bool openSearch;
-
-  @override
-  State<SettingsHubPage> createState() => _SettingsHubPageState();
-}
-
-class _SettingsHubPageState extends State<SettingsHubPage> {
-  @override
-  void initState() {
-    super.initState();
-    if (widget.openSearch) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _openSearch();
-      });
-    }
-  }
-
-  void _openSearch() => AppPage.open(context, const SettingsSearchPage());
-
+class SettingsHubPage extends StatelessWidget {
+  const SettingsHubPage({super.key});
   @override
   Widget build(BuildContext context) {
-    final controller = MaeveScope.of(context);
-    final colors = MaeveTheme.of(context).colors;
-
+    final controller = MaeveScope.of(context),
+        c = MaeveTheme.of(context).colors;
     return AppPage.list(
       title: '设置',
-      subtitle: '把 Maeve 调成你的习惯',
-      eyebrow: 'SETTINGS',
+      subtitle: '让 Maeve 适合你的日常',
       children: [
-        SearchCapsuleButton(onTap: _openSearch),
-        const SizedBox(height: MaeveSpace.s12),
-        SettingsOverview(
-          name: '本机',
-          detail: '未登录 · 所有内容只留在这台设备',
-          tone: controller.connected ? MaeveTone.ready : MaeveTone.idle,
-          stats: [
-            (
-              label: '对话',
-              value: '${controller.conversations.length}',
-              mono: true,
-            ),
-            (
-              label: '引擎',
-              value: '${controller.model} · ${controller.modelTier}',
-              mono: false,
-            ),
-            (label: '版本', value: '0.1.0', mono: true),
-          ],
-          onTap: () => AppPage.open(context, const AccountPage()),
-        ),
         const SizedBox(height: 20),
+        if (controller.settingsError != null) ...[
+          SettingsNotice(
+            text: controller.settingsError!,
+            icon: Icons.info_outline,
+          ),
+          TextButton(
+            onPressed: controller.refreshSettings,
+            child: const Text('重新读取设备设置'),
+          ),
+        ],
+        SettingsSection(
+          title: '执行与设备',
+          rows: [
+            SettingsTile(
+              icon: Icons.auto_awesome_outlined,
+              title: '模型配置',
+              subtitle: '接入你自己的模型服务',
+              value: controller.model,
+              onTap: () => AppPage.open(context, const ModelSettingsPage()),
+            ),
+            SettingsTile(
+              icon: Icons.phonelink_ring_outlined,
+              title: '系统授权',
+              subtitle: '权限与手机助手连接',
+              onTap: () => AppPage.open(context, const SystemAccessPage()),
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
         PaletteStrip(
           selected: controller.accentPreset,
           onSelected: controller.setAccent,
         ),
         SettingsSection(
-          title: 'AI',
-          rows: [
-            SettingsTile(
-              icon: Icons.auto_awesome,
-              title: '模型与思考',
-              subtitle: '能力档位决定它想多久',
-              value: '${controller.model} · ${controller.modelTier}',
-              onTap: () => AppPage.open(context, const EnginePage()),
-            ),
-            SettingsTile(
-              icon: Icons.tune_rounded,
-              title: '人格与提示词',
-              subtitle: '它说话的方式',
-              value: '默认',
-              onTap: () => AppPage.open(context, const ProvidersPage()),
-            ),
-            SettingsTile(
-              icon: Icons.bookmark_border_rounded,
-              title: '记忆',
-              value: controller.memories.isEmpty
-                  ? '空'
-                  : '${controller.memories.length} 条',
-              mono: true,
-              onTap: () => AppPage.open(context, const MemoryPage()),
-            ),
-          ],
-        ),
-        SettingsSection(
-          title: '能力',
-          rows: [
-            SettingsTile(
-              icon: Icons.smartphone_rounded,
-              title: '手机操控',
-              subtitle: '让它替你在应用里点',
-              chip: const StatusChip(
-                label: '未开启',
-                tone: MaeveTone.danger,
-                filled: true,
-              ),
-              onTap: () => AppPage.open(context, const PhoneControlPage()),
-            ),
-            SettingsTile(
-              icon: Icons.record_voice_over_outlined,
-              title: '语音',
-              value: '关闭',
-              onTap: () => AppPage.open(context, const VoicePage()),
-            ),
-            SettingsTile(
-              icon: Icons.notifications_none_rounded,
-              title: '通知',
-              value: '仅关键',
-              onTap: () => AppPage.open(context, const NotificationPage()),
-            ),
-            SettingsTile(
-              icon: Icons.visibility_outlined,
-              title: '屏幕读取',
-              subtitle: '无障碍服务授权',
-              chip: const StatusChip(label: '未授权'),
-              onTap: () => AppPage.open(context, const SystemAccessPage()),
-            ),
-          ],
-        ),
-        SettingsSection(
-          title: '外观',
+          title: '外观与手感',
           rows: [
             SettingsTile(
               icon: Icons.palette_outlined,
-              title: '配色',
+              title: '主题与配色',
               value: controller.accentPreset.label,
               onTap: () => AppPage.open(context, const AppearancePage()),
             ),
             SettingsTile(
-              icon: Icons.dashboard_outlined,
-              title: '界面',
-              subtitle: '列表常驻、图标风格',
-              value: '标准',
-              onTap: () => AppPage.open(context, const InterfacePage()),
-            ),
-            SettingsTile(
-              icon: Icons.bolt_outlined,
-              title: '动效与性能',
-              subtitle: '玻璃模糊可以关',
-              value: controller.reduceTransparency ? '已降级' : '标准',
+              icon: Icons.blur_on_outlined,
+              title: '透明与动效',
+              value: controller.reduceTransparency ? '减少透明' : '标准',
               onTap: () => AppPage.open(context, const PerformancePage()),
-            ),
-          ],
-        ),
-        SettingsSection(
-          title: '通用',
-          rows: [
-            SettingsTile(
-              icon: Icons.chat_bubble_outline_rounded,
-              title: '回复偏好',
-              value: '简洁',
-              onTap: () => AppPage.open(context, const ReplyPrefsPage()),
-            ),
-            SettingsTile(
-              icon: Icons.lock_outline_rounded,
-              title: '隐私',
-              subtitle: '什么会离开这台设备',
-              value: '本机优先',
-              onTap: () => AppPage.open(context, const PrivacyPage()),
             ),
             SettingsSwitchTile(
               icon: Icons.vibration_rounded,
               title: '触感反馈',
-              subtitle: '按一下有回应，关掉就完全安静',
               value: controller.haptics,
               onChanged: (_) => controller.toggleHaptics(),
             ),
-            SettingsTile(
-              icon: Icons.translate_rounded,
-              title: '语言',
-              value: '中文（简体）',
-              onTap: () => AppPage.open(context, const LanguagePage()),
-            ),
           ],
         ),
         SettingsSection(
-          title: '主机',
+          title: '关于',
           rows: [
-            SettingsTile(
-              icon: Icons.dns_outlined,
-              title: '远程主机',
-              subtitle: '把任务交给配对的机器',
-              chip: const StatusChip(label: '未配置'),
-              onTap: () => AppPage.open(context, const RemotePage()),
-            ),
-            SettingsTile(
-              icon: Icons.memory_rounded,
-              title: '引擎设置',
-              subtitle: '上下文、超时、工具',
-              onTap: () => AppPage.open(context, const EngineSettingsHub()),
-            ),
-            SettingsTile(
-              icon: Icons.extension_outlined,
-              title: '插件',
-              value: '0',
-              mono: true,
-              onTap: () => AppPage.open(context, const PluginsPage()),
-            ),
-          ],
-        ),
-        SettingsSection(
-          title: '帮助与关于',
-          rows: [
-            SettingsTile(
-              icon: Icons.monitor_heart_outlined,
-              title: '诊断',
-              subtitle: '日志与运行状态',
-              onTap: () => AppPage.open(context, const DiagnosticsPage()),
-            ),
-            SettingsTile(
-              icon: Icons.system_update_alt_rounded,
-              title: '更新',
-              value: '已是最新',
-              onTap: () => AppPage.open(context, const UpdatePage()),
-            ),
             SettingsTile(
               icon: Icons.info_outline_rounded,
               title: '关于 Maeve',
-              value: '0.1.0',
-              mono: true,
+              subtitle: '名字、版本与开源许可',
               onTap: () => AppPage.open(context, const AboutPage()),
-            ),
-            SettingsTile(
-              icon: Icons.school_outlined,
-              title: '重新查看首次引导',
-              onTap: () =>
-                  AppPage.open(context, const AboutPage(showIntro: true)),
             ),
           ],
         ),
-        const SizedBox(height: MaeveSpace.s32),
-        Center(
-          child: Column(
-            children: [
-              Opacity(opacity: .38, child: const MaeveMark(size: 18)),
-              const SizedBox(height: 6),
-              Text(
-                'MAEVE 0.1.0 · 界面原型',
-                style: MaeveType.eyebrowFor('界面原型')
-                    .copyWith(color: colors.ink3.withValues(alpha: .75)),
-              ),
-            ],
-          ),
+        const SizedBox(height: 30),
+        Text(
+          '下一幕，由你决定。',
+          textAlign: TextAlign.center,
+          style: MaeveType.hint.copyWith(color: c.ink3),
         ),
-        const SizedBox(height: MaeveSpace.s24),
       ],
-    );
-  }
-}
-
-/// 设置搜索:输入即过滤,点结果直达那一页。
-class SettingsSearchPage extends StatefulWidget {
-  const SettingsSearchPage({super.key});
-
-  @override
-  State<SettingsSearchPage> createState() => _SettingsSearchPageState();
-}
-
-class _SettingsSearchPageState extends State<SettingsSearchPage> {
-  final TextEditingController _input = TextEditingController();
-  String _query = '';
-
-  static final _index =
-      <({String title, String group, IconData icon, Widget page})>[
-        (
-          title: '配色',
-          group: '外观',
-          icon: Icons.palette_outlined,
-          page: const AppearancePage(),
-        ),
-        (
-          title: '界面',
-          group: '外观',
-          icon: Icons.dashboard_outlined,
-          page: const InterfacePage(),
-        ),
-        (
-          title: '动效与性能',
-          group: '外观',
-          icon: Icons.bolt_outlined,
-          page: const PerformancePage(),
-        ),
-        (
-          title: '触感反馈',
-          group: '通用',
-          icon: Icons.vibration_rounded,
-          page: const InterfacePage(),
-        ),
-        (
-          title: '回复偏好',
-          group: '通用',
-          icon: Icons.chat_bubble_outline_rounded,
-          page: const ReplyPrefsPage(),
-        ),
-        (
-          title: '隐私',
-          group: '通用',
-          icon: Icons.lock_outline_rounded,
-          page: const PrivacyPage(),
-        ),
-        (
-          title: '语言',
-          group: '通用',
-          icon: Icons.translate_rounded,
-          page: const LanguagePage(),
-        ),
-        (
-          title: '语音',
-          group: '能力',
-          icon: Icons.record_voice_over_outlined,
-          page: const VoicePage(),
-        ),
-        (
-          title: '通知',
-          group: '能力',
-          icon: Icons.notifications_none_rounded,
-          page: const NotificationPage(),
-        ),
-        (
-          title: '屏幕读取',
-          group: '能力',
-          icon: Icons.visibility_outlined,
-          page: const SystemAccessPage(),
-        ),
-        (
-          title: '手机操控',
-          group: '能力',
-          icon: Icons.smartphone_rounded,
-          page: const PhoneControlPage(),
-        ),
-        (
-          title: '模型与思考',
-          group: 'AI',
-          icon: Icons.auto_awesome,
-          page: const EnginePage(),
-        ),
-        (
-          title: '引擎设置',
-          group: '主机',
-          icon: Icons.memory_rounded,
-          page: const EngineSettingsHub(),
-        ),
-        (
-          title: '远程主机',
-          group: '主机',
-          icon: Icons.dns_outlined,
-          page: const RemotePage(),
-        ),
-        (
-          title: '插件',
-          group: '主机',
-          icon: Icons.extension_outlined,
-          page: const PluginsPage(),
-        ),
-        (
-          title: '诊断',
-          group: '帮助',
-          icon: Icons.monitor_heart_outlined,
-          page: const DiagnosticsPage(),
-        ),
-        (
-          title: '关于',
-          group: '帮助',
-          icon: Icons.info_outline_rounded,
-          page: const AboutPage(),
-        ),
-        (
-          title: '后台保活',
-          group: '帮助',
-          icon: Icons.battery_saver_outlined,
-          page: const BackgroundGuidePage(),
-        ),
-      ];
-
-  @override
-  void dispose() {
-    _input.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
-    final query = _query.trim();
-    final results = query.isEmpty
-        ? _index
-        : _index.where((entry) {
-            final haystack = '${entry.title}${entry.group}'.toLowerCase();
-            return haystack.contains(query.toLowerCase());
-          }).toList();
-
-    return AppPage(
-      title: '搜索设置',
-      eyebrow: 'SEARCH',
-      padded: true,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(
-          MaeveSpace.s16,
-          MaeveSize.topBar + MaeveSpace.s8,
-          MaeveSpace.s16,
-          MaeveSpace.s32,
-        ),
-        children: [
-          TextField(
-            key: const ValueKey('settings-search'),
-            controller: _input,
-            autofocus: true,
-            onChanged: (value) => setState(() => _query = value),
-            style: MaeveType.body.copyWith(color: colors.ink),
-            decoration: InputDecoration(
-              hintText: '搜一个设置项',
-              prefixIcon: Icon(Icons.search, size: 18, color: colors.ink3),
-              filled: true,
-              fillColor: colors.surface,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(MaeveRadius.md),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-          const SizedBox(height: MaeveSpace.s16),
-          if (results.isEmpty)
-            const EmptyView(
-              icon: Icons.search_off_rounded,
-              title: '没找到',
-              body: '换个词试试，或者回上一页逐组找。',
-              compact: true,
-            )
-          else
-            for (final entry in results)
-              ListPageRow(
-                title: entry.title,
-                subtitle: entry.group,
-                leading: Icon(entry.icon, size: 19),
-                onTap: () => AppPage.open(context, entry.page),
-              ),
-        ],
-      ),
     );
   }
 }

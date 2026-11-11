@@ -7,7 +7,6 @@ import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 
 import '../../widgets/glass_surface.dart';
-import '../../widgets/maeve_mark.dart';
 import '../common/pressable.dart';
 import '../common/status.dart';
 
@@ -579,230 +578,6 @@ class SettingsSection extends StatelessWidget {
   );
 }
 
-/// Device identity and actual workspace information, without decorative balances.
-class SettingsOverview extends StatelessWidget {
-  const SettingsOverview({
-    super.key,
-    required this.name,
-    required this.detail,
-    required this.stats,
-    this.tone = MaeveTone.ready,
-    this.onTap,
-    this.avatar,
-  });
-  final String name;
-  final String detail;
-  final List<({String label, String value, bool mono})> stats;
-  final MaeveTone tone;
-  final VoidCallback? onTap;
-  final Widget? avatar;
-  @override
-  Widget build(BuildContext context) {
-    final c = MaeveTheme.of(context).colors;
-    return MaeveGlassSurface(
-      // Scrolling content uses static optical layers; chrome belongs to anchors.
-      tier: MaeveGlassTier.card,
-      shape: RoundedSuperellipseBorder(borderRadius: BorderRadius.circular(24)),
-      tint: c.accent,
-      tintAlpha: .05,
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Pressable(
-            onTap: onTap,
-            scale: false,
-            child: Row(
-              children: [
-                avatar ??
-                    Container(
-                      width: 52,
-                      height: 52,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: c.accent,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: MaeveMark(
-                        size: 32,
-                        state: MarkState.armed,
-                        color: c.onAccent,
-                      ),
-                    ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: MaeveType.title.copyWith(
-                          color: c.ink,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        detail,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: MaeveType.hint.copyWith(color: c.ink2),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(Icons.north_east_rounded, size: 20, color: c.accent),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Container(height: .5, color: c.accent.withValues(alpha: .18)),
-          const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final stat in stats)
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        stat.label,
-                        style: MaeveType.hint.copyWith(color: c.ink2),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        stat.value,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            (stat.mono ? MaeveType.mono : MaeveType.bodyStrong)
-                                .copyWith(color: c.ink, fontSize: 15),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 设置页顶部的搜索胶囊:点一下进搜索页。
-class SearchCapsuleButton extends StatelessWidget {
-  const SearchCapsuleButton({
-    super.key,
-    required this.onTap,
-    this.hint = '搜索设置',
-  });
-
-  final VoidCallback onTap;
-  final String hint;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
-    return Pressable(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(MaeveRadius.md),
-      semanticLabel: hint,
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.s16),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(MaeveRadius.md),
-          border: Border.all(color: colors.edge, width: .5),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.search, size: 17, color: colors.ink3),
-            const SizedBox(width: MaeveSpace.s8),
-            Expanded(
-              child: Text(
-                hint,
-                style: MaeveType.body.copyWith(color: colors.ink3),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 功能入口块(hub 里的"能力"区)。
-class FeatureTile extends StatelessWidget {
-  const FeatureTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.onTap,
-    this.subtitle,
-    this.tone,
-    this.badge,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Tone? tone;
-  final String? badge;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
-    final resolved = tone ?? SettingsHue.of(context);
-    return Pressable(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(MaeveRadius.md),
-      scale: false,
-      child: MaeveGlassSurface(
-        shape: MaeveShapes.card,
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                IconTile(icon: icon, tone: resolved),
-                const Spacer(),
-                if (badge == null)
-                  Icon(Icons.north_east_rounded, size: 14, color: colors.ink3),
-                if (badge != null)
-                  Text(
-                    badge!,
-                    style: MaeveType.eyebrowFor(badge!)
-                        .copyWith(color: colors.ink3),
-                  ),
-              ],
-            ),
-            const SizedBox(height: MaeveSpace.s12),
-            Text(
-              title,
-              style: MaeveType.bodyStrong.copyWith(color: colors.ink),
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 2),
-              Text(
-                subtitle!,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: MaeveType.hint.copyWith(color: colors.ink3),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// 列表页的一行(会话、插件、日志):比 [SettingsTile] 更轻,没有图标块。
 class ListPageRow extends StatelessWidget {
   const ListPageRow({
@@ -896,4 +671,27 @@ class Hairline extends StatelessWidget {
 /// 供页面取色的小工具。
 extension SettingsColors on BuildContext {
   MaeveColors get settingsColors => MaeveTheme.of(this).colors;
+}
+
+class SettingsNotice extends StatelessWidget {
+  const SettingsNotice({super.key, required this.text, required this.icon});
+  final String text;
+  final IconData icon;
+  @override
+  Widget build(BuildContext context) {
+    final c = MaeveTheme.of(context).colors;
+    return MaeveGlassSurface(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: c.ink2),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text, style: MaeveType.caption.copyWith(color: c.ink2)),
+          ),
+        ],
+      ),
+    );
+  }
 }

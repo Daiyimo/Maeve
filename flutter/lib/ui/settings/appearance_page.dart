@@ -56,20 +56,6 @@ class AppearancePage extends StatelessWidget {
           brightness: Theme.of(context).brightness,
           onSelected: controller.setAccent,
         ),
-        SettingsSection(
-          title: '图标',
-          rows: [
-            SettingsSegmentTile(
-              icon: Icons.interests_outlined,
-              title: '图标风格',
-              subtitle: '单色更克制，圆润更柔和',
-              options: const ['圆润', '单色'],
-              value: controller.prefs.iconStyle,
-              onChanged: (value) =>
-                  controller.updatePrefs((prefs) => prefs.iconStyle = value),
-            ),
-          ],
-        ),
         const SizedBox(height: MaeveSpace.s8),
         const GroupLabel(text: '预览'),
         _Preview(

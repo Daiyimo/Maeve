@@ -1,4 +1,4 @@
-/// 一条消息。原型阶段只有文本 + 过程,接桥后换成流式事件。
+/// 从宿主会话快照映射的一条消息与过程摘要。
 class Message {
   Message(
     this.text, {
@@ -41,8 +41,6 @@ class Conversation {
     DateTime? updatedAt,
     this.pinned = false,
     this.folder,
-    this.unread = 0,
-    this.archived = false,
   }) : updatedAt = updatedAt ?? DateTime.now();
 
   final String id;
@@ -52,8 +50,6 @@ class Conversation {
 
   /// 文件夹名。null = 不在文件夹里。
   String? folder;
-  int unread;
-  bool archived;
 
   final List<Message> messages = [];
 

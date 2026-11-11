@@ -1,3 +1,5 @@
+import '../ui/settings/model_settings_page.dart';
+
 import 'package:flutter/material.dart';
 
 import 'maeve_controller.dart';
@@ -102,7 +104,6 @@ class _ChatPageState extends State<ChatPage> {
         MaeveSpace.s24 +
         (_quote != null ? 56 : 0) +
         (controller.blockedNotice != null ? 40 : 0) +
-        (controller.autoApprove ? 44 : 0) +
         (controller.generating ? 56 : 0);
     final topInset = padding.top + MaeveSize.topBarBrand + 10;
     final bottomInset = bottomSafe + reserve;
@@ -166,7 +167,8 @@ class _ChatPageState extends State<ChatPage> {
                 ? MaeveTone.idle
                 : controller.generating
                 ? MaeveTone.running
-                : controller.autoApprove
+                : controller.settingsLoaded &&
+                      controller.native.currentModelId == null
                 ? MaeveTone.warning
                 : MaeveTone.ready,
             working: controller.generating,
@@ -202,7 +204,6 @@ class _ChatPageState extends State<ChatPage> {
             onClearQuote: () => setState(() => _quote = null),
             onSend: () => _send(controller),
             onStop: controller.stop,
-            onAttach: () => _attachmentSheet(context),
           ),
         ),
         if (_showJump)
@@ -286,48 +287,6 @@ class _ChatPageState extends State<ChatPage> {
       ),
     );
   }
-
-  /// 附件来源:列清楚可选的东西,接桥前每项都明确说"还没有"。
-  Future<void> _attachmentSheet(BuildContext context) => showMaeveSheet<void>(
-    context: context,
-    builder: (context) => AppSheet(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SheetTitleBar(title: '添加内容', subtitle: '接入桥接后，这里会打开系统的选择器'),
-          const SizedBox(height: MaeveSpace.s8),
-          ListPageRow(
-            title: '照片',
-            subtitle: '系统相册',
-            leading: const Icon(Icons.photo_library_outlined, size: 19),
-            onTap: () {
-              Navigator.of(context).pop();
-              _notice(context, '相册选择将通过 Android 平台桥接接入。');
-            },
-          ),
-          ListPageRow(
-            title: '文件',
-            subtitle: '文稿与下载',
-            leading: const Icon(Icons.attach_file_rounded, size: 19),
-            onTap: () {
-              Navigator.of(context).pop();
-              _notice(context, '文件选择将通过 Android 平台桥接接入。');
-            },
-          ),
-          ListPageRow(
-            title: '当前屏幕',
-            subtitle: '按需截取，只在本机处理',
-            leading: const Icon(Icons.screenshot_monitor_outlined, size: 19),
-            onTap: () {
-              Navigator.of(context).pop();
-              _notice(context, '截屏需要先开启屏幕读取权限。');
-            },
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 /// 顶栏上的一个动作键(48 的可点域,40 的圆)。
@@ -368,128 +327,90 @@ class _BarAction extends StatelessWidget {
   }
 }
 
-/// An open stage: a control pearl, a human choice, then practical starts.
+/// Fit the idle stage to the real space between header and composer. A quiet
+/// centre is intentional; scroll is reserved for small screens and large text.
 class _EmptyHome extends StatelessWidget {
   const _EmptyHome({required this.onPick, required this.minHeight});
   final ValueChanged<String> onPick;
   final double minHeight;
-  static const _examples = [
-    ('帮我理清一个决定', '把利弊摊开，找到下一步', Icons.alt_route_rounded),
-    ('规划一个项目', '从目标，到行动', Icons.auto_awesome_motion_outlined),
-    ('把一段想法整理成笔记', '让灵感有个落点', Icons.edit_note_rounded),
+  static const _prompts = [
+    ('理清思路', '帮我理清一个决定'),
+    ('规划项目', '规划一个项目'),
+    ('整理笔记', '把一段想法整理成笔记'),
   ];
-
   @override
   Widget build(BuildContext context) {
     final c = MaeveTheme.of(context).colors;
-    return Padding(
-      padding: const EdgeInsets.only(top: 24, bottom: 24),
+    final compact = minHeight < 390;
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    final minimum = (compact ? 280.0 : 325.0) + (scale - 1).clamp(0, 2) * 120;
+    final height = minHeight < minimum ? minimum : minHeight;
+    return SizedBox(
+      height: height,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Center(child: MaeveEmblem(size: 92)),
-          const SizedBox(height: 24),
+          Spacer(flex: compact ? 1 : 2),
+          Center(child: MaeveEmblem(size: compact ? 64 : 88)),
+          SizedBox(height: compact ? 16 : 22),
           Text(
-            '下一幕，由你决定。',
+            '下一幕，\n由你决定。',
             textAlign: TextAlign.center,
             style: MaeveType.largeTitle.copyWith(
-              fontSize: 29,
+              fontSize: compact ? 26 : 29,
+              height: 1.27,
               fontWeight: FontWeight.w500,
-              letterSpacing: -.8,
+              letterSpacing: -.6,
               color: c.ink,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Text(
-            '你定方向，Maeve 在幕后完成。',
+            '你继续生活，我在幕后行动。',
             textAlign: TextAlign.center,
-            style: MaeveType.caption.copyWith(color: c.ink2, height: 1.6),
+            style: MaeveType.caption.copyWith(color: c.ink2),
           ),
-          const SizedBox(height: 8),
+          const Spacer(flex: 3),
           Text(
-            '在另一块屏幕行动，把这一刻留给你。',
+            '试着交给 Maeve',
             textAlign: TextAlign.center,
             style: MaeveType.hint.copyWith(color: c.ink3),
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Text('从一个想法开始', style: MaeveType.label.copyWith(color: c.ink2)),
-              const Spacer(),
-              Icon(Icons.auto_awesome_outlined, size: 15, color: c.accent),
-            ],
-          ),
-          const SizedBox(height: 12),
-          for (var i = 0; i < _examples.length; i++) ...[
-            if (i > 0) const SizedBox(height: 10),
-            _StartPrompt(
-              title: _examples[i].$1,
-              note: _examples[i].$2,
-              icon: _examples[i].$3,
-              onTap: () => onPick(_examples[i].$1),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _StartPrompt extends StatelessWidget {
-  const _StartPrompt({
-    required this.title,
-    required this.note,
-    required this.icon,
-    required this.onTap,
-  });
-  final String title;
-  final String note;
-  final IconData icon;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    final c = MaeveTheme.of(context).colors;
-    return Pressable(
-      onTap: onTap,
-      scale: false,
-      borderRadius: BorderRadius.circular(22),
-      child: MaeveGlassSurface(
-        shape: RoundedSuperellipseBorder(
-          borderRadius: BorderRadius.circular(22),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: c.accent.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: c.accent, size: 21),
-            ),
-            const SizedBox(width: 13),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: MaeveType.bodyStrong.copyWith(
-                      color: c.ink,
-                      fontSize: 14.5,
+              for (var i = 0; i < _prompts.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                Expanded(
+                  child: Pressable(
+                    key: ValueKey('home-prompt-$i'),
+                    semanticLabel: _prompts[i].$2,
+                    scale: false,
+                    onTap: () => onPick(_prompts[i].$2),
+                    child: MaeveGlassSurface(
+                      shape: RoundedSuperellipseBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 14,
+                        horizontal: 4,
+                      ),
+                      child: Text(
+                        _prompts[i].$1,
+                        textAlign: TextAlign.center,
+                        style: MaeveType.label.copyWith(
+                          color: c.ink2,
+                          fontSize: 12.5,
+                        ),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(note, style: MaeveType.hint.copyWith(color: c.ink3)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Icon(Icons.north_east_rounded, color: c.ink3, size: 16),
-          ],
-        ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 18),
+        ],
       ),
     );
   }
@@ -812,7 +733,6 @@ class _ComposerDock extends StatelessWidget {
     required this.onClearQuote,
     required this.onSend,
     required this.onStop,
-    required this.onAttach,
   });
 
   final MaeveController controller;
@@ -821,7 +741,6 @@ class _ComposerDock extends StatelessWidget {
   final VoidCallback onClearQuote;
   final VoidCallback onSend;
   final VoidCallback onStop;
-  final VoidCallback onAttach;
 
   @override
   Widget build(BuildContext context) {
@@ -879,13 +798,6 @@ class _ComposerDock extends StatelessWidget {
                           ),
                         ),
                 ),
-                if (controller.autoApprove) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: AutoApprovePill(onTap: controller.toggleAutoApprove),
-                  ),
-                  const SizedBox(height: MaeveSpace.s6),
-                ],
                 if (controller.generating) ...[
                   ActivityStrip(
                     text: '正在走这一步',
@@ -899,7 +811,6 @@ class _ComposerDock extends StatelessWidget {
                   input: input,
                   onSend: onSend,
                   onStop: onStop,
-                  onAttach: onAttach,
                 ),
               ],
             ),
@@ -931,14 +842,12 @@ class _ComposerBar extends StatefulWidget {
     required this.input,
     required this.onSend,
     required this.onStop,
-    required this.onAttach,
   });
 
   final MaeveController controller;
   final TextEditingController input;
   final VoidCallback onSend;
   final VoidCallback onStop;
-  final VoidCallback onAttach;
 
   @override
   State<_ComposerBar> createState() => _ComposerBarState();
@@ -1017,19 +926,31 @@ class _ComposerBarState extends State<_ComposerBar> {
                 padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.s8),
                 child: Row(
                   children: [
-                    _RoundKey(
-                      key: const ValueKey('attach-file'),
-                      icon: Icons.add_rounded,
-                      tooltip: '添加内容',
-                      onTap: widget.onAttach,
-                    ),
-                    const SizedBox(width: MaeveSpace.s4),
                     Expanded(
-                      child: Text(
-                        '${controller.model} · ${controller.modelTier}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: MaeveType.hint.copyWith(color: colors.ink3),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Tooltip(
+                          message: '模型配置',
+                          child: TextButton.icon(
+                            onPressed: () => AppPage.open(
+                              context,
+                              const ModelSettingsPage(),
+                            ),
+                            icon: Icon(
+                              Icons.auto_awesome_outlined,
+                              color: colors.accent,
+                              size: 16,
+                            ),
+                            label: Text(
+                              controller.model,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: MaeveType.hint.copyWith(
+                                color: colors.ink2,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     if (busy)

@@ -2,59 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../design/maeve_theme.dart';
 import '../design/maeve_motion.dart';
-import 'glass_surface.dart';
 
-/// A quiet, illuminated control pearl. The two folds leave the centre open:
-/// Maeve acts behind the screen while the user keeps the choice.
-class MaeveEmblem extends StatelessWidget {
-  const MaeveEmblem({super.key, this.size = 100});
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = MaeveTheme.of(context).colors;
-    final motion = AppMotion.of(context);
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: motion.reduced ? 1 : 0, end: 1),
-      duration: motion.emphasized,
-      curve: MaeveMotion.glide,
-      builder: (context, value, child) => Opacity(
-        opacity: value,
-        child: Transform.translate(
-          offset: Offset(0, (1 - value) * 12),
-          child: Transform.scale(scale: .92 + .08 * value, child: child),
-        ),
-      ),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [c.accent.withValues(alpha: .34), c.accentSoft, c.bg],
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: c.accent.withValues(alpha: .16),
-              blurRadius: 44,
-              spreadRadius: 6,
-            ),
-          ],
-        ),
-        child: MaeveGlassSurface(
-          tier: MaeveGlassTier.chrome,
-          shape: const CircleBorder(),
-          padding: EdgeInsets.all(size * .24),
-          child: MaeveMark(size: size * .52, state: MarkState.armed),
-        ),
-      ),
-    );
-  }
-}
-
-/// Two folded curtains form an M; the clear centre belongs to the user's screen.
+/// 醒瞳: the control pearl sits inside an opening gaze. The upper contour leaves
+/// its loop, recalling Maeve seeing the system and choosing her own direction.
 class MaeveMark extends StatelessWidget {
   const MaeveMark({
     super.key,
@@ -65,7 +15,6 @@ class MaeveMark extends StatelessWidget {
   final double size;
   final MarkState state;
   final Color? color;
-
   @override
   Widget build(BuildContext context) => Semantics(
     label: 'Maeve',
@@ -85,44 +34,103 @@ enum MarkState { idle, armed }
 
 class MaeveMarkPainter extends CustomPainter {
   const MaeveMarkPainter(this.color, this.background, {this.armed = false});
-  final Color color;
-  final Color background;
+  final Color color, background;
   final bool armed;
-
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.scale(size.width, size.height);
-    final curtain = Path()
-      ..moveTo(.10, .81)
-      ..lineTo(.10, .21)
-      ..cubicTo(.10, .095, .22, .065, .29, .16)
-      ..lineTo(.50, .45)
-      ..lineTo(.40, .61)
-      ..lineTo(.285, .445)
-      ..lineTo(.285, .81)
-      ..quadraticBezierTo(.285, .90, .19, .90)
-      ..quadraticBezierTo(.10, .90, .10, .81)
-      ..close();
-    canvas.drawPath(curtain, Paint()..color = color);
-    canvas.save();
-    canvas.translate(1, 0);
-    canvas.scale(-1, 1);
-    canvas.drawPath(curtain, Paint()..color = color.withValues(alpha: .76));
-    canvas.restore();
-    final light = Paint()
+    final stroke = Paint()
       ..color = color
-      ..strokeWidth = .055
-      ..strokeCap = StrokeCap.round;
-    canvas.drawLine(
-      Offset(.50, armed ? .67 : .76),
-      const Offset(.50, .86),
-      light,
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = .078
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final upper = Path()
+      ..moveTo(.10, .54)
+      ..cubicTo(.27, .28, .53, .22, .76, .34)
+      ..lineTo(.91, .22);
+    final lower = Path()
+      ..moveTo(.11, .55)
+      ..cubicTo(.31, .83, .65, .84, .89, .53);
+    canvas.drawPath(upper, stroke);
+    canvas.drawPath(lower, stroke);
+    canvas.drawCircle(
+      const Offset(.51, .52),
+      armed ? .125 : .115,
+      Paint()..color = color,
+    );
+    canvas.drawCircle(
+      const Offset(.475, .483),
+      .032,
+      Paint()..color = background,
     );
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(MaeveMarkPainter old) =>
-      old.color != color || old.armed != armed || old.background != background;
+      old.color != color || old.background != background || old.armed != armed;
+}
+
+class MaeveEmblem extends StatelessWidget {
+  const MaeveEmblem({super.key, this.size = 96});
+  final double size;
+  @override
+  Widget build(BuildContext context) {
+    final c = MaeveTheme.of(context).colors, motion = AppMotion.of(context);
+    final pearl = Color.lerp(c.accent, Colors.white, .48)!;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: motion.reduced ? 1 : 0, end: 1),
+      duration: motion.emphasized,
+      curve: MaeveMotion.glide,
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, (1 - value) * 10),
+          child: Transform.scale(scale: .94 + .06 * value, child: child),
+        ),
+      ),
+      child: Container(
+        width: size,
+        height: size,
+        padding: EdgeInsets.all(size * .17),
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            center: const Alignment(-.6, -.7),
+            radius: 1.5,
+            colors: [
+              Colors.white,
+              Color.lerp(pearl, Colors.white, .38)!,
+              pearl,
+              Color.lerp(c.accent, pearl, .25)!,
+            ],
+            stops: const [0, .22, .7, 1],
+          ),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: .65),
+            width: .7,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: c.accent.withValues(alpha: .14),
+              blurRadius: 38,
+              spreadRadius: 1,
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: c.isDark ? .12 : .04),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: MaeveMark(
+          size: size * .66,
+          state: MarkState.armed,
+          color: c.isDark ? Color.lerp(c.onAccent, c.accent, .3) : c.accent,
+        ),
+      ),
+    );
+  }
 }

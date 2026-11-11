@@ -25,6 +25,7 @@ open class MainActivity : FlutterActivity() {
         FlutterEngineCache.getInstance().get(ENGINE_ID)?.let { return it }
         return FlutterEngine(applicationContext).also { engine ->
             engine.plugins.add(MaeveUiPlugin())
+            engine.plugins.add(MaeveSettingsPlugin())
             engine.plugins.add(MaeveEntryPlugin())
             engine.plugins.add(MaeveChatPlugin())
             engine.dartExecutor.executeDartEntrypoint(DartExecutor.DartEntrypoint.createDefault())

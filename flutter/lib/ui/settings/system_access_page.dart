@@ -1,0 +1,146 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+
+import '../../app/maeve_controller.dart';
+import '../common/app_page.dart';
+import 'settings_components.dart';
+
+class SystemAccessPage extends StatefulWidget {
+  const SystemAccessPage({super.key});
+  @override
+  State<SystemAccessPage> createState() => _SystemAccessPageState();
+}
+
+class _SystemAccessPageState extends State<SystemAccessPage>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      unawaited(MaeveScope.read(context).refreshSettings());
+    }
+  }
+
+  Future<void> _open(String target) async {
+    try {
+      await MaeveScope.read(context).settingsBridge.openAccess(target);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('未能打开系统设置，请重试')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = MaeveScope.of(context), state = controller.native;
+    return AppPage.list(
+      title: '系统授权',
+      subtitle: '权限由 Android 管理，状态以设备为准',
+      actions: [
+        IconButton(
+          tooltip: '刷新设备状态',
+          onPressed: controller.refreshSettings,
+          icon: const Icon(Icons.refresh_rounded, size: 20),
+        ),
+      ],
+      children: [
+        if (controller.settingsError != null) ...[
+          const SizedBox(height: 20),
+          SettingsNotice(
+            text: controller.settingsError!,
+            icon: Icons.info_outline,
+          ),
+        ],
+        SettingsSection(
+          title: '设备权限',
+          rows: [
+            SettingsTile(
+              icon: Icons.accessibility_new_rounded,
+              title: '无障碍服务',
+              subtitle: '读取界面并执行操作',
+              value: controller.settingsError != null
+                  ? '暂不可读'
+                  : controller.settingsLoaded
+                  ? (state.accessibility ? '已开启' : '未开启')
+                  : '读取中',
+              onTap: () => _open('accessibility'),
+            ),
+            SettingsTile(
+              icon: Icons.picture_in_picture_alt_outlined,
+              title: '悬浮窗',
+              subtitle: '显示任务进度与确认卡',
+              value: controller.settingsError != null
+                  ? '暂不可读'
+                  : controller.settingsLoaded
+                  ? (state.overlay ? '已允许' : '未允许')
+                  : '读取中',
+              onTap: () => _open('overlay'),
+            ),
+            SettingsTile(
+              icon: Icons.notifications_outlined,
+              title: '通知',
+              subtitle: '任务结果、确认与配对通知',
+              value: controller.settingsError != null
+                  ? '暂不可读'
+                  : controller.settingsLoaded
+                  ? (state.notifications ? '已允许' : '未允许')
+                  : '读取中',
+              onTap: () => _open('notifications'),
+            ),
+          ],
+        ),
+        SettingsSection(
+          title: '手机助手',
+          rows: [
+            SettingsTile(
+              icon: Icons.phonelink_ring_outlined,
+              title: '后台操作连接',
+              value: controller.settingsError != null
+                  ? '暂不可读'
+                  : controller.settingsLoaded
+                  ? (state.helperRunning ? '运行中' : '未就绪')
+                  : '读取中',
+              enabled: true,
+            ),
+            if (state.phoneSupported)
+              SettingsTile(
+                icon: Icons.link_rounded,
+                title: '通过无线调试配对',
+                subtitle: '打开系统配对页并开始等待配对码',
+                onTap: () => _open('pairing'),
+              ),
+          ],
+          footnote: !controller.settingsLoaded
+              ? '请刷新以读取手机助手状态。'
+              : state.phoneSupported
+              ? '在无线调试中选择“使用配对码配对设备”，再从 Maeve 的配对通知输入配对码。请先允许通知。'
+              : '手机操作需要 Android 12 或更新版本。',
+        ),
+        SettingsSection(
+          title: '其他设置',
+          rows: [
+            SettingsTile(
+              icon: Icons.settings_outlined,
+              title: 'Android 应用设置',
+              onTap: () => _open('app'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}

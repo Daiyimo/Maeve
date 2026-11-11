@@ -23,7 +23,7 @@ class MaeveApp extends StatefulWidget {
   State<MaeveApp> createState() => _MaeveAppState();
 }
 
-class _MaeveAppState extends State<MaeveApp> {
+class _MaeveAppState extends State<MaeveApp> with WidgetsBindingObserver {
   late final MaeveController controller =
       widget.controller ?? MaeveController();
 
@@ -32,6 +32,7 @@ class _MaeveAppState extends State<MaeveApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     controller.attach();
     _entries = MaeveBridge.entries.listen(_onEntry);
   }
@@ -46,9 +47,17 @@ class _MaeveAppState extends State<MaeveApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _entries?.cancel();
     controller.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(controller.refreshSettings());
+    }
   }
 
   @override
