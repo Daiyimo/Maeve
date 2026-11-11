@@ -12,6 +12,7 @@ import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 
 import '../../widgets/glass_surface.dart';
+import '../../widgets/maeve_mark.dart';
 
 /// 尺寸变化平滑过渡(展开/收起、消息进出)。
 class SmoothSize extends StatelessWidget {
@@ -516,7 +517,7 @@ class _ThinkingPillState extends State<ThinkingPill> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (widget.busy)
-                  const MazeRing(size: 11, indeterminate: true)
+                  const MaeveMark(size: 24, state: MarkState.running)
                 else
                   StatusDot(tone: MaeveTone.ready, size: 5),
                 const SizedBox(width: 6),

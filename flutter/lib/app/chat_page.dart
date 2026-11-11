@@ -646,7 +646,11 @@ class _AssistantTurn extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (message.steps > 0) ...[
-              ThinkingPill(steps: message.steps, lines: message.thinking),
+              ThinkingPill(
+                steps: message.steps,
+                lines: message.thinking,
+                busy: isLatest && MaeveScope.of(context).generating,
+              ),
               const SizedBox(height: MaeveSpace.s10),
             ],
             // 回答:左侧一条竖线 + 全宽正文,没有填充卡片。

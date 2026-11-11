@@ -106,6 +106,9 @@ class MaeveGlassSurface extends StatelessWidget {
         fill,
       );
     }
+    // Unframed chrome should dissolve into the canvas, not form a grey bar.
+    // Keep the opaque accessibility fallback intact.
+    if (!framed && !reduce) fill = fill.withValues(alpha: fill.a * .38);
     final shape = _shape;
     final textDirection = Directionality.maybeOf(context);
 

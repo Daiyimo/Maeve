@@ -43,24 +43,25 @@ void main() {
     },
   );
 
-  testWidgets('Brand pearl settles once and reduced motion starts settled', (
-    tester,
-  ) async {
-    await tester.pumpWidget(host(const MaeveEmblem()));
-    final opacity = find.descendant(
-      of: find.byType(MaeveEmblem),
-      matching: find.byType(Opacity),
-    );
-    expect(tester.widget<Opacity>(opacity).opacity, 0);
-    await tester.pumpAndSettle();
-    expect(tester.widget<Opacity>(opacity).opacity, 1);
-    expect(tester.binding.hasScheduledFrame, isFalse);
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pumpWidget(host(const MaeveEmblem(), reducedMotion: true));
-    expect(tester.widget<Opacity>(opacity).opacity, 1);
-    await tester.pumpAndSettle();
-    expect(tester.binding.hasScheduledFrame, isFalse);
-  });
+  testWidgets(
+    'Eclipse entrance settles once and reduced motion starts settled',
+    (tester) async {
+      await tester.pumpWidget(host(const MaeveEmblem()));
+      final opacity = find.descendant(
+        of: find.byType(MaeveEmblem),
+        matching: find.byType(Opacity),
+      );
+      expect(tester.widget<Opacity>(opacity).opacity, 0);
+      await tester.pumpAndSettle();
+      expect(tester.widget<Opacity>(opacity).opacity, 1);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(host(const MaeveEmblem(), reducedMotion: true));
+      expect(tester.widget<Opacity>(opacity).opacity, 1);
+      await tester.pumpAndSettle();
+      expect(tester.binding.hasScheduledFrame, isFalse);
+    },
+  );
 
   testWidgets('Glass feedback places light at the touch and releases it', (
     tester,

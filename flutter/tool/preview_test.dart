@@ -163,6 +163,22 @@ void main() {
         navigator.pop();
         await tester.pumpAndSettle();
       }
+      bridge.emitUi(
+        conversationId: 'preview-running',
+        composer: 'busy',
+        exchanges: [
+          FakeChatBridge.exchange(
+            '把这件事整理成清晰的步骤',
+            status: 'working',
+            line: '正在整理步骤',
+            steps: 2,
+            live: true,
+          ),
+        ],
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await capture('chat-running');
     });
   }
 }

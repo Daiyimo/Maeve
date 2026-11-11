@@ -237,7 +237,7 @@ class TopBar extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (brand) ...[
-                            const _BrandDot(),
+                            _BrandDot(working: working),
                             const SizedBox(width: 7),
                           ],
                           Flexible(
@@ -351,13 +351,19 @@ class _BarButton extends StatelessWidget {
   }
 }
 
-/// 标题左边那个小标:Maeve 的品牌标缩到 16 的尺寸。
+/// 标题左边的小尺寸品牌标，执行态跟随真实任务状态。
 class _BrandDot extends StatelessWidget {
-  const _BrandDot();
+  const _BrandDot({this.working = false});
+  final bool working;
 
   @override
-  Widget build(BuildContext context) =>
-      const SizedBox.square(dimension: 16, child: MaeveMark(size: 16));
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 20,
+    child: MaeveMark(
+      size: 20,
+      state: working ? MarkState.running : MarkState.idle,
+    ),
+  );
 }
 
 /// iOS 式水平推入:进场 220ms 减速,退场 220ms 加速离开。

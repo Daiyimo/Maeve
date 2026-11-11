@@ -56,6 +56,9 @@ echo "== locked dependencies =="
 echo "== dart format =="
 "$DART_CMD" format --output=none --set-exit-if-changed lib test tool
 
+echo "== eclipse launcher vectors =="
+"$DART_CMD" run tool/export_eclipse_icons.dart --check
+
 echo "== flutter analyze =="
 "$FLUTTER_CMD" analyze --no-pub --fatal-infos
 

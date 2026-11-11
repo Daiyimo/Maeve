@@ -11,6 +11,8 @@ import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 
 import 'support/fake_chat_bridge.dart';
 
+import 'package:maeve_flutter/widgets/maeve_mark.dart';
+
 /// 壳层行为。行为断言与上一版一一对应;视觉断言按新设计更新(理由随断言写在注释里)。
 void main() {
   Future<void> pumpApp(
@@ -199,6 +201,12 @@ void main() {
     await tester.pump();
     expect(find.text('帮我理一下这件事'), findsOneWidget);
     expect(find.text('正在走这一步'), findsWidgets);
+    expect(
+      tester
+          .widgetList<MaeveMark>(find.byType(MaeveMark))
+          .where((mark) => mark.state == MarkState.running),
+      isNotEmpty,
+    );
 
     // 宿主回报完成:回答 + 步数小结
     bridge.emitUi(
@@ -215,6 +223,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('我收到了，接下来交给你。'), findsOneWidget);
     expect(find.text('思考了 3 步'), findsOneWidget);
+    expect(
+      tester
+          .widgetList<MaeveMark>(find.byType(MaeveMark))
+          .where((mark) => mark.state == MarkState.running),
+      isEmpty,
+    );
   });
 
   testWidgets('停止按钮取消这一轮', (tester) async {
