@@ -1,37 +1,20 @@
-# amoo 快速连接页
+# Amoo 接入页
 
-设置 → 常用 → **Amoo**（「手机操作」与「微信」之间；`SettingsPage.Amoo` → `app/src/main/java/com/daiyimo/maeve/ui/AmooModels.kt`）。
-它解决的是「把 Maeve 的地址发进 amoo 聊天，amoo 连不上」这件事。
+入口：Flutter 设置 → 执行与设备 → **Amoo**。页面在 `flutter/lib/ui/settings/amoo_page.dart`，通过 `maeve/settings` 的 `amoo` 方法调用原生接入流程。
 
-## 为什么发地址、发命令都没用
+## 当前链路
 
-amoo 是跑在本机 OpenClaw（stepclaw）网关里的助手：它的工具来自网关配置和手机端的「原子能力」白名单，
-不是通用 MCP 客户端。聊天里贴 URL 只会被当文本；贴命令行会被当 shell 尝试执行，再被 Maeve 的无障碍截获成任务
-（见 `docs/dev/amoo-intercept.md`）。**它不会替人把聊天里的命令跑完再把结果贴回来**，所以这一页不再给命令。
+Amoo 与 Maeve 通过 `/sdcard/Android/media/<包名>/amoo/` 的文件桥交换任务与结果，不以手机回环地址的 HTTP/MCP 连通性判断接入。早期文档中的“复制网关配置 / 现在自检”属于旧方案，已被文件桥方案替代。协议背景见 [amoo-bridge.md](amoo-bridge.md)。
 
-## 页面上的三件事
+- **开始接入**：检测到 StepOS 的 `com.stepos.ailauncher` 且 Maeve 无障碍服务正在运行时，调用既有 `AmooSetup.start()`。用户切到 Amoo 聊天后，原生流程填入并发送技能接入说明，然后等待文件桥结果验证。
+- **接入进度**：读取 `AmooSetup.stage`，区分等待聊天页、发送中、验证中、完成和失败。页面可见且应用在前台时每两秒刷新，回前台也会刷新；离开页面停止轮询。
+- **取消接入**：调用 `AmooSetup.cancel()`，只停止本次接入等待；开始接入时开启的文件桥会保留。
+- **文件桥状态**：来自 `FeatureFlags.bridgeAmoo()`；最近结果取 `out/` 中实际 JSON 文件的修改时间，不读取结果正文。桥已开启不等于技能验证成功。
 
-1. **连接状态 + 现在自检**：按钮在进程内真发一次 `GET http://127.0.0.1:18770/api/v1`（3 秒超时），
-   200 就把回包里的 `server_version` 显示成「通了 · Maeve 0.1.36」，否则显示「不通 · 原因」。
-   网络访问开着用网关令牌，只开 USB 时用 USB 令牌（回环口两套令牌都认，见
-   `core/src/main/kotlin/com/daiyimo/maeve/core/remote/RemoteAccess.kt:48-53`）。
-2. **复制网关配置**：`McpRuntime.clientConfig(McpRuntime.url("127.0.0.1", port), token)` 的 JSON，
-   加到 stepclaw 的 `mcp.servers.maeve` 后重启网关，amoo 的工具里才会有 `maeve_run_task` / `maeve_wait_task`
-   这些（`core/src/main/kotlin/com/daiyimo/maeve/core/mcp/McpTaskTools.kt:176-182`）。
-3. **复制那句话**：`用 maeve_run_task 让我的手机执行：<要做的事>，完成后用 maeve_wait_task 等结果，把答案原样告诉我。`
-   网关没配好时，直接在 amoo 里说要做的事，靠下面的截获开关也能用。
+页面读取状态不会开始接入。未安装对应 Amoo 应用或无障碍未运行时，开始按钮不可用；原生调用也再次检查前置条件。应用查询只声明这个明确的目标包。无障碍入口打开 Android 系统设置，授权后返回刷新。
 
-## 前提与退路
+## 迁移修复
 
-- 需要先打开「电脑连接」（Wi-Fi/VPN 或 USB），否则 18770 没有监听，页面会先给打开开关的按钮。
-- amoo 的 VM 与手机共享 `127.0.0.1`（stepclaw 自己的 MCP 在 8765，就是同一条回环），所以本机地址可用。
-- 网关侧若日志里出现 `[bundle-mcp] failed to start server "maeve" … fetch failed`，重启 stepclaw 让它重新拉配置。
-- 网关配置里带着令牌，别转发到公开的地方。
+旧 Compose 页面在 Flutter 唯一入口迁移时移除，但真实 Amoo 后端仍保留。本轮恢复 Flutter 入口及其原生动作，删除旧页面遗留的无调用私有辅助函数。未恢复聊天任务截获开关；它与文件桥接入是不同能力，见 [amoo-intercept.md](amoo-intercept.md)。
 
-## 文案
-
-`amoo_page_title`、`amoo_page_sub`、`amoo_status_title`、`amoo_status_listening`、`amoo_status_off`、
-`amoo_self_check`、`amoo_self_check_ok`、`amoo_self_check_fail`、`amoo_gateway_step`、`amoo_gateway_sub`、
-`amoo_copy_gateway`、`amoo_prompt_step`、`amoo_prompt_sub`、`amoo_copy_prompt`、`amoo_prompt_text`、
-`amoo_connect_enable`、`amoo_connect_enable_sub`、`amoo_connect_note`，10 个语言目录齐全。
-连接电脑页不再有 amoo 相关条目，分段标题沿用 `mcp_choose_client`（「电脑端用法」）。
+组件回归覆盖入口可达、开始/取消、状态刷新、读取失败恢复、前置条件和平台消息解码；布局审计包含小屏、大字和宽屏。原生测试验证状态元数据与实际结果文件；设备测试确认读取状态不会启动接入。

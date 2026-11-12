@@ -4,11 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maeve_flutter/app/maeve_app.dart';
 import 'package:maeve_flutter/app/maeve_controller.dart';
 import 'package:maeve_flutter/bridge/maeve_bridge.dart';
+import 'package:maeve_flutter/bridge/maeve_settings_bridge.dart';
 import 'package:maeve_flutter/design/maeve_accent.dart';
 import 'package:maeve_flutter/ui/common/app_page.dart';
 import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/system_access_page.dart';
+import 'package:maeve_flutter/ui/settings/amoo_page.dart';
 
 import '../support/fake_chat_bridge.dart';
 import '../support/fake_settings_bridge.dart';
@@ -44,6 +46,109 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'Amoo is reachable from settings and uses native start and cancel',
+    (tester) async {
+      final settings = FakeSettingsBridge();
+      await mount(tester, settings);
+      await open(tester, const SettingsHubPage());
+      await tester.tap(find.text('Amoo'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AmooPage), findsOneWidget);
+      expect(settings.amooActions, ['snapshot']);
+      await tester.tap(find.text('开始接入'));
+      await tester.pumpAndSettle();
+      expect(find.text('等待 Amoo 聊天页，请现在切换过去'), findsOneWidget);
+      expect(settings.amooActions.last, 'start');
+      await tester.tap(find.text('取消接入'));
+      await tester.pumpAndSettle();
+      expect(settings.amooActions.last, 'cancel');
+      expect(find.text('已开启'), findsOneWidget);
+      expect(find.text('接入验证已完成'), findsNothing);
+    },
+  );
+
+  testWidgets('Amoo refreshes native progress and recovers from a read error', (
+    tester,
+  ) async {
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    final settings = FakeSettingsBridge();
+    await mount(tester, settings);
+    settings.fail = true;
+    await open(tester, const AmooPage());
+    expect(find.text('未能读取 Amoo 状态，请重试。'), findsOneWidget);
+    expect(settings.amooActions, ['snapshot']);
+    settings.fail = false;
+    settings.amooStatus = const NativeAmooStatus(
+      stage: 'verifying',
+      installed: true,
+      accessibility: true,
+      bridgeEnabled: true,
+    );
+    await tester.tap(find.byTooltip('刷新 Amoo 状态'));
+    await tester.pumpAndSettle();
+    expect(find.text('已发送，等待 Amoo 完成验证'), findsOneWidget);
+    settings.amooStatus = const NativeAmooStatus(
+      stage: 'done',
+      installed: true,
+      accessibility: true,
+      bridgeEnabled: true,
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.text('接入验证已完成'), findsOneWidget);
+    expect(settings.amooActions, everyElement('snapshot'));
+  });
+
+  testWidgets('Amoo cannot start without its app and live accessibility', (
+    tester,
+  ) async {
+    final settings = FakeSettingsBridge()
+      ..amooStatus = const NativeAmooStatus();
+    await mount(tester, settings);
+    await open(tester, const AmooPage());
+    expect(find.text('未检测到 Amoo'), findsOneWidget);
+    expect(find.text('开启无障碍服务'), findsOneWidget);
+    await tester.tap(find.text('开始接入'), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(settings.amooActions, ['snapshot']);
+    await tester.tap(find.text('开启无障碍服务'));
+    await tester.pumpAndSettle();
+    expect(settings.targets, ['accessibility']);
+  });
+
+  test(
+    'Amoo platform bridge decodes native state and preserves the action',
+    () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(HostSettingsBridge.channel, (
+        call,
+      ) async {
+        expect(call.method, 'amoo');
+        expect(call.arguments, {'action': 'snapshot'});
+        return {
+          'stage': 'waiting',
+          'installed': true,
+          'accessibility': false,
+          'bridgeEnabled': true,
+          'lastResultAt': 123000,
+        };
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(
+          HostSettingsBridge.channel,
+          null,
+        ),
+      );
+      final status = await const HostSettingsBridge().amoo('snapshot');
+      expect(status.active, isTrue);
+      expect(status.bridgeEnabled, isTrue);
+      expect(status.accessibility, isFalse);
+      expect(status.lastResultAt!.millisecondsSinceEpoch, 123000);
+    },
+  );
 
   testWidgets('Provider presets fill the native protocol and base URL', (
     tester,
@@ -113,6 +218,7 @@ void main() {
       await open(tester, const SettingsHubPage());
       expect(find.text('模型配置'), findsOneWidget);
       expect(find.text('test-model'), findsOneWidget);
+      expect(find.text('Amoo'), findsOneWidget);
       for (final label in [
         '本机',
         '余额',
@@ -126,6 +232,20 @@ void main() {
         expect(find.text(label), findsNothing);
       }
       expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'Wireless pairing explains the actual developer settings destination',
+    (tester) async {
+      final settings = FakeSettingsBridge();
+      await mount(tester, settings);
+      await open(tester, const SystemAccessPage());
+      final pairing = find.text('通过无线调试配对');
+      await tester.ensureVisible(pairing);
+      await tester.tap(pairing);
+      await tester.pumpAndSettle();
+      expect(settings.targets, ['pairing']);
+      expect(find.textContaining('打开开发者选项'), findsWidgets);
     },
   );
   testWidgets(
@@ -172,13 +292,47 @@ void main() {
       final settings = FakeSettingsBridge();
       await mount(tester, settings);
       await open(tester, const SystemAccessPage());
-      expect(find.text('已开启'), findsOneWidget);
+      expect(find.text('已连接'), findsOneWidget);
       expect(find.text('未允许'), findsOneWidget);
       await tester.tap(find.text('无障碍服务'));
       await tester.pumpAndSettle();
       expect(settings.targets, ['accessibility']);
-      expect(find.text('已开启'), findsOneWidget);
+      expect(find.text('已连接'), findsOneWidget);
       expect(find.textContaining('测试通过'), findsNothing);
+    },
+  );
+  testWidgets(
+    'Pairing guides notification permission before starting discovery',
+    (tester) async {
+      final settings = FakeSettingsBridge()..values['notifications'] = false;
+      final controller = await mount(tester, settings);
+      await open(tester, const SystemAccessPage());
+      final pairing = find.text('通过无线调试配对');
+      await tester.ensureVisible(pairing);
+      expect(find.textContaining('先允许通知，以便'), findsOneWidget);
+      await tester.tap(pairing);
+      await tester.pumpAndSettle();
+      expect(settings.targets, ['notifications']);
+      settings.values['notifications'] = true;
+      await controller.refreshSettings();
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(pairing);
+      await tester.tap(pairing);
+      await tester.pumpAndSettle();
+      expect(settings.targets, ['notifications', 'pairing']);
+    },
+  );
+
+  testWidgets(
+    'Enabled accessibility without a connected service is not ready',
+    (tester) async {
+      final settings = FakeSettingsBridge()
+        ..values['accessibilityRunning'] = false;
+      await mount(tester, settings);
+      await open(tester, const SystemAccessPage());
+      expect(find.text('等待连接'), findsOneWidget);
+      expect(find.textContaining('服务尚未连接'), findsOneWidget);
+      expect(find.text('已连接'), findsNothing);
     },
   );
   testWidgets('Appearance choices survive a controller restart', (

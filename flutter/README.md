@@ -7,6 +7,7 @@ Flutter is the only application interface. Android owns the existing Mika-derive
 - Real chat and conversation search, pinning and deletion through maeve/chat.
 - Model configuration and selection through maeve/settings and the existing native ProviderStore, including its provider presets with their native endpoints and protocols. Keys are not returned to Flutter.
 - Android permission status and system authorization targets, plus native helper pairing notifications.
+- Amoo setup and file-bridge status through the existing native AmooSetup and FeatureFlags; reading the page does not start setup.
 - Persistent themes, six palettes, reduced transparency and haptics.
 - About, the purple eclipse mark (equilibrium at rest, local divergence during real work), and packaged legal notices.
 
@@ -18,7 +19,11 @@ The idle home fits normal phone viewports without scrolling; three compact start
 
 ## Validation
 
-Run flutter/tool/verify.sh from the repository or the Flutter analyzer and widget tests from this module. Tests cover chat behavior, native settings contracts, persistence, endpoint input validation, all eight real settings destinations, narrow/wide/large-text layouts and six light/dark palettes. No screenshot font is required by CI.
+Run flutter/tool/verify.sh from the repository or the Flutter analyzer and widget tests from this module. Tests cover chat behavior, native settings contracts, persistence, endpoint input validation, all nine real settings destinations, narrow/wide/large-text layouts and six light/dark palettes. No screenshot font is required by CI.
+
+Wireless pairing reuses Android's native DeveloperSettings route, with the wireless-debugging preference highlighted when supported. The user enables wireless debugging and opens its pairing-code dialog there; inaccessible Settings targets return a visible error. It does not use an unsupported wireless-debugging action or silently redirect to app details.
+
+System access distinguishes an enabled accessibility setting from a connected service. Pairing guides the user to notification settings first when notifications are blocked, so the native code-entry notification remains available during setup.
 
 Chat execution follows native `ComposerMode`; a turn's `live` flag identifies the attached turn and may remain true after completion. Conversation summary events update metadata while preserving loaded turns. Regression tests cover completion, summary refreshes during and after work, fresh conversations and error details with blank drafts.
 

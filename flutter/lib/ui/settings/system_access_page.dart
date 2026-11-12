@@ -65,6 +65,13 @@ class _SystemAccessPageState extends State<SystemAccessPage>
             icon: Icons.info_outline,
           ),
         ],
+        if (controller.settingsLoaded &&
+            state.accessibility &&
+            !state.accessibilityRunning)
+          const SettingsNotice(
+            text: '无障碍已启用，但服务尚未连接。可在系统无障碍设置中关闭后重新开启 Maeve，再返回刷新。',
+            icon: Icons.info_outline,
+          ),
         SettingsSection(
           title: '设备权限',
           rows: [
@@ -75,7 +82,11 @@ class _SystemAccessPageState extends State<SystemAccessPage>
               value: controller.settingsError != null
                   ? '暂不可读'
                   : controller.settingsLoaded
-                  ? (state.accessibility ? '已开启' : '未开启')
+                  ? (state.accessibilityRunning
+                        ? '已连接'
+                        : state.accessibility
+                        ? '等待连接'
+                        : '未开启')
                   : '读取中',
               onTap: () => _open('accessibility'),
             ),
@@ -120,14 +131,17 @@ class _SystemAccessPageState extends State<SystemAccessPage>
               SettingsTile(
                 icon: Icons.link_rounded,
                 title: '通过无线调试配对',
-                subtitle: '打开系统配对页并开始等待配对码',
-                onTap: () => _open('pairing'),
+                subtitle: state.notifications
+                    ? '打开开发者选项，再进入无线调试'
+                    : '先允许通知，以便在系统配对页输入配对码',
+                onTap: () =>
+                    _open(state.notifications ? 'pairing' : 'notifications'),
               ),
           ],
           footnote: !controller.settingsLoaded
               ? '请刷新以读取手机助手状态。'
               : state.phoneSupported
-              ? '在无线调试中选择“使用配对码配对设备”，再从 Maeve 的配对通知输入配对码。请先允许通知。'
+              ? '打开开发者选项后，开启“无线调试”，再选择“使用配对码配对设备”。无障碍服务运行时可自动读码，也可以从 Maeve 的配对通知输入。请先允许通知；未启用开发者选项时，先到“关于手机”连续点击版本号。'
               : '手机操作需要 Android 12 或更新版本。',
         ),
         SettingsSection(

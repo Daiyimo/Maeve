@@ -9,6 +9,9 @@ import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.a11y.MaeveAccessibilityService
 import com.daiyimo.maeve.core.model.ModelRole
 import com.daiyimo.maeve.core.shell.BuiltinShellStatus
+import com.daiyimo.maeve.cap.phone.setup.DeveloperSettings
+import com.daiyimo.maeve.cap.phone.a11y.ScreenAccessibility
+import com.daiyimo.maeve.settings.FeatureFlags
 import com.daiyimo.maeve.settings.ProviderConfig
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -44,21 +47,55 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
         if (call.method == "openAccess") {
             val host = activity?.activity ?: return result.error("no_activity", "A foreground activity is required", null)
             val action = call.argument<String>("target")
-            val intent = when (action) {
-                "accessibility" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                "overlay" -> Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${app.packageName}"))
-                "notifications" -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, app.packageName)
+            val intents = when (action) {
+                "accessibility" -> listOf(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                "overlay" -> listOf(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${app.packageName}")))
+                "notifications" -> listOf(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, app.packageName))
                 "pairing" -> {
+                    if (android.os.Build.VERSION.SDK_INT < 31) return result.error("unsupported", "手机操作需要 Android 12 或更新版本", null)
+                    app.phone.pairing.startRepair()
                     app.phone.pairing.begin()
-                    Intent("android.settings.WIRELESS_DEBUGGING_SETTINGS")
+                    // Wireless debugging has no public direct Settings action.
+                    // Reuse the native guide's highlighted developer-options route.
+                    DeveloperSettings.wirelessDebuggingPage()
                 }
-                "app" -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.packageName}"))
+                "app" -> listOf(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.packageName}")))
                 else -> return result.error("bad_args", "Unknown system settings target", null)
             }
-            try { host.startActivity(intent); result.success(null) }
-            catch (_: android.content.ActivityNotFoundException) {
-                host.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.packageName}")))
-                result.success(null)
+            for (intent in intents) {
+                try { host.startActivity(intent); result.success(null); return }
+                catch (_: android.content.ActivityNotFoundException) { /* Try the native fallback. */ }
+                catch (_: SecurityException) { /* Some vendors restrict specific Settings pages. */ }
+            }
+            if (action == "pairing") app.phone.pairing.end()
+            result.error("settings_unavailable", "未能打开对应的系统设置，请从 Android 设置中进入", null)
+            return
+        }
+        if (call.method == "amoo") {
+            scope.launch {
+                try {
+                    when (call.argument<String>("action")) {
+                        "snapshot" -> Unit
+                        "start" -> {
+                            check(amooInstalled()) { "未检测到 StepOS 的 Amoo 聊天应用" }
+                            check(ScreenAccessibility.instance.value != null) { "请先开启 Maeve 无障碍服务，再开始接入" }
+                            app.amooSetup.start()
+                        }
+                        "cancel" -> app.amooSetup.cancel()
+                        else -> return@launch result.error("bad_args", "Unknown Amoo action", null)
+                    }
+                    result.success(withContext(Dispatchers.IO) {
+                        FlutterAmooSettings.snapshot(
+                            stage = app.amooSetup.stage.value,
+                            bridgeEnabled = FeatureFlags.get(app).bridgeAmoo(),
+                            media = app.externalMediaDirs.firstOrNull(),
+                            installed = amooInstalled(),
+                            accessibility = ScreenAccessibility.instance.value != null,
+                        )
+                    })
+                } catch (e: CancellationException) { throw e }
+                catch (e: IllegalStateException) { result.error("amoo_unavailable", e.message, null) }
+                catch (_: Exception) { result.error("amoo_failed", "未能读取或更新 Amoo 接入状态，请重试", null) }
             }
             return
         }
@@ -95,6 +132,10 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
         }
     }
 
+    private fun amooInstalled(): Boolean = runCatching {
+        app.packageManager.getApplicationInfo("com.stepos.ailauncher", 0).enabled
+    }.getOrDefault(false)
+
     private fun snapshot(): Map<String, Any?> {
         val current = app.providers.configFor(ModelRole.Main)
         val enabled = Settings.Secure.getString(app.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
@@ -107,6 +148,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
             "models" to models.choices().map { it.toMap() },
             "presets" to FlutterModelSettings.presets(),
             "accessibility" to a11y, "overlay" to Settings.canDrawOverlays(app),
+            "accessibilityRunning" to (ScreenAccessibility.instance.value != null),
             "notifications" to app.getSystemService(NotificationManager::class.java).areNotificationsEnabled(),
             "helperRunning" to (app.phone.shellControl.status.value is BuiltinShellStatus.Running),
             "phoneSupported" to (android.os.Build.VERSION.SDK_INT >= 31),

@@ -21,6 +21,7 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
               ]
             : <Map<String, Object>>[],
         'accessibility': true,
+        'accessibilityRunning': true,
         'overlay': false,
         'notifications': true,
         'helperRunning': false,
@@ -52,6 +53,11 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
   final Map<String, dynamic> values;
   final targets = <String>[];
   final savedModels = <Map<String, String>>[];
+  final amooActions = <String>[];
+  NativeAmooStatus amooStatus = const NativeAmooStatus(
+    installed: true,
+    accessibility: true,
+  );
   bool fail = false;
   @override
   Future<NativeSettings> load() async {
@@ -87,5 +93,26 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
   @override
   Future<void> openAccess(String target) async {
     targets.add(target);
+  }
+
+  @override
+  Future<NativeAmooStatus> amoo(String action) async {
+    amooActions.add(action);
+    if (fail) throw StateError('Fixture Amoo failure');
+    if (action == 'start') {
+      amooStatus = const NativeAmooStatus(
+        stage: 'waiting',
+        installed: true,
+        accessibility: true,
+        bridgeEnabled: true,
+      );
+    } else if (action == 'cancel') {
+      amooStatus = const NativeAmooStatus(
+        installed: true,
+        accessibility: true,
+        bridgeEnabled: true,
+      );
+    }
+    return amooStatus;
   }
 }

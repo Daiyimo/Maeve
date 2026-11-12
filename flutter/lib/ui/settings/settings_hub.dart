@@ -9,6 +9,7 @@ import 'appearance_page.dart';
 import 'general_pages.dart';
 import 'model_settings_page.dart';
 import 'system_access_page.dart';
+import 'amoo_page.dart';
 import 'about_pages.dart';
 import 'palette_strip.dart';
 
@@ -48,6 +49,12 @@ class SettingsHubPage extends StatelessWidget {
               title: '系统授权',
               subtitle: '权限与手机助手连接',
               onTap: () => AppPage.open(context, const SystemAccessPage()),
+            ),
+            SettingsTile(
+              icon: Icons.link_rounded,
+              title: 'Amoo',
+              subtitle: '一键接入与文件桥状态',
+              onTap: () => AppPage.open(context, const AmooPage()),
             ),
           ],
         ),

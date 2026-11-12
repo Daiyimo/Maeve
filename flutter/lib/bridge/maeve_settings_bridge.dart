@@ -1,5 +1,31 @@
 import 'package:flutter/services.dart';
 
+class NativeAmooStatus {
+  const NativeAmooStatus({
+    this.stage = 'idle',
+    this.installed = false,
+    this.accessibility = false,
+    this.bridgeEnabled = false,
+    this.lastResultAt,
+  });
+  final String stage;
+  final bool installed, accessibility, bridgeEnabled;
+  final DateTime? lastResultAt;
+  bool get active => const ['waiting', 'sending', 'verifying'].contains(stage);
+  factory NativeAmooStatus.fromMap(Map<dynamic, dynamic> map) =>
+      NativeAmooStatus(
+        stage: map['stage'] as String? ?? 'idle',
+        installed: map['installed'] == true,
+        accessibility: map['accessibility'] == true,
+        bridgeEnabled: map['bridgeEnabled'] == true,
+        lastResultAt: map['lastResultAt'] is num
+            ? DateTime.fromMillisecondsSinceEpoch(
+                (map['lastResultAt'] as num).toInt(),
+              )
+            : null,
+      );
+}
+
 class NativeProviderPreset {
   const NativeProviderPreset({
     required this.id,
@@ -50,6 +76,7 @@ class NativeSettings {
     this.models = const [],
     this.presets = const [],
     this.accessibility = false,
+    this.accessibilityRunning = false,
     this.overlay = false,
     this.notifications = false,
     this.helperRunning = false,
@@ -59,6 +86,7 @@ class NativeSettings {
   final bool haptics,
       reduceTransparency,
       accessibility,
+      accessibilityRunning,
       overlay,
       notifications,
       helperRunning,
@@ -82,6 +110,7 @@ class NativeSettings {
         NativeProviderPreset.fromMap(item as Map),
     ],
     accessibility: map['accessibility'] == true,
+    accessibilityRunning: map['accessibilityRunning'] == true,
     overlay: map['overlay'] == true,
     notifications: map['notifications'] == true,
     helperRunning: map['helperRunning'] == true,
@@ -96,6 +125,7 @@ abstract class MaeveSettingsBridge {
   Future<NativeSettings> saveModel(Map<String, String> values);
   Future<NativeSettings> selectModel(String id);
   Future<void> openAccess(String target);
+  Future<NativeAmooStatus> amoo(String action);
 }
 
 class HostSettingsBridge extends MaeveSettingsBridge {
@@ -127,4 +157,12 @@ class HostSettingsBridge extends MaeveSettingsBridge {
   @override
   Future<void> openAccess(String target) =>
       channel.invokeMethod<void>('openAccess', {'target': target});
+  @override
+  Future<NativeAmooStatus> amoo(String action) async {
+    final response = await channel.invokeMapMethod<Object?, Object?>('amoo', {
+      'action': action,
+    });
+    if (response == null) throw StateError('Amoo status was not returned');
+    return NativeAmooStatus.fromMap(response);
+  }
 }

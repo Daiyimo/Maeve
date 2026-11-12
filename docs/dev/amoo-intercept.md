@@ -47,7 +47,7 @@ Maeve 的无障碍服务持续观察 amoo 聊天页：用户每发出一条消�
 | `MaeveApp.kt` | 持有 `amooIntercept` 单例 |
 | `a11y/MaeveAccessibilityService.kt` | `onServiceConnected` 转发给截获模块做前台同步；`onAccessibilityEvent` 转发事件 |
 | `settings/FeatureFlags.kt` | `intercept_amoo` 开关（默认 false）+ `interceptAmooChanges(): Flow<Boolean>` |
-| `ui/AmooScreen.kt` | 设置 → 常用 → Amoo：只剩「一键接入」（`AmooSetup`）与「连接状态」两张卡；截获开关已从界面撤掉 |
+| `flutter/lib/ui/settings/amoo_page.dart` | 设置 → 执行与设备 → Amoo：一键接入（`AmooSetup`）与真实文件桥状态；截获开关不在界面暴露 |
 | `app/src/main/res/values*/strings_mcp.xml`（10 个语言） | `amoo_intercept_title/sub/note` 三键（含中文），顺带补齐遗留缺失的 `stepclaw_*` 9 键 |
 
 ## 4. 关键实现细节（踩过的坑，交叉验证重点）
