@@ -19,6 +19,11 @@ ALLOW = {
     "flutter/UI_SPEC_HANDOFF.md",
 }
 EXTS = {".dart", ".kt", ".kts", ".md", ".xml", ".yaml", ".yml", ".sh", ".py"}
+# 历史视觉文档引用设计来源；只忽略这一条链接，文档其余内容仍检查。
+CITATIONS = {
+    "docs/reference/compose-before-flutter/visual-tokens.md":
+        "[dsh-Go](https://github.com/ccch1mneyyy/dsh-Go)",
+}
 
 bad = []
 for rel in subprocess.check_output(["git", "ls-files"], text=True).splitlines():
@@ -28,6 +33,8 @@ for rel in subprocess.check_output(["git", "ls-files"], text=True).splitlines():
         text = pathlib.Path(rel).read_text(encoding="utf-8", errors="ignore")
     except OSError:
         continue
+    if citation := CITATIONS.get(rel):
+        text = text.replace(citation, "")
     if any(n in text for n in NEEDLES):
         bad.append(rel)
 

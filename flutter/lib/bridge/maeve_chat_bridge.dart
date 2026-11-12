@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'maeve_bridge.dart';
 
+import 'dart:typed_data';
+
+import '../models/execution.dart';
+
 /// 对话桥的接口。壳只认这个接口;真机上由 [HostChatBridge] 走方法通道接宿主,
 /// 测试里换 [FakeChatBridge] 之类的实现,界面代码一行不动。
 abstract class MaeveChatBridge {
@@ -27,6 +31,10 @@ abstract class MaeveChatBridge {
 
   /// 删除对话。
   Future<void> delete(String id);
+  Future<Uint8List?> preview(String conversationId);
+  Future<RunDetails> runDetails(String runId);
+  Future<Uint8List?> runScreen(String runId, int screenId);
+  Future<bool> taskAction(String conversationId, String action, {int? key});
 
   /// 事件流:{kind: 'conversations', items} / {kind: 'ui', ...}。
   Stream<dynamic> get chatStream;
@@ -35,6 +43,34 @@ abstract class MaeveChatBridge {
 /// 真机实现:全部转发给平台通道(见 MaeveBridge / 宿主 MaeveChatPlugin)。
 class HostChatBridge extends MaeveChatBridge {
   const HostChatBridge();
+  @override
+  Future<Uint8List?> preview(String conversationId) => MaeveBridge.chatMethods
+      .invokeMethod<Uint8List>('preview', {'conversationId': conversationId});
+  @override
+  Future<RunDetails> runDetails(String runId) async => RunDetails.fromMap(
+    await MaeveBridge.chatMethods.invokeMapMethod('runDetails', {
+          'runId': runId,
+        }) ??
+        const {},
+  );
+  @override
+  Future<Uint8List?> runScreen(String runId, int screenId) =>
+      MaeveBridge.chatMethods.invokeMethod<Uint8List>('runScreen', {
+        'runId': runId,
+        'screenId': screenId,
+      });
+  @override
+  Future<bool> taskAction(
+    String conversationId,
+    String action, {
+    int? key,
+  }) async =>
+      await MaeveBridge.chatMethods.invokeMethod<bool>('taskAction', {
+        'conversationId': conversationId,
+        'action': action,
+        'key': ?key,
+      }) ??
+      false;
 
   @override
   Future<List<Map<String, dynamic>>> conversations() =>

@@ -18,6 +18,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
+import android.graphics.Bitmap
+import java.io.ByteArrayOutputStream
+import com.daiyimo.maeve.record.RunStore
 
 /**
  * 对话桥:Flutter 壳经 `maeve/chat`(方法)和 `maeve/chat/events`(事件)驱动真实的对话栈——
@@ -122,6 +127,51 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                 pushConversations()
                 result.success(null)
             }
+            "preview" -> engineScope().launch {
+                val id = call.argument<String>("conversationId")
+                // Use only the task's existing access-guarded preview stream.
+                val frame = id?.let { app.taskState.run(it)?.frames?.value }
+                result.success(withContext(Dispatchers.Default) { encodeFrame(frame) })
+            }
+            "runDetails" -> engineScope().launch {
+                val id = call.argument<String>("runId") ?: return@launch result.error("bad_args", "A run id is required", null)
+                try {
+                    result.success(withContext(Dispatchers.IO) {
+                        val alive = app.taskState.runs.value.any { it.runId.value == id }
+                        FlutterTaskDetails.timeline(RunTimelineViewModel(RunStore(app), id,
+                            alive = { run -> app.taskState.runs.value.any { it.runId.value == run } }).load()).let {
+                            if (it["available"] != true) it + ("running" to alive) else it
+                        }
+                    })
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("record_unavailable", "未能读取执行记录，请重试", null) }
+            }
+            "runScreen" -> engineScope().launch {
+                val id = call.argument<String>("runId") ?: return@launch result.error("bad_args", "A run id is required", null)
+                val screen = call.argument<Int>("screenId")?.takeIf { it >= 0 }
+                    ?: return@launch result.error("bad_args", "A screenshot id is required", null)
+                try { result.success(withContext(Dispatchers.IO) { RunStore(app).screen(id, screen)?.readBytes() }) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("screen_unavailable", "画面记录暂不可读", null) }
+            }
+            "taskAction" -> {
+                val id = call.argument<String>("conversationId")
+                val ui = app.chat.ui.value
+                if (id == null || ui.conversationId != id) return result.success(false)
+                val status = ui.exchanges.lastOrNull()?.status
+                val key = call.argument<Int>("key")
+                when (call.argument<String>("action")) {
+                    "approve", "decline" -> {
+                        if (status !is ExchangeStatus.NeedsConfirmation || key != status.key) return result.success(false)
+                        if (call.argument<String>("action") == "approve") app.chat.approve(status.key) else app.chat.decline(status.key)
+                    }
+                    "resume" -> if (status is ExchangeStatus.Paused && status.resumable) app.chat.resume() else return result.success(false)
+                    "takeOver" -> if (status is ExchangeStatus.NeedsTakeover) app.chat.takeOver() else return result.success(false)
+                    "handBack" -> if (status is ExchangeStatus.NeedsTakeover) app.chat.handBack() else return result.success(false)
+                    else -> return result.error("bad_args", "Unknown task action", null)
+                }
+                result.success(true)
+            }
             else -> result.notImplemented()
         }
     }
@@ -179,7 +229,7 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                         "line" to ex.line,
                         "elapsedMs" to ex.elapsedMs,
                         "runId" to ex.runId,
-                    )
+                    ) + FlutterTaskDetails.exchange(ex)
                 },
             ),
         )
@@ -256,6 +306,16 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
 
     private fun engineScope(): CoroutineScope =
         scope ?: CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).also { scope = it }
+
+    private fun encodeFrame(frame: Bitmap?): ByteArray? = runCatching {
+        if (frame == null || frame.isRecycled) return null
+        val scale = minOf(1f, 480f / frame.width, 1200f / frame.height)
+        val image = if (scale < 1f) Bitmap.createScaledBitmap(frame,
+            (frame.width * scale).toInt().coerceAtLeast(1), (frame.height * scale).toInt().coerceAtLeast(1), true) else frame
+        try { ByteArrayOutputStream().use { stream ->
+            if (image.compress(Bitmap.CompressFormat.JPEG, 65, stream)) stream.toByteArray() else null
+        } } finally { if (image !== frame) image.recycle() }
+    }.getOrNull()
 
     companion object {
         const val CHANNEL = "maeve/chat"

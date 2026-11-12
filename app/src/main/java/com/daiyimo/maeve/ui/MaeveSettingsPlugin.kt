@@ -49,7 +49,10 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
             val action = call.argument<String>("target")
             val intents = when (action) {
                 "accessibility" -> listOf(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                "overlay" -> listOf(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${app.packageName}")))
+                "overlay" -> listOf(
+                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${app.packageName}")),
+                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+                )
                 "notifications" -> listOf(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, app.packageName))
                 "pairing" -> {
                     if (android.os.Build.VERSION.SDK_INT < 31) return result.error("unsupported", "手机操作需要 Android 12 或更新版本", null)
@@ -104,6 +107,11 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                 val value = settingsMutex.withLock { withContext(Dispatchers.IO) {
                     when (call.method) {
                         "snapshot" -> snapshot()
+                        "setAutonomous" -> {
+                            val on = requireNotNull(call.argument<Boolean>("enabled")) { "Confirmation mode is required" }
+                            app.approvalControl.setAutonomous(on)
+                            snapshot()
+                        }
                         "setAppearance" -> {
                             val edit = prefs.edit()
                             call.argument<String>("mode")?.let { require(it in setOf("dark", "light", "system")); edit.putString("mode", it) }
@@ -143,6 +151,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
         val a11y = enabled.split(':').any { it.equals(component.flattenToString(), true) || it.equals(component.flattenToShortString(), true) }
         return mapOf(
             "mode" to prefs.getString("mode", "dark"), "accent" to prefs.getString("accent", "reverie"),
+            "autonomous" to app.approvals.autonomous.value,
             "haptics" to prefs.getBoolean("haptics", true), "reduceTransparency" to prefs.getBoolean("reduceTransparency", false),
             "currentModelId" to current?.let { FlutterModelSettings.id(it.providerId, it.model) }, "modelName" to current?.model,
             "models" to models.choices().map { it.toMap() },

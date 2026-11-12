@@ -12,6 +12,7 @@ import 'system_access_page.dart';
 import 'amoo_page.dart';
 import 'about_pages.dart';
 import 'palette_strip.dart';
+import 'execution_settings_page.dart';
 
 class SettingsHubPage extends StatelessWidget {
   const SettingsHubPage({super.key});
@@ -37,6 +38,13 @@ class SettingsHubPage extends StatelessWidget {
         SettingsSection(
           title: '执行与设备',
           rows: [
+            SettingsTile(
+              icon: Icons.verified_user_outlined,
+              title: '操作确认方式',
+              subtitle: '手机任务的询问与自主执行',
+              value: controller.native.autonomous ? '自主' : '询问',
+              onTap: () => AppPage.open(context, const ExecutionSettingsPage()),
+            ),
             SettingsTile(
               icon: Icons.auto_awesome_outlined,
               title: '模型配置',

@@ -27,6 +27,7 @@ data class TimelineActivity(
     val effect: String?,
     val count: Int = 1,
     val obsIds: List<Int> = emptyList(),
+    val failed: Boolean = false,
 )
 
 /** 已记录的耗时。批量/脚本的子动作包含在外层工具耗时里，只计一次。 */
@@ -52,6 +53,7 @@ data class TimelineStep(
     val screenshotId: Int?,
     val activities: List<TimelineActivity> = emptyList(),
     val timing: StepTiming = StepTiming(),
+    val failed: Boolean = false,
 )
 
 data class TimelineHeader(
@@ -158,20 +160,22 @@ class RunTimelineViewModel(
                     toolTimes.getOrPut(e.step) { mutableListOf() } += e
                     val row = at(e.step)
                     rows[e.step] = row.copy(
+                        tool = row.tool ?: toolLabel(e.tool),
                         result = resultLabel(e.resultJson, e.changed),
                         tags = row.tags + guardTags(e.resultJson),
                         screenshotId = row.screenshotId ?: e.screenshotId,
+                        failed = row.failed || NOT_OK.containsMatchIn(e.resultJson),
                     )
                 }
                 is RunEvent.Media -> at(e.step).let { rows[e.step] = it.copy(screenshotId = it.screenshotId ?: e.mediaId) }
                 is RunEvent.Activity -> {
                     val row = at(e.step)
-                    val next = TimelineActivity(e.kind, toolLabel(e.label), e.target, e.effect, obsIds = e.obsIds)
+                    val next = TimelineActivity(e.kind, toolLabel(e.label), e.target, e.effect, obsIds = e.obsIds, failed = e.failed)
                     val last = row.activities.lastOrNull()
                     val activities = if (e.kind == "observe" && last?.kind == "observe" && last.target == e.target) {
                         row.activities.dropLast(1) + last.copy(count = last.count + 1, obsIds = (last.obsIds + e.obsIds).distinct())
                     } else row.activities + next
-                    rows[e.step] = row.copy(activities = activities)
+                    rows[e.step] = row.copy(activities = activities, failed = row.failed || e.failed)
                 }
                 is RunEvent.Verifier -> tag(verifierTag(e.verdict))
                 is RunEvent.Confirmation -> tag(

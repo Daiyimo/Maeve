@@ -75,6 +75,7 @@ class NativeSettings {
     this.modelName,
     this.models = const [],
     this.presets = const [],
+    this.autonomous = false,
     this.accessibility = false,
     this.accessibilityRunning = false,
     this.overlay = false,
@@ -84,6 +85,7 @@ class NativeSettings {
   });
   final String mode, accent;
   final bool haptics,
+      autonomous,
       reduceTransparency,
       accessibility,
       accessibilityRunning,
@@ -97,6 +99,7 @@ class NativeSettings {
   factory NativeSettings.fromMap(Map<dynamic, dynamic> map) => NativeSettings(
     mode: map['mode'] as String? ?? 'dark',
     accent: map['accent'] as String? ?? 'reverie',
+    autonomous: map['autonomous'] == true,
     haptics: map['haptics'] as bool? ?? true,
     reduceTransparency: map['reduceTransparency'] as bool? ?? false,
     currentModelId: map['currentModelId'] as String?,
@@ -126,6 +129,7 @@ abstract class MaeveSettingsBridge {
   Future<NativeSettings> selectModel(String id);
   Future<void> openAccess(String target);
   Future<NativeAmooStatus> amoo(String action);
+  Future<NativeSettings> setAutonomous(bool enabled);
 }
 
 class HostSettingsBridge extends MaeveSettingsBridge {
@@ -145,6 +149,9 @@ class HostSettingsBridge extends MaeveSettingsBridge {
 
   @override
   Future<NativeSettings> load() => _call('snapshot');
+  @override
+  Future<NativeSettings> setAutonomous(bool enabled) =>
+      _call('setAutonomous', {'enabled': enabled});
   @override
   Future<NativeSettings> appearance(Map<String, Object> values) =>
       _call('setAppearance', values);

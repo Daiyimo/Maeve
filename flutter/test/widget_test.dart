@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:maeve_flutter/design/maeve_accent.dart';
 import 'package:maeve_flutter/main.dart';
-import 'package:maeve_flutter/app/quick_panel.dart';
 import 'package:maeve_flutter/ui/common/app_page.dart';
 import 'package:maeve_flutter/ui/settings/appearance_page.dart';
 import 'package:maeve_flutter/ui/settings/settings_hub.dart';
@@ -157,8 +156,7 @@ void main() {
     expect(find.text('maeve'), findsOneWidget);
     expect(find.text('本机 · 就绪'), findsOneWidget);
     expect(find.text('HOST · READY'), findsNothing);
-    // A7:窄屏也有可见的快捷面板入口(不靠边缘手势)。
-    expect(find.byTooltip('快捷面板'), findsOneWidget);
+    expect(find.byTooltip('快捷面板'), findsNothing);
     expect(find.byTooltip('打开对话列表'), findsOneWidget);
     expect(find.byKey(const ValueKey('message-input')), findsOneWidget);
     expect(find.byKey(const ValueKey('send-message')), findsOneWidget);
@@ -222,7 +220,8 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('我收到了，接下来交给你。'), findsOneWidget);
-    expect(find.text('思考了 3 步'), findsOneWidget);
+    expect(find.text('3 步'), findsOneWidget);
+    expect(find.text('完整执行记录'), findsOneWidget);
     expect(
       tester
           .widgetList<MaeveMark>(find.byType(MaeveMark))
@@ -432,31 +431,29 @@ void main() {
     expect(find.text('下一幕，\n由你决定。'), findsOneWidget);
   });
 
-  testWidgets('A7:窄屏靠顶栏按钮打开快捷面板', (tester) async {
+  testWidgets('Settings remain reachable from the conversation drawer', (
+    tester,
+  ) async {
     await pumpApp(tester, size: const Size(412, 915));
-    await tester.tap(find.byTooltip('快捷面板'));
+    await tester.tap(find.byTooltip('打开对话列表'));
     await tester.pumpAndSettle();
-    // The sheet samples once; scrolling feature cards must not resample it.
-    expect(
-      find.descendant(
-        of: find.byType(QuickPanel),
-        matching: find.byType(BackdropFilter),
-      ),
-      findsOneWidget,
-    );
-    // 面板标题走人话("快捷"),不再是等宽大写眉标。
-    expect(find.text('工作台'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsHubPage), findsOneWidget);
+    expect(find.text('工作台'), findsNothing);
     expect(find.text('系统授权'), findsOneWidget);
   });
 
-  testWidgets('两个抽屉互斥:拉开一个,另一个让位', (tester) async {
+  testWidgets('A closing drawer never reveals a removed workbench', (
+    tester,
+  ) async {
     await pumpApp(tester, size: const Size(412, 915));
     await tester.tap(find.byTooltip('打开对话列表'));
     await tester.pumpAndSettle();
     expect(drawerOnScreen(tester), isTrue);
 
     await swipeFromRight(tester);
-    expect(find.text('工作台'), findsOneWidget);
+    expect(find.text('工作台'), findsNothing);
     expect(drawerOnScreen(tester), isFalse);
   });
 

@@ -148,8 +148,9 @@
 
 所有启动器别名与通知入口统一回到 `MainActivity`，它是缓存 Flutter 引擎的宿主。默认即为 Flutter，冗余 Compose Activity 和应用页面已移除。引擎由宿主注册 UI、入口事件和聊天桥插件；Activity 重建不销毁缓存引擎。
 
-- `flutter/lib/app/`：应用状态、聊天、会话抽屉与工作台。
+- `flutter/lib/app/`：应用状态、聊天与会话抽屉；工作台已移除。
 - `flutter/lib/ui/`：设置、真实模型配置、系统授权、外观与关于页面。
+- 操作确认方式调用既有 `ApprovalControl`，不建立第二套授权策略。`maeve/chat` 传递实际步骤与动作结果；实时画面只读取任务既有的访问保护后帧流，历史记录与截图沿用 `RunTimelineViewModel` / `RunStore`。
 - `flutter/lib/design/`：完整配色、对比度、字阶、动效和材质。
 - `flutter/lib/bridge/`：平台通道与聊天事件契约。
 

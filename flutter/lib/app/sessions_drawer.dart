@@ -4,7 +4,6 @@ import 'maeve_controller.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../models/conversation.dart';
-import '../widgets/glass_surface.dart';
 import '../widgets/maeve_mark.dart';
 import '../ui/common/app_page.dart';
 import '../ui/common/app_sheet.dart';
@@ -100,17 +99,21 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
     final controller = MaeveScope.of(context),
         c = MaeveTheme.of(context).colors;
     final conversations = controller.visibleConversations;
-    return MaeveGlassSurface(
-      tier: MaeveGlassTier.sheet,
-      shape: const RoundedRectangleBorder(),
-      framed: false,
+    return DecoratedBox(
+      key: const ValueKey('conversation-sidebar'),
+      decoration: BoxDecoration(
+        color: c.isDark
+            ? c.bg
+            : Color.alphaBlend(c.accent.withValues(alpha: .015), Colors.white),
+        border: Border(right: BorderSide(color: c.rule, width: .5)),
+      ),
       child: SafeArea(
         right: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 8, 16),
+              padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
               child: Row(
                 children: [
                   const MaeveMark(size: 24),
@@ -118,7 +121,10 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                   Expanded(
                     child: Text(
                       _selecting ? '已选 ${_selected.length}' : 'Maeve',
-                      style: MaeveType.title.copyWith(color: c.ink),
+                      style: MaeveType.title.copyWith(
+                        color: c.ink,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -135,7 +141,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               child: _selecting
                   ? FilledButton.icon(
                       onPressed: _selected.isEmpty
@@ -156,18 +162,24 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                     ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
               child: TextField(
                 key: const ValueKey('conversation-search'),
                 onChanged: controller.setSearch,
+                style: MaeveType.body.copyWith(fontSize: 13.5, color: c.ink),
                 decoration: const InputDecoration(
                   hintText: '搜索对话',
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   prefixIcon: Icon(Icons.search_rounded, size: 18),
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 6, 18, 16),
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
               child: Row(
                 children: [
                   for (final item in [(0, '全部'), (1, '置顶')]) ...[
@@ -208,7 +220,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                       ),
                     )
                   : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
                       itemCount: conversations.length,
                       itemBuilder: (context, index) {
                         final item = conversations[index];
@@ -228,16 +240,17 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                           onLongPress: () => _rowMenu(controller, item),
                           scale: false,
                           child: Container(
-                            constraints: const BoxConstraints(minHeight: 64),
+                            key: ValueKey('conversation-row-${item.id}'),
+                            constraints: const BoxConstraints(minHeight: 44),
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 12,
+                              horizontal: 10,
+                              vertical: 10,
                             ),
                             decoration: BoxDecoration(
                               color: controller.activeId == item.id
-                                  ? c.accentSoft
+                                  ? c.accent.withValues(alpha: .07)
                                   : null,
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(10),
                             ),
                             child: Row(
                               children: [
@@ -254,10 +267,12 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                                 Expanded(
                                   child: Text(
                                     item.title,
-                                    maxLines: 2,
+                                    maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: MaeveType.body.copyWith(
                                       color: c.ink,
+                                      fontSize: 14,
+                                      height: 1.4,
                                     ),
                                   ),
                                 ),
@@ -277,7 +292,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                     ),
             ),
             Padding(
-              padding: const EdgeInsets.all(18),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               child: TextButton.icon(
                 onPressed: () {
                   widget.onClose();

@@ -1,3 +1,5 @@
+import 'execution.dart';
+
 /// 从宿主会话快照映射的一条消息与过程摘要。
 class Message {
   Message(
@@ -9,9 +11,33 @@ class Message {
     this.failed = false,
     this.quote,
     this.quoteFromUser = false,
+    this.status = 'done',
+    this.executionSteps = const [],
+    this.runId,
+    this.detail,
+    this.confirmationKey,
+    this.resumable = false,
   });
 
   final String text;
+  final String status;
+  final List<ExecutionStep> executionSteps;
+  final String? runId, detail;
+  final int? confirmationKey;
+  final bool resumable;
+  bool get active => !const ['done', 'failed', 'cancelled'].contains(status);
+  String get statusLabel => switch (status) {
+    'done' => '已完成',
+    'failed' => '任务失败',
+    'cancelled' => '已停止',
+    'needs_confirmation' => '等待确认',
+    'needs_input' => '等待回答',
+    'needs_takeover' => '等待接管',
+    'paused' => '已暂停',
+    'queued' => '排队中',
+    'waiting_unlock' => '等待解锁',
+    _ => '执行中',
+  };
   final bool isUser;
 
   /// 这一轮思考了几步(0 = 没有过程可折叠)。

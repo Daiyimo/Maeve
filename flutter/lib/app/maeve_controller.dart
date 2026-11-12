@@ -8,6 +8,7 @@ import '../design/maeve_accent.dart';
 
 import '../bridge/maeve_chat_bridge.dart';
 import '../models/conversation.dart';
+import '../models/execution.dart';
 import '../ui/common/haptics.dart';
 
 /// 全局状态:持久化外观、原生模型配置、真实对话与运行态。
@@ -27,6 +28,7 @@ class MaeveController extends ChangeNotifier {
 
   /// 对话桥:真机走平台通道,测试换假实现(见 MaeveChatBridge)。
   final MaeveChatBridge _bridge;
+  MaeveChatBridge get chatBridge => _bridge;
   final MaeveSettingsBridge settingsBridge;
   NativeSettings native = const NativeSettings();
   String? settingsError;
@@ -83,6 +85,11 @@ class MaeveController extends ChangeNotifier {
       _applySettings(await settingsBridge.selectModel(id), appearance: false);
   Future<void> saveModel(Map<String, String> values) async =>
       _applySettings(await settingsBridge.saveModel(values), appearance: false);
+  Future<void> setAutonomous(bool enabled) async {
+    final revision = ++_settingsRevision;
+    final next = await settingsBridge.setAutonomous(enabled);
+    if (revision == _settingsRevision) _applySettings(next, appearance: false);
+  }
 
   // —— 外观 ——
   ThemeMode mode = ThemeMode.dark;
@@ -246,12 +253,27 @@ class MaeveController extends ChangeNotifier {
             .firstOrNull ??
         (status == 'failed' ? '任务失败，请重试或检查模型配置。' : '');
     final steps = (exchange['steps'] as num?)?.toInt() ?? 0;
-    if (text.isEmpty && line.isEmpty && steps == 0) return;
+    final executionSteps = [
+      for (final row in exchange['executionSteps'] as List? ?? const [])
+        if (row is Map) ExecutionStep.fromMap(row),
+    ];
+    if (text.isEmpty &&
+        line.isEmpty &&
+        steps == 0 &&
+        const ['done', 'cancelled'].contains(status)) {
+      return;
+    }
     yield Message(
       text.isNotEmpty ? text : line,
       isUser: false,
       steps: steps,
       failed: status == 'failed',
+      status: status,
+      runId: exchange['runId'] as String?,
+      executionSteps: executionSteps,
+      detail: exchange['detail'] as String?,
+      confirmationKey: (exchange['confirmationKey'] as num?)?.toInt(),
+      resumable: exchange['resumable'] == true,
     );
   }
 

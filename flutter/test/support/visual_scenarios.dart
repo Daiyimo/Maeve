@@ -7,6 +7,7 @@ import 'package:maeve_flutter/ui/settings/licenses_page.dart';
 import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/system_access_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_page.dart';
+import 'package:maeve_flutter/ui/settings/execution_settings_page.dart';
 
 const visualPages = <String, Widget>{
   'settings': SettingsHubPage(),
@@ -14,6 +15,7 @@ const visualPages = <String, Widget>{
   'add-model': AddModelPage(),
   'access': SystemAccessPage(),
   'amoo': AmooPage(),
+  'execution': ExecutionSettingsPage(),
   'appearance': AppearancePage(),
   'performance': PerformancePage(),
   'about': AboutPage(),

@@ -21,6 +21,7 @@ import '../ui/common/status.dart';
 import '../ui/settings/settings_components.dart';
 import '../widgets/glass_surface.dart';
 import '../widgets/maeve_mark.dart';
+import '../widgets/execution_view.dart';
 
 /// 聊天页(Maeve 的语言:剧本轨 + 纸条输入条)。
 ///
@@ -30,10 +31,9 @@ import '../widgets/maeve_mark.dart';
 ///   她的回答是**一条竖线 + 全宽正文**(剧本边注),没有填充卡片。
 /// - 输入条是 16 圆角的纸条,不是胶囊;浮在内容上,下面垫一段渐隐。
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, required this.onMenu, required this.onQuickPanel});
+  const ChatPage({super.key, required this.onMenu});
 
   final VoidCallback onMenu;
-  final VoidCallback onQuickPanel;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -44,6 +44,7 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scroll = ScrollController();
   final Set<String> _openTurns = {};
   bool _showJump = false;
+  String _renderedTask = '', _renderedConversation = '';
 
   /// 正在引用的那条消息(引用 chip)。
   ({String text, bool fromUser})? _quote;
@@ -62,7 +63,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _onScroll() {
-    final show = _scroll.hasClients && _scroll.offset > 220;
+    final show = _scroll.hasClients && _scroll.position.extentAfter > 180;
     if (show != _showJump && mounted) setState(() => _showJump = show);
   }
 
@@ -95,16 +96,26 @@ class _ChatPageState extends State<ChatPage> {
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
     final conversation = controller.active;
+    final last = conversation.messages.lastOrNull;
+    final taskSignature =
+        '${conversation.id}:${conversation.messages.length}:${last?.executionSteps.length}:${last?.text.length}:${last?.status}';
+    if (_renderedTask != taskSignature) {
+      final changedConversation = _renderedConversation != conversation.id;
+      final following =
+          !_scroll.hasClients || _scroll.position.extentAfter < 140;
+      _renderedTask = taskSignature;
+      _renderedConversation = conversation.id;
+      if (changedConversation || following) _toBottom();
+    }
     final padding = MediaQuery.viewPaddingOf(context);
     final bottomSafe = padding.bottom;
-    // 列表底部要让出浮起的输入条:引文 / 自动同意 / 活动条都会把它撑高。
+    // 列表底部让出输入条与实际出现的引用、前置条件提示。
     final reserve =
         MaeveSize.composer +
         MaeveSpace.s12 +
         MaeveSpace.s24 +
         (_quote != null ? 56 : 0) +
-        (controller.blockedNotice != null ? 40 : 0) +
-        (controller.generating ? 56 : 0);
+        (controller.blockedNotice != null ? 40 : 0);
     final topInset = padding.top + MaeveSize.topBarBrand + 10;
     final bottomInset = bottomSafe + reserve;
     // 空状态的可用高度:整屏减去顶栏与输入条。用它把问候语**垂直居中** ——
@@ -180,11 +191,6 @@ class _ChatPageState extends State<ChatPage> {
               onTap: widget.onMenu,
             ),
             actions: [
-              _BarAction(
-                icon: Icons.space_dashboard_outlined,
-                label: '快捷面板',
-                onTap: widget.onQuickPanel,
-              ),
               _BarAction(
                 icon: Icons.add_rounded,
                 label: '新对话',
@@ -456,7 +462,10 @@ class _MessageList extends StatelessWidget {
         );
         continue;
       }
-      final collapsed = i != lastAssistant && !openTurns.contains(key);
+      final collapsed =
+          message.status == 'done' &&
+          i != lastAssistant &&
+          !openTurns.contains(key);
       children.add(
         _ActRow(
           act: act,
@@ -491,15 +500,20 @@ class _ActRow extends StatelessWidget {
   final bool showNumber;
 
   @override
-  Widget build(BuildContext context) => IntrinsicHeight(
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ScriptRail(act: act, showNumber: showNumber),
-        const SizedBox(width: MaeveSpace.s8),
-        Expanded(child: child),
-      ],
-    ),
+  Widget build(BuildContext context) => Stack(
+    children: [
+      Positioned(
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: MaeveSize.actRail,
+        child: ScriptRail(act: act, showNumber: showNumber),
+      ),
+      Padding(
+        padding: const EdgeInsets.only(left: MaeveSize.actRail + MaeveSpace.s8),
+        child: child,
+      ),
+    ],
   );
 }
 
@@ -625,7 +639,7 @@ class _AssistantTurn extends StatelessWidget {
                   StatusDot(tone: MaeveTone.ready, size: 5),
                   const SizedBox(width: 6),
                   Text(
-                    '已完成${message.steps > 0 ? ' · ${message.steps} 步' : ''}',
+                    '${message.statusLabel}${message.steps > 0 ? ' · ${message.steps} 步' : ''}',
                     style: MaeveType.hint.copyWith(color: colors.ink3),
                   ),
                   const SizedBox(width: 2),
@@ -645,46 +659,42 @@ class _AssistantTurn extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (message.steps > 0) ...[
-              ThinkingPill(
-                steps: message.steps,
-                lines: message.thinking,
-                busy: isLatest && MaeveScope.of(context).generating,
-              ),
-              const SizedBox(height: MaeveSpace.s10),
-            ],
+            ExecutionPanel(message: message, isLatest: isLatest),
             // 回答:左侧一条竖线 + 全宽正文,没有填充卡片。
-            Container(
-              decoration: BoxDecoration(
-                border: Border(left: BorderSide(color: colors.rule, width: 1)),
-              ),
-              padding: const EdgeInsets.only(
-                left: 15,
-                top: 1,
-                bottom: 3,
-                right: 2,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    message.text,
-                    style: MaeveType.script.copyWith(color: colors.ink),
+            if (message.text.isNotEmpty)
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(color: colors.rule, width: 1),
                   ),
-                  if (!isLatest) ...[
-                    const SizedBox(height: 2),
-                    Pressable(
-                      onTap: onToggle,
-                      borderRadius: BorderRadius.circular(MaeveRadius.pill),
-                      child: Text(
-                        '收起',
-                        style: MaeveType.hint.copyWith(color: colors.ink3),
-                      ),
+                ),
+                padding: const EdgeInsets.only(
+                  left: 15,
+                  top: 1,
+                  bottom: 3,
+                  right: 2,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      message.text,
+                      style: MaeveType.script.copyWith(color: colors.ink),
                     ),
+                    if (!isLatest) ...[
+                      const SizedBox(height: 2),
+                      Pressable(
+                        onTap: onToggle,
+                        borderRadius: BorderRadius.circular(MaeveRadius.pill),
+                        child: Text(
+                          '收起',
+                          style: MaeveType.hint.copyWith(color: colors.ink3),
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -802,14 +812,6 @@ class _ComposerDock extends StatelessWidget {
                           ),
                         ),
                 ),
-                if (controller.generating) ...[
-                  ActivityStrip(
-                    text: '正在走这一步',
-                    states: _rollStates(controller),
-                    onStop: onStop,
-                  ),
-                  const SizedBox(height: MaeveSpace.s6),
-                ],
                 _ComposerBar(
                   controller: controller,
                   input: input,
@@ -822,20 +824,6 @@ class _ComposerDock extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  /// 钢琴卷的状态:已完成的步 + 正在走的那一步。
-  List<NoteState> _rollStates(MaeveController controller) {
-    final steps = controller.active.messages
-        .where((m) => !m.isUser)
-        .fold<int>(0, (sum, m) => sum + m.steps);
-    final total = (steps + 3).clamp(4, 12);
-    return [
-      for (var i = 0; i < total; i++)
-        i < steps
-            ? NoteState.done
-            : (i == steps ? NoteState.active : NoteState.pending),
-    ];
   }
 }
 

@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:maeve_flutter/models/execution.dart';
 
 import 'package:maeve_flutter/bridge/maeve_chat_bridge.dart';
 
@@ -7,6 +10,35 @@ import 'package:maeve_flutter/bridge/maeve_chat_bridge.dart';
 /// 界面代码只认 MaeveChatBridge,所以假桥驱动下的断言测的就是**真实契约**:
 /// ui 事件驱动界面、发送转发宿主、停止转发宿主。
 class FakeChatBridge extends MaeveChatBridge {
+  Uint8List? frame;
+  RunDetails record = const RunDetails();
+  final taskActions = <String>[];
+  final previewConversations = <String>[];
+  final screenRequests = <String>[];
+  @override
+  Future<Uint8List?> preview(String conversationId) async {
+    previewConversations.add(conversationId);
+    return frame;
+  }
+
+  @override
+  Future<RunDetails> runDetails(String runId) async => record;
+  @override
+  Future<Uint8List?> runScreen(String runId, int screenId) async {
+    screenRequests.add('$runId:$screenId');
+    return frame;
+  }
+
+  @override
+  Future<bool> taskAction(
+    String conversationId,
+    String action, {
+    int? key,
+  }) async {
+    taskActions.add('$conversationId:$action:$key');
+    return true;
+  }
+
   FakeChatBridge({List<Map<String, dynamic>> conversations = const []})
     : _conversations = [...conversations];
 

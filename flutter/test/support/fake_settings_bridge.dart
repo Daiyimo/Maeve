@@ -52,6 +52,15 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
       };
   final Map<String, dynamic> values;
   final targets = <String>[];
+  final approvalChanges = <bool>[];
+  @override
+  Future<NativeSettings> setAutonomous(bool enabled) async {
+    if (fail) throw StateError('Fixture approval save failure');
+    approvalChanges.add(enabled);
+    values['autonomous'] = enabled;
+    return load();
+  }
+
   final savedModels = <Map<String, String>>[];
   final amooActions = <String>[];
   NativeAmooStatus amooStatus = const NativeAmooStatus(
