@@ -105,6 +105,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
             "haptics" to prefs.getBoolean("haptics", true), "reduceTransparency" to prefs.getBoolean("reduceTransparency", false),
             "currentModelId" to current?.let { FlutterModelSettings.id(it.providerId, it.model) }, "modelName" to current?.model,
             "models" to models.choices().map { it.toMap() },
+            "presets" to FlutterModelSettings.presets(),
             "accessibility" to a11y, "overlay" to Settings.canDrawOverlays(app),
             "notifications" to app.getSystemService(NotificationManager::class.java).areNotificationsEnabled(),
             "helperRunning" to (app.phone.shellControl.status.value is BuiltinShellStatus.Running),

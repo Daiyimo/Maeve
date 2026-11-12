@@ -3,6 +3,7 @@ package com.daiyimo.maeve.ui
 import com.daiyimo.maeve.core.model.ModelRole
 import com.daiyimo.maeve.settings.ModelOptions
 import com.daiyimo.maeve.settings.ProviderStore
+import com.daiyimo.maeve.settings.ProviderPresets
 import java.util.UUID
 
 /** Model choices belong to providers; role configurations are deliberately pruned by ProviderStore. */
@@ -33,6 +34,11 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
     }
 
     companion object {
+        fun presets(): List<Map<String, Any>> = ProviderPresets.all.map { p ->
+            mapOf("id" to p.label, "label" to p.label, "kind" to p.kind.name,
+                "baseUrl" to p.baseUrl, "selfHosted" to p.selfHosted)
+        }
+
         /** Opaque, stable across role changes/restarts; never contains a credential. */
         fun id(providerId: String, model: String): String =
             UUID.nameUUIDFromBytes("$providerId\u0000$model".toByteArray(Charsets.UTF_8)).toString()

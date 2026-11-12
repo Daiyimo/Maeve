@@ -25,6 +25,29 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
         'notifications': true,
         'helperRunning': false,
         'phoneSupported': true,
+        'presets': [
+          {
+            'id': 'DeepSeek',
+            'label': 'DeepSeek',
+            'kind': 'OpenAiCompat',
+            'baseUrl': 'https://api.deepseek.com',
+            'selfHosted': false,
+          },
+          {
+            'id': 'OpenAI',
+            'label': 'OpenAI',
+            'kind': 'OpenAiResponses',
+            'baseUrl': 'https://api.openai.com/v1',
+            'selfHosted': false,
+          },
+          {
+            'id': 'custom',
+            'label': '自定义',
+            'kind': 'OpenAiCompat',
+            'baseUrl': '',
+            'selfHosted': false,
+          },
+        ],
       };
   final Map<String, dynamic> values;
   final targets = <String>[];

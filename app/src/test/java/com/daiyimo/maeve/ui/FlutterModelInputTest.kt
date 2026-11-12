@@ -2,6 +2,7 @@ package com.daiyimo.maeve.ui
 
 import com.daiyimo.maeve.settings.ProviderConfig
 import com.daiyimo.maeve.settings.ProviderStore
+import com.daiyimo.maeve.settings.ProviderPresets
 import com.daiyimo.maeve.settings.AesGcmKeyCipher
 import com.daiyimo.maeve.core.model.ModelRole
 import org.junit.Assert.*
@@ -11,6 +12,15 @@ import org.junit.rules.TemporaryFolder
 import javax.crypto.KeyGenerator
 
 class FlutterModelInputTest {
+    @Test fun flutterRetainsEveryNativeProviderPresetWithItsRealProtocol() {
+        val catalog = FlutterModelSettings.presets()
+        assertEquals(ProviderPresets.all.map { it.label }, catalog.map { it["label"] })
+        assertEquals("OpenAiResponses", catalog.first { it["label"] == "OpenAI" }["kind"])
+        assertEquals("Anthropic", catalog.first { it["label"] == "Anthropic" }["kind"])
+        assertTrue(catalog.any { it["label"] == "DeepSeek" })
+        assertTrue(catalog.any { it["selfHosted"] == true })
+        assertFalse(catalog.any { "apiKey" in it })
+    }
     @get:Rule val tmp = TemporaryFolder()
     private val key = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
     private fun store() = ProviderStore(tmp.root, AesGcmKeyCipher { key })

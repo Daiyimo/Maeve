@@ -124,4 +124,11 @@ class FakeChatBridge extends MaeveChatBridge {
   }
 
   Future<void> dispose() => _events.close();
+
+  void emitConversations(List<Map<String, dynamic>> items) {
+    _conversations
+      ..clear()
+      ..addAll(items);
+    _events.add({'kind': 'conversations', 'items': items});
+  }
 }

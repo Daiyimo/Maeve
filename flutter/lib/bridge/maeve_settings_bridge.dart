@@ -1,5 +1,25 @@
 import 'package:flutter/services.dart';
 
+class NativeProviderPreset {
+  const NativeProviderPreset({
+    required this.id,
+    required this.label,
+    required this.kind,
+    required this.baseUrl,
+    this.selfHosted = false,
+  });
+  final String id, label, kind, baseUrl;
+  final bool selfHosted;
+  factory NativeProviderPreset.fromMap(Map<dynamic, dynamic> map) =>
+      NativeProviderPreset(
+        id: map['id'] as String,
+        label: map['label'] as String,
+        kind: map['kind'] as String,
+        baseUrl: map['baseUrl'] as String,
+        selfHosted: map['selfHosted'] == true,
+      );
+}
+
 class NativeModelConfig {
   const NativeModelConfig({
     required this.id,
@@ -28,6 +48,7 @@ class NativeSettings {
     this.currentModelId,
     this.modelName,
     this.models = const [],
+    this.presets = const [],
     this.accessibility = false,
     this.overlay = false,
     this.notifications = false,
@@ -44,6 +65,7 @@ class NativeSettings {
       phoneSupported;
   final String? currentModelId, modelName;
   final List<NativeModelConfig> models;
+  final List<NativeProviderPreset> presets;
   factory NativeSettings.fromMap(Map<dynamic, dynamic> map) => NativeSettings(
     mode: map['mode'] as String? ?? 'dark',
     accent: map['accent'] as String? ?? 'reverie',
@@ -54,6 +76,10 @@ class NativeSettings {
     models: [
       for (final item in map['models'] as List<dynamic>? ?? const [])
         NativeModelConfig.fromMap(item as Map),
+    ],
+    presets: [
+      for (final item in map['presets'] as List<dynamic>? ?? const [])
+        NativeProviderPreset.fromMap(item as Map),
     ],
     accessibility: map['accessibility'] == true,
     overlay: map['overlay'] == true,

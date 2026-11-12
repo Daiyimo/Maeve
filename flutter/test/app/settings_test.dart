@@ -45,6 +45,67 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('Provider presets fill the native protocol and base URL', (
+    tester,
+  ) async {
+    final settings = FakeSettingsBridge(configured: false);
+    settings.values['presets'] = [
+      {
+        'id': 'DeepSeek',
+        'label': 'DeepSeek',
+        'kind': 'OpenAiCompat',
+        'baseUrl': 'https://api.deepseek.com',
+        'selfHosted': false,
+      },
+      {
+        'id': 'OpenAI',
+        'label': 'OpenAI',
+        'kind': 'OpenAiResponses',
+        'baseUrl': 'https://api.openai.com/v1',
+        'selfHosted': false,
+      },
+    ];
+    await mount(tester, settings);
+    await open(tester, const AddModelPage());
+    await tester.tap(find.byKey(const ValueKey('provider-preset')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OpenAI').last);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<TextFormField>(find.byKey(const ValueKey('model-base-url')))
+          .controller!
+          .text,
+      'https://api.openai.com/v1',
+    );
+    expect(find.text('OpenAI Responses'), findsOneWidget);
+    expect(find.byKey(const ValueKey('model-api-key')), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('model-name')),
+      'previous-model',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('model-api-key')),
+      'previous-provider-key',
+    );
+    await tester.ensureVisible(find.byKey(const ValueKey('provider-preset')));
+    await tester.tap(find.byKey(const ValueKey('provider-preset')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('DeepSeek').last);
+    await tester.pumpAndSettle();
+    expect(find.text('OpenAI 兼容'), findsOneWidget);
+    for (final key in ['model-name', 'model-api-key']) {
+      expect(
+        tester
+            .widget<TextFormField>(find.byKey(ValueKey(key)))
+            .controller!
+            .text,
+        isEmpty,
+      );
+    }
+    expect(settings.savedModels, isEmpty);
+  });
+
   testWidgets(
     'Settings retain native configuration and real preferences, without account or billing stubs',
     (tester) async {

@@ -97,6 +97,7 @@ class MaeveController extends ChangeNotifier {
 
   // —— 会话(桥接真实数据)——
   final List<Conversation> conversations = [];
+  Set<String> _summaryIds = {};
   String activeId = '';
   String search = '';
 
@@ -162,20 +163,33 @@ class MaeveController extends ChangeNotifier {
     final items = (raw as List<dynamic>? ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
+    final previous = {
+      for (final conversation in conversations) conversation.id: conversation,
+    };
+    _summaryIds = items.map((item) => item['id'] as String).toSet();
+    final next = items.map((item) {
+      final id = item['id'] as String;
+      final conversation = previous[id] ?? Conversation(id: id, title: '');
+      conversation
+        ..title = (item['title'] as String?) ?? ''
+        ..updatedAt = DateTime.fromMillisecondsSinceEpoch(
+          (item['updatedAt'] as num).toInt(),
+        )
+        ..pinned = item['pinned'] == true;
+      return conversation;
+    }).toList();
+    // The UI snapshot can precede first persistence/title generation. A summary
+    // is metadata, not a replacement for the attached conversation's turns.
+    final attached = previous[hostConversationId];
+    if (attached != null &&
+        attached.id == activeId &&
+        !_summaryIds.contains(attached.id) &&
+        attached.messages.isNotEmpty) {
+      next.insert(0, attached);
+    }
     conversations
       ..clear()
-      ..addAll(
-        items.map(
-          (m) => Conversation(
-            id: m['id'] as String,
-            title: (m['title'] as String?) ?? '',
-            updatedAt: DateTime.fromMillisecondsSinceEpoch(
-              (m['updatedAt'] as num).toInt(),
-            ),
-            pinned: m['pinned'] == true,
-          ),
-        ),
-      );
+      ..addAll(next);
     if (activeId.isNotEmpty && conversations.every((c) => c.id != activeId)) {
       // 当前对话被删了:落到还剩的第一个
       activeId = conversations.isNotEmpty ? conversations.first.id : '';
@@ -184,8 +198,15 @@ class MaeveController extends ChangeNotifier {
 
   /// 宿主轮次快照 → 壳的消息列表。一问一答 = 用户气泡 + 助手轮次。
   void _applyUi(Map event) {
+    final previousHost = hostConversationId;
     hostConversationId = event['conversationId'] as String?;
     final conversationId = hostConversationId;
+    if (previousHost != conversationId && !_summaryIds.contains(previousHost)) {
+      conversations.removeWhere(
+        (conversation) => conversation.id == previousHost,
+      );
+    }
+    activeId = conversationId ?? '';
     if (conversationId != null && conversationId.isNotEmpty) {
       if (conversations.every((c) => c.id != conversationId)) {
         // 新对话(第一次发送才在 store 里建档):先放个占位,标题等 conversations 事件
@@ -197,8 +218,9 @@ class MaeveController extends ChangeNotifier {
         .map((e) => e.toString())
         .toList(growable: false);
     final exchanges = event['exchanges'] as List<dynamic>? ?? const [];
-    final live = exchanges.any((e) => e is Map && e['live'] == true);
-    generating = event['composer'] == 'busy' || live;
+    // Native live means the attached turn, including its finished result.
+    // ComposerMode is the execution authority; terminal turns must stop work UI.
+    generating = event['composer'] == 'busy';
 
     final conversation = _find(activeId);
     conversation.messages
@@ -216,11 +238,13 @@ class MaeveController extends ChangeNotifier {
       quoteFromUser: quoted.fromUser,
     );
     final status = exchange['status'] as String? ?? '';
-    final text =
-        (exchange['answer'] as String?) ??
-        (exchange['detail'] as String?) ??
-        '';
     final line = exchange['line'] as String? ?? '';
+    final text =
+        [exchange['answer'], exchange['detail'], line]
+            .whereType<String>()
+            .where((value) => value.trim().isNotEmpty)
+            .firstOrNull ??
+        (status == 'failed' ? '任务失败，请重试或检查模型配置。' : '');
     final steps = (exchange['steps'] as num?)?.toInt() ?? 0;
     if (text.isEmpty && line.isEmpty && steps == 0) return;
     yield Message(

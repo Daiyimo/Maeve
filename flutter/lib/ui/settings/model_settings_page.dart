@@ -87,6 +87,7 @@ class _AddModelPageState extends State<AddModelPage> {
       _model = TextEditingController(),
       _key = TextEditingController();
   String _kind = 'OpenAiCompat';
+  String? _presetId;
   String? _error;
   bool _saving = false;
 
@@ -152,6 +153,7 @@ class _AddModelPageState extends State<AddModelPage> {
   @override
   Widget build(BuildContext context) {
     final c = MaeveTheme.of(context).colors;
+    final presets = MaeveScope.of(context).native.presets;
     return AppPage.list(
       title: '添加模型',
       subtitle: '保存后作为当前主模型使用',
@@ -162,12 +164,52 @@ class _AddModelPageState extends State<AddModelPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (presets.isNotEmpty) ...[
+                DropdownButtonFormField<String>(
+                  key: const ValueKey('provider-preset'),
+                  initialValue: _presetId,
+                  isExpanded: true,
+                  decoration: _decoration(context, '服务商预设'),
+                  hint: const Text(
+                    '选择服务商，或自定义接入',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  items: [
+                    for (final preset in presets)
+                      DropdownMenuItem(
+                        value: preset.id,
+                        child: Text(preset.label),
+                      ),
+                  ],
+                  onChanged: _saving
+                      ? null
+                      : (id) {
+                          final preset = presets.firstWhere(
+                            (preset) => preset.id == id,
+                          );
+                          setState(() {
+                            _presetId = id;
+                            _kind = preset.kind;
+                            _url.text = preset.baseUrl;
+                            _model.clear();
+                            _key.clear();
+                            _error = null;
+                            _name.text = preset.baseUrl.isEmpty
+                                ? ''
+                                : preset.label;
+                          });
+                        },
+                ),
+                const SizedBox(height: 20),
+              ],
               TextFormField(
                 controller: _name,
                 decoration: _decoration(context, '接入名称（可选）', '便于你辨认这套配置'),
               ),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
+                key: ValueKey('model-protocol-$_kind'),
                 initialValue: _kind,
                 isExpanded: true,
                 decoration: _decoration(context, '接口协议'),

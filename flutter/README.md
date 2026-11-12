@@ -5,7 +5,7 @@ Flutter is the only application interface. Android owns the existing Mika-derive
 ## Current surfaces
 
 - Real chat and conversation search, pinning and deletion through maeve/chat.
-- Model configuration and selection through maeve/settings and the existing native ProviderStore. Keys are not returned to Flutter.
+- Model configuration and selection through maeve/settings and the existing native ProviderStore, including its provider presets with their native endpoints and protocols. Keys are not returned to Flutter.
 - Android permission status and system authorization targets, plus native helper pairing notifications.
 - Persistent themes, six palettes, reduced transparency and haptics.
 - About, the purple eclipse mark (equilibrium at rest, local divergence during real work), and packaged legal notices.
@@ -19,6 +19,10 @@ The idle home fits normal phone viewports without scrolling; three compact start
 ## Validation
 
 Run flutter/tool/verify.sh from the repository or the Flutter analyzer and widget tests from this module. Tests cover chat behavior, native settings contracts, persistence, endpoint input validation, all eight real settings destinations, narrow/wide/large-text layouts and six light/dark palettes. No screenshot font is required by CI.
+
+Chat execution follows native `ComposerMode`; a turn's `live` flag identifies the attached turn and may remain true after completion. Conversation summary events update metadata while preserving loaded turns. Regression tests cover completion, summary refreshes during and after work, fresh conversations and error details with blank drafts.
+
+`ConfiguredChatDeviceTest` is an optional device check for an already configured main model. It sends one greeting, checks the rendered reply and completion controls, then exercises a native summary update. Run instrumentation with `-e class com.daiyimo.maeve.ui.ConfiguredChatDeviceTest -e maeve_verify_configured_chat true` to opt in. Without that flag it is skipped; ordinary CI and launch tests require no credentials or paid requests.
 
 The live logo uses vector geometry in lib/widgets/eclipse_geometry.dart. After editing it, run dart run tool/export_eclipse_icons.dart from this module to update Android launcher vectors; CI checks the generated files with --check. The idle mark has no continuous animation. Reduced motion and hidden pages freeze the executing mark.
 
