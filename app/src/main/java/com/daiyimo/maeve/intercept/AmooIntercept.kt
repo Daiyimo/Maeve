@@ -134,6 +134,8 @@ class AmooIntercept(private val app: MaeveApp) {
             Log.d(TAG, "scan: root pkg=${root.packageName} skipped")
             return
         }
+        // 微信转发由系统 Amoo 自己回答，不能被旧的并行截获再建一份 Maeve 任务。
+        if (app.wechat.systemAmoo.active) return
         // root 就是 amoo:前台不知道时补记(重连会漏掉窗口事件);
         // 已经知道是 amoo 的具体页面就不覆盖,闸门 1 才拦得住设置页/搜索页。
         detector.noteAmooForeground()

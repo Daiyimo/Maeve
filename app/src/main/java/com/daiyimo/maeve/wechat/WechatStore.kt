@@ -75,6 +75,7 @@ class WechatStore(private val dir: File, private val cipher: KeyCipher) {
     }
 
     @Synchronized fun pending(): List<PendingWechatMessage> = state.pending
+    @Synchronized fun completed(messageId: String): Boolean = messageId in state.completed
 
     @Synchronized fun acknowledge(messageId: String) {
         if (state.pending.none { it.messageId == messageId }) return

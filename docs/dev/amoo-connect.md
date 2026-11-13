@@ -6,7 +6,7 @@
 
 Amoo 与 Maeve 通过 `/sdcard/Android/media/<包名>/amoo/` 的文件桥交换任务与结果，不以手机回环地址的 HTTP/MCP 连通性判断接入。早期文档中的“复制网关配置 / 现在自检”属于旧方案，已被文件桥方案替代。协议背景见 [amoo-bridge.md](amoo-bridge.md)。
 
-- **开始接入**：检测到 StepOS 的 `com.stepos.ailauncher` 且 Maeve 无障碍服务正在运行时，调用既有 `AmooSetup.start()`。用户切到 Amoo 聊天后，原生流程填入并发送技能接入说明，然后等待文件桥结果验证。
+- **开始接入**：检测到 StepOS 的 `com.stepos.ailauncher` 且 Maeve 无障碍服务正在运行时，调用既有 `AmooSetup.start()`。用户切到 Amoo 聊天后，原生流程填入并发送技能接入说明，然后等待本次版本 6 技能标记确认。
 - **接入进度**：读取 `AmooSetup.stage`，区分等待聊天页、发送中、验证中、完成和失败。页面可见且应用在前台时每两秒刷新，回前台也会刷新；离开页面停止轮询。
 - **取消接入**：调用 `AmooSetup.cancel()`，只停止本次接入等待；开始接入时开启的文件桥会保留。
 - **文件桥状态**：来自 `FeatureFlags.bridgeAmoo()`；最近结果取 `out/` 中实际 JSON 文件的修改时间，不读取结果正文。桥已开启不等于技能验证成功。

@@ -76,12 +76,15 @@ class WechatRuntime(
         })
 
     val channel = WechatChannel(store, api)
+    private val amooDirectory = File(context.filesDir, "wechat-system-amoo")
     val relay = WechatAmooRelay(
-        { context.externalMediaDirs.firstOrNull()?.let { File(it, "amoo/wechat") } },
+        { amooDirectory },
         store, { FeatureFlags.get(context).bridgeAmoo() },
     )
+    val systemAmoo = SystemAmooWechatBridge(app, store, amooDirectory)
     private var registration: AutoCloseable? = null
     private var monitor: Job? = null
+    private var delivery: Job? = null
     private val network = WechatNetwork(context) { restartMonitor() }
     private val _state = MutableStateFlow<WechatConnectionState>(
         if (store.account() == null) WechatConnectionState.NeedsBinding else WechatConnectionState.Off)
@@ -92,6 +95,12 @@ class WechatRuntime(
 
     init {
         scope.launch {
+            // 停用旧 OpenClaw 默认 agent 通道，保留微信绑定与去重账本。
+            runCatching {
+                context.externalMediaDirs.firstOrNull()?.let { media ->
+                    WechatAmooRelay.atomic(File(media, "amoo/wechat/control.json"), "{\"enabled\":false,\"session\":\"\"}")
+                }
+            }
             FeatureFlags.get(context).bridgeAmooChanges().collect {
                 runCatching { relay.syncControl() }.onFailure { Log.w(TAG, "WeChat relay control unavailable") }
             }
@@ -109,6 +118,16 @@ class WechatRuntime(
             registration = gateway.start(channel)
         }
         network.start()
+        systemAmoo.start()
+        if (delivery?.isActive != true) delivery = scope.launch {
+            while (currentCoroutineContext().isActive && store.enabled()) {
+                try {
+                    val retry = relay.deliver(channel::send)
+                    delay(if (retry) 3_000 else 150)
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { delay(3_000) }
+            }
+        }
         if (monitor?.isActive != true) {
             _state.value = WechatConnectionState.Connecting
             monitor = scope.launch { monitorLoop() }
@@ -119,6 +138,9 @@ class WechatRuntime(
     @Synchronized fun stop() {
         monitor?.cancel()
         monitor = null
+        delivery?.cancel()
+        delivery = null
+        systemAmoo.stop()
         registration?.close()
         registration = null
         network.stop()
@@ -187,7 +209,6 @@ class WechatRuntime(
         while (currentCoroutineContext().isActive && store.enabled()) {
             try {
                 relay.syncControl()
-                relay.deliver(channel::send)
                 channel.pollOnce()
                 failures = 0
                 if (store.enabled()) _state.value = WechatConnectionState.Connected

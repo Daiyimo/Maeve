@@ -6,7 +6,10 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
     'bound': false,
     'enabled': false,
     'executionEnabled': false,
-    'workerReady': false,
+    'amooReady': false,
+    'background': false,
+    'backgroundReady': false,
+    'amooActive': false,
     'state': 'unbound',
     'loggingIn': false,
   };
@@ -14,6 +17,7 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
   Future<Map<String, dynamic>> wechat(String action, {bool? enabled}) async {
     wechatActions.add(action);
     if (fail) throw StateError('Fixture WeChat failure');
+    if (action == 'setBackground') wechatStatus['background'] = enabled;
     if (action == 'setExecution') wechatStatus['executionEnabled'] = enabled;
     if (action == 'setEnabled') wechatStatus['enabled'] = enabled;
     if (action == 'login') wechatStatus['loggingIn'] = true;

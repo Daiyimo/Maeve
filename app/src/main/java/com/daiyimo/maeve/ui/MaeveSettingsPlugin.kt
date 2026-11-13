@@ -54,8 +54,9 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                         wechatSettings.action(call.argument<String>("action") ?: "snapshot", call.argument<Boolean>("enabled"))
                     })
                 } catch (e: CancellationException) { throw e }
+                catch (e: IllegalStateException) { result.error("wechat_failed", e.message, null) }
                 catch (_: Exception) { result.error("wechat_failed",
-                    if (call.argument<String>("action") == "restartWorker") "中转修复未能启动，请确认 Amoo 已安装且 Maeve 无障碍服务正在运行"
+                    if (call.argument<String>("action") == "openAmoo") "系统 Amoo 未能打开，请确认已安装且 Maeve 无障碍服务正在运行"
                     else "未能更新微信连接，请检查网络与账号状态后重试", null) }
             }
             return

@@ -30,6 +30,7 @@ class WechatAmooRelay(
     }
 
     @Synchronized fun forward(peer: ChannelPeer, messageId: String, text: String) {
+        if (store.completed(messageId)) return
         val dir = checkNotNull(root()) { "共享存储不可用，请解锁手机后重试" }
         val id = requestId(peer, messageId)
         // 留下原请求直到回复确认送达；重放入站不会重建已认领的请求。
@@ -44,10 +45,11 @@ class WechatAmooRelay(
         }.toString())
     }
 
-    suspend fun deliver(send: suspend (ChannelPeer, Delivery) -> SendOutcome) {
-        if (!store.enabled()) return
-        val dir = root() ?: return
-        val owner = store.account()?.ownerId ?: return
+    suspend fun deliver(send: suspend (ChannelPeer, Delivery) -> SendOutcome): Boolean {
+        if (!store.enabled()) return false
+        val dir = root() ?: return false
+        val owner = store.account()?.ownerId ?: return false
+        var retry = false
         for (pending in store.pending()) {
             if (pending.peer.peerId != owner) continue
             val id = requestId(pending.peer, pending.messageId)
@@ -65,21 +67,16 @@ class WechatAmooRelay(
                 "Amoo 暂未返回回复。请到 Maeve 的 Amoo 页面检查中转状态；任务可能仍在运行，请核实后再重试。"
             }
             // 再检查一次账号，避免解绑后将旧会话的内容发给新账号。
-            if (!store.enabled() || store.account()?.ownerId != owner || store.peer(owner).threadId != pending.peer.threadId) return
+            if (!store.enabled() || store.account()?.ownerId != owner || store.peer(owner).threadId != pending.peer.threadId) return false
             val outcome = send(pending.peer, Delivery.Result("amoo-$id", pending.peer.threadId, response, title = "Amoo 回复"))
             if (outcome == SendOutcome.Delivered) {
-                store.acknowledge(pending.messageId)
-                request.delete(); working.delete(); reply.delete()
-            }
+                synchronized(this) {
+                    store.acknowledge(pending.messageId)
+                    request.delete(); working.delete(); reply.delete()
+                }
+            } else retry = true
         }
-    }
-
-    fun workerReady(now: Long = System.currentTimeMillis()): Boolean {
-        val file = root()?.let { File(it, "worker.json") } ?: return false
-        val value = runCatching { json.parseToJsonElement(file.readText()).jsonObject }.getOrNull() ?: return false
-        val at = (value["at"] as? JsonPrimitive)?.longOrNull ?: return false
-        return (value["ready"] as? JsonPrimitive)?.booleanOrNull == true &&
-            ((value["version"] as? JsonPrimitive)?.intOrNull ?: 0) >= 3 && now - at in 0..30_000L
+        return retry
     }
 
     @Synchronized fun clearSession(session: String) {

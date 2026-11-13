@@ -53,7 +53,7 @@ class WechatAmooRelayTest {
         WechatAmooRelay.atomic(reply, buildJsonObject {
             put("id", id); put("session", peer.threadId); put("text", "Amoo 的回答")
         }.toString())
-        relay.deliver { _, _ -> SendOutcome.Uncertain }
+        assertTrue(relay.deliver { _, _ -> SendOutcome.Uncertain })
         assertEquals(1, store.pending().size)
         relay.deliver { _, delivery ->
             assertEquals("Amoo 的回答", (delivery as Delivery.Result).text)
@@ -62,6 +62,9 @@ class WechatAmooRelayTest {
         assertTrue(store.pending().isEmpty())
         assertFalse(reply.exists())
         assertFalse(store.journal("1", peer, "重复推送"))
+        // 收件长轮询可能持有确认前的 pending 快照，不能在回发后重新建立请求。
+        relay.forward(peer, "1", "长轮询补交旧快照")
+        assertFalse(File(dir, "requests/$id.json").exists())
     }
 
     @Test fun wrongSessionAndDisabledReceptionCannotDeliver() = runTest {
@@ -86,12 +89,4 @@ class WechatAmooRelayTest {
         assertFalse(File(dir, "requests/$id.json").exists())
     }
 
-    @Test fun staleHeartbeatCannotClaimTheWorkerIsReady() {
-        val dir = tmp.newFolder()
-        val relay = WechatAmooRelay({ dir }, store()) { false }
-        WechatAmooRelay.atomic(File(dir, "worker.json"), """{"ready":true,"at":100000,"version":3}""")
-        assertTrue(relay.workerReady(100001))
-        assertFalse(relay.workerReady(131000))
-        assertFalse(relay.workerReady(99999))
-    }
 }

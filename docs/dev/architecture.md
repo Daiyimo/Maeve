@@ -76,7 +76,7 @@
 
 渠道任务只发一次受理确认,不转发运行阶段或步数。任务持久化登记后,以 `accepted:<运行编号>` 的 `Notice` 进入 `Outbox`,发送不阻塞任务执行;同一渠道消息编号的重投不建任务也不再确认,不同编号即使文字相同也分别登记,并在同一对话里按先后顺序执行。提问、确认与接管仍只走 `ChannelInteraction`。结果链路另记主循环完成到送出、Outbox 加发送、微信 HTTP 各段毫秒数,不记消息内容。
 
-本机渠道是 `LocalChannel`(`app/task/LocalChannel.kt`):本机界面加系统通知。`WechatChannel`(`app/wechat/`)是第二渠道:单账号、本人私聊文本,凭证加密保存在本机,独立前台服务长轮询,不建中继服务器,也不另建任务状态机。入站消息先写待处理账本再推进同步游标,`TaskCenter` 按渠道消息编号持久化去重后才确认;进程重启会先补交未登记消息。任务记录保存来源 `ChannelPeer`,提问、结果与 `RunRecovery` 都按来源路由。渠道接口 `Channel`、`ChannelGateway`(主人身份、提问编号对应、付款确认只能在能确认的渠道上做,`Channel.confirms`)在 `core/run/`;微信 `confirms=false`,付款确认与手机接管仍走手机。
+本机渠道是 `LocalChannel`(`app/task/LocalChannel.kt`):本机界面加系统通知。`WechatChannel`(`app/wechat/`)是第二渠道:单账号、本人私聊文本,凭证加密保存在本机,独立前台服务长轮询,不建中继服务器,也不另建任务状态机。入站消息先写待处理账本再推进同步游标,当前微信普通消息交给系统 Amoo 真实界面，明确回发成功后才确认；仅明确委托的手机任务进入 Maeve，详见 [Amoo 微信连接](amoo-wechat.md)。进程重启会补交未确认消息，已认领的 Amoo 对话只报告结果未确认而不重放。任务记录保存来源 `ChannelPeer`,提问、结果与 `RunRecovery` 都按来源路由。渠道接口 `Channel`、`ChannelGateway`(主人身份、提问编号对应、付款确认只能在能确认的渠道上做,`Channel.confirms`)在 `core/run/`;微信 `confirms=false`,付款确认与手机接管仍走手机。
 
 ### 进程重启后
 

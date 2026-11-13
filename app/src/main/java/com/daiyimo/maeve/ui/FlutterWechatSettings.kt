@@ -18,12 +18,11 @@ internal class FlutterWechatSettings(private val app: MaeveApp, private val scop
         val runtime = app.wechat
         when (action) {
             "snapshot" -> Unit
-            "restartWorker" -> {
-                check(com.daiyimo.maeve.cap.phone.a11y.ScreenAccessibility.instance.value != null) { "请先开启无障碍服务" }
-                app.amooSetup.restartWechat()
-                app.startActivity(android.content.Intent().setClassName("com.stepos.ailauncher", "com.stepos.ailauncher.chat.activity.ChatMainActivity")
-                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            "openAmoo" -> {
+                check(!runtime.systemAmoo.active) { "请等当前 Amoo 回复完成" }
+                runtime.systemAmoo.open()
             }
+            "setBackground" -> runtime.systemAmoo.setBackground(requireNotNull(enabled))
             "login" -> {
                 check(runtime.store.account() == null) { "请先解绑当前微信" }
                 if (login == null) {
@@ -63,7 +62,12 @@ internal class FlutterWechatSettings(private val app: MaeveApp, private val scop
                 "bound" to (runtime.store.account() != null),
                 "enabled" to runtime.store.enabled(),
                 "executionEnabled" to FeatureFlags.get(app).bridgeAmoo(),
-                "workerReady" to runtime.relay.workerReady(),
+                "amooReady" to runtime.systemAmoo.available,
+                "transport" to if (runtime.systemAmoo.background) "system_amoo_background" else "system_amoo_foreground",
+                "background" to runtime.systemAmoo.background,
+                "backgroundReady" to runtime.systemAmoo.backgroundReady,
+                "amooActive" to runtime.systemAmoo.active,
+                "relayError" to runtime.systemAmoo.lastError,
                 "loggingIn" to loginActive, "qrPng" to image, "error" to loginError,
                 "state" to when (runtime.state.value) {
                     WechatConnectionState.Connected -> "connected"

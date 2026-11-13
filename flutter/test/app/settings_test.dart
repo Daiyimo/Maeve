@@ -68,7 +68,7 @@ void main() {
         'enabled': true,
         'executionEnabled': true,
         'state': 'connected',
-        'workerReady': true,
+        'amooReady': true,
       });
       await mount(tester, settings);
       await open(tester, const AmooPage());
@@ -85,6 +85,40 @@ void main() {
       expect(settings.wechatActions, contains('setExecution'));
     },
   );
+
+  testWidgets(
+    'WeChat background entry requires helper and preserves receiving',
+    (tester) async {
+      final settings = FakeSettingsBridge();
+      settings.wechatStatus.addAll({
+        'bound': true,
+        'enabled': true,
+        'backgroundReady': true,
+      });
+      await mount(tester, settings);
+      await open(tester, const AmooWechatPage());
+      expect(find.text('系统 Amoo · 前台'), findsOneWidget);
+      await tester.ensureVisible(find.text('后台接入 Amoo'));
+      await tester.tap(find.text('后台接入 Amoo'));
+      await tester.pumpAndSettle();
+      expect(settings.wechatStatus['background'], isTrue);
+      expect(settings.wechatStatus['enabled'], isTrue);
+      expect(find.text('系统 Amoo · 后台'), findsOneWidget);
+      expect(settings.wechatActions, contains('setBackground'));
+    },
+  );
+
+  testWidgets('WeChat cannot enable background entry without helper', (
+    tester,
+  ) async {
+    final settings = FakeSettingsBridge();
+    await mount(tester, settings);
+    await open(tester, const AmooWechatPage());
+    await tester.ensureVisible(find.text('后台接入 Amoo'));
+    await tester.tap(find.text('后台接入 Amoo'));
+    await tester.pumpAndSettle();
+    expect(settings.wechatActions, isNot(contains('setBackground')));
+  });
 
   testWidgets('WeChat read errors recover and login can be cancelled', (
     tester,

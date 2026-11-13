@@ -109,6 +109,7 @@ class _AmooWechatPageState extends State<AmooWechatPage>
   @override
   Widget build(BuildContext context) {
     final status = _status;
+    final background = status?['background'] == true;
     final bound = status?['bound'] == true;
     final loggingIn = status?['loggingIn'] == true;
     final qr = status?['qrPng'];
@@ -138,16 +139,21 @@ class _AmooWechatPageState extends State<AmooWechatPage>
             text: status!['error'] as String,
             icon: Icons.info_outline,
           ),
+        if (status?['relayError'] is String)
+          SettingsNotice(
+            text: status!['relayError'] as String,
+            icon: Icons.info_outline,
+          ),
         SettingsSection(
           title: '连接状态',
           topSpacing: 12,
           rows: [
             SettingsTile(
               icon: Icons.restart_alt_rounded,
-              title: '修复 Amoo 中转',
-              subtitle: '切到 Amoo 启动新版中转，保留微信绑定',
-              enabled: !_busy && status != null,
-              onTap: () => _update('restartWorker'),
+              title: '打开系统 Amoo',
+              subtitle: '使用手机里的 Amoo 真实聊天入口',
+              enabled: !_busy && status != null && status['amooActive'] != true,
+              onTap: () => _update('openAmoo'),
             ),
             SettingsTile(
               icon: Icons.chat_bubble_outline_rounded,
@@ -155,14 +161,33 @@ class _AmooWechatPageState extends State<AmooWechatPage>
             ),
             SettingsTile(
               icon: Icons.swap_horiz_rounded,
-              title: 'Amoo 中转',
-              value: status?['workerReady'] == true ? '运行中' : '等待接入',
-              subtitle: status?['workerReady'] == true
-                  ? '微信消息由 Amoo 处理并回复'
-                  : '请回到 Amoo 页面开始接入，再按提示切到 Amoo 聊天',
+              title: status?['background'] == true
+                  ? '系统 Amoo · 后台'
+                  : '系统 Amoo · 前台',
+              value: status?['amooReady'] == true ? '可用' : '需要授权',
+              subtitle: status?['amooReady'] == true
+                  ? background
+                        ? '在独立屏幕中使用系统 Amoo，不切换当前界面'
+                        : '收到微信消息时会切到 Amoo，完成后原样回发'
+                  : '请安装系统 Amoo 并开启 Maeve 无障碍服务',
+            ),
+            SettingsSwitchTile(
+              icon: Icons.layers_outlined,
+              title: '后台接入 Amoo',
+              subtitle: status?['backgroundReady'] == true
+                  ? '使用手机助手的独立屏幕处理微信消息'
+                  : '需要先在系统授权连接手机助手',
+              value: status?['background'] == true,
+              enabled:
+                  !_busy &&
+                  status != null &&
+                  status['amooActive'] != true &&
+                  (status['background'] == true ||
+                      status['backgroundReady'] == true),
+              onChanged: (value) => _update('setBackground', enabled: value),
             ),
           ],
-          footnote: '先完成 Amoo 接入，再用微信扫码绑定 Bot。仅接收绑定账号的私聊文本；图片、语音和群聊暂不支持。',
+          footnote: '前台方式会打开系统 Amoo。后台方式需要手机助手，在独立屏幕中使用同一个系统入口；你正在前台使用 Amoo 时不会抢占。聊天不使用 Maeve 的模型 API。',
         ),
         if (!bound)
           SettingsSection(

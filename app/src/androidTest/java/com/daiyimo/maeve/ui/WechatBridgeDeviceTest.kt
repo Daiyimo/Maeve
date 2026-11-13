@@ -18,57 +18,80 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class WechatBridgeDeviceTest {
-    @Test fun liveAmooChatDoesNotCallMaeveModelWhenExplicitlyRequested() = kotlinx.coroutines.runBlocking {
-        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("liveAmoo") == "true")
+    @Test fun backgroundSystemAmooDisplayWhenExplicitlyRequested() {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("backgroundAmoo") == "true")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val support = com.daiyimo.maeve.cap.phone.a11y.DeviceSupport
+        support.service()
+        val shell = support.shell()
+        ActivityScenario.launch<MainActivity>(Intent(context, MainActivity::class.java)).use {
+            val display = com.daiyimo.maeve.cap.phone.display.AgentDisplay(shell, 720, 1600, 320,
+                context.getSystemService(android.hardware.display.DisplayManager::class.java))
+            try {
+                val before = shell.topTaskId(0)
+                val result = shell.runSystemCommand(display.displayId,
+                    "am start --display ${display.displayId} -n com.stepos.ailauncher/.chat.activity.ChatMainActivity")
+                assertEquals(result.getString("output"), 0, result.getInt("exitCode"))
+                val deadline = System.currentTimeMillis() + 12_000
+                while (shell.packageOfTask(shell.topTaskId(display.displayId)) != "com.stepos.ailauncher" && System.currentTimeMillis() < deadline) Thread.sleep(100)
+                assertEquals("System Amoo must be on its private display", "com.stepos.ailauncher", shell.packageOfTask(shell.topTaskId(display.displayId)))
+                assertEquals("The user's main task must stay in front", before, shell.topTaskId(0))
+                val service = com.daiyimo.maeve.cap.phone.a11y.ScreenAccessibility.instance.value!!
+                val windows = service.windowsOn(display.displayId)
+                assertTrue("Amoo must expose its UI on the background display", windows.any { w ->
+                    val root = w.root
+                    try { root?.packageName?.toString() == "com.stepos.ailauncher" } finally { root?.recycle() }
+                })
+            } finally { display.release() }
+        }
+    }
+    @Test fun liveAmooChatDoesNotCallMaeveModelWhenExplicitlyRequested() = kotlinx.coroutines.runBlocking<Unit> {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("liveAmoo") == "true")
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
         val app = context.applicationContext as MaeveApp
+        val support = com.daiyimo.maeve.cap.phone.a11y.DeviceSupport
+        support.service()
+        val background = InstrumentationRegistry.getArguments().getString("backgroundAmoo") == "true"
+        val shell = if (background) support.shell() else null
+        val original = app.wechat.systemAmoo.background
         check(app.wechat.store.enabled() && app.wechat.store.account() != null) { "Bind and enable WeChat first" }
         val peer = app.wechat.store.peer(app.wechat.store.account()!!.ownerId)
         val messageId = "live-check-${UUID.randomUUID()}"
         val id = com.daiyimo.maeve.wechat.WechatAmooRelay.requestId(peer, messageId)
-        val root = File(context.externalMediaDirs.first(), "amoo/wechat")
-        val reply = File(root, "replies/$id.json")
+        val root = File(context.filesDir, "wechat-system-amoo")
         val beforeCalls = app.usage.snapshot().rows.sumOf { it.counts.calls }
         val beforeTasks = app.remoteTasks.list(100).map { it.id }.toSet()
-        try {
-            app.wechat.relay.forward(peer, messageId, "这是微信聊天链路验收，不是手机操作任务。请由 Amoo 自己直接回答且只回答：微信中转已恢复。不要调用 Maeve，不要调用手机工具。")
-            val deadline = System.currentTimeMillis() + 120_000
-            while (!reply.isFile && System.currentTimeMillis() < deadline) Thread.sleep(200)
-            assertTrue("Amoo must produce a real reply", reply.isFile)
-            val value = kotlinx.serialization.json.Json.parseToJsonElement(reply.readText()) as kotlinx.serialization.json.JsonObject
-            val text = (value["text"] as kotlinx.serialization.json.JsonPrimitive).content
-            assertTrue("Amoo must answer the greeting itself", text.contains("微信中转已恢复"))
-            assertEquals("No Maeve model request may be made for WeChat chat", beforeCalls, app.usage.snapshot().rows.sumOf { it.counts.calls })
-            assertEquals("Chat may not create a Maeve task", beforeTasks, app.remoteTasks.list(100).map { it.id }.toSet())
-            assertEquals(com.daiyimo.maeve.core.run.SendOutcome.Delivered,
-                app.wechat.channel.send(peer, com.daiyimo.maeve.core.run.Delivery.Result("probe-$id", peer.threadId, text)))
-        } finally {
-            File(root, "requests/$id.json").delete()
-            File(root, "requests/$id.working").delete()
-            reply.delete()
-        }
-    }
-    @Test fun repairWechatWorkerWhenExplicitlyRequested() {
-        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("repairAmoo") == "true")
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        instrumentation.getUiAutomation(android.app.UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
-        val context = instrumentation.targetContext
-        val app = context.applicationContext as MaeveApp
-        val bound = app.wechat.store.account() != null
-        val enabled = app.wechat.store.enabled()
-        val heartbeat = File(context.externalMediaDirs.first(), "amoo/wechat/worker.json")
-        fun workerPid() = Regex("\"pid\"\\s*:\\s*(\\d+)").find(heartbeat.readText())?.groupValues?.get(1)
-        val previous = workerPid()
-        FlutterLaunchDeviceTest().prepareInteractiveDisplay()
-        com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.service()
-        ActivityScenario.launch<MainActivity>(Intent(context, MainActivity::class.java)).use { scenario ->
-            call(scenario, "restartWorker")
-            val deadline = System.currentTimeMillis() + 120_000
-            while ((!app.wechat.relay.workerReady() || workerPid() == previous) && System.currentTimeMillis() < deadline) Thread.sleep(500)
-            assertTrue("Amoo must start the new worker", app.wechat.relay.workerReady())
-            assertNotEquals(previous, workerPid())
-            assertEquals(bound, app.wechat.store.account() != null)
-            assertEquals(enabled, app.wechat.store.enabled())
+        ActivityScenario.launch<MainActivity>(Intent(context, MainActivity::class.java)).use {
+            try {
+                instrumentation.runOnMainSync { app.wechat.systemAmoo.setBackground(background) }
+                app.wechat.sync()
+                val beforeMain = shell?.topTaskId(0)
+                val started = System.currentTimeMillis()
+                val text = "请你做一个简短的自我介绍，说明你是什么助手。"
+                assertTrue(app.wechat.store.journal(messageId, peer, text))
+                app.wechat.relay.forward(peer, messageId, text)
+                val deadline = started + 150_000
+                while (app.wechat.store.pending().any { p -> p.messageId == messageId } && System.currentTimeMillis() < deadline) {
+                    if (shell != null) assertEquals("Background chat must not switch the user's main task", beforeMain, shell.topTaskId(0))
+                    Thread.sleep(100)
+                }
+                assertFalse("The production delivery loop must confirm the actual WeChat send", app.wechat.store.pending().any { p -> p.messageId == messageId })
+                assertEquals("The reply must belong to this request; error=${app.wechat.systemAmoo.lastError}", id,
+                    app.getSharedPreferences("wechat_system_amoo", 0).getString("lastReplyRequest", null))
+                val reply = app.getSharedPreferences("wechat_system_amoo", 0).getString("lastReply", "").orEmpty()
+                assertTrue("System Amoo must introduce itself", reply.contains("Amoo", ignoreCase = true))
+                assertFalse("Default ClawPhone agent must not answer", reply.contains("ClawPhone", ignoreCase = true))
+                assertEquals("No Maeve model request may be made for WeChat chat", beforeCalls, app.usage.snapshot().rows.sumOf { it.counts.calls })
+                assertEquals("Chat may not create a Maeve task", beforeTasks, app.remoteTasks.list(100).map { it.id }.toSet())
+                android.util.Log.i("WechatLiveCheck", "background=$background deliveredMs=${System.currentTimeMillis() - started}")
+            } finally {
+                instrumentation.runOnMainSync { app.wechat.systemAmoo.setBackground(original) }
+                app.wechat.store.acknowledge(messageId)
+                File(root, "requests/$id.json").delete()
+                File(root, "requests/$id.working").delete()
+                File(root, "replies/$id.json").delete()
+            }
         }
     }
     private fun call(scenario: ActivityScenario<MainActivity>, action: String, enabled: Boolean? = null): Map<*, *> {
