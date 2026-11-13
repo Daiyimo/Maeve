@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 250b20e32093 -->
+<!-- translated-from: README.md @ 5f31dddc9fe2 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · 日本語 · [한국어](README.ko.md) · [Español](README.es.md)
@@ -100,7 +100,7 @@ AAR がないと Android ホストはコンパイルできません。Flutter �
 
 リポジトリは **M2（インタラクション層）** にあり、UI は Compose から Flutter シェルへ
 移行中です。公開履歴は Apache-2.0 の表示を含む単一のベースラインスナップショットから始まり、
-パッケージ名は `com.daiyimo.maeve`、コンプライアンスと表示の層は整っています。
+パッケージ名は `com.daiyimo.maeve`、コンプライアンスと表示の層は整っています。Maeve は Mika（Apache-2.0）の派生著作物であり、上流の表示は [NOTICE](../../NOTICE) と [ATTRIBUTION.md](../../ATTRIBUTION.md) に保持されています。
 経緯は [ATTRIBUTION.md](../../ATTRIBUTION.md) を参照してください。
 
 M2 の視覚システム全体、接続ハブと bridge v3（M3）、リリース強化（M4）は未完了です。
@@ -126,7 +126,7 @@ Apache-2.0（inbound = outbound、§5）でライセンスすることに同意�
 
 ## ライセンスと表示
 
-Apache-2.0 — [LICENSE](../../LICENSE) を参照してください。`NOTICE` は上流の著作者表示をそのまま保持します。第三者および GPL/LGPL コンポーネントは
+Apache-2.0 — [LICENSE](../../LICENSE) を参照してください。Maeve は Wang Zan の **Mika**（Apache-2.0）の派生著作物です。Apache-2.0 §4(d) の要求どおり、上流の表示は `NOTICE` に付録として保持されます。第三者および GPL/LGPL コンポーネントは
 [licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md) に列挙され、APK にも同梱されます。
 
 推奨トピック：`android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

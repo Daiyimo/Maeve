@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 250b20e32093 -->
+<!-- translated-from: README.md @ 5f31dddc9fe2 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · Español
@@ -103,7 +103,7 @@ La firma de release, R8 y CI forman parte de [M4](../../SPEC.md#10-里程碑与�
 
 El repositorio está en **M2 (capa de interacción)**, con la interfaz pasando de Compose a un
 shell Flutter. El historial público empieza en una única instantánea base con atribución
-Apache-2.0, el paquete es `com.daiyimo.maeve` y la capa de cumplimiento y atribución está lista.
+Apache-2.0, el paquete es `com.daiyimo.maeve` y la capa de cumplimiento y atribución está lista. Maeve es una obra derivada de Mika (Apache-2.0); la atribución del proyecto original se conserva en [NOTICE](../../NOTICE) y [ATTRIBUTION.md](../../ATTRIBUTION.md).
 La genealogía está en [ATTRIBUTION.md](../../ATTRIBUTION.md).
 
 El sistema visual completo de M2, el centro de conexiones y bridge v3 (M3) y el endurecimiento
@@ -129,7 +129,7 @@ licencie bajo Apache-2.0 (inbound = outbound, §5); el proyecto upstream no tien
 
 ## Licencia y atribución
 
-Apache-2.0: consulta [LICENSE](../../LICENSE). `NOTICE` conserva literalmente la atribución del proyecto original. Los componentes de terceros y GPL/LGPL se listan en
+Apache-2.0: consulta [LICENSE](../../LICENSE). Maeve es una obra derivada de **Mika** de Wang Zan (Apache-2.0); según Apache-2.0 §4(d), `NOTICE` conserva la atribución del proyecto original como apéndice. Los componentes de terceros y GPL/LGPL se listan en
 [licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md) y se incluyen en el APK.
 
 Temas sugeridos: `android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

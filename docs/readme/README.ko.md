@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 250b20e32093 -->
+<!-- translated-from: README.md @ 5f31dddc9fe2 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · 한국어 · [Español](README.es.md)
@@ -99,7 +99,7 @@ AAR이 없으면 Android 호스트는 컴파일되지 않습니다. Flutter 모�
 
 저장소는 **M2(상호작용 계층)**이며 UI가 Compose에서 Flutter 셸로 옮겨가는 중입니다.
 공개 이력은 Apache-2.0 표시가 있는 단일 베이스라인 스냅숏에서 시작하고, 패키지 이름은
-`com.daiyimo.maeve`이며, 준수와 표시 계층은 갖춰져 있습니다. 계보는 [ATTRIBUTION.md](../../ATTRIBUTION.md)를 보세요.
+`com.daiyimo.maeve`이며, 준수와 표시 계층은 갖춰져 있습니다. Maeve는 Mika(Apache-2.0)의 파생 저작물이며, 업스트림 표시는 [NOTICE](../../NOTICE)와 [ATTRIBUTION.md](../../ATTRIBUTION.md)에 유지됩니다.
 
 M2 전체 비주얼 시스템, 연결 허브와 bridge v3(M3), 릴리스 강화(M4)는 아직 끝나지 않았습니다.
 Flutter 셸은 워크벤치입니다. 답장은 로컬 지연 데모이고, 대화와 메모리는 프로세스 메모리에만 있으며,
@@ -123,7 +123,7 @@ Android 호스트는 아직 브리지 핸들러를 등록하지 않습니다.
 
 ## 라이선스와 저작자 표시
 
-Apache-2.0 — [LICENSE](../../LICENSE)를 보세요. `NOTICE`는 업스트림 저작자 표시를 그대로 유지합니다. 서드파티와 GPL/LGPL 구성 요소는
+Apache-2.0 — [LICENSE](../../LICENSE)를 보세요. Maeve는 Wang Zan의 **Mika**(Apache-2.0) 파생 저작물입니다. Apache-2.0 §4(d)에 따라 업스트림 표시는 `NOTICE`에 부록으로 유지됩니다. 서드파티와 GPL/LGPL 구성 요소는
 [licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md)에 나열되며 APK에도 포함됩니다.
 
 권장 토픽: `android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`

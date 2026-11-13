@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 250b20e32093 -->
+<!-- translated-from: README.md @ 5f31dddc9fe2 -->
 # Maeve
 
 [English](../../README.md) · 简体中文 · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md)
@@ -106,7 +106,7 @@ AAR 不存在时安卓宿主编不过：Flutter 模块构建会在 `flutter/` �
 ## 当前状态
 
 仓库处于 **M2（交互层）**，界面正在从 Compose 迁到 Flutter 外壳。公开历史从一个
-带 Apache-2.0 署名的基线快照开始，包名是 `com.daiyimo.maeve`，合规与署名层已经就位。
+带 Apache-2.0 署名的基线快照开始，包名是 `com.daiyimo.maeve`，合规与署名层已经就位。Maeve 是 Mika（Apache-2.0）的衍生作品；上游署名保留在 [NOTICE](../../NOTICE) 和 [ATTRIBUTION.md](../../ATTRIBUTION.md)。
 来龙去脉见 [ATTRIBUTION.md](../../ATTRIBUTION.md)。
 
 完整的 M2 视觉系统、连接中枢与 bridge v3（M3）、发布加固（M4）都还没完成。
@@ -130,7 +130,7 @@ Flutter 外壳目前是工作台：回复是本地延时演示，对话和记忆
 
 ## 许可证与署名
 
-Apache-2.0 —— 见 [LICENSE](../../LICENSE)。`NOTICE` 按 Apache-2.0 原样保留上游署名。第三方与 GPL/LGPL 组件列在
+Apache-2.0 —— 见 [LICENSE](../../LICENSE)。Maeve 是 Wang Zan 的 **Mika**（Apache-2.0）的衍生作品；按 Apache-2.0 §4(d) 要求，`NOTICE` 以附录形式保留上游署名。第三方与 GPL/LGPL 组件列在
 [licenses/THIRD_PARTY_NOTICES.md](../../licenses/THIRD_PARTY_NOTICES.md)，并镜像进 APK。
 
 建议的话题标签：`android` `ai-agent` `llm-agent` `accessibility-service` `virtual-display`
