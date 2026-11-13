@@ -1,6 +1,33 @@
 import 'package:maeve_flutter/bridge/maeve_settings_bridge.dart';
 
 class FakeSettingsBridge extends MaeveSettingsBridge {
+  final wechatActions = <String>[];
+  final wechatStatus = <String, dynamic>{
+    'bound': false,
+    'enabled': false,
+    'executionEnabled': false,
+    'workerReady': false,
+    'state': 'unbound',
+    'loggingIn': false,
+  };
+  @override
+  Future<Map<String, dynamic>> wechat(String action, {bool? enabled}) async {
+    wechatActions.add(action);
+    if (fail) throw StateError('Fixture WeChat failure');
+    if (action == 'setExecution') wechatStatus['executionEnabled'] = enabled;
+    if (action == 'setEnabled') wechatStatus['enabled'] = enabled;
+    if (action == 'login') wechatStatus['loggingIn'] = true;
+    if (action == 'cancelLogin') wechatStatus['loggingIn'] = false;
+    if (action == 'unbind') {
+      wechatStatus.addAll({
+        'bound': false,
+        'enabled': false,
+        'state': 'unbound',
+      });
+    }
+    return Map.of(wechatStatus);
+  }
+
   FakeSettingsBridge({String mode = 'light', bool configured = true})
     : values = {
         'mode': mode,

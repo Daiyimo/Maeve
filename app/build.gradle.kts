@@ -69,6 +69,7 @@ android {
     }
 
     buildFeatures {
+        resValues = true
         compose = true
         aidl = true
         buildConfig = true

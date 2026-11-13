@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="wechat_notif_title">WeChat conectado</string>
-    <string name="wechat_notif_body">Los mensajes privados pueden iniciar tareas de Maeve</string>
+    <string name="wechat_notif_body">Reenvío de mensajes privados de WeChat a Amoo</string>
     <string name="wechat_turn_off">Desactivar</string>
     <string name="wechat_title">WeChat</string>
     <string name="wechat_settings_sub">Asigna tareas a Maeve desde WeChat</string>

@@ -7,6 +7,7 @@ import 'package:maeve_flutter/ui/settings/licenses_page.dart';
 import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/system_access_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_page.dart';
+import 'package:maeve_flutter/ui/settings/amoo_wechat_page.dart';
 import 'package:maeve_flutter/ui/settings/execution_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/run_history_page.dart';
 import 'package:maeve_flutter/ui/settings/welcome_page.dart';
@@ -17,6 +18,7 @@ const visualPages = <String, Widget>{
   'add-model': AddModelPage(),
   'access': SystemAccessPage(),
   'amoo': AmooPage(),
+  'amoo-wechat': AmooWechatPage(),
   'execution': ExecutionSettingsPage(),
   'runs': RunHistoryPage(),
   'appearance': AppearancePage(),

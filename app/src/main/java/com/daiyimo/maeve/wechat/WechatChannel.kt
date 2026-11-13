@@ -69,6 +69,7 @@ class WechatChannel(
         }
         val account = store.account() ?: return null
         val updates = api.updates(account, store.cursor())
+        if (store.account() != account || !store.enabled()) return null
         updates.msgs.forEach { message ->
             val owner = account.ownerId
             if (message.fromUserId != owner) return@forEach

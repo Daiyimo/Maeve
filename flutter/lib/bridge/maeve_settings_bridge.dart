@@ -164,12 +164,23 @@ abstract class MaeveSettingsBridge {
   Future<NativeSettings> selectModel(String id);
   Future<void> openAccess(String target);
   Future<NativeAmooStatus> amoo(String action);
+  Future<Map<String, dynamic>> wechat(String action, {bool? enabled});
   Future<NativeSettings> setAutonomous(bool enabled);
 }
 
 class HostSettingsBridge extends MaeveSettingsBridge {
   const HostSettingsBridge();
   static const channel = MethodChannel('maeve/settings');
+  @override
+  Future<Map<String, dynamic>> wechat(String action, {bool? enabled}) async {
+    final response = await channel.invokeMapMethod<String, dynamic>('wechat', {
+      'action': action,
+      'enabled': ?enabled,
+    });
+    if (response == null) throw StateError('微信状态未返回');
+    return response;
+  }
+
   Future<NativeSettings> _call(
     String name, [
     Map<String, Object>? values,

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="wechat_notif_title">WeChat подключён</string>
-    <string name="wechat_notif_body">Личные сообщения могут запускать задачи Maeve</string>
+    <string name="wechat_notif_body">Пересылка личных сообщений WeChat в Amoo</string>
     <string name="wechat_turn_off">Выключить</string>
     <string name="wechat_title">WeChat</string>
     <string name="wechat_settings_sub">Давайте задачи Maeve через WeChat</string>

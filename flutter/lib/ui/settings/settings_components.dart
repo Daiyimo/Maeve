@@ -21,15 +21,21 @@ abstract final class RowMetrics {
 
 /// 分组小标题:比正文更轻的一行说明,不当"仪表面板"。
 class GroupLabel extends StatelessWidget {
-  const GroupLabel({super.key, required this.text, this.trailing});
+  const GroupLabel({
+    super.key,
+    required this.text,
+    this.trailing,
+    this.topSpacing = MaeveSpace.s32,
+  });
 
   final String text;
   final Widget? trailing;
+  final double topSpacing;
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(
-      top: MaeveSpace.s32,
+    padding: EdgeInsets.only(
+      top: topSpacing,
       bottom: MaeveSpace.s12,
       left: 2,
       right: 2,
@@ -544,9 +550,11 @@ class SettingsSection extends StatelessWidget {
     this.tone,
     this.footnote,
     this.trailing,
+    this.topSpacing = MaeveSpace.s32,
   });
 
   final String title;
+  final double topSpacing;
   final List<Widget> rows;
 
   /// 组内图标色调(默认中性)。
@@ -558,7 +566,7 @@ class SettingsSection extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      GroupLabel(text: title, trailing: trailing),
+      GroupLabel(text: title, trailing: trailing, topSpacing: topSpacing),
       SettingsHue(
         tone: tone ?? Tone.neutral,
         child: MaeveGlassSurface(

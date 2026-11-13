@@ -45,6 +45,7 @@
 | [doubao-asr.md](doubao-asr.md) | 豆包语音识别的接入方式与限制 |
 | [amoo-bridge.md](amoo-bridge.md) | amoo 文件桥的目录信箱、协议与真机验证 |
 | [amoo-connect.md](amoo-connect.md) | amoo 连接侧的一次性握手与技能注入 |
+| [amoo-wechat.md](amoo-wechat.md) | 微信双向中转、Amoo 会话、执行开关与恢复行为 |
 | [amoo-intercept.md](amoo-intercept.md) | amoo 拦截与接管链路的实现记录 |
 | [remote-device-access-check.md](remote-device-access-check.md) | 远程亮屏与解锁的验证记录 |
 | [remote-mcp.md](remote-mcp.md) | 自托管远程 CLI / MCP 的部署、手机鉴权和断线语义 |

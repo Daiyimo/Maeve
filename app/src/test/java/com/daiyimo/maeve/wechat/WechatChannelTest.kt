@@ -27,6 +27,41 @@ class WechatChannelTest {
 
     private fun response(body: String) = MockResponse().setHeader("Content-Type", "application/json").setBody(body)
 
+    @Test fun wechatTextTravelsThroughAmooMailboxAndReturnsToWechatOnce() = runTest {
+        MockWebServer().use { server ->
+            server.start(InetAddress.getByName("127.0.0.1"), 0)
+            val store = WechatStore(tmp.newFolder(), cipher)
+            store.saveAccount(WechatAccount("private-token", server.url("/").toString(), "bot", "owner"))
+            store.setEnabled(true)
+            val dir = tmp.newFolder()
+            val relay = WechatAmooRelay({ dir }, store) { false }
+            val channel = WechatChannel(store, WechatApi(OkHttpClient(), "test"), log = {})
+            channel.start(ChannelInputSink { input ->
+                if (input is ChannelInput.Text) relay.forward(input.peer, input.messageId, input.text)
+            })
+            val updates = """{"get_updates_buf":"next","msgs":[{"message_id":77,"from_user_id":"owner","message_type":1,"context_token":"ctx","item_list":[{"type":1,"text_item":{"text":"你好 Amoo"}}]}]}"""
+            server.enqueue(response(updates))
+            channel.pollOnce()
+            server.takeRequest()
+            val peer = store.pending().single().peer
+            val id = WechatAmooRelay.requestId(peer, "77")
+            val request = java.io.File(dir, "requests/$id.json")
+            assertTrue(request.readText().contains("你好 Amoo"))
+            WechatAmooRelay.atomic(java.io.File(dir, "replies/$id.json"),
+                """{"id":"$id","session":"${peer.threadId}","text":"我是 Amoo"}""")
+            server.enqueue(response("""{"ret":0}"""))
+            relay.deliver(channel::send)
+            val outbound = server.takeRequest().body.readUtf8()
+            assertTrue(outbound.contains("我是 Amoo"))
+            assertTrue(outbound.contains("ctx"))
+            assertTrue(store.pending().isEmpty())
+            server.enqueue(response(updates))
+            channel.pollOnce()
+            assertTrue(store.pending().isEmpty())
+            assertTrue(!request.exists())
+        }
+    }
+
     @Test fun pollingJournalsOnlyOwnerTextAndAcknowledgesAfterTaskRegistration() = runTest {
         MockWebServer().use { server ->
             server.start(InetAddress.getByName("127.0.0.1"), 0)

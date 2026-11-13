@@ -42,7 +42,8 @@ class AmooBridge(private val app: MaeveApp) {
 
     init {
         scope.launch {
-            flags.bridgeAmooChanges().collect { on -> if (on) start() else stop() }
+            // 关闭执行时仍回绝新请求，避免它们积压后在开关打开时突然执行。
+            start()
         }
     }
 
@@ -62,13 +63,6 @@ class AmooBridge(private val app: MaeveApp) {
                 delay(POLL_MS)
             }
         }
-    }
-
-    @Synchronized
-    private fun stop() {
-        poller?.cancel()
-        poller = null
-        Log.i(TAG, "file bridge off")
     }
 
     private suspend fun sweep() {
@@ -103,6 +97,10 @@ class AmooBridge(private val app: MaeveApp) {
     }
 
     private suspend fun handle(root: File, id: String, goal: String) {
+        if (!flags.bridgeAmoo()) {
+            writeResult(root, id, null, "failed", null, "用户已关闭通过 Maeve 执行任务；Amoo 聊天仍可使用。")
+            return
+        }
         val requestId = UUID.randomUUID().toString()
         val started = runCatching { tasks.start(goal, null, requestId) }
         val taskId = started.getOrNull()?.id

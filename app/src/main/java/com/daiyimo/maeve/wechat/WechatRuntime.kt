@@ -18,6 +18,8 @@ import com.daiyimo.maeve.core.wechat.WechatApi
 import com.daiyimo.maeve.core.wechat.WechatHttpException
 import com.daiyimo.maeve.core.wechat.WechatQrStart
 import com.daiyimo.maeve.task.TaskService
+import com.daiyimo.maeve.settings.FeatureFlags
+import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +45,7 @@ sealed interface WechatConnectionState {
     data class Failed(val message: String) : WechatConnectionState
 }
 
-/** 单账号、私聊文本的微信运行时。监听存活由独立前台服务负责，任务仍只进 TaskService。 */
+/** 单账号私聊文本先转给 Amoo；独立前台服务维持微信收件与回复投递。 */
 class WechatRuntime(
     private val context: Context,
     val store: WechatStore,
@@ -60,7 +62,7 @@ class WechatRuntime(
         { threadId -> app.taskState.run(threadId)?.activeAsk },
         object : ChannelGateway.Route {
             override suspend fun newTask(peer: ChannelPeer, messageId: String, text: String) =
-                TaskService.startChannel(context, peer, messageId, text)
+                relay.forward(peer, messageId, text)
 
             override suspend fun answer(threadId: String, askId: String, text: String): Boolean =
                 app.taskState.run(threadId)?.answerFromChannel(text, askId) == true
@@ -74,6 +76,10 @@ class WechatRuntime(
         })
 
     val channel = WechatChannel(store, api)
+    val relay = WechatAmooRelay(
+        { context.externalMediaDirs.firstOrNull()?.let { File(it, "amoo/wechat") } },
+        store, { FeatureFlags.get(context).bridgeAmoo() },
+    )
     private var registration: AutoCloseable? = null
     private var monitor: Job? = null
     private val network = WechatNetwork(context) { restartMonitor() }
@@ -83,6 +89,14 @@ class WechatRuntime(
 
     fun channelFor(id: String) = channel.takeIf { id == WechatChannel.ID }
     fun acknowledge(messageId: String) = store.acknowledge(messageId)
+
+    init {
+        scope.launch {
+            FeatureFlags.get(context).bridgeAmooChanges().collect {
+                runCatching { relay.syncControl() }.onFailure { Log.w(TAG, "WeChat relay control unavailable") }
+            }
+        }
+    }
 
     @Synchronized fun sync(): Boolean {
         val account = store.account()
@@ -121,6 +135,7 @@ class WechatRuntime(
     fun setEnabled(enabled: Boolean) {
         if (enabled) check(store.account() != null) { "Bind WeChat before enabling it" }
         store.setEnabled(enabled)
+        relay.syncControl()
         if (enabled) ensureRunning() else {
             context.stopService(Intent(context, WechatService::class.java))
             stop()
@@ -138,6 +153,7 @@ class WechatRuntime(
                 store.account()?.let { old -> owners.unbind(ChannelPeer(WechatChannel.ID, old.ownerId, "")) }
                 store.saveAccount(account)
                 store.setEnabled(true)
+                relay.syncControl()
                 owners.bind(ChannelPeer(WechatChannel.ID, account.ownerId, ""))
                 ensureRunning()
                 return account
@@ -150,10 +166,13 @@ class WechatRuntime(
     }
 
     fun unbind() {
+        val session = store.account()?.let { store.peer(it.ownerId).threadId }
         context.stopService(Intent(context, WechatService::class.java))
         store.account()?.let { old -> owners.unbind(ChannelPeer(WechatChannel.ID, old.ownerId, "")) }
         stop()
         store.clear()
+        relay.syncControl()
+        session?.let(relay::clearSession)
         _state.value = WechatConnectionState.NeedsBinding
     }
 
@@ -167,14 +186,17 @@ class WechatRuntime(
         var failures = 0
         while (currentCoroutineContext().isActive && store.enabled()) {
             try {
+                relay.syncControl()
+                relay.deliver(channel::send)
                 channel.pollOnce()
                 failures = 0
-                _state.value = WechatConnectionState.Connected
+                if (store.enabled()) _state.value = WechatConnectionState.Connected
             } catch (e: CancellationException) {
                 throw e
             } catch (e: WechatHttpException) {
                 if (e.httpCode == 401 || e.httpCode == 403) {
                     store.setEnabled(false)
+                    relay.syncControl()
                     _state.value = WechatConnectionState.NeedsBinding
                     context.stopService(Intent(context, WechatService::class.java))
                     return

@@ -125,11 +125,6 @@ void main() {
       }
       controller.setAccent(MaeveAccentPreset.reverie);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('快捷面板'));
-      await tester.pumpAndSettle();
-      await capture('workbench');
-      await tester.tap(find.byTooltip('关闭快捷面板'));
-      await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('打开对话列表'));
       await tester.pumpAndSettle();
       await capture('drawer');

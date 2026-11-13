@@ -11,6 +11,7 @@ import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/system_access_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_page.dart';
+import 'package:maeve_flutter/ui/settings/amoo_wechat_page.dart';
 import 'package:maeve_flutter/ui/settings/settings_components.dart';
 
 import '../support/fake_chat_bridge.dart';
@@ -47,6 +48,93 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('Settings first group sits close below the navigation bar', (
+    tester,
+  ) async {
+    await mount(tester, FakeSettingsBridge());
+    await open(tester, const SettingsHubPage());
+    final headerBottom = tester.getBottomLeft(find.byType(TopBar)).dy;
+    final groupTop = tester.getTopLeft(find.text('执行与设备')).dy;
+    expect(groupTop - headerBottom, inInclusiveRange(12, 28));
+  });
+
+  testWidgets(
+    'WeChat lives under Amoo and execution can be disabled without stopping chat',
+    (tester) async {
+      final settings = FakeSettingsBridge();
+      settings.wechatStatus.addAll({
+        'bound': true,
+        'enabled': true,
+        'executionEnabled': true,
+        'state': 'connected',
+        'workerReady': true,
+      });
+      await mount(tester, settings);
+      await open(tester, const AmooPage());
+      await tester.ensureVisible(find.text('微信连接'));
+      await tester.tap(find.text('微信连接'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AmooWechatPage), findsOneWidget);
+      expect(find.text('微信已连接'), findsOneWidget);
+      await tester.ensureVisible(find.text('通过 Maeve 执行任务'));
+      await tester.tap(find.text('通过 Maeve 执行任务'));
+      await tester.pumpAndSettle();
+      expect(settings.wechatStatus['executionEnabled'], isFalse);
+      expect(settings.wechatStatus['enabled'], isTrue);
+      expect(settings.wechatActions, contains('setExecution'));
+    },
+  );
+
+  testWidgets('WeChat read errors recover and login can be cancelled', (
+    tester,
+  ) async {
+    final settings = FakeSettingsBridge();
+    await mount(tester, settings);
+    settings.fail = true;
+    await open(tester, const AmooWechatPage());
+    expect(find.text('微信连接更新失败，请重试'), findsOneWidget);
+    settings.fail = false;
+    await tester.tap(find.byTooltip('刷新微信状态'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('获取绑定二维码'));
+    await tester.tap(find.text('获取绑定二维码'));
+    await tester.pumpAndSettle();
+    expect(find.text('取消扫码'), findsOneWidget);
+    await tester.tap(find.text('取消扫码'));
+    await tester.pumpAndSettle();
+    expect(
+      settings.wechatActions,
+      containsAllInOrder(['login', 'cancelLogin']),
+    );
+  });
+
+  test(
+    'WeChat host bridge preserves execution and receiving switches',
+    () async {
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(HostSettingsBridge.channel, (
+        call,
+      ) async {
+        expect(call.method, 'wechat');
+        expect(call.arguments, {'action': 'setExecution', 'enabled': false});
+        return {'executionEnabled': false, 'enabled': true};
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(
+          HostSettingsBridge.channel,
+          null,
+        ),
+      );
+      final status = await const HostSettingsBridge().wechat(
+        'setExecution',
+        enabled: false,
+      );
+      expect(status['enabled'], isTrue);
+      expect(status['executionEnabled'], isFalse);
+    },
+  );
 
   testWidgets(
     'Amoo is reachable from settings and uses native start and cancel',

@@ -27,7 +27,6 @@ class SettingsHubPage extends StatelessWidget {
       title: '设置',
       subtitle: '让 Maeve 适合你的日常',
       children: [
-        const SizedBox(height: 20),
         if (controller.settingsError != null) ...[
           SettingsNotice(
             text: controller.settingsError!,
@@ -40,6 +39,7 @@ class SettingsHubPage extends StatelessWidget {
         ],
         SettingsSection(
           title: '执行与设备',
+          topSpacing: 12,
           rows: [
             const CapsuleToggle(),
             SettingsTile(
@@ -74,7 +74,7 @@ class SettingsHubPage extends StatelessWidget {
             SettingsTile(
               icon: Icons.link_rounded,
               title: 'Amoo',
-              subtitle: '一键接入与文件桥状态',
+              subtitle: '接入 Amoo、微信对话与手机任务',
               onTap: () => AppPage.open(context, const AmooPage()),
             ),
           ],

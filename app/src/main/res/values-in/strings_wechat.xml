@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="wechat_notif_title">WeChat terhubung</string>
-    <string name="wechat_notif_body">Pesan pribadi dapat memulai tugas Maeve</string>
+    <string name="wechat_notif_body">Meneruskan pesan pribadi WeChat ke Amoo</string>
     <string name="wechat_turn_off">Matikan</string>
     <string name="wechat_title">WeChat</string>
     <string name="wechat_settings_sub">Berikan tugas kepada Maeve di WeChat</string>

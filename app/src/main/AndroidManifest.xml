@@ -218,14 +218,14 @@
                 android:value="Runs a user-requested phone task on the app's own virtual display and shows its progress; afterwards keeps the one web page the user asked to keep open running, for at most two hours" />
         </service>
 
-        <!-- 用户绑定并打开微信渠道后保持长轮询；没有本地服务器，任务仍交给 TaskService。 -->
+        <!-- 用户绑定并打开微信渠道后保持长轮询，将消息转交 Amoo 并投递回复。 -->
         <service
             android:name=".wechat.WechatService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps the user-enabled WeChat bot connection available so private messages can be handed to the app's existing task service" />
+                android:value="Keeps the user-enabled WeChat bot connection available to relay owner private messages and Amoo replies" />
         </service>
 
         <!--

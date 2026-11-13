@@ -139,6 +139,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 tools/maeve/check_compliance.py
+      - name: Verify Amoo WeChat relay contracts
+        run: python3 -m unittest discover -s tools/amoo -v
 
   # Slower auxiliary checks remain available on demand.
   full-checks:

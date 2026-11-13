@@ -7,6 +7,7 @@ import '../../app/maeve_controller.dart';
 import '../../bridge/maeve_settings_bridge.dart';
 import '../common/app_page.dart';
 import 'settings_components.dart';
+import 'amoo_wechat_page.dart';
 
 class AmooPage extends StatefulWidget {
   const AmooPage({super.key});
@@ -101,11 +102,11 @@ class _AmooPageState extends State<AmooPage> with WidgetsBindingObserver {
         ),
       ],
       children: [
-        const SizedBox(height: 20),
         if (_error != null)
           SettingsNotice(text: _error!, icon: Icons.info_outline),
         SettingsSection(
           title: '一键接入',
+          topSpacing: 12,
           rows: [
             SettingsTile(
               icon: Icons.auto_awesome_outlined,
@@ -145,6 +146,17 @@ class _AmooPageState extends State<AmooPage> with WidgetsBindingObserver {
             ),
           ],
           footnote: '开始后请切到 Amoo 聊天。Maeve 会填入并发送技能接入说明，再等待文件桥验证。',
+        ),
+        SettingsSection(
+          title: '微信',
+          rows: [
+            SettingsTile(
+              icon: Icons.chat_bubble_outline_rounded,
+              title: '微信连接',
+              subtitle: '扫码绑定，在微信与 Amoo 对话',
+              onTap: () => AppPage.open(context, const AmooWechatPage()),
+            ),
+          ],
         ),
         SettingsSection(
           title: '文件桥',

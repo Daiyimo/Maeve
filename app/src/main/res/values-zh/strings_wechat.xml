@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="wechat_notif_title">微信已连接</string>
-    <string name="wechat_notif_body">私聊消息可以交给 Maeve 执行任务</string>
+    <string name="wechat_notif_body">微信私聊由 Maeve 转交 Amoo 处理</string>
     <string name="wechat_turn_off">关闭</string>
     <string name="wechat_title">微信</string>
     <string name="wechat_settings_sub">在微信里给 Maeve 安排任务</string>

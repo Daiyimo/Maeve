@@ -8,6 +8,14 @@ import org.junit.Test
 /** 一键接入发给 amoo 的那段说明:路径跟着包名走、覆盖升级不留旧版、装完写版本标记、试任务必须带上。 */
 class AmooSetupTest {
 
+    @Test fun includesWechatWorkerAndLiveExecutionPolicy() {
+        val text = setupInstruction("com.example.maeve", 3)
+        assertTrue(text.contains("/sdcard/Android/media/com.example.maeve/amoo/wechat/wechat_worker.py"))
+        assertTrue(text.contains("openclaw agent --session-id"))
+        assertTrue(text.contains("allowMaeve 为 false"))
+        assertTrue(text.contains("不要声称微信中转已连接"))
+    }
+
     @Test
     fun pointsAtBothMailboxesOfThisPackage() {
         val text = setupInstruction("com.daiyimo.maeve", 2)
@@ -25,9 +33,10 @@ class AmooSetupTest {
     }
 
     @Test
-    fun asksForASmokeTask() {
+    fun chatSetupDoesNotRequireMaeveModelOrStartASmokeTask() {
         val text = setupInstruction("com.daiyimo.maeve", 2)
-        assertTrue(text.contains("只回答三个字:你好呀"))
+        assertTrue(text.contains("不要启动 Maeve 任务做问候测试"))
+        assertTrue(text.contains("不要求用户在 Maeve 配置模型"))
         assertTrue(text.contains("15 分钟"))
     }
 

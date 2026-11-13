@@ -34,6 +34,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
     private val settingsMutex = Mutex()
     private val prefs get() = app.getSharedPreferences("flutter_appearance", Context.MODE_PRIVATE)
     private val models by lazy { FlutterModelSettings(app.providers) }
+    private val wechatSettings by lazy { FlutterWechatSettings(app, scope) }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         app = binding.applicationContext as MaeveApp
@@ -46,6 +47,19 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        if (call.method == "wechat") {
+            scope.launch {
+                try {
+                    result.success(settingsMutex.withLock {
+                        wechatSettings.action(call.argument<String>("action") ?: "snapshot", call.argument<Boolean>("enabled"))
+                    })
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("wechat_failed",
+                    if (call.argument<String>("action") == "restartWorker") "中转修复未能启动，请确认 Amoo 已安装且 Maeve 无障碍服务正在运行"
+                    else "未能更新微信连接，请检查网络与账号状态后重试", null) }
+            }
+            return
+        }
         // A slow catalogue request must not hold the settings-write mutex.
         if (call.method == "listModels") {
             scope.launch {

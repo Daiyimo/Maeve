@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="wechat_notif_title">WeChat متصل</string>
-    <string name="wechat_notif_body">يمكن للرسائل الخاصة بدء مهام Maeve</string>
+    <string name="wechat_notif_body">تمرير رسائل WeChat الخاصة إلى Amoo</string>
     <string name="wechat_turn_off">إيقاف</string>
     <string name="wechat_title">WeChat</string>
     <string name="wechat_settings_sub">أسنِد مهام إلى Maeve عبر WeChat</string>

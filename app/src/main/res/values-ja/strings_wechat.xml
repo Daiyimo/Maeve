@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="wechat_notif_title">WeChat に接続中</string>
-    <string name="wechat_notif_body">個別チャットのメッセージで Maeve にタスクを実行できます</string>
+    <string name="wechat_notif_body">WeChat のプライベートメッセージを Amoo に転送</string>
     <string name="wechat_turn_off">オフにする</string>
     <string name="wechat_title">WeChat</string>
     <string name="wechat_settings_sub">WeChat から Maeve にタスクを依頼</string>
