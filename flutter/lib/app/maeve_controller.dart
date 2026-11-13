@@ -284,6 +284,7 @@ class MaeveController extends ChangeNotifier {
       text.isNotEmpty ? text : line,
       isUser: false,
       steps: steps,
+      elapsedMs: (exchange['elapsedMs'] as num?)?.toInt(),
       failed: status == 'failed',
       status: status,
       runId: exchange['runId'] as String?,

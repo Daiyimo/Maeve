@@ -7,6 +7,8 @@ class MaeveBridge {
   static const chatMethods = MethodChannel('maeve/chat');
   static const chatEvents = EventChannel('maeve/chat/events');
   static Future<void> openSettings() => methods.invokeMethod('open_settings');
+  static Future<bool> openUrl(String url) async =>
+      await methods.invokeMethod<bool>('open_url', {'url': url}) ?? false;
   static Stream<dynamic> get status => events.receiveBroadcastStream();
 
   /// 入口事件(通知点击、任务深链接):{kind: 'open_conversation', threadId}。

@@ -15,7 +15,6 @@ import 'palette_strip.dart';
 import 'execution_settings_page.dart';
 import 'capsule_toggle.dart';
 import 'run_history_page.dart';
-import 'licenses_page.dart';
 import 'welcome_page.dart';
 
 class SettingsHubPage extends StatelessWidget {
@@ -121,11 +120,6 @@ class SettingsHubPage extends StatelessWidget {
               icon: Icons.explore_outlined,
               title: '新手引导',
               onTap: () => AppPage.open(context, const WelcomePage()),
-            ),
-            SettingsTile(
-              icon: Icons.description_outlined,
-              title: '开源许可',
-              onTap: () => AppPage.open(context, const LicensesPage()),
             ),
           ],
         ),

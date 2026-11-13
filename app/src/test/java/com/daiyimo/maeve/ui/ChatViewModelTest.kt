@@ -48,6 +48,37 @@ import org.junit.rules.TemporaryFolder
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
+    @Test fun restoredSummaryKeepsMeasuredCountAndDurationWithoutInventingStepRows() = runTest {
+        val store = ConversationStore(tmp.newFolder())
+        val id = store.newConversation()
+        store.append(id, Turn("查看任务", "## 核对完成", "succeeded", runId = "exact-record"))
+        val requested = mutableListOf<String>()
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, store,
+            io = StandardTestDispatcher(testScheduler), runSummary = { run ->
+                requested += run
+                com.daiyimo.maeve.core.record.RunSummary("exact-record", "查看任务", startedAtMs = 1_000, endedAtMs = 98_599, steps = 17)
+            })
+        vm.openConversation(id); runCurrent()
+        val ex = vm.ui.value.exchanges.single()
+        assertEquals(17, ex.stepCount)
+        assertEquals(97_599L, ex.elapsedMs)
+        assertTrue(ex.steps.isEmpty())
+        assertEquals("## 核对完成", (ex.status as ExchangeStatus.Done).answer)
+        assertTrue(requested.isNotEmpty() && requested.all { it == "exact-record" })
+    }
+
+    @Test fun aMissingOrDifferentSummaryDoesNotSupplyHistoricalMetrics() = runTest {
+        for (summary in listOf(null, com.daiyimo.maeve.core.record.RunSummary("different-record", "查看任务", startedAtMs = 1_000, endedAtMs = 98_599, steps = 17))) {
+            val store = ConversationStore(tmp.newFolder())
+            val id = store.newConversation()
+            store.append(id, Turn("查看任务", "完成", "succeeded", runId = "exact-record"))
+            val vm = ChatViewModel(backgroundScope, state, stage, actions, store,
+                io = StandardTestDispatcher(testScheduler), runSummary = { summary })
+            vm.openConversation(id); runCurrent()
+            assertEquals(0, vm.ui.value.exchanges.single().stepCount)
+            assertNull(vm.ui.value.exchanges.single().elapsedMs)
+        }
+    }
     @get:Rule val texts = ChineseTexts()
 
     @get:Rule val tmp = TemporaryFolder()

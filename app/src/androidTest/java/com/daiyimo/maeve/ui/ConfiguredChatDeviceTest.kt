@@ -176,8 +176,13 @@ class ConfiguredChatDeviceTest {
                 val id = requireNotNull(ui.conversationId)
                 val answer = (ui.exchanges.last().status as ExchangeStatus.Done).answer
                 assertTrue("The model returned an empty greeting", answer.isNotBlank())
-                fun renderedReply() = windowNodes().any {
-                    it.text?.toString()?.contains(answer) == true || it.contentDescription?.toString()?.contains(answer) == true
+                fun renderedReply(): Boolean {
+                    // Markdown renders semantic text in separate blocks and table cells.
+                    // Check every displayed content line, rather than looking for raw syntax in one node.
+                    fun compact(text: String) = text.replace(Regex("[\\s•>]+"), "")
+                    val rendered = compact(windowNodes().mapNotNull { it.text?.toString() ?: it.contentDescription?.toString() }.joinToString("\n"))
+                    val expected = MarkdownModel.toPlainText(answer).lines().map(::compact).filter { it.isNotEmpty() }
+                    return expected.isNotEmpty() && expected.all { it in rendered }
                 }
                 waitFor("Native completion must appear in the Flutter conversation") { renderedReply() }
                 try {

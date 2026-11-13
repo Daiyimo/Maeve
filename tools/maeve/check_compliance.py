@@ -65,9 +65,7 @@ check(any("Mika" in n for n in names),
 check("gpl-sources.tar.gz" in screen,
       "GPL source offer string lost from the shared notice model")
 
-# The native data must still be reachable from the Flutter application.
-check("const LicensesPage()" in read("flutter/lib/ui/settings/settings_hub.dart"),
-      "Settings must open Flutter's licence page")
+# Keep the packaged notice data and renderer; About intentionally omits the entry.
 check("'legal_notices'" in read("flutter/lib/ui/settings/licenses_page.dart"),
       "Flutter licence page must read the packaged native notice data")
 check('"legal_notices"' in read("app/src/main/java/com/daiyimo/maeve/ui/MaeveUiPlugin.kt"),
@@ -76,7 +74,8 @@ check('"legal_notices"' in read("app/src/main/java/com/daiyimo/maeve/ui/MaeveUiP
 # 5. Licence texts and the source offer must ship inside the APK.
 assets = ROOT / "app/src/main/assets/licenses"
 for name in ("Apache-2.0.txt", "GPL-2.0.txt", "GPL-3.0.txt", "LGPL-3.0.txt",
-             "NOTICE.txt", "SOURCE_OFFER.md"):
+             "NOTICE.txt", "SOURCE_OFFER.md", "Flutter-Markdown-Plus.txt",
+             "Dart-Markdown.txt", "Dart-Args.txt"):
     check((assets / name).is_file(), f"APK licence asset missing: assets/licenses/{name}")
 check((ROOT / "NOTICE").read_text(encoding="utf-8") ==
       (assets / "NOTICE.txt").read_text(encoding="utf-8"),

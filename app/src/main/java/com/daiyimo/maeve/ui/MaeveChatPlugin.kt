@@ -237,7 +237,7 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                         "answer" to answerOf(ex),
                         "detail" to detailOf(ex.status),
                         "live" to ex.live,
-                        "steps" to ex.steps.size,
+                        "steps" to ex.stepCount,
                         "line" to ex.line,
                         "elapsedMs" to ex.elapsedMs,
                     ) + FlutterTaskDetails.exchange(ex)

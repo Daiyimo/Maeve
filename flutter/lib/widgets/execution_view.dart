@@ -11,6 +11,7 @@ import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../ui/common/app_page.dart';
 import 'token_usage_view.dart';
+import 'maeve_markdown.dart';
 
 class ExecutionPanel extends StatefulWidget {
   const ExecutionPanel({
@@ -83,18 +84,30 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
                 ),
                 const SizedBox(width: 7),
                 Expanded(
-                  child: Text(
-                    message.statusLabel,
-                    style: MaeveType.hint.copyWith(
-                      color: message.failed ? colors.bad : colors.ink2,
-                    ),
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        message.statusLabel,
+                        style: MaeveType.hint.copyWith(
+                          color: message.failed ? colors.bad : colors.ink2,
+                        ),
+                      ),
+                      if (message.steps > 0)
+                        Text(
+                          '${message.steps} 步',
+                          style: MaeveType.hint.copyWith(color: colors.ink3),
+                        ),
+                      if (message.elapsedLabel != null)
+                        Text(
+                          message.elapsedLabel!,
+                          style: MaeveType.hint.copyWith(color: colors.ink3),
+                        ),
+                    ],
                   ),
                 ),
-                if (message.steps > 0)
-                  Text(
-                    '${message.steps} 步',
-                    style: MaeveType.hint.copyWith(color: colors.ink3),
-                  ),
                 if (rows.isNotEmpty)
                   Icon(
                     expanded ? Icons.expand_less : Icons.expand_more,
@@ -218,8 +231,8 @@ class ExecutionStepView extends StatelessWidget {
                   ),
                 ),
                 if (step.reason.isNotEmpty && step.reason != step.title)
-                  Text(
-                    step.reason,
+                  MaeveMarkdown(
+                    data: step.reason,
                     style: MaeveType.caption.copyWith(color: c.ink2),
                   ),
                 if (step.failed)

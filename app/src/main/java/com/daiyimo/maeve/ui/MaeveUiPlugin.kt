@@ -53,6 +53,15 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
+            "open_url" -> {
+                val host = activity?.activity
+                val url = browserLink(call.argument<String>("url"))
+                if (host == null || url == null) result.success(false)
+                else result.success(runCatching {
+                    host.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
+                    true
+                }.getOrDefault(false))
+            }
             "open_settings" -> {
                 val host = activity?.activity
                 if (host == null) {
@@ -73,7 +82,7 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
                         mapOf(
                             "entries" to entries.map { mapOf("name" to it.name, "license" to it.license, "note" to it.note) },
                             "sourceOffer" to Licenses.GPL_SOURCE_OFFER,
-                            "documents" to listOf("NOTICE.txt", "Apache-2.0.txt", "GPL-2.0.txt", "GPL-3.0.txt", "LGPL-3.0.txt", "Protocol-Buffers.txt", "SOURCE_OFFER.md")
+                            "documents" to listOf("NOTICE.txt", "Apache-2.0.txt", "GPL-2.0.txt", "GPL-3.0.txt", "LGPL-3.0.txt", "Protocol-Buffers.txt", "Flutter-Markdown-Plus.txt", "Dart-Markdown.txt", "Dart-Args.txt", "SOURCE_OFFER.md")
                                 .map { mapOf("name" to it, "text" to read("licenses/$it")) },
                         )
                     }
@@ -138,3 +147,9 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
             private set
     }
 }
+
+/** Only user-tapped web links are handed to a browser. */
+internal fun browserLink(raw: String?): String? = try {
+    val uri = java.net.URI(raw.orEmpty())
+    uri.takeIf { it.scheme?.lowercase(java.util.Locale.ROOT) in setOf("http", "https") && !it.host.isNullOrBlank() && it.userInfo == null }?.toASCIIString()
+} catch (_: Exception) { null }

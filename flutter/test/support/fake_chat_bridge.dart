@@ -133,6 +133,7 @@ class FakeChatBridge extends MaeveChatBridge {
     String? detail,
     String line = '',
     int steps = 0,
+    int? elapsedMs,
     bool live = false,
     String? runId,
   }) => {
@@ -142,6 +143,7 @@ class FakeChatBridge extends MaeveChatBridge {
     'detail': detail,
     'line': line,
     'steps': steps,
+    'elapsedMs': ?elapsedMs,
     'live': live,
     'runId': runId,
   };

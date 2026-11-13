@@ -186,7 +186,11 @@ data class Exchange(
     val keptPageClosed: String? = null,
     /** 每一步实际做的动作(按步号):标题是汇总,点开一步时看这里的明细。 */
     val stepActions: Map<Int, List<StepAction>> = emptyMap(),
-)
+    /** Historical summary count, without synthesizing step rows. */
+    val recordedStepCount: Int? = null,
+) {
+    val stepCount: Int get() = recordedStepCount ?: steps.size
+}
 
 /** 在跑时的一行进展:等你时说等什么;模型请求在途时只给中性状态;否则是这一步的话,没有就是最近做的事。 */
 fun liveLine(ex: Exchange): String? {
@@ -218,7 +222,7 @@ internal fun editableSteer(text: String): Boolean = !UserScreenMessage.has(text)
 
 /** 结束后收起的那一行:「做了 12 步 · 1 分 20 秒」;不知道用时就只说步数。 */
 fun stepsSummary(ex: Exchange): String =
-    trPlural(R.plurals.chat_steps_done, ex.steps.size) + ex.elapsedMs?.let { " · " + RunTimelineViewModel.duration(it) }.orEmpty()
+    trPlural(R.plurals.chat_steps_done, ex.stepCount) + ex.elapsedMs?.let { " · " + RunTimelineViewModel.duration(it) }.orEmpty()
 
 /** 结果卡片上记忆与技能提示的按钮;真机上由记忆存储与个人技能实现(读写在后台线程),测试里换成记录调用。 */
 interface LearningActions {
@@ -369,6 +373,8 @@ class ChatViewModel(
     private val branchTitle: (String) -> String = { it },
     /** 读写对话记录、复制分支在哪儿做。 */
     private val io: CoroutineContext = Dispatchers.IO,
+    /** Called while loading saved turns on [io]; reads only an exact run's small summary. */
+    private val runSummary: (String) -> com.daiyimo.maeve.core.record.RunSummary? = { null },
 ) {
     /** 用户在对话页上关掉留在后台的那一页。 */
     fun closeKeptPage() = closeKept()
@@ -886,7 +892,13 @@ class ChatViewModel(
 
     /** 这个对话存下的轮次,连同各轮导出的文件和此刻的记忆与技能提示。 */
     private fun saved(conversationId: String): List<Exchange> =
-        runCatching { store.records(conversationId) }.getOrDefault(emptyList()).map { (t, files) -> withSummarizing(withNotes(fromTurn(t).copy(files = files), runNotes.value)) }
+        runCatching { store.records(conversationId) }.getOrDefault(emptyList()).map { (t, files) ->
+            val summary = t.runId?.let { id -> runCatching { runSummary(id) }.getOrNull()?.takeIf { it.id == id } }
+            val restored = fromTurn(t).copy(files = files,
+                recordedStepCount = summary?.steps?.takeIf { it >= 0 },
+                elapsedMs = summary?.endedAtMs?.let { end -> (end - summary.startedAtMs).takeIf { it >= 0 } })
+            withSummarizing(withNotes(restored, runNotes.value))
+        }
 
     /**
      * 存储里这个对话变了(别处跑完存进一轮、改了某一轮):屏上按存下的那份重排。这里跟过的那几轮按运行编号认

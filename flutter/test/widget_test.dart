@@ -147,7 +147,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('聊天页:整条玻璃顶栏 + 纸条输入条 + 空状态示例', (tester) async {
+  testWidgets('聊天页:整条玻璃顶栏 + 纸条输入条 + 安静的空状态', (tester) async {
     final bridge = FakeChatBridge(
       conversations: [FakeChatBridge.conversation('c1', '选择之道', pinned: true)],
     );
@@ -163,7 +163,7 @@ void main() {
     // 空状态:一句展示字 + 一张示例卡(断句由设计给,断在逗号后)。
     // 打字机入场由 pumpAndSettle 推到完成,所以这里拿到整句。
     expect(find.text('下一幕，\n由你决定。'), findsOneWidget);
-    expect(find.byKey(const ValueKey('home-prompt-0')), findsOneWidget);
+    expect(find.byKey(const ValueKey('home-prompt-0')), findsNothing);
   });
 
   testWidgets('发送:宿主应答回来后出现你的气泡、过程,然后是回答', (tester) async {
@@ -275,12 +275,21 @@ void main() {
     expect(find.text('我收到了，接下来交给你。'), findsNothing);
   });
 
-  testWidgets('空状态示例点一下直接发出去', (tester) async {
+  testWidgets('空状态移除示例后仍可手动发起任务', (tester) async {
     final bridge = FakeChatBridge();
     await pumpApp(tester, controller: MaeveController(bridge: bridge));
-    await tester.tap(find.byKey(const ValueKey('home-prompt-0')));
+    expect(find.text('试着交给 Maeve'), findsNothing);
+    for (final text in ['理清思路', '规划项目', '整理笔记']) {
+      expect(find.text(text), findsNothing);
+    }
+    await tester.enterText(
+      find.byKey(const ValueKey('message-input')),
+      '帮我理清一个决定',
+    );
     await tester.pump();
-    // 点示例 = 把示例当话发给宿主
+    await tester.tap(find.byKey(const ValueKey('send-message')));
+    await tester.pump();
+    // 精简空状态后，手动输入仍通过真实发送入口到宿主。
     expect(bridge.sent, ['帮我理清一个决定']);
     // 宿主把这一轮回报回来后,气泡出现
     bridge.emitUi(

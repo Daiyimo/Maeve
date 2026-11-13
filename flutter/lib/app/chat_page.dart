@@ -22,6 +22,7 @@ import '../ui/settings/settings_components.dart';
 import '../widgets/glass_surface.dart';
 import '../widgets/maeve_mark.dart';
 import '../widgets/execution_view.dart';
+import '../widgets/maeve_markdown.dart';
 
 /// 聊天页(Maeve 的语言:剧本轨 + 纸条输入条)。
 ///
@@ -144,13 +145,7 @@ class _ChatPageState extends State<ChatPage> {
                       horizontal: MaeveSpace.s24,
                     ),
                     child: conversation.isEmpty
-                        ? _EmptyHome(
-                            minHeight: emptyHeight,
-                            onPick: (text) {
-                              _input.text = text;
-                              _send(controller);
-                            },
-                          )
+                        ? _EmptyHome(minHeight: emptyHeight)
                         : _MessageList(
                             conversation: conversation,
                             openTurns: _openTurns,
@@ -336,27 +331,22 @@ class _BarAction extends StatelessWidget {
 /// Fit the idle stage to the real space between header and composer. A quiet
 /// centre is intentional; scroll is reserved for small screens and large text.
 class _EmptyHome extends StatelessWidget {
-  const _EmptyHome({required this.onPick, required this.minHeight});
-  final ValueChanged<String> onPick;
+  const _EmptyHome({required this.minHeight});
   final double minHeight;
-  static const _prompts = [
-    ('理清思路', '帮我理清一个决定'),
-    ('规划项目', '规划一个项目'),
-    ('整理笔记', '把一段想法整理成笔记'),
-  ];
   @override
   Widget build(BuildContext context) {
     final c = MaeveTheme.of(context).colors;
     final compact = minHeight < 390;
     final scale = MediaQuery.textScalerOf(context).scale(1);
-    final minimum = (compact ? 280.0 : 325.0) + (scale - 1).clamp(0, 2) * 120;
+    final minimum = (compact ? 230.0 : 270.0) + (scale - 1).clamp(0, 2) * 100;
     final height = minHeight < minimum ? minimum : minHeight;
     return SizedBox(
+      key: const ValueKey('home-stage'),
       height: height,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Spacer(flex: compact ? 1 : 2),
+          const Spacer(),
           Center(child: MaeveEmblem(size: compact ? 64 : 88)),
           SizedBox(height: compact ? 16 : 22),
           Text(
@@ -376,46 +366,7 @@ class _EmptyHome extends StatelessWidget {
             textAlign: TextAlign.center,
             style: MaeveType.caption.copyWith(color: c.ink2),
           ),
-          const Spacer(flex: 3),
-          Text(
-            '试着交给 Maeve',
-            textAlign: TextAlign.center,
-            style: MaeveType.hint.copyWith(color: c.ink3),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              for (var i = 0; i < _prompts.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                Expanded(
-                  child: Pressable(
-                    key: ValueKey('home-prompt-$i'),
-                    semanticLabel: _prompts[i].$2,
-                    scale: false,
-                    onTap: () => onPick(_prompts[i].$2),
-                    child: MaeveGlassSurface(
-                      shape: RoundedSuperellipseBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 14,
-                        horizontal: 4,
-                      ),
-                      child: Text(
-                        _prompts[i].$1,
-                        textAlign: TextAlign.center,
-                        style: MaeveType.label.copyWith(
-                          color: c.ink2,
-                          fontSize: 12.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 18),
+          const Spacer(),
         ],
       ),
     );
@@ -638,9 +589,15 @@ class _AssistantTurn extends StatelessWidget {
                 children: [
                   StatusDot(tone: MaeveTone.ready, size: 5),
                   const SizedBox(width: 6),
-                  Text(
-                    '${message.statusLabel}${message.steps > 0 ? ' · ${message.steps} 步' : ''}',
-                    style: MaeveType.hint.copyWith(color: colors.ink3),
+                  Flexible(
+                    child: Text(
+                      [
+                        message.statusLabel,
+                        if (message.steps > 0) '${message.steps} 步',
+                        if (message.elapsedLabel != null) message.elapsedLabel!,
+                      ].join(' · '),
+                      style: MaeveType.hint.copyWith(color: colors.ink3),
+                    ),
                   ),
                   const SizedBox(width: 2),
                   Icon(Icons.expand_more, size: 14, color: colors.ink3),
@@ -677,10 +634,7 @@ class _AssistantTurn extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      message.text,
-                      style: MaeveType.script.copyWith(color: colors.ink),
-                    ),
+                    MaeveMarkdown(data: message.text),
                     if (!isLatest) ...[
                       const SizedBox(height: 2),
                       Pressable(

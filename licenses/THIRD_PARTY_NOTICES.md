@@ -1,5 +1,26 @@
 # Third-party notices
 
+## Flutter Markdown Plus
+
+- Project: https://github.com/foresightmobile/flutter_markdown_plus
+- Package: `flutter_markdown_plus:1.0.12`
+- License: BSD-3-Clause; the unmodified package license is bundled in `app/src/main/assets/licenses/Flutter-Markdown-Plus.txt` and Flutter's generated license registry.
+- Usage: Flutter chat answers and recorded model replies, including GFM tables and code blocks.
+
+## Dart markdown
+
+- Project: https://github.com/dart-lang/tools/tree/main/pkgs/markdown
+- Package: `markdown:7.3.1`
+- License: BSD-3-Clause; bundled in `app/src/main/assets/licenses/Dart-Markdown.txt` and Flutter's generated license registry.
+- Usage: Parser dependency of Flutter Markdown Plus.
+
+## Dart args
+
+- Project: https://github.com/dart-lang/core/tree/main/pkgs/args
+- Package: `args:2.7.0`
+- License: BSD-3-Clause; bundled in `app/src/main/assets/licenses/Dart-Args.txt` and Flutter's generated license registry.
+- Usage: Transitive dependency of Dart markdown.
+
 ## scrcpy
 
 - Project: https://github.com/Genymobile/scrcpy

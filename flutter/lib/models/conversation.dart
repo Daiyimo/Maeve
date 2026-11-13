@@ -18,6 +18,7 @@ class Message {
     this.confirmationKey,
     this.resumable = false,
     this.waitingForModel = false,
+    this.elapsedMs,
   });
 
   final String text;
@@ -27,6 +28,16 @@ class Message {
   final int? confirmationKey;
   final bool resumable;
   final bool waitingForModel;
+  final int? elapsedMs;
+  String? get elapsedLabel {
+    if (elapsedMs == null || elapsedMs! < 0) return null;
+    if (elapsedMs! < 1000) return '${(elapsedMs! / 1000).toStringAsFixed(1)} 秒';
+    final seconds = (elapsedMs! / 1000).round();
+    if (seconds < 60) return '$seconds 秒';
+    if (seconds < 3600) return '${seconds ~/ 60} 分 ${seconds % 60} 秒';
+    return '${seconds ~/ 3600} 小时 ${seconds ~/ 60 % 60} 分 ${seconds % 60} 秒';
+  }
+
   bool get active => !const ['done', 'failed', 'cancelled'].contains(status);
   String get statusLabel => waitingForModel && status == 'working'
       ? '等待模型响应'

@@ -262,6 +262,7 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
     /** 对话页的状态跟进程走:界面关了再打开,正在跑的任务的步骤还在。 */
     val chat: ChatViewModel by lazy {
         val app = this
+        val recordSummaries = com.daiyimo.maeve.record.RunStore(app)
         ChatViewModel(
             CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
             taskState.state,
@@ -296,6 +297,7 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
             },
             conversations,
             taskState.busy,
+            runSummary = recordSummaries::summary,
             appLabel = { ConfirmationNotifier.appLabel(app, it) },
             // 虚拟屏上打开过 App,或在用内置浏览器:画中画才有画面可看(只建了空屏的不算)
             screenOpen = tasks.previewOpen
