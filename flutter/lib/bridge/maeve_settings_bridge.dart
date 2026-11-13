@@ -32,9 +32,13 @@ class NativeProviderPreset {
     required this.label,
     required this.kind,
     required this.baseUrl,
+    this.planUrl,
+    this.modelProfiles = const [],
     this.selfHosted = false,
   });
   final String id, label, kind, baseUrl;
+  final String? planUrl;
+  final List<Map<String, dynamic>> modelProfiles;
   final bool selfHosted;
   factory NativeProviderPreset.fromMap(Map<dynamic, dynamic> map) =>
       NativeProviderPreset(
@@ -42,6 +46,11 @@ class NativeProviderPreset {
         label: map['label'] as String,
         kind: map['kind'] as String,
         baseUrl: map['baseUrl'] as String,
+        planUrl: map['planUrl'] as String?,
+        modelProfiles: [
+          for (final row in map['modelProfiles'] as List? ?? const [])
+            Map<String, dynamic>.from(row as Map),
+        ],
         selfHosted: map['selfHosted'] == true,
       );
 }
@@ -53,8 +62,15 @@ class NativeModelConfig {
     required this.model,
     required this.kind,
     required this.baseUrl,
+    this.vision = false,
+    this.hasKey = false,
+    this.reasoningEffort,
+    this.reasoningLevels = const [],
   });
   final String id, name, model, kind, baseUrl;
+  final bool vision, hasKey;
+  final String? reasoningEffort;
+  final List<String> reasoningLevels;
   factory NativeModelConfig.fromMap(Map<dynamic, dynamic> map) =>
       NativeModelConfig(
         id: map['id'] as String,
@@ -62,12 +78,19 @@ class NativeModelConfig {
         model: map['model'] as String,
         kind: map['kind'] as String,
         baseUrl: map['baseUrl'] as String,
+        vision: map['vision'] == true,
+        hasKey: map['hasKey'] == true,
+        reasoningEffort: map['reasoningEffort'] as String?,
+        reasoningLevels: List<String>.from(
+          map['reasoningLevels'] as List? ?? const [],
+        ),
       );
 }
 
 class NativeSettings {
   const NativeSettings({
-    this.mode = 'dark',
+    this.mode = 'light',
+    this.welcomeSeen = true,
     this.accent = 'reverie',
     this.haptics = true,
     this.reduceTransparency = false,
@@ -86,6 +109,7 @@ class NativeSettings {
     this.phoneSupported = false,
   });
   final String mode, accent, operatingPace;
+  final bool welcomeSeen;
   final bool haptics,
       capsuleEnabled,
       autonomous,
@@ -100,7 +124,8 @@ class NativeSettings {
   final List<NativeModelConfig> models;
   final List<NativeProviderPreset> presets;
   factory NativeSettings.fromMap(Map<dynamic, dynamic> map) => NativeSettings(
-    mode: map['mode'] as String? ?? 'dark',
+    mode: map['mode'] as String? ?? 'light',
+    welcomeSeen: map['welcomeSeen'] as bool? ?? true,
     accent: map['accent'] as String? ?? 'reverie',
     autonomous: map['autonomous'] == true,
     operatingPace: map['operatingPace'] as String? ?? 'standard',
@@ -129,6 +154,9 @@ class NativeSettings {
 abstract class MaeveSettingsBridge {
   const MaeveSettingsBridge();
   Future<NativeSettings> load();
+  Future<NativeSettings> completeOnboarding();
+  Future<Map<String, dynamic>> listModels(Map<String, String> values);
+  Future<Map<String, dynamic>> modelUsage();
   Future<NativeSettings> setOperatingPace(String pace);
   Future<NativeSettings> setCapsuleEnabled(bool enabled);
   Future<NativeSettings> appearance(Map<String, Object> values);
@@ -156,6 +184,25 @@ class HostSettingsBridge extends MaeveSettingsBridge {
 
   @override
   Future<NativeSettings> load() => _call('snapshot');
+  @override
+  Future<NativeSettings> completeOnboarding() => _call('completeOnboarding');
+  Future<Map<String, dynamic>> _data(
+    String method, [
+    Map<String, String>? values,
+  ]) async {
+    final response = await channel.invokeMapMethod<String, dynamic>(
+      method,
+      values,
+    );
+    if (response == null) throw StateError('Native data was not returned');
+    return response;
+  }
+
+  @override
+  Future<Map<String, dynamic>> listModels(Map<String, String> values) =>
+      _data('listModels', values);
+  @override
+  Future<Map<String, dynamic>> modelUsage() => _data('modelUsage');
   @override
   Future<NativeSettings> setOperatingPace(String pace) =>
       _call('setOperatingPace', {'pace': pace});

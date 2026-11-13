@@ -33,7 +33,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
     private val scope = MainScope()
     private val settingsMutex = Mutex()
     private val prefs get() = app.getSharedPreferences("flutter_appearance", Context.MODE_PRIVATE)
-    private val models get() = FlutterModelSettings(app.providers)
+    private val models by lazy { FlutterModelSettings(app.providers) }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         app = binding.applicationContext as MaeveApp
@@ -46,6 +46,18 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        // A slow catalogue request must not hold the settings-write mutex.
+        if (call.method == "listModels") {
+            scope.launch {
+                try {
+                    val input = FlutterModelInput.parse(call.arguments as? Map<*, *> ?: emptyMap<Any, Any>(), requireModel = false)
+                    result.success(withContext(Dispatchers.IO) { models.list(input) })
+                } catch (e: CancellationException) { throw e }
+                catch (e: IllegalArgumentException) { result.error("bad_args", e.message, null) }
+                catch (_: Exception) { result.error("model_list_failed", "获取模型失败，请检查网络或手动填写模型名称", null) }
+            }
+            return
+        }
         if (call.method == "openAccess") {
             val host = activity?.activity ?: return result.error("no_activity", "A foreground activity is required", null)
             val action = call.argument<String>("target")
@@ -109,6 +121,17 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                 val value = settingsMutex.withLock { withContext(Dispatchers.IO) {
                     when (call.method) {
                         "snapshot" -> snapshot()
+                        "completeOnboarding" -> {
+                            check(prefs.edit().putBoolean("welcomeSeen", true).commit())
+                            snapshot()
+                        }
+                        "modelUsage" -> FlutterUsageSettings.snapshot(app.usage.snapshot(), app.providers.providers.value.associate {
+                            it.id to (it.name + when (it.baseUrl.trimEnd('/')) {
+                                com.daiyimo.maeve.settings.StepModelProfiles.API -> " · API"
+                                com.daiyimo.maeve.settings.StepModelProfiles.PLAN -> " · Plan"
+                                else -> ""
+                            })
+                        })
                         "setAutonomous" -> {
                             val on = requireNotNull(call.argument<Boolean>("enabled")) { "Confirmation mode is required" }
                             app.approvalControl.setAutonomous(on)
@@ -162,7 +185,8 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
         val component = android.content.ComponentName(app, MaeveAccessibilityService::class.java)
         val a11y = enabled.split(':').any { it.equals(component.flattenToString(), true) || it.equals(component.flattenToShortString(), true) }
         return mapOf(
-            "mode" to prefs.getString("mode", "dark"), "accent" to prefs.getString("accent", "reverie"),
+            "mode" to prefs.getString("mode", "light"), "accent" to prefs.getString("accent", "reverie"),
+            "welcomeSeen" to prefs.getBoolean("welcomeSeen", app.providers.providers.value.isNotEmpty()),
             "autonomous" to app.approvals.autonomous.value,
             "operatingPace" to FeatureFlags.get(app).operatingPace().name.lowercase(java.util.Locale.ROOT),
             "capsuleEnabled" to (FeatureFlags.get(app).capsuleMode() != CapsuleMode.Off),
@@ -186,17 +210,20 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
 
 /** Validates locally before any native configuration is changed. Secrets never enter a snapshot. */
 internal data class FlutterModelInput(val name: String, val kind: ProviderConfig.Kind,
-    val baseUrl: String, val model: String, val apiKey: String) {
+    val baseUrl: String, val model: String, val apiKey: String,
+    val id: String? = null, val vision: Boolean? = null, val reasoningEffort: String? = null) {
     companion object {
-        fun parse(values: Map<*, *>): FlutterModelInput {
+        fun parse(values: Map<*, *>, requireModel: Boolean = true): FlutterModelInput {
             fun text(key: String) = (values[key] as? String).orEmpty().trim()
             val uri = try { URI(text("baseUrl")) } catch (_: Exception) { throw IllegalArgumentException("请输入有效的 API 地址") }
             require(uri.scheme in setOf("http", "https") && !uri.host.isNullOrBlank() && uri.userInfo == null && uri.fragment == null && uri.rawQuery == null) { "请输入不含凭据、查询参数或片段的 HTTP(S) API 基础地址" }
             val kind = ProviderConfig.Kind.entries.firstOrNull { it.name == text("kind") }
             require(kind in setOf(ProviderConfig.Kind.OpenAiCompat, ProviderConfig.Kind.OpenAiResponses, ProviderConfig.Kind.Anthropic, ProviderConfig.Kind.Gemini)) { "请选择支持的接口协议" }
-            require(text("model").isNotBlank() && text("model").length <= 256) { "请填写模型名称" }
+            require((!requireModel || text("model").isNotBlank()) && text("model").length <= 256) { "请填写模型名称" }
+            val vision = text("vision").takeIf { it.isNotEmpty() }?.let { requireNotNull(it.toBooleanStrictOrNull()) { "图片输入设置无效" } }
             return FlutterModelInput(text("name").ifEmpty { uri.host }, kind!!,
-                uri.toString().trimEnd('/'), text("model"), text("apiKey"))
+                uri.toString().trimEnd('/'), text("model"), text("apiKey"),
+                text("id").takeIf { it.isNotEmpty() }, vision, text("reasoningEffort").takeIf { it.isNotEmpty() && it != "default" })
         }
     }
 }

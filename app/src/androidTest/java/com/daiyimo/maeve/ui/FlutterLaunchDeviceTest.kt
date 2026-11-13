@@ -1,11 +1,8 @@
 package com.daiyimo.maeve.ui
 
-import android.app.KeyguardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.ParcelFileDescriptor
-import android.os.PowerManager
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
@@ -26,27 +23,7 @@ class FlutterLaunchDeviceTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
     @Before fun prepareInteractiveDisplay() {
-        // A sleeping physical device can create the Activity without presenting
-        // a Flutter surface. Wake it before launch, without changing timeout or
-        // lock settings. Secure keyguards still require the owner to unlock.
-        fun shell(command: String) {
-            ParcelFileDescriptor.AutoCloseInputStream(
-                InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(command),
-            ).use { it.readBytes() }
-        }
-        shell("input keyevent KEYCODE_WAKEUP")
-        val keyguard = context.getSystemService(KeyguardManager::class.java)
-        if (!keyguard.isKeyguardSecure) {
-            shell("wm dismiss-keyguard")
-            shell("input keyevent KEYCODE_MENU")
-        }
-        val power = context.getSystemService(PowerManager::class.java)
-        val deadline = SystemClock.uptimeMillis() + 3_000
-        while ((!power.isInteractive || keyguard.isKeyguardLocked) && SystemClock.uptimeMillis() < deadline) {
-            SystemClock.sleep(50)
-        }
-        assertTrue("Wake and unlock the test device before checking Flutter rendering",
-            power.isInteractive && !keyguard.isKeyguardLocked)
+        com.daiyimo.maeve.cap.phone.a11y.DeviceSupport.prepareInteractiveDisplay()
     }
 
     private fun views(root: View): Sequence<View> = sequence {

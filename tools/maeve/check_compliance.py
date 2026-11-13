@@ -66,8 +66,8 @@ check("gpl-sources.tar.gz" in screen,
       "GPL source offer string lost from the shared notice model")
 
 # The native data must still be reachable from the Flutter application.
-check("const LicensesPage()" in read("flutter/lib/ui/settings/about_pages.dart"),
-      "About must open Flutter's licence page")
+check("const LicensesPage()" in read("flutter/lib/ui/settings/settings_hub.dart"),
+      "Settings must open Flutter's licence page")
 check("'legal_notices'" in read("flutter/lib/ui/settings/licenses_page.dart"),
       "Flutter licence page must read the packaged native notice data")
 check('"legal_notices"' in read("app/src/main/java/com/daiyimo/maeve/ui/MaeveUiPlugin.kt"),

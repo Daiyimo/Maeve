@@ -8,8 +8,6 @@ import '../../design/maeve_type.dart';
 import '../../widgets/maeve_mark.dart';
 import '../../widgets/glass_surface.dart';
 import '../common/app_page.dart';
-import 'settings_components.dart';
-import 'licenses_page.dart';
 
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
@@ -97,25 +95,6 @@ class _AboutPageState extends State<AboutPage> {
                 ),
               ),
             ],
-          ),
-        ),
-        SettingsSection(
-          title: '许可与致谢',
-          rows: [
-            SettingsTile(
-              icon: Icons.description_outlined,
-              title: '开源许可',
-              subtitle: 'Apache-2.0 · 第三方组件与源码说明',
-              value: '查看',
-              onTap: () => AppPage.open(context, const LicensesPage()),
-            ),
-          ],
-        ),
-        const SizedBox(height: MaeveSpace.s24),
-        Center(
-          child: Text(
-            '对话与配置保存在设备上。执行任务时，必要的内容会交给你配置的模型服务。',
-            style: MaeveType.hint.copyWith(color: colors.ink3),
           ),
         ),
       ],

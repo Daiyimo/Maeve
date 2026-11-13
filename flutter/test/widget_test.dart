@@ -496,7 +496,7 @@ void main() {
         .colorScheme
         .primary;
     expect(after, isNot(before));
-    expect(after, deriveAccent(MaeveAccentPreset.dolores).darkSeed);
+    expect(after, deriveAccent(MaeveAccentPreset.dolores).lightSeed);
   });
 
   testWidgets('减少透明效果:整棵树不再建 BackdropFilter', (tester) async {

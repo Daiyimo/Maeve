@@ -1,6 +1,9 @@
 package com.daiyimo.maeve.cap.phone.a11y
 
 import android.app.UiAutomation
+import android.app.KeyguardManager
+import android.os.PowerManager
+import android.os.SystemClock
 import android.os.ParcelFileDescriptor
 import androidx.test.platform.app.InstrumentationRegistry
 import com.daiyimo.maeve.cap.phone.display.AgentDisplay
@@ -44,10 +47,26 @@ object DeviceSupport {
 
     /** 服务掉线(前面的测试结束了本进程的绑定等)时先促使系统重绑,再等它连上。 */
     fun service(): ScreenAccessibility {
+        prepareInteractiveDisplay()
         if (ScreenAccessibility.instance.value == null) rebindAccessibility()
         return runBlocking {
             withTimeoutOrNull(10_000) { ScreenAccessibility.instance.filterNotNull().first() }
         } ?: error("Maeve accessibility service is not enabled")
+    }
+
+    /** Physical-device precondition shared by native phone and Flutter checks. */
+    fun prepareInteractiveDisplay() {
+        sh("input keyevent KEYCODE_WAKEUP")
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val keyguard = context.getSystemService(KeyguardManager::class.java)
+        if (!keyguard.isKeyguardSecure) {
+            sh("wm dismiss-keyguard")
+            sh("input keyevent KEYCODE_MENU")
+        }
+        val power = context.getSystemService(PowerManager::class.java)
+        val deadline = SystemClock.uptimeMillis() + 3_000
+        while ((!power.isInteractive || keyguard.isKeyguardLocked) && SystemClock.uptimeMillis() < deadline) Thread.sleep(50)
+        check(power.isInteractive && !keyguard.isKeyguardLocked) { "Wake and unlock the test device before checking its UI" }
     }
 
     class Agent(val display: AgentDisplay, val screen: AndroidScreen) {

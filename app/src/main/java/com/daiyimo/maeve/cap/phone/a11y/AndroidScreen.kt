@@ -1751,15 +1751,26 @@ class AndroidScreen(
 
     // ---------- 底层操作 ----------
 
-    /** 优先对节点(或最近的可点祖先)发点击;不行再在其中心做手势,最后注入触摸。 */
+    /** Recorded taps dispatch real touch input, so evidence is its actual pixel, not a guessed node centre. */
     private suspend fun click(node: AccessibilityNodeInfo, report: ((com.daiyimo.maeve.core.uistate.PointerCapture) -> Unit)? = null): Boolean {
         val target = ancestorOrSelf(node) { it.isClickable && it.isEnabled }
         val targetBounds = target?.let { android.graphics.Rect().also(it::getBoundsInScreen) }
+        if (report != null) {
+            val visible = android.graphics.Rect().also { (target ?: node).getBoundsInScreen(it) }
+            if (visible.intersect(0, 0, screenWidth, screenHeight) && !visible.isEmpty) {
+                val at = pacing.within(visible.left, visible.top, visible.right, visible.bottom)
+                if (touch(at)) {
+                    report(pointerAt(at))
+                    return true
+                }
+            }
+        }
         if (target != null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
             val r = targetBounds!!
             report?.invoke(com.daiyimo.maeve.core.uistate.PointerCapture(screenWidth, screenHeight, "accessibility", bounds = listOf(r.left, r.top, r.right, r.bottom)))
             return true
         }
+        if (report != null) return false // The real touch paths have already been attempted.
         val rect = android.graphics.Rect().also { node.getBoundsInScreen(it) }
         val at = pacing.within(rect.left, rect.top, rect.right, rect.bottom)
         return touch(at).also { if (it) report?.invoke(pointerAt(at)) }

@@ -10,6 +10,7 @@ import '../models/execution.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../ui/common/app_page.dart';
+import 'token_usage_view.dart';
 
 class ExecutionPanel extends StatefulWidget {
   const ExecutionPanel({
@@ -248,6 +249,11 @@ class ExecutionStepView extends StatelessWidget {
                   Text(
                     step.tags.join(' · '),
                     style: MaeveType.hint.copyWith(color: c.ink3),
+                  ),
+                if (step.tokens != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: TokenUsageView(usage: step.tokens!, compact: true),
                   ),
                 if (step.timingLabel.isNotEmpty)
                   Padding(
@@ -515,6 +521,22 @@ class _RunDetailsPageState extends State<RunDetailsPage> {
           ),
           const SizedBox(height: 20),
           if (record.steps.isEmpty) const Text('尚无已记录步骤'),
+          if (record.tokens != null) ...[
+            Text(
+              '本次任务的 Token 用量',
+              style: MaeveType.bodyStrong.copyWith(color: c.ink),
+            ),
+            const SizedBox(height: 10),
+            TokenUsageView(usage: record.tokens!),
+            const SizedBox(height: 8),
+            Text(
+              record.tokens!.scope == 'loop'
+                  ? '当前为主循环已返回用量，辅助调用可能未记录。缓存已计入输入。'
+                  : '任务运行期间已返回的用量，缓存已计入输入。',
+              style: MaeveType.hint.copyWith(color: c.ink3),
+            ),
+            const SizedBox(height: 24),
+          ],
           if (record.timingSummary.isNotEmpty) ...[
             Text(
               '已记录耗时 · ${record.timingSummary}',

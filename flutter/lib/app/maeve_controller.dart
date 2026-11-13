@@ -58,7 +58,8 @@ class MaeveController extends ChangeNotifier {
       mode = switch (next.mode) {
         'light' => ThemeMode.light,
         'system' => ThemeMode.system,
-        _ => ThemeMode.dark,
+        'dark' => ThemeMode.dark,
+        _ => ThemeMode.light,
       };
       accentPreset = MaeveAccentPreset.byId(next.accent);
       haptics = next.haptics;
@@ -85,6 +86,10 @@ class MaeveController extends ChangeNotifier {
       _applySettings(await settingsBridge.selectModel(id), appearance: false);
   Future<void> saveModel(Map<String, String> values) async =>
       _applySettings(await settingsBridge.saveModel(values), appearance: false);
+  Future<void> completeOnboarding() async => _applySettings(
+    await settingsBridge.completeOnboarding(),
+    appearance: false,
+  );
   Future<void> setAutonomous(bool enabled) async {
     final revision = ++_settingsRevision;
     final next = await settingsBridge.setAutonomous(enabled);
@@ -104,7 +109,7 @@ class MaeveController extends ChangeNotifier {
   }
 
   // —— 外观 ——
-  ThemeMode mode = ThemeMode.dark;
+  ThemeMode mode = ThemeMode.light;
 
   /// 当前配色预设(六套之一)。推导出来的完整色位见 [accent]。
   MaeveAccentPreset accentPreset = MaeveAccentPreset.reverie;

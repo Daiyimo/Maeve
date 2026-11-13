@@ -24,6 +24,7 @@ internal object FlutterTaskDetails {
             "available" to true, "running" to ui.header.running,
             "goal" to ui.header.goal, "outcome" to ui.header.outcome,
             "verdict" to ui.header.verdict, "duration" to ui.header.duration,
+            "tokens" to ui.header.tokens?.toMap(),
             "timingSummary" to RunTimelineViewModel.timingLabel(StepTiming(
                 ui.steps.mapNotNull { it.timing.modelMs }.takeIf { it.isNotEmpty() }?.sum(),
                 ui.steps.mapNotNull { it.timing.toolMs }.takeIf { it.isNotEmpty() }?.sum(),
@@ -35,6 +36,7 @@ internal object FlutterTaskDetails {
                 "failed" to step.failed,
                 "screenshotId" to step.screenshotId,
                 "timingLabel" to RunTimelineViewModel.timingLabel(step.timing),
+                "tokens" to step.tokens?.toMap(),
                 "timing" to mapOf("modelMs" to step.timing.modelMs, "toolMs" to step.timing.toolMs, "waitMs" to step.timing.waitMs, "retryMs" to step.timing.retryMs),
                 "declaredPoint" to step.declaredPoint.takeIf { step.pointers.isEmpty() },
                 "pointers" to step.pointers.map { p -> mapOf("x" to p.x, "y" to p.y,

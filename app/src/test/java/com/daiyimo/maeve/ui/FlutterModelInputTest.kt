@@ -2,7 +2,7 @@ package com.daiyimo.maeve.ui
 
 import com.daiyimo.maeve.settings.ProviderConfig
 import com.daiyimo.maeve.settings.ProviderStore
-import com.daiyimo.maeve.settings.ProviderPresets
+import com.daiyimo.maeve.settings.StepModelProfiles
 import com.daiyimo.maeve.settings.AesGcmKeyCipher
 import com.daiyimo.maeve.core.model.ModelRole
 import org.junit.Assert.*
@@ -12,13 +12,12 @@ import org.junit.rules.TemporaryFolder
 import javax.crypto.KeyGenerator
 
 class FlutterModelInputTest {
-    @Test fun flutterRetainsEveryNativeProviderPresetWithItsRealProtocol() {
+    @Test fun flutterShowsOneStepPresetWithBothOfficialEndpoints() {
         val catalog = FlutterModelSettings.presets()
-        assertEquals(ProviderPresets.all.map { it.label }, catalog.map { it["label"] })
-        assertEquals("OpenAiResponses", catalog.first { it["label"] == "OpenAI" }["kind"])
-        assertEquals("Anthropic", catalog.first { it["label"] == "Anthropic" }["kind"])
-        assertTrue(catalog.any { it["label"] == "DeepSeek" })
-        assertTrue(catalog.any { it["selfHosted"] == true })
+        assertEquals(listOf("阶跃星辰"), catalog.map { it["label"] })
+        assertEquals(StepModelProfiles.API, catalog.single()["baseUrl"])
+        assertEquals(StepModelProfiles.PLAN, catalog.single()["planUrl"])
+        assertEquals("OpenAiCompat", catalog.single()["kind"])
         assertFalse(catalog.any { "apiKey" in it })
     }
     @get:Rule val tmp = TemporaryFolder()
@@ -76,5 +75,101 @@ class FlutterModelInputTest {
         val current = store.configFor(ModelRole.Main)
         assertThrows(IllegalArgumentException::class.java) { settings.select("missing") }
         assertEquals(current, store.configFor(ModelRole.Main))
+    }
+
+    @Test fun imageAndReasoningSettingsSurviveModelSwitchesAndRestart() {
+        val s = store()
+        val settings = FlutterModelSettings(s)
+        settings.save(FlutterModelInput.parse(values(url = StepModelProfiles.API, model = "step-3.7-flash") + mapOf("vision" to "true", "reasoningEffort" to "high")))
+        val first = settings.choices().single().id
+        assertTrue(s.configFor(ModelRole.Main)!!.capabilities.vision)
+        assertTrue(s.configFor(ModelRole.Main)!!.capabilities.toolCalls)
+        assertEquals("high", s.roles.value.reasoningEffort(ModelRole.Main))
+        settings.save(FlutterModelInput.parse(values(url = StepModelProfiles.API, model = "step-3.5-flash")))
+        assertNull(s.roles.value.reasoningEffort(ModelRole.Main))
+        val reloaded = store()
+        FlutterModelSettings(reloaded).select(first)
+        assertEquals("high", reloaded.roles.value.reasoningEffort(ModelRole.Main))
+        assertTrue(reloaded.configFor(ModelRole.Main)!!.capabilities.vision)
+        assertEquals("high", FlutterModelSettings(reloaded).choices().first { it.id == first }.reasoningEffort)
+    }
+
+    @Test fun unsupportedReasoningFailsBeforeChangingTheSelection() {
+        val s = store()
+        val settings = FlutterModelSettings(s)
+        settings.save(FlutterModelInput.parse(values()))
+        val before = s.configFor(ModelRole.Main)
+        assertThrows(IllegalArgumentException::class.java) {
+            settings.save(FlutterModelInput.parse(values(url = StepModelProfiles.PLAN, model = "step-3.5-flash-2603") + ("reasoningEffort" to "medium")))
+        }
+        assertEquals(before, s.configFor(ModelRole.Main))
+        assertEquals(listOf("low", "high"), StepModelProfiles.levels("step-3.5-flash-2603"))
+    }
+
+    @Test fun draftListingUsesTheChosenPathWithoutPersistingCredentials() = kotlinx.coroutines.runBlocking {
+        val requests = mutableListOf<Pair<String, String?>>()
+        val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, modelLister = { _, url, token, _ ->
+            requests += url to token
+            com.daiyimo.maeve.core.model.ModelListResult.Ok(listOf("step-3.7-flash", "stepaudio-2.5-tts", "stepaudio-2.5-asr", "stepaudio-2.5-realtime").map { com.daiyimo.maeve.core.model.ListedModel(it) })
+        })
+        val settings = FlutterModelSettings(s)
+        val result = settings.list(FlutterModelInput.parse(values(url = StepModelProfiles.PLAN, model = ""), requireModel = false))
+        assertEquals(listOf(StepModelProfiles.PLAN to "fixture-key"), requests)
+        assertTrue(s.providers.value.isEmpty())
+        assertFalse(result.toString().contains("fixture-key"))
+        assertEquals(true, ((result["models"] as List<*>).single() as Map<*, *>)["vision"])
+        assertThrows(IllegalArgumentException::class.java) {
+            settings.save(FlutterModelInput.parse(values(url = StepModelProfiles.PLAN, model = "stepaudio-2.5-tts")))
+        }
+        assertTrue(s.providers.value.isEmpty())
+    }
+
+    @Test fun aRetainedKeyStaysWithTheSameServiceAndSupportsTheOfficialPlanPath() = kotlinx.coroutines.runBlocking {
+        var received: Pair<String, String?>? = null
+        val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, modelLister = { _, url, token, _ ->
+            received = url to token
+            com.daiyimo.maeve.core.model.ModelListResult.Ok(emptyList())
+        })
+        val settings = FlutterModelSettings(s)
+        settings.save(FlutterModelInput.parse(values(url = StepModelProfiles.API, model = "step-3.7-flash")))
+        val id = settings.choices().single().id
+        settings.list(FlutterModelInput.parse(values(url = StepModelProfiles.PLAN, model = "") + mapOf("id" to id, "apiKey" to ""), requireModel = false))
+        assertEquals(StepModelProfiles.PLAN to "fixture-key", received)
+        val previous = received
+        try {
+            settings.list(FlutterModelInput.parse(values(url = "https://different.example/v1", model = "") + mapOf("id" to id, "apiKey" to ""), requireModel = false))
+            fail("Stored credentials must not follow a different service")
+        } catch (_: IllegalArgumentException) { }
+        assertEquals(previous, received)
+    }
+
+    @Test fun fetchedModelMetadataIsSavedForOnlyTheChosenModelAndSurvivesRestart() = kotlinx.coroutines.runBlocking {
+        val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, modelLister = { _, _, _, _ ->
+            com.daiyimo.maeve.core.model.ModelListResult.Ok(listOf(
+                com.daiyimo.maeve.core.model.ListedModel("future-model", vision = true, contextTokens = 200_000, reasoning = true, reasoningEfforts = listOf("low", "high")),
+                com.daiyimo.maeve.core.model.ListedModel("unselected"),
+            ))
+        })
+        val settings = FlutterModelSettings(s)
+        settings.list(FlutterModelInput.parse(values(model = ""), requireModel = false))
+        settings.save(FlutterModelInput.parse(values(model = "future-model") + ("reasoningEffort" to "high")))
+        assertEquals(listOf("future-model"), settings.choices().map { it.model })
+        val restored = store()
+        assertTrue(restored.configFor(ModelRole.Main)!!.capabilities.vision)
+        assertEquals(200_000, restored.configFor(ModelRole.Main)!!.capabilities.contextTokens)
+        assertEquals("high", restored.roles.value.reasoningEffort(ModelRole.Main))
+        assertEquals(listOf("low", "high"), FlutterModelSettings(restored).choices().single().reasoningLevels)
+    }
+
+    @Test fun catalogueCapabilitiesCannotFollowAnUnrelatedDraftKey() = kotlinx.coroutines.runBlocking {
+        val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, modelLister = { _, _, _, _ ->
+            com.daiyimo.maeve.core.model.ModelListResult.Ok(listOf(com.daiyimo.maeve.core.model.ListedModel("future-model", reasoningEfforts = listOf("high"))))
+        })
+        val settings = FlutterModelSettings(s)
+        settings.list(FlutterModelInput.parse(values(model = ""), requireModel = false))
+        assertThrows(IllegalArgumentException::class.java) {
+            settings.save(FlutterModelInput.parse(values(model = "future-model") + mapOf("apiKey" to "different-fixture-key", "reasoningEffort" to "high")))
+        }
+        assertTrue(s.providers.value.isEmpty())
     }
 }

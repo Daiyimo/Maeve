@@ -146,6 +146,8 @@ data class Provider(
     val contextSettings: Map<String, ModelContextSettings> = emptyMap(),
     /** 用户说的某个模型能不能看图(按模型名):比列表和预设初值都算数,见 [ModelOptions.seesImages]。 */
     val visionOverrides: Map<String, Boolean> = emptyMap(),
+    /** Flutter model editor's saved choice; "default" means omit the wire parameter. */
+    val modelReasoning: Map<String, String> = emptyMap(),
 ) {
     val key: String get() = ProviderConnection.keyOf(kind, baseUrl, name)
 
@@ -518,6 +520,14 @@ class ProviderStore(
         _providers.value = _providers.value.map { if (it.id == p.id) p.copy(visionOverrides = p.visionOverrides + (model to sees)) else it }
         writeConfig()
         return true
+    }
+
+    @Synchronized
+    internal fun rememberModelReasoning(providerId: String, model: String, effort: String?) {
+        _providers.value = _providers.value.map { p ->
+            if (p.id == providerId) p.copy(modelReasoning = p.modelReasoning + (model to (effort ?: "default"))) else p
+        }
+        writeConfig()
     }
 
     /** 看图模型的「看图定位已验证」(开发者选项里改);看图用主模型时改的是主模型那条配置。没有看图模型时不动。 */
@@ -930,6 +940,9 @@ class ProviderStore(
         visionOverrides = (o["visionOverrides"] as? JsonObject).orEmpty().mapNotNull { (model, raw) ->
             (raw as? JsonPrimitive)?.booleanOrNull?.let { model to it }
         }.toMap(),
+        modelReasoning = (o["modelReasoning"] as? JsonObject).orEmpty().mapNotNull { (model, raw) ->
+            (raw as? JsonPrimitive)?.content?.let { model to it }
+        }.toMap(),
         typedModels = o["typedModels"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet().orEmpty(),
         // 旧版本存下的没有这一项:那时每一家都走过「测试并保存」,按测过算
         savedUntested = o["untested"]?.jsonPrimitive?.booleanOrNull ?: false,
@@ -1015,6 +1028,9 @@ class ProviderStore(
                         }
                         if (p.visionOverrides.isNotEmpty()) putJsonObject("visionOverrides") {
                             for ((model, sees) in p.visionOverrides) put(model, sees)
+                        }
+                        if (p.modelReasoning.isNotEmpty()) putJsonObject("modelReasoning") {
+                            for ((model, effort) in p.modelReasoning) put(model, effort)
                         }
                         if (p.typedModels.isNotEmpty()) putJsonArray("typedModels") { p.typedModels.forEach { add(it) } }
                         p.models?.let { models ->

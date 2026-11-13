@@ -39,6 +39,49 @@ class ExecutionBridgeDeviceTest {
         val info = context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_PERMISSIONS)
         assertTrue(info.requestedPermissions.orEmpty().contains(Manifest.permission.SYSTEM_ALERT_WINDOW))
     }
+    @Test fun lightDefaultsAndSavedAppearanceAreReadFromTheNativeStore() {
+        FlutterLaunchDeviceTest().prepareInteractiveDisplay()
+        val prefs = context.getSharedPreferences("flutter_appearance", android.content.Context.MODE_PRIVATE)
+        val oldMode = prefs.getString("mode", null)
+        val oldAccent = prefs.getString("accent", null)
+        ActivityScenario.launch<MainActivity>(Intent(context, MainActivity::class.java)).use { scenario ->
+            try {
+                prefs.edit().remove("mode").remove("accent").commit()
+                val defaults = call(scenario, "snapshot", settings = true) as Map<*, *>
+                assertEquals("light", defaults["mode"])
+                assertEquals("reverie", defaults["accent"])
+                val changed = call(scenario, "setAppearance", mapOf("mode" to "dark", "accent" to "dolores"), settings = true) as Map<*, *>
+                assertEquals("dark", changed["mode"])
+                assertEquals("dolores", changed["accent"])
+            } finally {
+                prefs.edit().apply {
+                    if (oldMode == null) remove("mode") else putString("mode", oldMode)
+                    if (oldAccent == null) remove("accent") else putString("accent", oldAccent)
+                }.commit()
+            }
+        }
+    }
+    @Test fun stepCatalogueUsageAndWelcomeShareNativeStateWithoutExposingKeys() {
+        FlutterLaunchDeviceTest().prepareInteractiveDisplay()
+        val prefs = context.getSharedPreferences("flutter_appearance", android.content.Context.MODE_PRIVATE)
+        val oldWelcome = if (prefs.contains("welcomeSeen")) prefs.getBoolean("welcomeSeen", false) else null
+        ActivityScenario.launch<MainActivity>(Intent(context, MainActivity::class.java)).use { scenario ->
+            try {
+                val snapshot = call(scenario, "snapshot", settings = true) as Map<*, *>
+                val preset = (snapshot["presets"] as List<*>).single() as Map<*, *>
+                assertEquals("阶跃星辰", preset["label"])
+                assertEquals("https://api.stepfun.com/step_plan/v1", preset["planUrl"])
+                assertFalse(preset.containsKey("apiKey"))
+                val usage = call(scenario, "modelUsage", settings = true) as Map<*, *>
+                assertEquals(30, usage["days"])
+                assertTrue(((usage["totals"] as Map<*, *>)["input"] as Number).toLong() >= 0)
+                assertEquals(true, (call(scenario, "completeOnboarding", settings = true) as Map<*, *>)["welcomeSeen"])
+                assertTrue(prefs.getBoolean("welcomeSeen", false))
+            } finally {
+                prefs.edit().apply { if (oldWelcome == null) remove("welcomeSeen") else putBoolean("welcomeSeen", oldWelcome) }.commit()
+            }
+        }
+    }
     @Test fun capsuleSwitchPersistsToNativeStateInBothDirections() {
         FlutterLaunchDeviceTest().prepareInteractiveDisplay()
         val flags = com.daiyimo.maeve.settings.FeatureFlags.get(context)

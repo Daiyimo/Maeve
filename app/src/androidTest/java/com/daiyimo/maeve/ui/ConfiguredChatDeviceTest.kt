@@ -155,7 +155,10 @@ class ConfiguredChatDeviceTest {
                         store.events(runId).any { it is com.daiyimo.maeve.core.record.RunEvent.Pointer && it.screenshotId != null }
                     }
                     val pointers = store.events(runId).filterIsInstance<com.daiyimo.maeve.core.record.RunEvent.Pointer>()
-                    assertTrue(pointers.all { it.width > 0 && it.height > 0 && (it.method != "touch" || (it.x != null && it.y != null)) })
+                    assertTrue("This device must record the real injected click point, not a control rectangle", pointers.all {
+                        it.method == "touch" && it.width > 0 && it.height > 0 && it.x != null && it.y != null &&
+                            it.x!! in 0 until it.width && it.y!! in 0 until it.height
+                    })
                     assertTrue(pointers.filter { it.screenshotId != null }.all { store.screen(runId, it.screenshotId!!) != null })
                     val lastFrame = store.events(runId).filterIsInstance<com.daiyimo.maeve.core.record.RunEvent.Media>().last()
                     val file = requireNotNull(store.screen(runId, lastFrame.mediaId))

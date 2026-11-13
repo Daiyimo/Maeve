@@ -9,6 +9,7 @@ import 'package:maeve_flutter/ui/settings/system_access_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_page.dart';
 import 'package:maeve_flutter/ui/settings/execution_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/run_history_page.dart';
+import 'package:maeve_flutter/ui/settings/welcome_page.dart';
 
 const visualPages = <String, Widget>{
   'settings': SettingsHubPage(),
@@ -22,4 +23,5 @@ const visualPages = <String, Widget>{
   'performance': PerformancePage(),
   'about': AboutPage(),
   'licenses': LicensesPage(),
+  'welcome': WelcomePage(),
 };

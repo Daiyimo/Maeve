@@ -34,7 +34,7 @@ class AppearancePage extends StatelessWidget {
             SettingsSegmentTile(
               icon: Icons.brightness_6_outlined,
               title: '主题模式',
-              subtitle: '深色更省电，也更安静',
+              subtitle: '选择清透的浅色、安静的深色，或跟随系统。',
               options: const ['深色', '浅色', '跟随系统'],
               value: switch (controller.mode) {
                 ThemeMode.dark => 0,

@@ -59,6 +59,7 @@ data class TimelineStep(
     val failed: Boolean = false,
     val pointers: List<RunEvent.Pointer> = emptyList(),
     val declaredPoint: String? = null,
+    val tokens: RunTokens? = null,
 )
 
 data class TimelineHeader(
@@ -77,6 +78,7 @@ data class TimelineHeader(
     val usedMemory: List<String> = emptyList(),
     /** 这次运行的小结;记录里没有开始事件时为 null(只显示用时)。 */
     val metrics: RunMetrics? = null,
+    val tokens: RunTokens? = null,
 )
 
 sealed interface TimelineUi {
@@ -126,6 +128,7 @@ class RunTimelineViewModel(
             stepsUsed = metrics?.steps?.let { n -> started?.stepLimit?.let { minOf(n, it) } ?: n } ?: 0,
             usedMemory = resolveMemory(events.filterIsInstance<RunEvent.MemoryUsed>().lastOrNull()?.ids.orEmpty()),
             metrics = metrics,
+            tokens = RunTokens.of(events),
         )
         return TimelineUi.Ready(header, steps(events, toolLabels::label))
     }
@@ -143,6 +146,7 @@ class RunTimelineViewModel(
             val modelTimes = mutableMapOf<Int, Long>()
             val retryTimes = mutableMapOf<Int, Long>()
             val toolTimes = mutableMapOf<Int, MutableList<RunEvent.ToolResult>>()
+            val tokenReplies = events.filterIsInstance<RunEvent.ModelReply>().groupBy { it.step }
             var current: Int? = null
             fun at(step: Int) = rows.getOrPut(step) { TimelineStep(step, "", null, null, null, emptyList(), null) }.also { current = step }
             fun tag(t: Tag) { current?.let { s -> rows[s] = rows.getValue(s).let { it.copy(tags = it.tags + t) } } }
@@ -209,6 +213,7 @@ class RunTimelineViewModel(
                 val measured = (outer.ifEmpty { results.filter { it.durationMs > 0 } }).sumOf { it.durationMs }
                 row.copy(
                     said = clipSaid(row.said),
+                    tokens = RunTokens.replies(tokenReplies[row.step].orEmpty()),
                     timing = StepTiming(modelTimes[row.step], measured.takeIf { it > 0 }, retryTimes[row.step] ?: 0,
                         (outer.ifEmpty { results }).sumOf { it.waitMs.coerceAtLeast(0) }),
                 )

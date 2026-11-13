@@ -17,6 +17,9 @@ data class ReasoningOptions(val levels: List<String>, val fromProvider: Boolean)
             listed?.reasoningEfforts?.let { return ReasoningOptions(it, fromProvider = true) }
             // 仍返回空选项,使已保存的旧档位能在界面恢复默认。
             if (listed?.reasoning == false) return ReasoningOptions(emptyList(), fromProvider = true)
+            if (StepModelProfiles.isEndpoint(config.baseUrl)) {
+                return ReasoningOptions(StepModelProfiles.levels(config.model), fromProvider = false)
+            }
             return when (ProviderStore.adapterFor(config, listed?.endpoint).first) {
                 ProviderConfig.Kind.OpenAiResponses, ProviderConfig.Kind.ChatGpt, ProviderConfig.Kind.Xai ->
                     ReasoningOptions(manualLevels, fromProvider = false)

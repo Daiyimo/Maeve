@@ -9,6 +9,7 @@ import 'maeve_controller.dart';
 import '../bridge/maeve_bridge.dart';
 
 import '../design/maeve_theme.dart';
+import '../ui/settings/welcome_page.dart';
 
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -95,7 +96,9 @@ class _MaeveAppState extends State<MaeveApp> with WidgetsBindingObserver {
           blurEnabled: !controller.reduceTransparency,
           child: child ?? const SizedBox.shrink(),
         ),
-        home: const MaeveShell(),
+        home: controller.settingsLoaded && !controller.native.welcomeSeen
+            ? const WelcomePage(firstRun: true)
+            : const MaeveShell(),
       ),
     ),
   );

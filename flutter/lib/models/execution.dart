@@ -1,3 +1,5 @@
+import 'token_usage.dart';
+
 class ExecutionAction {
   const ExecutionAction({
     required this.label,
@@ -77,6 +79,7 @@ class ExecutionStep {
     this.timingLabel = '',
     this.pointers = const [],
     this.declaredPoint,
+    this.tokens,
   });
   final int step;
   final String title, reason, detail, state;
@@ -86,6 +89,7 @@ class ExecutionStep {
   final bool resultFailed;
   final String timingLabel;
   final String? declaredPoint;
+  final TokenUsage? tokens;
   final List<ExecutionPointer> pointers;
   bool get failed => resultFailed || actions.any((action) => action.failed);
   factory ExecutionStep.fromMap(Map map) => ExecutionStep(
@@ -97,6 +101,9 @@ class ExecutionStep {
     resultFailed: map['failed'] == true,
     timingLabel: map['timingLabel'] as String? ?? '',
     declaredPoint: map['declaredPoint'] as String?,
+    tokens: map['tokens'] is Map
+        ? TokenUsage.fromMap(map['tokens'] as Map)
+        : null,
     pointers: [
       for (final p in map['pointers'] as List? ?? const [])
         if (p is Map) ExecutionPointer.fromMap(p),
@@ -123,10 +130,12 @@ class RunDetails {
     this.duration,
     this.steps = const [],
     this.timingSummary = '',
+    this.tokens,
   });
   final bool available, running;
   final String goal, outcome, verdict;
   final String timingSummary;
+  final TokenUsage? tokens;
   final String? duration;
   final List<ExecutionStep> steps;
   factory RunDetails.fromMap(Map map) => RunDetails(
@@ -136,6 +145,9 @@ class RunDetails {
     outcome: map['outcome'] as String? ?? '',
     verdict: map['verdict'] as String? ?? '',
     timingSummary: map['timingSummary'] as String? ?? '',
+    tokens: map['tokens'] is Map
+        ? TokenUsage.fromMap(map['tokens'] as Map)
+        : null,
     duration: map['duration'] as String?,
     steps: [
       for (final step in map['steps'] as List? ?? const [])

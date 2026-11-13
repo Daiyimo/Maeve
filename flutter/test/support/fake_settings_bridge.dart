@@ -1,9 +1,10 @@
 import 'package:maeve_flutter/bridge/maeve_settings_bridge.dart';
 
 class FakeSettingsBridge extends MaeveSettingsBridge {
-  FakeSettingsBridge({String mode = 'dark', bool configured = true})
+  FakeSettingsBridge({String mode = 'light', bool configured = true})
     : values = {
         'mode': mode,
+        'welcomeSeen': true,
         'capsuleEnabled': true,
         'accent': 'reverie',
         'haptics': true,
@@ -29,29 +30,60 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
         'phoneSupported': true,
         'presets': [
           {
-            'id': 'DeepSeek',
-            'label': 'DeepSeek',
+            'id': '阶跃星辰',
+            'label': '阶跃星辰',
             'kind': 'OpenAiCompat',
-            'baseUrl': 'https://api.deepseek.com',
-            'selfHosted': false,
-          },
-          {
-            'id': 'OpenAI',
-            'label': 'OpenAI',
-            'kind': 'OpenAiResponses',
-            'baseUrl': 'https://api.openai.com/v1',
-            'selfHosted': false,
-          },
-          {
-            'id': 'custom',
-            'label': '自定义',
-            'kind': 'OpenAiCompat',
-            'baseUrl': '',
+            'baseUrl': 'https://api.stepfun.com/v1',
+            'planUrl': 'https://api.stepfun.com/step_plan/v1',
+            'modelProfiles': [
+              {
+                'id': 'step-3.7-flash',
+                'vision': true,
+                'reasoningLevels': ['low', 'medium', 'high'],
+              },
+              {
+                'id': 'step-3.5-flash',
+                'vision': false,
+                'reasoningLevels': <String>[],
+              },
+            ],
             'selfHosted': false,
           },
         ],
       };
   final Map<String, dynamic> values;
+  final listRequests = <Map<String, String>>[];
+  Map<String, dynamic> listedModels = {'models': <Map<String, dynamic>>[]};
+  Map<String, dynamic> usage = {
+    'totals': {
+      'input': 0,
+      'output': 0,
+      'cached': 0,
+      'calls': 0,
+      'unreported': 0,
+    },
+    'models': [],
+  };
+  @override
+  Future<NativeSettings> completeOnboarding() async {
+    if (fail) throw StateError('Fixture welcome save failure');
+    values['welcomeSeen'] = true;
+    return load();
+  }
+
+  @override
+  Future<Map<String, dynamic>> listModels(Map<String, String> config) async {
+    listRequests.add(Map.of(config));
+    if (fail) throw StateError('Fixture catalogue failure');
+    return listedModels;
+  }
+
+  @override
+  Future<Map<String, dynamic>> modelUsage() async {
+    if (fail) throw StateError('Fixture usage failure');
+    return usage;
+  }
+
   final targets = <String>[];
   final approvalChanges = <bool>[];
   final paceChanges = <String>[];
