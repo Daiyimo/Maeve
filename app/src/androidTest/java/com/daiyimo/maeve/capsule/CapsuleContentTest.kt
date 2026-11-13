@@ -7,6 +7,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -30,6 +32,17 @@ class CapsuleContentTest {
     @get:Rule val compose = createComposeRule()
 
     private val clicks = mutableListOf<String>()
+    @Test fun whiteDockKeepsAUsableTouchTargetEvenInDarkAppearance() {
+        compose.setContent {
+            MaeveTheme(dark = true, reduceMotion = true) { CapsuleContent(CapsuleView.Shown(CapsuleKind.Idle, ""), {}, {}, {}) }
+        }
+        val dock = compose.onNodeWithTag("capsule-ball")
+        val bounds = dock.getBoundsInRoot()
+        assertTrue(bounds.width.value >= 44 && bounds.height.value >= 44)
+        val pixels = dock.captureToImage().toPixelMap()
+        val paper = pixels[pixels.width / 2, (pixels.height * .1f).toInt()]
+        assertTrue("Dock surface should remain white: $paper", paper.red > .97f && paper.green > .97f && paper.blue > .97f)
+    }
 
     private fun show(view: CapsuleView.Shown) {
         compose.setContent {

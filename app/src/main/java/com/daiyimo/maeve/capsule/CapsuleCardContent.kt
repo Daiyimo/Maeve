@@ -100,7 +100,6 @@ import androidx.compose.ui.graphics.ImageBitmap
 import com.daiyimo.maeve.ui.components.ButtonKind
 import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.MaeveButton
-import com.daiyimo.maeve.ui.components.MaeveLogo
 import com.daiyimo.maeve.ui.components.StepItem
 import com.daiyimo.maeve.ui.components.StepState
 import com.daiyimo.maeve.ui.theme.MaeveIcons
@@ -114,7 +113,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
-private val CardShape = RoundedCornerShape(22.dp)
+private val CardShape = RoundedCornerShape(26.dp)
 private val ScreenShape = RoundedCornerShape(14.dp)
 private val BubbleShape = RoundedCornerShape(16.dp, 16.dp, 5.dp, 16.dp)
 private val CardWidth = 322.dp
@@ -473,7 +472,7 @@ private fun CardFrame(height: Dp, fixed: Boolean = true, content: @Composable Co
 private fun Header(title: String, sub: String, actions: CardActions, handle: Modifier) {
     val c = MaeveTheme.colors
     Row(handle.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        MaeveLogo(28.dp, corner = 14.dp)
+        CapsuleEmblem(Modifier.size(28.dp))
         Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
             Text(title, style = Title, color = c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(sub, style = Sub, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -488,7 +487,7 @@ private fun IdleHeader(card: CardView.Chat, actions: CardActions, handle: Modifi
     val c = MaeveTheme.colors
     val continuing = !card.fresh && card.conversationId != null
     Row(handle.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        MaeveLogo(28.dp, corner = 14.dp)
+        CapsuleEmblem(Modifier.size(28.dp))
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 if (continuing) tr(R.string.card_continuing, card.title.orEmpty().let(ScreenCopy::plain).let { if (it.length > TITLE_MAX) it.take(TITLE_MAX) + "…" else it }) else CardCopy.NEW_CHAT,

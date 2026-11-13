@@ -52,6 +52,15 @@ class RunRecoveryTest {
 
     private fun run(id: String, phase: RunPhase = RunPhase.Running) = StoredRun(RunId(id), "thread-$id", "目标 $id", phase)
 
+    @Test fun interruptedTurnRetainsItsExactExecutionRecordAndDoesNotDuplicateIt() = runTest(UnconfinedTestDispatcher()) {
+        val rig = Rig(this)
+        rig.store.save(run("a").copy(recordId = "20261113-080000-abc123"))
+        rig.recovery.recover()
+        rig.recovery.settleInterrupted()
+        assertEquals("20261113-080000-abc123", rig.conversations.turns("thread-a").single().runId)
+        assertEquals(listOf("interrupted:a"), rig.channel.sent.map { it.id })
+    }
+
     // 进程被杀后 App 一启动(没有任何服务)就标中断并告知
     @Test fun appStartMarksUnfinishedRunsInterruptedAndTellsUser() = runTest(UnconfinedTestDispatcher()) {
         val rig = Rig(this)

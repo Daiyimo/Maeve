@@ -6,7 +6,9 @@ Flutter is the only application interface. Android owns the existing Mika-derive
 
 - Real chat and conversation search, pinning and deletion through maeve/chat.
 - Live native execution steps, action results, failures and guarded task previews. Saved run details and screenshots are read from the existing RunStore.
+- A real native run-history list, including retained interrupted records, plus a persistent capsule switch on the settings hub and system-access page. Turning the capsule off hides the overlay without cancelling tasks.
 - Native local-task confirmation modes through ApprovalControl, including persistent autonomous execution. Remote task rules remain owned by the engine.
+- Native operating pace through FeatureFlags, and measured model/tool/pacing time in saved execution records. Actual phone taps show pixel positions or accessibility bounds on their own before-frames; legacy targets remain clearly labelled.
 - Model configuration and selection through maeve/settings and the existing native ProviderStore, including its provider presets with their native endpoints and protocols. Keys are not returned to Flutter.
 - Android permission status and system authorization targets, plus native helper pairing notifications.
 - Amoo setup and file-bridge status through the existing native AmooSetup and FeatureFlags; reading the page does not start setup.
@@ -21,7 +23,7 @@ The idle home fits normal phone viewports without scrolling; three compact start
 
 ## Validation
 
-Run flutter/tool/verify.sh from the repository or the Flutter analyzer and widget tests from this module. Tests cover chat behavior, native settings contracts, persistence, endpoint input validation, all ten real settings destinations, narrow/wide/large-text layouts and six light/dark palettes. No screenshot font is required by CI.
+Run flutter/tool/verify.sh from the repository or the Flutter analyzer and widget tests from this module. Tests cover chat behavior, native settings contracts, persistence, endpoint input validation, all eleven real settings destinations, narrow/wide/large-text layouts and six light/dark palettes. No screenshot font is required by CI.
 
 Wireless pairing reuses Android's native DeveloperSettings route, with the wireless-debugging preference highlighted when supported. The user enables wireless debugging and opens its pairing-code dialog there; inaccessible Settings targets return a visible error. It does not use an unsupported wireless-debugging action or silently redirect to app details.
 

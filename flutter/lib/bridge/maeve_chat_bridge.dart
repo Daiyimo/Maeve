@@ -33,6 +33,7 @@ abstract class MaeveChatBridge {
   Future<void> delete(String id);
   Future<Uint8List?> preview(String conversationId);
   Future<RunDetails> runDetails(String runId);
+  Future<List<Map<String, dynamic>>> runs();
   Future<Uint8List?> runScreen(String runId, int screenId);
   Future<bool> taskAction(String conversationId, String action, {int? key});
 
@@ -43,6 +44,12 @@ abstract class MaeveChatBridge {
 /// 真机实现:全部转发给平台通道(见 MaeveBridge / 宿主 MaeveChatPlugin)。
 class HostChatBridge extends MaeveChatBridge {
   const HostChatBridge();
+  @override
+  Future<List<Map<String, dynamic>>> runs() async => [
+    for (final row
+        in await MaeveBridge.chatMethods.invokeListMethod('runs') ?? const [])
+      if (row is Map) Map<String, dynamic>.from(row),
+  ];
   @override
   Future<Uint8List?> preview(String conversationId) => MaeveBridge.chatMethods
       .invokeMethod<Uint8List>('preview', {'conversationId': conversationId});

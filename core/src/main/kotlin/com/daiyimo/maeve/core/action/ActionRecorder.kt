@@ -7,6 +7,8 @@ import com.daiyimo.maeve.core.record.RunSink
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.intOrNull
 import com.daiyimo.maeve.core.tool.Verb
 
 /**
@@ -90,6 +92,22 @@ class ActionRecorder(
             // 同上
         }
         return id
+    }
+
+    fun pointer(step: Int, tool: String, extra: JsonObject, frame: ByteArray?, source: String, callId: String) {
+        val p = extra["pointer"] as? JsonObject ?: return
+        fun number(k: String) = (p[k] as? JsonPrimitive)?.intOrNull
+        val width = number("width")?.takeIf { it > 0 } ?: return
+        val height = number("height")?.takeIf { it > 0 } ?: return
+        val method = (p["method"] as? JsonPrimitive)?.content ?: return
+        val bounds = (p["bounds"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.intOrNull }.orEmpty()
+        val x = number("x"); val y = number("y")
+        if (method == "touch" && (x == null || y == null || x !in 0 until width || y !in 0 until height)) return
+        if (method == "accessibility" && (bounds.size != 4 || bounds[0] >= bounds[2] || bounds[1] >= bounds[3])) return
+        if (method !in setOf("touch", "accessibility")) return
+        val shot = frame?.let(::saveFrame)
+        event(RunEvent.Pointer(clock(), step, tool, width, height, method, x, y, bounds,
+            (number("clicks") ?: 1).coerceIn(1, 2), shot, callId, source))
     }
 
     private companion object {

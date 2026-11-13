@@ -4,6 +4,7 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
   FakeSettingsBridge({String mode = 'dark', bool configured = true})
     : values = {
         'mode': mode,
+        'capsuleEnabled': true,
         'accent': 'reverie',
         'haptics': true,
         'reduceTransparency': false,
@@ -53,6 +54,22 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
   final Map<String, dynamic> values;
   final targets = <String>[];
   final approvalChanges = <bool>[];
+  final paceChanges = <String>[];
+  @override
+  Future<NativeSettings> setCapsuleEnabled(bool enabled) async {
+    if (fail) throw StateError('Fixture capsule save failure');
+    values['capsuleEnabled'] = enabled;
+    return load();
+  }
+
+  @override
+  Future<NativeSettings> setOperatingPace(String pace) async {
+    if (fail) throw StateError('Fixture pace save failure');
+    paceChanges.add(pace);
+    values['operatingPace'] = pace;
+    return load();
+  }
+
   @override
   Future<NativeSettings> setAutonomous(bool enabled) async {
     if (fail) throw StateError('Fixture approval save failure');

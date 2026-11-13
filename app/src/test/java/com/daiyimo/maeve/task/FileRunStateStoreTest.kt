@@ -18,7 +18,7 @@ class FileRunStateStoreTest {
             first.save(StoredRun(RunId("run-1"), "thread-1", "任务原话", RunPhase.Aftercare,
                 reply = "回答原文", deliveryId = "delivery-1", roundInProgress = true,
                 triggerWindowKey = "plan:1000", runSucceeded = false,
-                channelPeer = ChannelPeer("wechat", "owner", "thread-1"), channelMessageId = "message-1"))
+                channelPeer = ChannelPeer("wechat", "owner", "thread-1"), channelMessageId = "message-1", recordId = "20261113-080000-abc123"))
             val reopened = FileRunStateStore(file)
             assertEquals("回答原文", reopened.get(RunId("run-1"))?.reply)
             assertEquals("delivery-1", reopened.get(RunId("run-1"))?.deliveryId)
@@ -26,6 +26,7 @@ class FileRunStateStoreTest {
             assertEquals(false, reopened.get(RunId("run-1"))?.runSucceeded)
             assertEquals(ChannelPeer("wechat", "owner", "thread-1"), reopened.get(RunId("run-1"))?.channelPeer)
             assertEquals("message-1", reopened.get(RunId("run-1"))?.channelMessageId)
+            assertEquals("20261113-080000-abc123", reopened.get(RunId("run-1"))?.recordId)
             assertEquals(1, reopened.interruptUnfinished().size)
             assertEquals(RunPhase.Interrupted, FileRunStateStore(file).get(RunId("run-1"))?.phase)
             // 账本只记阶段与交付:不存发给模型的上下文(图片、原始参数、密钥都不落盘)

@@ -6,6 +6,7 @@ import '../../app/maeve_controller.dart';
 import '../common/app_page.dart';
 import 'settings_components.dart';
 import 'execution_settings_page.dart';
+import 'capsule_toggle.dart';
 
 class SystemAccessPage extends StatefulWidget {
   const SystemAccessPage({super.key});
@@ -148,6 +149,7 @@ class _SystemAccessPageState extends State<SystemAccessPage>
         SettingsSection(
           title: '其他设置',
           rows: [
+            const CapsuleToggle(),
             SettingsTile(
               icon: Icons.verified_user_outlined,
               title: '操作确认方式',

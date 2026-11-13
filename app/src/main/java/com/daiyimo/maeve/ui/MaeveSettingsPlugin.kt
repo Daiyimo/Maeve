@@ -8,10 +8,12 @@ import android.app.NotificationManager
 import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.a11y.MaeveAccessibilityService
 import com.daiyimo.maeve.core.model.ModelRole
+import com.daiyimo.maeve.core.cap.phone.OperatingPace
 import com.daiyimo.maeve.core.shell.BuiltinShellStatus
 import com.daiyimo.maeve.cap.phone.setup.DeveloperSettings
 import com.daiyimo.maeve.cap.phone.a11y.ScreenAccessibility
 import com.daiyimo.maeve.settings.FeatureFlags
+import com.daiyimo.maeve.capsule.CapsuleMode
 import com.daiyimo.maeve.settings.ProviderConfig
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -112,6 +114,16 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                             app.approvalControl.setAutonomous(on)
                             snapshot()
                         }
+                        "setOperatingPace" -> {
+                            val pace = requireNotNull(OperatingPace.parse(call.argument<String>("pace"))) { "Invalid operating pace" }
+                            FeatureFlags.get(app).setOperatingPace(pace)
+                            snapshot()
+                        }
+                        "setCapsuleEnabled" -> {
+                            val enabled = requireNotNull(call.argument<Boolean>("enabled")) { "Capsule state is required" }
+                            FeatureFlags.get(app).setCapsuleMode(if (enabled) CapsuleMode.Always else CapsuleMode.Off)
+                            snapshot()
+                        }
                         "setAppearance" -> {
                             val edit = prefs.edit()
                             call.argument<String>("mode")?.let { require(it in setOf("dark", "light", "system")); edit.putString("mode", it) }
@@ -152,6 +164,8 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
         return mapOf(
             "mode" to prefs.getString("mode", "dark"), "accent" to prefs.getString("accent", "reverie"),
             "autonomous" to app.approvals.autonomous.value,
+            "operatingPace" to FeatureFlags.get(app).operatingPace().name.lowercase(java.util.Locale.ROOT),
+            "capsuleEnabled" to (FeatureFlags.get(app).capsuleMode() != CapsuleMode.Off),
             "haptics" to prefs.getBoolean("haptics", true), "reduceTransparency" to prefs.getBoolean("reduceTransparency", false),
             "currentModelId" to current?.let { FlutterModelSettings.id(it.providerId, it.model) }, "modelName" to current?.model,
             "models" to models.choices().map { it.toMap() },

@@ -76,6 +76,8 @@ class NativeSettings {
     this.models = const [],
     this.presets = const [],
     this.autonomous = false,
+    this.operatingPace = 'standard',
+    this.capsuleEnabled = true,
     this.accessibility = false,
     this.accessibilityRunning = false,
     this.overlay = false,
@@ -83,8 +85,9 @@ class NativeSettings {
     this.helperRunning = false,
     this.phoneSupported = false,
   });
-  final String mode, accent;
+  final String mode, accent, operatingPace;
   final bool haptics,
+      capsuleEnabled,
       autonomous,
       reduceTransparency,
       accessibility,
@@ -100,6 +103,8 @@ class NativeSettings {
     mode: map['mode'] as String? ?? 'dark',
     accent: map['accent'] as String? ?? 'reverie',
     autonomous: map['autonomous'] == true,
+    operatingPace: map['operatingPace'] as String? ?? 'standard',
+    capsuleEnabled: map['capsuleEnabled'] as bool? ?? true,
     haptics: map['haptics'] as bool? ?? true,
     reduceTransparency: map['reduceTransparency'] as bool? ?? false,
     currentModelId: map['currentModelId'] as String?,
@@ -124,6 +129,8 @@ class NativeSettings {
 abstract class MaeveSettingsBridge {
   const MaeveSettingsBridge();
   Future<NativeSettings> load();
+  Future<NativeSettings> setOperatingPace(String pace);
+  Future<NativeSettings> setCapsuleEnabled(bool enabled);
   Future<NativeSettings> appearance(Map<String, Object> values);
   Future<NativeSettings> saveModel(Map<String, String> values);
   Future<NativeSettings> selectModel(String id);
@@ -149,6 +156,12 @@ class HostSettingsBridge extends MaeveSettingsBridge {
 
   @override
   Future<NativeSettings> load() => _call('snapshot');
+  @override
+  Future<NativeSettings> setOperatingPace(String pace) =>
+      _call('setOperatingPace', {'pace': pace});
+  @override
+  Future<NativeSettings> setCapsuleEnabled(bool enabled) =>
+      _call('setCapsuleEnabled', {'enabled': enabled});
   @override
   Future<NativeSettings> setAutonomous(bool enabled) =>
       _call('setAutonomous', {'enabled': enabled});

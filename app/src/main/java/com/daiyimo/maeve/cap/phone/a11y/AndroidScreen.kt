@@ -382,25 +382,46 @@ class AndroidScreen(
         if (!hasDisplay) return@withContext NO_APP_OPEN
         when (val target = resolve(ref, snapshotId)) {
             null -> ActionResult.Failed("ref_expired")
-            else -> verified(relocatedTo = target.second) { click(target.first) }
+            else -> captureTap(relocatedTo = target.second) { report -> click(target.first, report) }
         }
     }
 
     override suspend fun tapXY(x: Int, y: Int): ActionResult = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext NO_APP_OPEN
-        verified { tapAt(x, y) }
+        val at = boundedTap(x, y)
+        captureTap { report -> touch(at).also { if (it) report(pointerAt(at)) } }
     }
 
     override suspend fun doubleTapRef(ref: String, snapshotId: String): ActionResult = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext NO_APP_OPEN
         val target = resolve(ref, snapshotId) ?: return@withContext ActionResult.Failed("ref_expired")
         val rect = android.graphics.Rect().also { target.first.getBoundsInScreen(it) }
-        verified(relocatedTo = target.second) { doubleTapAt(pacing.within(rect.left, rect.top, rect.right, rect.bottom)) }
+        val at = pacing.within(rect.left, rect.top, rect.right, rect.bottom)
+        captureTap(relocatedTo = target.second) { report -> doubleTapAt(at).also { if (it) report(pointerAt(at, 2)) } }
     }
 
     override suspend fun doubleTapXY(x: Int, y: Int): ActionResult = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext NO_APP_OPEN
-        verified { doubleTapAt(pacing.near(x, y)) }
+        val at = boundedTap(x, y)
+        captureTap { report -> doubleTapAt(at).also { if (it) report(pointerAt(at, 2)) } }
+    }
+
+    private fun boundedTap(x: Int, y: Int): Pair<Int, Int> = pacing.near(x, y).let {
+        it.first.coerceIn(0, screenWidth - 1) to it.second.coerceIn(0, screenHeight - 1)
+    }
+
+    private fun pointerAt(at: Pair<Int, Int>, clicks: Int = 1) = com.daiyimo.maeve.core.uistate.PointerCapture(
+        screenWidth, screenHeight, "touch", at.first, at.second, clicks = clicks)
+
+    /** Preserve the input's own before-frame; do not put a dot on the page opened by the click. */
+    private suspend fun captureTap(relocatedTo: String? = null,
+        action: suspend ((com.daiyimo.maeve.core.uistate.PointerCapture) -> Unit) -> Boolean): ActionResult {
+        val before = try { if (isProtected()) null else screenshotPng() }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { null }
+        var pointer: com.daiyimo.maeve.core.uistate.PointerCapture? = null
+        val result = verified(relocatedTo) { action { pointer = it } }
+        return if (result is ActionResult.Ok) result.copy(pointer = pointer?.copy(beforePng = before)) else result
     }
 
     // 双击只能是一次手势里的两笔:分两次下发,中间的回调延迟可能超过系统认双击的时限
@@ -1731,11 +1752,17 @@ class AndroidScreen(
     // ---------- 底层操作 ----------
 
     /** 优先对节点(或最近的可点祖先)发点击;不行再在其中心做手势,最后注入触摸。 */
-    private suspend fun click(node: AccessibilityNodeInfo): Boolean {
+    private suspend fun click(node: AccessibilityNodeInfo, report: ((com.daiyimo.maeve.core.uistate.PointerCapture) -> Unit)? = null): Boolean {
         val target = ancestorOrSelf(node) { it.isClickable && it.isEnabled }
-        if (target != null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+        val targetBounds = target?.let { android.graphics.Rect().also(it::getBoundsInScreen) }
+        if (target != null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            val r = targetBounds!!
+            report?.invoke(com.daiyimo.maeve.core.uistate.PointerCapture(screenWidth, screenHeight, "accessibility", bounds = listOf(r.left, r.top, r.right, r.bottom)))
+            return true
+        }
         val rect = android.graphics.Rect().also { node.getBoundsInScreen(it) }
-        return touch(pacing.within(rect.left, rect.top, rect.right, rect.bottom))
+        val at = pacing.within(rect.left, rect.top, rect.right, rect.bottom)
+        return touch(at).also { if (it) report?.invoke(pointerAt(at)) }
     }
 
     private suspend fun tapAt(x: Int, y: Int): Boolean = touch(pacing.near(x, y))

@@ -115,6 +115,7 @@ class TaskService : Service() {
 
     internal val clipLock get() = center.clipLock
     internal val takeoverQueue get() = center.takeoverQueue
+    internal fun recordOpened(run: TaskRun, recordId: String) = center.attachRecord(run, recordId)
     /** 几个任务共用的屏幕常亮锁。 */
     internal val wakeLock by lazy { SharedWakeLock(ScreenWakeLock(this)) }
 

@@ -18,6 +18,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.JsonArray
 
 /*
  * 界面状态挂进工具上下文后的几个取用口:开局由 [Interfaces.attach] 放进去,有界面的工具(手机、网页,以及通用工具里点名了屏幕的)从这里取。
@@ -79,7 +80,13 @@ internal fun ToolContext.action(r: ActionResult): ToolExecution = when (r) {
             r.profileUser?.let { put("profileUser", it) }
             r.requestedUser?.let { wanted -> r.profileUser?.let { put("requestedCopy", it == wanted) } }
             if (notes.isNotEmpty()) put("hint", notes.joinToString(" "))
-        }, changed = r.changed)
+        }, changed = r.changed, recordFrame = r.pointer?.beforePng, record = buildJsonObject {
+            r.pointer?.let { p -> put("pointer", buildJsonObject {
+                put("width", p.width); put("height", p.height); put("method", p.method); put("clicks", p.clicks)
+                p.x?.let { put("x", it) }; p.y?.let { put("y", it) }
+                put("bounds", JsonArray(p.bounds.map(::JsonPrimitive)))
+            }) }
+        })
     }
     is ActionResult.Failed -> failWith(r)
 }
@@ -148,7 +155,7 @@ internal suspend fun ToolContext.withPortRef(ref: Pair<String, String>?, act: su
 /** 结果改记端口编号;执行成功且编号搬过家时,payload 里同时标上 relocated。 */
 private fun ToolExecution.renumbered(resolved: Resolved.Current): ToolExecution {
     val payload = if (resolved.relocated && content["ok"] == JsonPrimitive(true)) JsonObject(content + ("relocated" to JsonPrimitive(true))) else content
-    return ToolExecution(payload, changed = changed, outcome = outcome, frame = frame, images = images,
+    return with(content = payload,
         record = JsonObject(record + buildJsonObject { put("portRef", resolved.portRef); put("portSnapshotId", resolved.portSnapshotId) }))
 }
 

@@ -21,21 +21,54 @@ import java.util.concurrent.TimeUnit
 class ExecutionBridgeDeviceTest {
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
     private val app get() = context.applicationContext as MaeveApp
-    private fun call(scenario: ActivityScenario<MainActivity>, method: String, args: Map<String, Any> = emptyMap()): Any? {
+    private fun call(scenario: ActivityScenario<MainActivity>, method: String, args: Map<String, Any> = emptyMap(), settings: Boolean = false): Any? {
         val result = CompletableFuture<Any?>()
         scenario.onActivity { activity ->
-            val plugin = activity.provideFlutterEngine(activity).plugins.get(MaeveChatPlugin::class.java) as MaeveChatPlugin
-            plugin.onMethodCall(MethodCall(method, args), object : MethodChannel.Result {
+            val callback = object : MethodChannel.Result {
                 override fun success(value: Any?) { result.complete(value) }
                 override fun error(code: String, message: String?, details: Any?) { result.completeExceptionally(AssertionError(code)) }
                 override fun notImplemented() { result.completeExceptionally(AssertionError("Missing method $method")) }
-            })
+            }
+            val plugins = activity.provideFlutterEngine(activity).plugins
+            if (settings) (plugins.get(MaeveSettingsPlugin::class.java) as MaeveSettingsPlugin).onMethodCall(MethodCall(method, args), callback)
+            else (plugins.get(MaeveChatPlugin::class.java) as MaeveChatPlugin).onMethodCall(MethodCall(method, args), callback)
         }
         return result.get(10, TimeUnit.SECONDS)
     }
     @Test fun overlayPermissionIsDeclaredSoMaeveAppearsInSystemSettings() {
         val info = context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_PERMISSIONS)
         assertTrue(info.requestedPermissions.orEmpty().contains(Manifest.permission.SYSTEM_ALERT_WINDOW))
+    }
+    @Test fun capsuleSwitchPersistsToNativeStateInBothDirections() {
+        FlutterLaunchDeviceTest().prepareInteractiveDisplay()
+        val flags = com.daiyimo.maeve.settings.FeatureFlags.get(context)
+        val original = flags.capsuleMode()
+        ActivityScenario.launch<MainActivity>(Intent(context, MainActivity::class.java)).use { scenario ->
+            try {
+                val off = call(scenario, "setCapsuleEnabled", mapOf("enabled" to false), settings = true) as Map<*, *>
+                assertEquals(false, off["capsuleEnabled"])
+                assertEquals(com.daiyimo.maeve.capsule.CapsuleMode.Off, flags.capsuleMode())
+                assertEquals(false, (call(scenario, "snapshot", settings = true) as Map<*, *>)["capsuleEnabled"])
+                val on = call(scenario, "setCapsuleEnabled", mapOf("enabled" to true), settings = true) as Map<*, *>
+                assertEquals(true, on["capsuleEnabled"])
+                assertEquals(com.daiyimo.maeve.capsule.CapsuleMode.Always, flags.capsuleMode())
+            } finally { flags.setCapsuleMode(original) }
+        }
+    }
+    @Test fun paceChangesPersistToTheExistingNativeStore() {
+        assumeTrue("Run without an active user task", app.taskState.runs.value.isEmpty())
+        FlutterLaunchDeviceTest().prepareInteractiveDisplay()
+        val flags = com.daiyimo.maeve.settings.FeatureFlags.get(context)
+        val original = flags.operatingPace()
+        ActivityScenario.launch<MainActivity>(Intent(context, MainActivity::class.java)).use { scenario ->
+            try {
+                val saved = call(scenario, "setOperatingPace", mapOf("pace" to "fast"), settings = true) as Map<*, *>
+                assertEquals("fast", saved["operatingPace"])
+                assertEquals(com.daiyimo.maeve.core.cap.phone.OperatingPace.FAST, flags.operatingPace())
+                val loaded = call(scenario, "snapshot", settings = true) as Map<*, *>
+                assertEquals("fast", loaded["operatingPace"])
+            } finally { flags.setOperatingPace(original) }
+        }
     }
     @Test fun nativeApprovalModePersistsAndRemoteTasksKeepTheirOwnRules() {
         assumeTrue("Run without an active user task", app.taskState.runs.value.isEmpty())

@@ -11,7 +11,7 @@ const val PHONE = "phone"
 const val PHONE_SNAPSHOT_PREFIX = "p"
 
 /** 手机那一套屏幕工具:经验路线只记手机上的做法。 */
-internal val PHONE_FAMILY = ScreenFamily(PHONE, snapshotPrefix = PHONE_SNAPSHOT_PREFIX, routable = true, sandboxCallable = true, ownPrompts = setOf("observe", "back", "scroll", "type_text", "clear_text"))
+internal val PHONE_FAMILY = ScreenFamily(PHONE, snapshotPrefix = PHONE_SNAPSHOT_PREFIX, routable = true, sandboxCallable = true, ownPrompts = setOf("observe", "back", "scroll", "type_text", "clear_text", "tap"))
 
 /** 手机专属的工具。 */
 internal interface PhoneTool : AgentTool {

@@ -686,7 +686,11 @@ class TaskRun(
             val sink: RunSink = withContext(Dispatchers.IO) {
                 runCatching {
                     val runs = RunStore(service).also { runStore = it }
-                    runs.open(goal).also { record = it; _runId.value = it.runId }
+                    runs.open(goal).also {
+                        record = it; _runId.value = it.runId
+                        runCatching { service.recordOpened(this@TaskRun, it.runId) }
+                            .onFailure { error -> Log.w(TAG, "run record link could not be saved", error) }
+                    }
                 }.onFailure { Log.w(TAG, "run record unavailable, running without it", it) }.getOrNull()
             } ?: RunSink.NONE
             val trace = record?.takeIf { traceTicket != null }?.let { run ->

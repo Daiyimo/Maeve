@@ -16,6 +16,53 @@ class ExecutionAction {
   );
 }
 
+class ExecutionPointer {
+  const ExecutionPointer({
+    required this.width,
+    required this.height,
+    required this.method,
+    this.x,
+    this.y,
+    this.bounds = const [],
+    this.clicks = 1,
+    this.screenshotId,
+  });
+  final int width, height, clicks;
+  final String method;
+  final int? x, y, screenshotId;
+  final List<int> bounds;
+  bool get valid =>
+      width > 0 &&
+      height > 0 &&
+      (method == 'touch'
+          ? x != null &&
+                y != null &&
+                x! >= 0 &&
+                x! < width &&
+                y! >= 0 &&
+                y! < height
+          : method == 'accessibility' &&
+                bounds.length == 4 &&
+                bounds[2] > bounds[0] &&
+                bounds[3] > bounds[1]);
+  String get label => method == 'touch'
+      ? '${clicks == 2 ? '实际双击' : '实际触摸'} · ($x, $y) px'
+      : '无障碍控件 · 范围 (${bounds[0]}, ${bounds[1]})–(${bounds[2]}, ${bounds[3]}) px';
+  factory ExecutionPointer.fromMap(Map map) => ExecutionPointer(
+    width: (map['width'] as num?)?.toInt() ?? 0,
+    height: (map['height'] as num?)?.toInt() ?? 0,
+    method: map['method'] as String? ?? '',
+    x: (map['x'] as num?)?.toInt(),
+    y: (map['y'] as num?)?.toInt(),
+    screenshotId: (map['screenshotId'] as num?)?.toInt(),
+    clicks: (map['clicks'] as num?)?.toInt() ?? 1,
+    bounds: [
+      for (final n in map['bounds'] as List? ?? const [])
+        if (n is num) n.toInt(),
+    ],
+  );
+}
+
 class ExecutionStep {
   const ExecutionStep({
     required this.step,
@@ -27,6 +74,9 @@ class ExecutionStep {
     this.screenshotId,
     this.tags = const [],
     this.resultFailed = false,
+    this.timingLabel = '',
+    this.pointers = const [],
+    this.declaredPoint,
   });
   final int step;
   final String title, reason, detail, state;
@@ -34,6 +84,9 @@ class ExecutionStep {
   final int? screenshotId;
   final List<String> tags;
   final bool resultFailed;
+  final String timingLabel;
+  final String? declaredPoint;
+  final List<ExecutionPointer> pointers;
   bool get failed => resultFailed || actions.any((action) => action.failed);
   factory ExecutionStep.fromMap(Map map) => ExecutionStep(
     step: (map['step'] as num?)?.toInt() ?? 0,
@@ -42,6 +95,12 @@ class ExecutionStep {
     detail: map['detail'] as String? ?? '',
     state: map['state'] as String? ?? 'dim',
     resultFailed: map['failed'] == true,
+    timingLabel: map['timingLabel'] as String? ?? '',
+    declaredPoint: map['declaredPoint'] as String?,
+    pointers: [
+      for (final p in map['pointers'] as List? ?? const [])
+        if (p is Map) ExecutionPointer.fromMap(p),
+    ].where((p) => p.valid).toList(),
     screenshotId: (map['screenshotId'] as num?)?.toInt(),
     tags: [
       for (final tag in map['tags'] as List? ?? const [])
@@ -63,9 +122,11 @@ class RunDetails {
     this.verdict = '',
     this.duration,
     this.steps = const [],
+    this.timingSummary = '',
   });
   final bool available, running;
   final String goal, outcome, verdict;
+  final String timingSummary;
   final String? duration;
   final List<ExecutionStep> steps;
   factory RunDetails.fromMap(Map map) => RunDetails(
@@ -74,6 +135,7 @@ class RunDetails {
     goal: map['goal'] as String? ?? '',
     outcome: map['outcome'] as String? ?? '',
     verdict: map['verdict'] as String? ?? '',
+    timingSummary: map['timingSummary'] as String? ?? '',
     duration: map['duration'] as String?,
     steps: [
       for (final step in map['steps'] as List? ?? const [])

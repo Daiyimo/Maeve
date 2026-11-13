@@ -17,6 +17,7 @@ class Message {
     this.detail,
     this.confirmationKey,
     this.resumable = false,
+    this.waitingForModel = false,
   });
 
   final String text;
@@ -25,19 +26,22 @@ class Message {
   final String? runId, detail;
   final int? confirmationKey;
   final bool resumable;
+  final bool waitingForModel;
   bool get active => !const ['done', 'failed', 'cancelled'].contains(status);
-  String get statusLabel => switch (status) {
-    'done' => '已完成',
-    'failed' => '任务失败',
-    'cancelled' => '已停止',
-    'needs_confirmation' => '等待确认',
-    'needs_input' => '等待回答',
-    'needs_takeover' => '等待接管',
-    'paused' => '已暂停',
-    'queued' => '排队中',
-    'waiting_unlock' => '等待解锁',
-    _ => '执行中',
-  };
+  String get statusLabel => waitingForModel && status == 'working'
+      ? '等待模型响应'
+      : switch (status) {
+          'done' => '已完成',
+          'failed' => '任务失败',
+          'cancelled' => '已停止',
+          'needs_confirmation' => '等待确认',
+          'needs_input' => '等待回答',
+          'needs_takeover' => '等待接管',
+          'paused' => '已暂停',
+          'queued' => '排队中',
+          'waiting_unlock' => '等待解锁',
+          _ => '执行中',
+        };
   final bool isUser;
 
   /// 这一轮思考了几步(0 = 没有过程可折叠)。

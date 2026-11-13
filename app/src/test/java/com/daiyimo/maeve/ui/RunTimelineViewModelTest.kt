@@ -56,6 +56,8 @@ class RunTimelineViewModelTest {
         store.append(h.runId, RunEvent.ModelReply(clock + 1_000, 1, "", null, null, 500, 10, 0, 900, repliedAtMs = clock + 1_000))
         val gone = RunTimelineViewModel(store, h.runId, alive = { false }).load() as TimelineUi.Ready
         assertFalse(gone.header.running)
+        assertEquals("记录已中断", gone.header.outcome)
+        assertNull("A process interruption has no verified end time", gone.header.duration)
         val other = RunTimelineViewModel(store, h.runId, alive = { it == "another-run" }).load() as TimelineUi.Ready
         assertFalse("别的任务在跑不算这一次", other.header.running)
     }
@@ -185,6 +187,14 @@ class RunTimelineViewModelTest {
             RunTimelineViewModel.timingLabel(timing))
     }
 
+    @Test fun mixedToolWaitDoesNotProduceAFabricatedStepTotal() {
+        // waitMs can contain both time inside durationMs and pacing before it.
+        val timing = StepTiming(modelMs = 2_000, toolMs = 3_000, waitMs = 1_000)
+        assertNull(timing.totalMs)
+        assertEquals("模型 2.0 秒 · 操作 3.0 秒 · 工具等待 1.0 秒",
+            RunTimelineViewModel.timingLabel(timing))
+    }
+
     @Test fun replayTimingAndLegacyMissingTimingAreLabeledHonestly() {
         val replay = run("回放") {
             event(RunEvent.ToolResult(clock, 1, "phone_tap", """{"ok":true}""", true, null,
@@ -273,6 +283,6 @@ class RunTimelineViewModelTest {
         assertEquals(Redactor.MASK, ui.steps.single().detail)
         assertTrue(ui.steps.single().said.contains(Redactor.MASK))
         assertTrue(ui.header.goal.contains(Redactor.MASK))
-        assertEquals("没有结束", ui.header.outcome)
+        assertEquals("记录已中断", ui.header.outcome)
     }
 }

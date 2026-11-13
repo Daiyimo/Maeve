@@ -91,6 +91,18 @@ class MaeveController extends ChangeNotifier {
     if (revision == _settingsRevision) _applySettings(next, appearance: false);
   }
 
+  Future<void> setOperatingPace(String pace) async {
+    final revision = ++_settingsRevision;
+    final next = await settingsBridge.setOperatingPace(pace);
+    if (revision == _settingsRevision) _applySettings(next, appearance: false);
+  }
+
+  Future<void> setCapsuleEnabled(bool enabled) async {
+    final revision = ++_settingsRevision;
+    final next = await settingsBridge.setCapsuleEnabled(enabled);
+    if (revision == _settingsRevision) _applySettings(next, appearance: false);
+  }
+
   // —— 外观 ——
   ThemeMode mode = ThemeMode.dark;
 
@@ -274,6 +286,7 @@ class MaeveController extends ChangeNotifier {
       detail: exchange['detail'] as String?,
       confirmationKey: (exchange['confirmationKey'] as num?)?.toInt(),
       resumable: exchange['resumable'] == true,
+      waitingForModel: exchange['waitingForModel'] == true,
     );
   }
 

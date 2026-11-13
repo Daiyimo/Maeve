@@ -118,7 +118,7 @@ internal class Tap(f: ScreenFamily) : ScreenTool(f, "tap") {
             if (meta.unverified) put("unverifiedPoint", JsonPrimitive(true))
             if (notes.isNotEmpty()) put("hint", JsonPrimitive(notes.joinToString(" ")))
         }
-        return ToolExecution(JsonObject(outcome.content + adds), changed = outcome.changed)
+        return outcome.with(content = JsonObject(outcome.content + adds))
     }
 
     override fun logTarget(o: JsonObject, r: ToolExecution, ctx: ToolContext): String {

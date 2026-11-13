@@ -123,6 +123,10 @@ class TaskCenter<R : Any>(
         store.get(RunId(keyOf(run)))?.let { store.save(it.copy(phase = RunPhase.Running, roundInProgress = true)) }
     }
 
+    @Synchronized fun attachRecord(run: R, recordId: String) {
+        store.get(RunId(keyOf(run)))?.let { store.save(it.copy(recordId = recordId)) }
+    }
+
     @Synchronized fun markResult(run: R, reply: String?, deliveryId: String? = null, successful: Boolean? = null) {
         store.get(RunId(keyOf(run)))?.let { store.save(it.copy(phase = RunPhase.Aftercare, reply = reply,
             deliveryId = deliveryId, runSucceeded = successful)) }

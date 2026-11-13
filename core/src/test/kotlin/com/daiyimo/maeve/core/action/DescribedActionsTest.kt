@@ -50,6 +50,18 @@ class DescribedActionsTest {
 
     private fun content(o: ActionOutcome): JsonObject = (o as ActionOutcome.Ran).content
 
+    @Test fun digitLabelsSelectTheirActualControlRatherThanARefWithThatNumber() = runTest {
+        val tapped = mutableListOf<String>()
+        val screen = object : ScreenPort by FakeScreen() {
+            override suspend fun snapshot() = ScreenSnapshot("digits", "com.calc", listOf(button("@e91", "7", y = 300), button("@e7", "2", y = 500)), 1080, 2400)
+            override suspend fun peek() = snapshot()
+            override suspend fun tapRef(ref: String, snapshotId: String) = ActionResult.Ok(changed = true).also { tapped += ref }
+        }
+        val result = run(executor(toolDispatcher(screen)), "phone_tap", """{"element":"7"}""")
+        assertEquals("$result", JsonPrimitive(true), content(result)["ok"])
+        assertEquals(listOf("@e91"), tapped)
+    }
+
     @Test fun uniqueDescriptionActsOnThatElement() = runTest {
         val screen = Shop()
         val e = executor(toolDispatcher(screen))

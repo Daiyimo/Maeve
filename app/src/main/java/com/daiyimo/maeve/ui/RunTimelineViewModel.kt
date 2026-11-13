@@ -35,8 +35,11 @@ data class StepTiming(
     val modelMs: Long? = null,
     val toolMs: Long? = null,
     val retryMs: Long = 0,
+    val waitMs: Long = 0,
 ) {
-    val totalMs: Long? get() = if (modelMs != null && toolMs != null) modelMs + toolMs else null
+    // Legacy waitMs mixes waits within durationMs and pacing before the call.
+    // Their overlap is unknown, so only the run header can give a total then.
+    val totalMs: Long? get() = if (modelMs != null && toolMs != null && waitMs == 0L) modelMs + toolMs else null
 }
 
 /**
@@ -54,6 +57,8 @@ data class TimelineStep(
     val activities: List<TimelineActivity> = emptyList(),
     val timing: StepTiming = StepTiming(),
     val failed: Boolean = false,
+    val pointers: List<RunEvent.Pointer> = emptyList(),
+    val declaredPoint: String? = null,
 )
 
 data class TimelineHeader(
@@ -97,7 +102,7 @@ class RunTimelineViewModel(
     private val alive: (runId: String) -> Boolean = { false },
 ) {
     fun load(): TimelineUi {
-        val summary = store.list().firstOrNull { it.id == runId }
+        val summary = store.summary(runId)
         val events = store.events(runId)
         if (summary == null && events.isEmpty()) return TimelineUi.Expired
         val started = events.filterIsInstance<RunEvent.TaskStarted>().firstOrNull()
@@ -105,14 +110,15 @@ class RunTimelineViewModel(
         val startMs = summary?.startedAtMs ?: events.first().atMs
         val endMs = summary?.endedAtMs ?: ended?.atMs
         val metrics = RunMetrics.of(events, runId)
+        val isRunning = ended == null && summary?.endedAtMs == null && alive(runId)
         val header = TimelineHeader(
             goal = summary?.goal ?: started?.goal.orEmpty(),
             criteria = summary?.criteria?.takeIf { it.isNotEmpty() }
                 ?: events.filterIsInstance<RunEvent.Criteria>().lastOrNull()?.criteria.orEmpty(),
-            outcome = outcomeLabel(summary?.outcome ?: ended?.outcome,
+            outcome = if (endMs == null && ended == null && !isRunning) "记录已中断" else outcomeLabel(summary?.outcome ?: ended?.outcome,
                 summary?.judged ?: events.filterIsInstance<RunEvent.OutcomeJudged>().lastOrNull()?.outcome),
             // 结束事件或结束时间只要有一个就算跑完了;都没有时还要任务真在跑,界面据此决定要不要按秒重读
-            running = ended == null && summary?.endedAtMs == null && alive(runId),
+            running = isRunning,
             verdict = verdictLabel(summary?.verdict ?: events.filterIsInstance<RunEvent.Verifier>().lastOrNull()?.verdict),
             duration = endMs?.let { duration(it - startMs) },
             modelCalls = events.count { it is RunEvent.ModelReply },
@@ -153,6 +159,12 @@ class RunTimelineViewModel(
                             said = said,
                             tool = e.tool?.let(toolLabel) ?: row.tool,
                             detail = e.argsJson?.let(::detailOf) ?: row.detail,
+                            declaredPoint = if (e.tool?.endsWith("_tap") == true) e.argsJson?.let { args ->
+                                val o = parse(args)
+                                val x = (o?.get("x") as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
+                                val y = (o?.get("y") as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
+                                if (x != null && y != null) "目标坐标 ($x, $y) / 999；旧记录未保存实际落点" else null
+                            } else row.declaredPoint,
                         )
                     }
                 }
@@ -177,6 +189,7 @@ class RunTimelineViewModel(
                     } else row.activities + next
                     rows[e.step] = row.copy(activities = activities, failed = row.failed || e.failed)
                 }
+                is RunEvent.Pointer -> at(e.step).let { rows[e.step] = it.copy(pointers = it.pointers + e) }
                 is RunEvent.Verifier -> tag(verifierTag(e.verdict))
                 is RunEvent.Confirmation -> tag(
                     when (e.decision) {
@@ -196,7 +209,8 @@ class RunTimelineViewModel(
                 val measured = (outer.ifEmpty { results.filter { it.durationMs > 0 } }).sumOf { it.durationMs }
                 row.copy(
                     said = clipSaid(row.said),
-                    timing = StepTiming(modelTimes[row.step], measured.takeIf { it > 0 }, retryTimes[row.step] ?: 0),
+                    timing = StepTiming(modelTimes[row.step], measured.takeIf { it > 0 }, retryTimes[row.step] ?: 0,
+                        (outer.ifEmpty { results }).sumOf { it.waitMs.coerceAtLeast(0) }),
                 )
             }
         }
@@ -207,6 +221,7 @@ class RunTimelineViewModel(
                 t.totalMs?.let { add(tr(R.string.timing_total, shortDuration(it))) }
                 t.modelMs?.let { add(tr(R.string.timing_model, shortDuration(it))) }
                 t.toolMs?.let { add(tr(R.string.timing_tool, shortDuration(it))) }
+                if (t.waitMs > 0) add("工具等待 ${shortDuration(t.waitMs)}")
                 if (t.retryMs > 0) add(tr(R.string.timing_retry, shortDuration(t.retryMs)))
             }.joinToString(" · ")
         }

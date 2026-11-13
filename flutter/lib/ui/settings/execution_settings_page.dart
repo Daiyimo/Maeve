@@ -27,6 +27,20 @@ class _ExecutionSettingsPageState extends State<ExecutionSettingsPage> {
     }
   }
 
+  Future<void> _pace(String pace) async {
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      await MaeveScope.read(context).setOperatingPace(pace);
+    } catch (_) {
+      if (mounted) setState(() => _error = '操作节奏未能保存，请重试。');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
@@ -66,6 +80,29 @@ class _ExecutionSettingsPageState extends State<ExecutionSettingsPage> {
             ),
           ],
           footnote: '设置保存在本机。开启自主从后续步骤生效，当前待确认事项仍需按卡片处理。关闭自主后，新任务恢复询问；已按自主开始的任务，请停止后重新发起。',
+        ),
+        SettingsSection(
+          title: '操作节奏',
+          rows: [
+            for (final option in const [
+              ('fast', '快速', '取消额外页面停留，文字一次写入；仍等待界面反馈'),
+              ('standard', '标准', '短暂停留；部分应用按既有规则放慢浏览'),
+              ('human', '拟人', '更长的阅读停留与分段输入，适合需要从容操作时'),
+            ])
+              SettingsTile(
+                icon: Icons.speed_rounded,
+                title: option.$2,
+                subtitle: option.$3,
+                enabled: controller.settingsLoaded && !_saving,
+                trailing: Icon(
+                  controller.native.operatingPace == option.$1
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                ),
+                onTap: () => _pace(option.$1),
+              ),
+          ],
+          footnote: '下一次任务生效。操作节奏与确认方式独立；发送、提交等对外动作的间隔仍由核心控制。',
         ),
         const FooterNote(
           text: '核心对自身应用、受保护应用和密码／验证码页面的限制仍然生效。电脑经 MCP 发起的任务沿用原生的独立授权规则。',

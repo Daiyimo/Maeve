@@ -96,8 +96,8 @@ class RunRecovery(
             }
         } else {
             val turnId = "interrupted:${run.id.value}"
-            if (conversations.turns(run.threadId).none { it.runId == turnId }) {
-                conversations.append(run.threadId, Turn(run.goal, tr(R.string.recover_interrupted_turn), "failed", runId = turnId))
+            if (conversations.turns(run.threadId).none { it.runId == turnId || run.recordId != null && it.runId == run.recordId }) {
+                conversations.append(run.threadId, Turn(run.goal, tr(R.string.recover_interrupted_turn), "failed", runId = run.recordId ?: turnId))
             }
             outbox.deliver(channel, peer, Delivery.Notice(turnId, run.threadId,
                 tr(R.string.recover_interrupted, run.goal.take(40))))

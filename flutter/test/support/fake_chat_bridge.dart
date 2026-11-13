@@ -10,8 +10,12 @@ import 'package:maeve_flutter/bridge/maeve_chat_bridge.dart';
 /// 界面代码只认 MaeveChatBridge,所以假桥驱动下的断言测的就是**真实契约**:
 /// ui 事件驱动界面、发送转发宿主、停止转发宿主。
 class FakeChatBridge extends MaeveChatBridge {
+  final runRecords = <Map<String, dynamic>>[];
+  @override
+  Future<List<Map<String, dynamic>>> runs() async => List.of(runRecords);
   Uint8List? frame;
   RunDetails record = const RunDetails();
+  final detailsRequests = <String>[];
   final taskActions = <String>[];
   final previewConversations = <String>[];
   final screenRequests = <String>[];
@@ -22,7 +26,11 @@ class FakeChatBridge extends MaeveChatBridge {
   }
 
   @override
-  Future<RunDetails> runDetails(String runId) async => record;
+  Future<RunDetails> runDetails(String runId) async {
+    detailsRequests.add(runId);
+    return record;
+  }
+
   @override
   Future<Uint8List?> runScreen(String runId, int screenId) async {
     screenRequests.add('$runId:$screenId');

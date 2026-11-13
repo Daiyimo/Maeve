@@ -13,6 +13,8 @@ import 'amoo_page.dart';
 import 'about_pages.dart';
 import 'palette_strip.dart';
 import 'execution_settings_page.dart';
+import 'capsule_toggle.dart';
+import 'run_history_page.dart';
 
 class SettingsHubPage extends StatelessWidget {
   const SettingsHubPage({super.key});
@@ -38,6 +40,16 @@ class SettingsHubPage extends StatelessWidget {
         SettingsSection(
           title: '执行与设备',
           rows: [
+            const CapsuleToggle(),
+            SettingsTile(
+              icon: Icons.receipt_long_outlined,
+              title: '执行记录',
+              subtitle: '实际步骤、截图与点击位置',
+              onTap: () => AppPage.open(
+                context,
+                RunHistoryPage(bridge: controller.chatBridge),
+              ),
+            ),
             SettingsTile(
               icon: Icons.verified_user_outlined,
               title: '操作确认方式',

@@ -5,6 +5,7 @@ import com.daiyimo.maeve.core.tool.UntilOutcome
 import com.daiyimo.maeve.core.run.waitOrSteer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** 两次读屏至少隔这么久:界面事件一阵一阵地来,不必每条都读一遍。 */
 private const val MIN_GAP_MS = 200L
@@ -43,6 +44,25 @@ internal class UntilWait(
                 // 有意外时这一轮不算成立:弹框后面露出的字,不代表能接着做
                 val issue = unexpected(first, frame, until)
                 if (issue == null && (!until.stable || stableReported) && holds(until, frame)) return finish(true, null)
+                // Custom-drawn labels may be missing from an otherwise usable tree.
+                // Only positive presence can be proved by OCR; never infer absence.
+                val needle = until.appears?.trim()?.takeIf { it.isNotEmpty() }
+                val budget = minOf(800L, limit - (clock() - began))
+                if (issue == null && (!until.stable || stableReported) && needle != null && budget > 0 &&
+                    safeForVisualText(frame) && holds(until.copy(appears = null), frame)) {
+                    val visible = waitOrSteer {
+                        screenAttempt {
+                            withTimeoutOrNull(budget) {
+                                if (screen.isProtected()) null else screen.readVisibleText()
+                            }
+                        }?.any { it.text.contains(needle, ignoreCase = true) } == true
+                    } ?: return finish(false, UntilOutcome.NEW_MESSAGE)
+                    if (visible) {
+                        val checked = read()
+                        if (checked != null && safeForVisualText(checked) && unexpected(first, checked, until) == null &&
+                            holds(until.copy(appears = null), checked)) return finish(true, null)
+                    }
+                }
                 if (issue != null && issue == oddity) streak++ else { oddity = issue; streak = if (issue == null) 0 else 1 }
                 // 页面弹框挂着时页面是停着的,不必再读一次确认
                 if (oddity != null && (streak >= CONFIRM_READS || frame.web?.dialog != null)) return finish(false, oddity)
@@ -65,6 +85,8 @@ internal class UntilWait(
 
     private suspend fun awaitChange(ms: Long): Boolean =
         try { screen.awaitChange(ms) } catch (e: CancellationException) { throw e } catch (e: Exception) { delay(ms); false }
+
+    private fun safeForVisualText(s: ScreenSnapshot) = s.hasWindow && s.packageName != null && s.web == null && !s.protected && s.elements.none { it.secret }
 
     companion object {
         /** 条件此刻是否成立(只看给了的那几项);和动作结果里 expect 的核对一样,按元素名字比,不分大小写。 */

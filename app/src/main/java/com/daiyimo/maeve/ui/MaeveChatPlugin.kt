@@ -146,6 +146,18 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                 } catch (e: CancellationException) { throw e }
                 catch (_: Exception) { result.error("record_unavailable", "未能读取执行记录，请重试", null) }
             }
+            "runs" -> engineScope().launch {
+                try {
+                    result.success(withContext(Dispatchers.IO) {
+                        val active = app.taskState.runs.value.mapNotNull { it.runId.value }.toSet()
+                        RunStore(app).list().map { record -> mapOf(
+                            "id" to record.id, "goal" to record.goal, "startedAtMs" to record.startedAtMs,
+                            "status" to if (record.id in active) "running" else record.outcome ?: "interrupted",
+                        ) }
+                    })
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("record_unavailable", "未能读取执行记录，请重试", null) }
+            }
             "runScreen" -> engineScope().launch {
                 val id = call.argument<String>("runId") ?: return@launch result.error("bad_args", "A run id is required", null)
                 val screen = call.argument<Int>("screenId")?.takeIf { it >= 0 }
@@ -228,7 +240,6 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                         "steps" to ex.steps.size,
                         "line" to ex.line,
                         "elapsedMs" to ex.elapsedMs,
-                        "runId" to ex.runId,
                     ) + FlutterTaskDetails.exchange(ex)
                 },
             ),

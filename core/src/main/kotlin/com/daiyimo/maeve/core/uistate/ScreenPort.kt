@@ -150,6 +150,13 @@ enum class Verification(val wire: String) {
     UNKNOWN("unknown"),
 }
 
+/** What the phone actually dispatched. Accessibility clicks have bounds, not a fabricated pixel. */
+data class PointerCapture(
+    val width: Int, val height: Int, val method: String,
+    val x: Int? = null, val y: Int? = null, val bounds: List<Int> = emptyList(),
+    val clicks: Int = 1, val beforePng: ByteArray? = null,
+)
+
 sealed interface ActionResult {
     /**
      * 动作已发出。其余字段都是端口事后核实到的事实,null/false 表示没有核实或此项不适用:
@@ -182,6 +189,7 @@ sealed interface ActionResult {
         val inProfile: String? = null,
         val profileUser: Int? = null,
         val requestedUser: Int? = null,
+        val pointer: PointerCapture? = null,
     ) : ActionResult
 
     /** 引用过期时 reason 为 "ref_expired"。[hint] 是端口的补充说明(如盖住目标的是什么),原样接在错误说明之后。 */

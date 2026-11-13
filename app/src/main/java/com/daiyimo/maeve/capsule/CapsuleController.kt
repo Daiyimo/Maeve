@@ -1259,7 +1259,7 @@ class CapsuleController(
     @Composable
     private fun CardOverlay() {
         val c = card ?: return
-        MaeveTheme(reduceMotion = animationsOff(context)) {
+        MaeveTheme(dark = false, reduceMotion = animationsOff(context)) {
             val height = if (cardHeight > 0) with(LocalDensity.current) { cardHeight.toDp() } else Dp.Unspecified
             OverlayMotion(open = !closing, origin = ::cardOrigin, onClosed = ::closed, onOpened = { cardOut = true }) {
                 CapsuleCard(c, preview, zoomed, actions, { elapsed(it) }, input = inputUi, thread = thread, height = height, onHandle = ::onHandle)
@@ -1274,7 +1274,7 @@ class CapsuleController(
         val a = windowOn?.overlays()?.area()
         val top = placedY + room()
         val bottom = placedY + (window?.height ?: 0) - room()
-        MaeveTheme(reduceMotion = animationsOff(context)) {
+        MaeveTheme(dark = false, reduceMotion = animationsOff(context)) {
             CapsuleVoicePanel(talk, top, bottom.coerceAtLeast(top), a?.insetTop ?: 0, a?.insetBottom ?: 0)
         }
     }
@@ -1288,7 +1288,7 @@ class CapsuleController(
         val v = if (n == null || shown.kind == CapsuleKind.HandedOver) shown
             else shown.copy(kind = n.kind, text = n.text, detail = null, count = 0, needCount = 0, pill = true, widthEpoch = -n.id)
         val talking = talk.active && !talk.released
-        MaeveTheme(reduceMotion = animationsOff(context)) {
+        MaeveTheme(dark = false, reduceMotion = animationsOff(context)) {
             OverlayMotion(open = true, origin = { TransformOrigin(if (dock.side == DockSide.Right) 1f else 0f, 0.5f) }, onClosed = {}) {
                 CapsuleContent(
                     v,
@@ -1351,7 +1351,7 @@ class CapsuleController(
         const val EDGE_MARGIN_DP = 12
         const val TOP_GAP_DP = 8
         /** 胶囊、那一条连同阴影边的窗口高度(按比例摆高度时用)。 */
-        const val PILL_DP = 40 + 16
+        const val PILL_DP = 44 + 16
         const val BAR_DP = 48 + 16
         const val SNAP_MS = 220L
 

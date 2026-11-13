@@ -249,6 +249,27 @@ class ExecutionStepView extends StatelessWidget {
                     step.tags.join(' · '),
                     style: MaeveType.hint.copyWith(color: c.ink3),
                   ),
+                if (step.timingLabel.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      step.timingLabel,
+                      style: MaeveType.hint.copyWith(color: c.ink3),
+                    ),
+                  ),
+                for (final pointer in step.pointers)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      pointer.label,
+                      style: MaeveType.hint.copyWith(color: c.accent),
+                    ),
+                  ),
+                if (step.declaredPoint != null && step.pointers.isEmpty)
+                  Text(
+                    step.declaredPoint!,
+                    style: MaeveType.hint.copyWith(color: c.ink3),
+                  ),
               ],
             ),
           ),
@@ -335,9 +356,10 @@ class _TaskPreviewState extends State<TaskPreview> with WidgetsBindingObserver {
 }
 
 class _Frame extends StatelessWidget {
-  const _Frame({required this.bytes, required this.title});
+  const _Frame({required this.bytes, required this.title, this.pointer});
   final Uint8List bytes;
   final String title;
+  final ExecutionPointer? pointer;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -347,7 +369,12 @@ class _Frame extends StatelessWidget {
           builder: (_) => Scaffold(
             backgroundColor: Colors.black,
             appBar: AppBar(
-              title: Text(title),
+              title: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: MaeveType.title.copyWith(color: Colors.white),
+              ),
               backgroundColor: Colors.black,
               foregroundColor: Colors.white,
             ),
@@ -355,7 +382,12 @@ class _Frame extends StatelessWidget {
               child: Center(
                 child: InteractiveViewer(
                   maxScale: 5,
-                  child: Image.memory(bytes, fit: BoxFit.contain),
+                  child: pointer == null
+                      ? Image.memory(bytes, fit: BoxFit.contain)
+                      : AspectRatio(
+                          aspectRatio: pointer!.width / pointer!.height,
+                          child: _PointerImage(bytes: bytes, pointer: pointer),
+                        ),
                 ),
               ),
             ),
@@ -379,13 +411,7 @@ class _Frame extends StatelessWidget {
               width: double.infinity,
               child: ColoredBox(
                 color: MaeveTheme.of(context).colors.fill,
-                child: Image.memory(
-                  bytes,
-                  fit: BoxFit.contain,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, _, _) =>
-                      const Center(child: Text('画面暂不可用')),
-                ),
+                child: _PointerImage(bytes: bytes, pointer: pointer),
               ),
             ),
           ),
@@ -489,8 +515,27 @@ class _RunDetailsPageState extends State<RunDetailsPage> {
           ),
           const SizedBox(height: 20),
           if (record.steps.isEmpty) const Text('尚无已记录步骤'),
+          if (record.timingSummary.isNotEmpty) ...[
+            Text(
+              '已记录耗时 · ${record.timingSummary}',
+              style: MaeveType.hint.copyWith(color: c.ink2),
+            ),
+            const SizedBox(height: 16),
+          ],
           for (final step in record.steps) ...[
             ExecutionStepView(step: step),
+            for (final pointer in step.pointers)
+              if (pointer.screenshotId != null)
+                _RecordedFrame(
+                  key: ValueKey(
+                    'pointer-${widget.runId}-${pointer.screenshotId}',
+                  ),
+                  bridge: widget.bridge,
+                  runId: widget.runId,
+                  screenId: pointer.screenshotId!,
+                  stepNumber: step.step,
+                  pointer: pointer,
+                ),
             if (step.screenshotId != null)
               _RecordedFrame(
                 key: ValueKey('${widget.runId}-${step.screenshotId}'),
@@ -514,11 +559,13 @@ class _RecordedFrame extends StatefulWidget {
     required this.runId,
     required this.screenId,
     required this.stepNumber,
+    this.pointer,
   });
   final MaeveChatBridge bridge;
   final String runId;
   final int screenId;
   final int stepNumber;
+  final ExecutionPointer? pointer;
   @override
   State<_RecordedFrame> createState() => _RecordedFrameState();
 }
@@ -533,6 +580,113 @@ class _RecordedFrameState extends State<_RecordedFrame> {
     future: _image,
     builder: (context, snapshot) => snapshot.data == null
         ? const Text('此步骤暂无可用截图')
-        : _Frame(bytes: snapshot.data!, title: '步骤 ${widget.stepNumber} 的画面记录'),
+        : _Frame(
+            bytes: snapshot.data!,
+            title: widget.pointer == null
+                ? '步骤 ${widget.stepNumber} 的画面记录'
+                : '步骤 ${widget.stepNumber} · 点击前的位置标注',
+            pointer: widget.pointer,
+          ),
   );
+}
+
+class _PointerImage extends StatelessWidget {
+  const _PointerImage({required this.bytes, this.pointer});
+  final Uint8List bytes;
+  final ExecutionPointer? pointer;
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    foregroundPainter: pointer == null
+        ? null
+        : PointerEvidencePainter(pointer!),
+    child: Image.memory(
+      bytes,
+      fit: BoxFit.contain,
+      gaplessPlayback: true,
+      errorBuilder: (_, _, _) => const Center(child: Text('画面暂不可用')),
+    ),
+  );
+}
+
+/// Input pixels map through BoxFit.contain, including the letterboxed preview.
+class PointerEvidencePainter extends CustomPainter {
+  const PointerEvidencePainter(this.pointer);
+  final ExecutionPointer pointer;
+  Rect imageRect(Size canvas) {
+    final fitted = applyBoxFit(
+      BoxFit.contain,
+      Size(pointer.width.toDouble(), pointer.height.toDouble()),
+      canvas,
+    );
+    return Alignment.center.inscribe(fitted.destination, Offset.zero & canvas);
+  }
+
+  Offset position(Size canvas, double x, double y) {
+    final image = imageRect(canvas);
+    return Offset(
+      image.left + x / pointer.width * image.width,
+      image.top + y / pointer.height * image.height,
+    );
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (!pointer.valid) return;
+    const purple = Color(0xff7654c5);
+    canvas.save();
+    canvas.clipRect(imageRect(size));
+    if (pointer.method == 'touch') {
+      final p = position(size, pointer.x!.toDouble(), pointer.y!.toDouble());
+      canvas.drawCircle(
+        p,
+        11,
+        Paint()
+          ..color = Colors.white.withValues(alpha: .9)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4,
+      );
+      canvas.drawCircle(
+        p,
+        11,
+        Paint()
+          ..color = purple
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+      canvas.drawCircle(p, 3, Paint()..color = purple);
+      canvas.drawLine(
+        p + const Offset(-16, 0),
+        p + const Offset(16, 0),
+        Paint()
+          ..color = purple
+          ..strokeWidth = 1,
+      );
+      canvas.drawLine(
+        p + const Offset(0, -16),
+        p + const Offset(0, 16),
+        Paint()
+          ..color = purple
+          ..strokeWidth = 1,
+      );
+    } else {
+      final b = pointer.bounds;
+      final rect = Rect.fromPoints(
+        position(size, b[0].toDouble(), b[1].toDouble()),
+        position(size, b[2].toDouble(), b[3].toDouble()),
+      );
+      canvas.drawRect(rect, Paint()..color = purple.withValues(alpha: .12));
+      canvas.drawRect(
+        rect,
+        Paint()
+          ..color = purple
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(PointerEvidencePainter oldDelegate) =>
+      oldDelegate.pointer != pointer;
 }

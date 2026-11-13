@@ -73,9 +73,6 @@ import com.daiyimo.maeve.R
 import com.daiyimo.maeve.ui.ScreenCopy
 import com.daiyimo.maeve.ui.components.ButtonSize
 import com.daiyimo.maeve.ui.components.MaeveButton
-import com.daiyimo.maeve.ui.components.MaeveLogo
-import com.daiyimo.maeve.ui.theme.MarkState
-import com.daiyimo.maeve.ui.theme.drawMark
 import com.daiyimo.maeve.ui.theme.MaeveColors
 import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.ui.theme.MaeveShapes
@@ -84,7 +81,7 @@ import kotlin.math.ceil
 
 /** 胶囊外面留给阴影的边:浮层窗口按内容大小,阴影画在窗口里面;留得越少,窗口挡住下面 App 的透明边越窄。 */
 internal val CapsuleShadowRoom = 8.dp
-private val CapsuleHeight = 40.dp
+private val CapsuleHeight = 44.dp
 private val BarHeight = 48.dp
 private val LogoSize = 30.dp
 private const val FADE_MS = 400
@@ -122,7 +119,7 @@ object CapsuleCopy {
 }
 
 /**
- * 悬浮胶囊,不带状态:平时是一颗 Maeve 图标,状态画在外圈和角标上(干活中蓝弧绕着转、等条件灰圈、要你处理整颗变橙、
+ * 悬浮胶囊,不带状态:平时是一颗 Maeve 图标,状态画在外圈和角标上(干活中紫色日食边缘轻动、等条件灰圈、要你处理整颗变橙、
  * 外圈一呼一吸;好几件时角上写件数;办好了绿勾,没办成、已停止灰色角标;空闲时什么都没有);
  * [CapsuleView.Shown.pill] 时展开成一行字的胶囊(要你处理、刚办完),宽度慢慢变,图标贴着停靠的那一边([side])不动;
  * App 交到你手上时是顶部那一条「你来处理 · 不做了 · 处理好了」。
@@ -207,7 +204,7 @@ private fun Capsule(view: CapsuleView.Shown, end: Boolean, onTap: () -> Unit, ta
                 .morphLayout(morph, end),
         ) {
             if (view.pill) PillRow(view, end, need)
-            else Box(Modifier.size(CapsuleHeight), contentAlignment = Alignment.Center) { CapsuleLogo() }
+            else Box(Modifier.size(CapsuleHeight), contentAlignment = Alignment.Center) { CapsuleLogo(view.kind) }
             if (glow.value > 0f) Box(Modifier.matchParentSize().background(androidx.compose.ui.graphics.Color.White.copy(alpha = glow.value)))
         }
         // 外圈和角标不随底淡下去;缩回时贴着图标那一边,不跟着还没收完的宽度走
@@ -234,13 +231,13 @@ private fun PillRow(view: CapsuleView.Shown, end: Boolean, need: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp, if (end) Alignment.End else Alignment.Start),
     ) {
-        if (!end) CapsuleLogo()
+        if (!end) CapsuleLogo(view.kind)
         Leading(view.kind)
         Text(
             view.text, Modifier.weight(1f, fill = false), style = CapsuleText,
             color = if (need) c.warn else c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
-        if (end) CapsuleLogo()
+        if (end) CapsuleLogo(view.kind)
     }
 }
 
@@ -283,46 +280,26 @@ private fun breathe(still: Float): Float = if (MaeveTheme.reduceMotion) still el
     0f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "breathe",
 ).value
 
-/**
- * 胶囊主圆:**迷你标志**。
- *
- * 胶囊是唯一一直跟着用户的东西,所以它必须和桌面图标、顶栏、空状态长得一样——
- * 同一个「开了门的环 + 三根键」,只是缩到 26dp。状态靠**键怎么亮**区分,不靠颜色:
- *
- * | 状态 | 键的表现 |
- * |---|---|
- * | 干活中 | 三根依次亮起(跑马灯),越快越像在演奏 |
- * | 等条件 | 三根一起明暗,越长越亮(手悬在琴上) |
- * | 需要你 | 三根全亮成琥珀,环也变琥珀(这一整枚在叫你) |
- * | 办好了 / 已停 | 键全暗,只剩环——演奏结束,门开着 |
- */
+/** A small status underline, separate from the hollow eclipse identity. */
 @Composable
 private fun Ring(kind: CapsuleKind, need: Boolean, modifier: Modifier) {
+    if (!need && kind !in setOf(CapsuleKind.Running, CapsuleKind.Held, CapsuleKind.KeptPage)) return
     val c = MaeveTheme.colors
     val tone = when {
         need -> c.signal
-        kind == CapsuleKind.Running -> c.machine
+        kind == CapsuleKind.Running -> c.accent
         kind == CapsuleKind.Held -> c.ink3
         kind == CapsuleKind.KeptPage -> c.ok
         else -> c.ink3
-    }
-    val state = when {
-        kind == CapsuleKind.Running -> MarkState.Playing
-        kind == CapsuleKind.Held -> MarkState.Armed
-        need -> MarkState.Idle
-        else -> MarkState.Idle
     }
     // 先取相位:组合期调用的 @Composable 不能写在 Canvas 的绘制 lambda 里
     val phase = markPhase(kind, need)
     val strength = if (need) 0.55f + 0.45f * breathe(still = 1f) else 1f
     Canvas(modifier.testTag("capsule-ring")) {
-        drawMark(
-            corona = tone.copy(alpha = strength),
-            dark = Color.Transparent,
-            state = state,
-            phase = phase,
-            uid = size.minDimension,
-        )
+        val x = size.width / 2
+        val y = size.height - 3.dp.toPx()
+        val width = if (kind == CapsuleKind.Running) 4.dp.toPx() + 2.dp.toPx() * kotlin.math.sin(phase * 6.283f) else 5.dp.toPx()
+        drawLine(tone.copy(alpha = strength), Offset(x - width / 2, y), Offset(x + width / 2, y), 2.dp.toPx(), StrokeCap.Round)
     }
 }
 
@@ -417,8 +394,8 @@ private fun Modifier.morphLayout(m: Morph, end: Boolean): Modifier = layout { me
  */
 private fun Modifier.morphGlass(m: Morph, end: Boolean, c: MaeveColors, need: Boolean, alpha: Float): Modifier =
     graphicsLayer {
-        this.alpha = alpha
-        shadowElevation = 8.dp.toPx()
+        this.alpha = .92f + .08f * alpha
+        shadowElevation = 6.dp.toPx()
         ambientShadowColor = c.floatShadow.copy(alpha = 0.25f)
         spotShadowColor = c.floatShadow.copy(alpha = 0.3f)
         shape = EdgePill(m.width.value, end)
@@ -426,12 +403,11 @@ private fun Modifier.morphGlass(m: Morph, end: Boolean, c: MaeveColors, need: Bo
     }.drawWithContent {
         val pill = EdgePill(m.width.value, end)
         val o = pill.createOutline(size, layoutDirection, this)
-        drawOutline(o, c.surface.copy(alpha = 0.95f))
-        if (need) drawOutline(o, c.warnSoft)
+        drawOutline(o, Color.White)
         drawContent()
         val stroke = (if (need) 1.dp else 0.5.dp).toPx()
         drawOutline(EdgePill(m.width.value, end, inset = stroke / 2).createOutline(size, layoutDirection, this),
-            if (need) c.warnSolid.copy(alpha = 0.5f) else c.glassEdge, style = Stroke(stroke))
+            if (need) c.warnSolid.copy(alpha = 0.5f) else c.accent.copy(alpha = .14f), style = Stroke(stroke))
     }
 
 /** 宽 [width](0 或超出时按整块)、贴着一边([end] 时逻辑末端)的胶囊形;[inset] 往里收(画描边用)。 */
@@ -440,7 +416,7 @@ private class EdgePill(private val width: Float, private val end: Boolean, priva
         val w = if (width > 0f) width.coerceAtMost(size.width) else size.width
         val atRight = end != (layoutDirection == LayoutDirection.Rtl)
         val left = if (atRight) size.width - w else 0f
-        val r = size.height / 2 - inset
+        val r = minOf(size.height / 2, with(density) { 16.dp.toPx() }) - inset
         return Outline.Rounded(RoundRect(left + inset, inset, left + w - inset, size.height - inset, CornerRadius(r, r)))
     }
 }
@@ -477,8 +453,8 @@ private fun TakeoverBar(view: CapsuleView.Shown, onStop: () -> Unit, onHandBack:
 
 /** 胶囊上的 Maeve 图标(圆形)。 */
 @Composable
-private fun CapsuleLogo() {
-    MaeveLogo(LogoSize, corner = LogoSize / 2)
+private fun CapsuleLogo(kind: CapsuleKind = CapsuleKind.Idle) {
+    CapsuleEmblem(Modifier.size(LogoSize), running = kind == CapsuleKind.Running)
 }
 
 /**
@@ -488,5 +464,5 @@ private fun CapsuleLogo() {
 internal fun Modifier.glass(c: MaeveColors, shape: Shape, need: Boolean): Modifier =
     shadow(8.dp, shape, clip = false, ambientColor = c.floatShadow.copy(alpha = 0.25f), spotColor = c.floatShadow.copy(alpha = 0.3f))
         .clip(shape)
-        .background(c.surface.copy(alpha = 0.95f))
-        .then(if (need) Modifier.background(c.warnSoft).border(1.dp, c.warnSolid.copy(alpha = 0.5f), shape) else Modifier.border(0.5.dp, c.glassEdge, shape))
+        .background(Color.White)
+        .border(if (need) 1.dp else .5.dp, if (need) c.warnSolid.copy(alpha = .5f) else c.accent.copy(alpha = .14f), shape)

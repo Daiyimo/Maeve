@@ -157,6 +157,17 @@ sealed interface RunEvent {
         val incomplete: Boolean = false,
     ) : RunEvent
 
+    /** Actual dispatched phone input and its BEFORE frame. Old runs have no pointer evidence. */
+    @Serializable
+    @SerialName("pointer")
+    data class Pointer(
+        override val atMs: Long, val step: Int, val tool: String,
+        val width: Int, val height: Int, val method: String,
+        val x: Int? = null, val y: Int? = null, val bounds: List<Int> = emptyList(),
+        val clicks: Int = 1, val screenshotId: Int? = null,
+        val callId: String? = null, val source: String = "model",
+    ) : RunEvent
+
     /**
      * 保存下来的一帧画面:第 [step] 步的第 [mediaId] 张,[place] 是当时所在
      * 的包名或「网站 域名」。旧记录里叫 screen_saved,解码时换成本事件。

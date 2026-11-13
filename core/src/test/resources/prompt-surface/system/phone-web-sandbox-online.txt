@@ -462,7 +462,7 @@ hand_to_user #26582d67eb46
 handle_obstacle #31695598de59
 phone_observe #4afaedb18d15
 phone_list_elements #25a7cf83dc2b
-phone_tap #6627db23be95
+phone_tap #417b8cb64c63
 phone_scroll #6fcba6db7c10
 phone_swipe #7573c5a3249b
 phone_type_text #339c29df2c69

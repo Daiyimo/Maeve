@@ -82,11 +82,15 @@ class ConfiguredChatDeviceTest {
         assumeTrue("Opt in with -e maeve_verify_configured_chat true",
             InstrumentationRegistry.getArguments().getString("maeve_verify_configured_chat") == "true")
         assumeTrue("A native main model must already be configured", app.providers.configFor(ModelRole.Main) != null)
+        assumeTrue("Run without an active user task", app.taskState.runs.value.isEmpty())
         val phoneTask = InstrumentationRegistry.getArguments().getString("maeve_verify_phone_task") == "true"
-        val goal = if (phoneTask) "打开系统计算器，计算1+1，告诉我结果。不要进行其他操作。" else "你好"
+        val goal = if (phoneTask) "打开系统计算器，清空后计算37+58，告诉我结果。不要进行其他操作。" else "你好"
+        val originalPace = com.daiyimo.maeve.settings.FeatureFlags.get(context).operatingPace()
+        if (phoneTask) com.daiyimo.maeve.settings.FeatureFlags.get(context).setOperatingPace(com.daiyimo.maeve.core.cap.phone.OperatingPace.FAST)
         FlutterLaunchDeviceTest().prepareInteractiveDisplay()
         automation // Keep the already-authorized accessibility service active during UI checks.
         val lease = if (phoneTask) app.phone.sharedShell.acquire() else null
+        var verificationConversationId: String? = null
         try {
             if (lease != null) {
                 DeviceSupport.awaitShell(lease)
@@ -98,6 +102,7 @@ class ConfiguredChatDeviceTest {
                 waitFor("The native chat did not switch to a fresh conversation") {
                     app.chat.ui.value.exchanges.isEmpty() && app.chat.ui.value.composer == ComposerMode.Idle
                 }
+                verificationConversationId = app.chat.ui.value.conversationId
                 waitFor("The fresh conversation input was not available") {
                     val input = windowNodes().firstOrNull { it.className == "android.widget.EditText" }
                     input?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true
@@ -144,6 +149,22 @@ class ConfiguredChatDeviceTest {
                 if (phoneTask) {
                     assertTrue("The phone task's real steps must be visible while executing", sawSteps)
                     assertTrue("The phone task's actual execution frame must appear in Flutter", sawPreview)
+                    val runId = requireNotNull(app.chat.ui.value.exchanges.last().runId)
+                    val store = com.daiyimo.maeve.record.RunStore(app)
+                    waitFor("Completed phone input must retain its exact pointer evidence") {
+                        store.events(runId).any { it is com.daiyimo.maeve.core.record.RunEvent.Pointer && it.screenshotId != null }
+                    }
+                    val pointers = store.events(runId).filterIsInstance<com.daiyimo.maeve.core.record.RunEvent.Pointer>()
+                    assertTrue(pointers.all { it.width > 0 && it.height > 0 && (it.method != "touch" || (it.x != null && it.y != null)) })
+                    assertTrue(pointers.filter { it.screenshotId != null }.all { store.screen(runId, it.screenshotId!!) != null })
+                    val lastFrame = store.events(runId).filterIsInstance<com.daiyimo.maeve.core.record.RunEvent.Media>().last()
+                    val file = requireNotNull(store.screen(runId, lastFrame.mediaId))
+                    val bitmap = requireNotNull(android.graphics.BitmapFactory.decodeFile(file.absolutePath))
+                    val visible = kotlinx.coroutines.runBlocking { com.daiyimo.maeve.cap.phone.a11y.PhoneOcr.read(bitmap) }
+                    // The large result, not an old answer in the smaller history line.
+                    val number = visible.filter { it.bounds.size == 4 && Regex("[\\d,.\\s]+" ).matches(it.text) }
+                        .maxByOrNull { it.bounds[3] - it.bounds[1] }?.text?.replace(",", "")?.replace(" ", "")?.toBigDecimalOrNull()
+                    assertTrue("The actual calculator result must be 95 rather than trusting the model's claim", number?.compareTo(95.toBigDecimal()) == 0)
                 }
                 val ui = app.chat.ui.value
                 val id = requireNotNull(ui.conversationId)
@@ -167,6 +188,11 @@ class ConfiguredChatDeviceTest {
                 }
             }
         } finally {
+            if (verificationConversationId != null && app.chat.ui.value.conversationId == verificationConversationId &&
+                app.chat.ui.value.composer != ComposerMode.Idle) {
+                InstrumentationRegistry.getInstrumentation().runOnMainSync { app.chat.cancel() }
+            }
+            if (phoneTask) com.daiyimo.maeve.settings.FeatureFlags.get(context).setOperatingPace(originalPace)
             if (lease != null) app.phone.sharedShell.release()
         }
     }
