@@ -23,6 +23,9 @@ Thanks for helping. Maeve is an independent Apache-2.0 project — please read
 - `./gradlew :app:assembleDebug` and `./gradlew :core:test` must pass.
 - Flutter changes must also pass `bash flutter/tool/verify.sh`, which runs `dart format`,
   `flutter analyze` and `flutter test` in that order.
+- For workflow changes, run `bash tools/ci/check_workflows.sh` on Linux or WSL before
+  pushing. It downloads and verifies pinned actionlint, including GitHub's case-insensitive
+  duplicate-key checks. Preserve the executable bit on `gradlew` for Linux checkouts.
 - Device work needs ADB / wireless debugging for the `shell` helper process, plus the
   accessibility service enabled. See [SPEC.md](SPEC.md) §12.4 for known StepOS constraints.
 

@@ -23,10 +23,18 @@ concurrency:
 env:
   GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
   NO_PROXY: 127.0.0.1,localhost,::1
-  no_proxy: 127.0.0.1,localhost,::1
   TZ: UTC
 
 jobs:
+  workflow-checks:
+    name: workflow syntax
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate GitHub Actions workflows
+        run: bash tools/ci/check_workflows.sh
+
   flutter-checks:
     name: flutter (format / analyze / widgets)
     runs-on: ubuntu-24.04
