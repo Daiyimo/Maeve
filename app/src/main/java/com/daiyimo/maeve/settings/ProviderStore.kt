@@ -548,8 +548,11 @@ class ProviderStore(
     fun configFor(role: ModelRole): ProviderConfig? {
         val choices = _roles.value
         val cfg = choices.resolve(role)?.let { id -> _configs.value.firstOrNull { it.id == id } } ?: return null
-        val sees = role == ModelRole.Vision || ModelOptions.seesImages(cfg.capabilities.vision,
-            provider(cfg.providerId)?.visionOverrides?.get(cfg.model), usedForVision = choices.resolve(ModelRole.Vision) == cfg.id)
+        val p = provider(cfg.providerId)
+        val knownVision = p?.let { ModelOptions.ofProvider(it, _configs.value).firstOrNull { o -> o.id == cfg.model }?.capabilities?.vision }
+            ?: cfg.capabilities.vision
+        val sees = role == ModelRole.Vision || ModelOptions.seesImages(knownVision,
+            p?.visionOverrides?.get(cfg.model), usedForVision = choices.resolve(ModelRole.Vision) == cfg.id)
         return if (sees == cfg.capabilities.vision) cfg else cfg.copy(capabilities = cfg.capabilities.copy(vision = sees))
     }
 

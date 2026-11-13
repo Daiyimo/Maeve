@@ -33,7 +33,7 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
             val config = store.list().firstOrNull { it.providerId == p.id && it.model == m.id }
                 ?: ProviderConfig("", p.kind, p.baseUrl, m.id, m.capabilities)
             Choice(id(p.id, m.id), p.id, p.name, m.id, p.kind.name, p.baseUrl,
-                p.visionOverrides[m.id] ?: config.capabilities.vision,
+                m.capabilities.vision,
                 if (m.id in p.modelReasoning) p.modelReasoning[m.id]?.takeUnless { it == "default" }
                 else store.roles.value.reasoningEffort(ModelRole.Main).takeIf { store.configFor(ModelRole.Main)?.let { it.providerId == p.id && it.model == m.id } == true },
                 ReasoningOptions.of(config, p.models?.firstOrNull { it.id == m.id })?.levels.orEmpty(), store.hasKey(p.id))

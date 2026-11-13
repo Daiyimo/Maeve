@@ -14,6 +14,34 @@ import org.junit.runner.RunWith
 /** 在安装后的 APK 中实际加载两套本地模型识别中英文。 */
 @RunWith(AndroidJUnit4::class)
 class PhoneOcrTest {
+    @Test fun readsSmallChineseNavigationBesideIcons() = runBlocking {
+        val bitmap = Bitmap.createBitmap(1200, 2670, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.rgb(238, 241, 240))
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(65, 70, 72)
+            textSize = 22f
+            typeface = Typeface.create("sans-serif", Typeface.NORMAL)
+        }
+        canvas.drawText("热门推荐", 50f, 1160f, paint)
+        canvas.drawText("军需处", 560f, 1160f, paint)
+        canvas.drawText("特勤处", 790f, 1160f, paint)
+        canvas.drawText("制作推荐", 790f, 1210f, paint)
+        val lines = PhoneOcr.read(bitmap)
+        val target = lines.firstOrNull { "特勤处" in it.text }
+        assertTrue(lines.toString(), target != null)
+        assertTrue(target.toString(), target!!.bounds[0] in 620..680 && target.bounds[1] in 420..440)
+    }
+
+    /** Optional local replay; private screenshots are never bundled with tests. */
+    @Test fun replayLocalSmallTextFrame() = runBlocking {
+        val args = androidx.test.platform.app.InstrumentationRegistry.getArguments()
+        val path = args.getString("maeve_ocr_frame")
+        org.junit.Assume.assumeTrue("Optional private-frame replay", path != null)
+        val bitmap = android.graphics.BitmapFactory.decodeFile(path!!)
+        val lines = PhoneOcr.read(requireNotNull(bitmap))
+        assertTrue(lines.toString(), lines.any { "特勤处" in it.text })
+    }
     @Test fun bundledModelsRecognizeChineseAndEnglish() = runBlocking {
         val bitmap = Bitmap.createBitmap(1080, 480, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)

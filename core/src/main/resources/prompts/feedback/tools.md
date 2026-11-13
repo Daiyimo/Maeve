@@ -87,6 +87,12 @@ The accessibility tree is missing much of this screen (treeQuality), and observi
 ## tree_poor.visual
 {{tree_poor}} For a control without text (an icon, a picture, an input box), call phone_find_visually (one target, quick); to type into a box, give phone_type_text its point, or name the box in element and it is found by sight. Call phone_describe only when you cannot tell what the page is: it reads the whole screen and is slow.
 
+## tree_poor.image
+{{tree_poor}} Use the latest screenshot when attached, or request phone_screenshot, to inspect unlabeled icons, small tabs and custom modal panels. Only if that current screenshot still shows a modal, close the panel's own X before using the underlying page. Once the panel is gone, continue on the page; do not close again or tap the mini-app's outer close button. Earlier screenshots are history, not the current state. Locate the real search icon or input; a header title is not an input. Auxiliary visual tools may be absent; use only tools in your tool list.
+
+## tap_text_mismatch
+Not tapped: the unique visible label 「{{text}}」 is currently centered at ({{x}}, {{y}}), away from your point. Use that current 0–999 center if it is the intended target, or inspect the screen and choose a different target. No input was dispatched.
+
 ## tree_poor.no_text
 The accessibility tree is missing this screen and no text could be read from its picture either (ocr: {{ocr}}). If it was still loading, wait a moment and observe once more; otherwise work from the screenshot if one is attached, or call hand_to_user.
 

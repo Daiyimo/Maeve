@@ -111,8 +111,11 @@ object ModelOptions {
      * 用户说过能不能看图的([Provider.visionOverrides])按用户说的。
      */
     fun ofProvider(p: Provider, configs: List<ProviderConfig>): List<ModelOption> = listedOf(p, configs).map { o ->
-        val said = p.visionOverrides[o.id] ?: return@map o
-        o.copy(capabilities = o.capabilities.copy(vision = said), visionByUser = said)
+        val profile = StepModelProfiles.of(o.id)?.takeIf { StepModelProfiles.isEndpoint(p.baseUrl) }
+        val listedVision = p.models?.firstOrNull { it.id == o.id }?.vision?.takeIf { profile != null }
+        val said = p.visionOverrides[o.id]
+        o.copy(capabilities = o.capabilities.copy(vision = said ?: listedVision ?: profile?.vision ?: o.capabilities.vision),
+            visionByUser = said, visionKnown = o.visionKnown || profile != null)
     }
 
     private fun listedOf(p: Provider, configs: List<ProviderConfig>): List<ModelOption> {

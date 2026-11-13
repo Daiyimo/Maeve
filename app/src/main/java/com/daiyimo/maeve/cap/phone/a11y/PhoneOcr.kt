@@ -13,6 +13,7 @@ import com.daiyimo.maeve.core.risk.NumberMask
 import com.daiyimo.maeve.core.uistate.VisibleTextLine
 import com.daiyimo.maeve.core.uistate.normalize
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.ensureActive
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
@@ -30,7 +31,54 @@ internal object PhoneOcr {
     }
 
     suspend fun read(bitmap: Bitmap): List<VisibleTextLine> {
-        val recognizers = try { listOf(chinese, latin) } catch (e: Exception) {
+        try {
+            val full = recognize(bitmap.copy(Bitmap.Config.ARGB_8888, false))
+            // Small navigation labels often disappear at full-screen scale. Only dense/small-text
+            // frames get bounded overlapping Chinese tiles; never enlarge every frame.
+            val small = full.count { (it.bounds[3] - it.bounds[1]) * bitmap.height / 999 < 32 }
+            if (bitmap.width < 600 || small < 3) return full
+            val detailed = mutableListOf<VisibleTextLine>()
+            // Some decorated labels survive better at overview scale than at native scale.
+            if (bitmap.width > 900) try {
+                detailed += recognize(Bitmap.createScaledBitmap(bitmap, 720, bitmap.height * 720 / bitmap.width, true), chineseOnly = true)
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) { /* Keep the successful native read. */ }
+            for (band in 0..3) for (column in 0..1) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                val top = (band * bitmap.height / 4 - 48).coerceAtLeast(0)
+                val bottom = ((band + 1) * bitmap.height / 4 + 48).coerceAtMost(bitmap.height)
+                val left = (column * bitmap.width / 2 - 32).coerceAtLeast(0)
+                val right = ((column + 1) * bitmap.width / 2 + 32).coerceAtMost(bitmap.width)
+                val scale = minOf(3.0, 1280.0 / maxOf(right - left, bottom - top))
+                if (scale <= 1.0) continue
+                val crop = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
+                val enlarged = Bitmap.createScaledBitmap(crop, (crop.width * scale).toInt(), (crop.height * scale).toInt(), true)
+                if (crop !== bitmap && crop !== enlarged) crop.recycle()
+                val lines = try { recognize(enlarged, chineseOnly = true) }
+                catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (_: Exception) { continue } // A refinement failure must not erase a valid full-frame read.
+                detailed += lines.map { line -> line.copy(bounds = listOf(
+                    normalize(left + line.bounds[0] * (right - left - 1) / 999, bitmap.width),
+                    normalize(top + line.bounds[1] * (bottom - top - 1) / 999, bitmap.height),
+                    normalize(left + line.bounds[2] * (right - left - 1) / 999, bitmap.width),
+                    normalize(top + line.bounds[3] * (bottom - top - 1) / 999, bitmap.height))) }
+            }
+            // Keep a better region reading instead of two contradictory labels at the same spot.
+            return detailed + full.filterNot { old -> detailed.any { fresh ->
+                overlaps(old.bounds, fresh.bounds) && (fresh.confidence ?: 0f) >= (old.confidence ?: 0f)
+            } }
+        } finally { bitmap.recycle() }
+    }
+
+    private fun overlaps(a: List<Int>, b: List<Int>): Boolean {
+        val intersection = (minOf(a[2], b[2]) - maxOf(a[0], b[0])).coerceAtLeast(0).toLong() *
+            (minOf(a[3], b[3]) - maxOf(a[1], b[1])).coerceAtLeast(0)
+        val area = (a[2] - a[0]).toLong() * (a[3] - a[1])
+        return area > 0 && intersection.toDouble() / area >= .7
+    }
+
+    private suspend fun recognize(bitmap: Bitmap, chineseOnly: Boolean = false): List<VisibleTextLine> {
+        val recognizers = try { if (chineseOnly) listOf(chinese) else listOf(chinese, latin) } catch (e: Exception) {
             bitmap.recycle()
             throw e
         }

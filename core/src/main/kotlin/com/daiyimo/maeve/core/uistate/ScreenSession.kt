@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.core.uistate
 
+import com.daiyimo.maeve.core.tool.fail
+
 import com.daiyimo.maeve.core.tool.ToolDispatcher
 import com.daiyimo.maeve.core.visual.FrameDiff
 import com.daiyimo.maeve.core.visual.FrameGrid
@@ -91,6 +93,7 @@ internal class ScreenSession(
     /** 模型此刻还看得到的读屏 snapshotId;null 表示循环还没告诉过(那就都看得到)。 */
     var visible: Set<String>? = null
     var lastSnapshot: ScreenSnapshot? = null
+    private var lastOcr: List<VisibleTextLine> = emptyList()
     val recentSnapshots = ArrayDeque<ScreenSnapshot>()
     val readAt = mutableMapOf<String, Long>()
     /** 这块屏发出过的 snapshotId(比 [RECENT_READS] 长:模型可能拿很早的编号来用)。 */
@@ -536,13 +539,55 @@ internal class ScreenSession(
      * 能看图的主模型也拿它的位置去点,证据账本(回答来源、核查)和 phone_collect 也只能从这里拿到屏上写着什么。
      */
     private suspend fun assessTree(s: ScreenSnapshot): TreeRead {
+        lastOcr = emptyList()
         val verdict = TreeAdequacy.ofTree(s)
         if (verdict.quality == TreeQuality.Adequate || verdict.quality == TreeQuality.Protected) return TreeRead(verdict, null, null).also { treeVerdict = it.tree }
         val (lines, status) = readScreenText(s, if (verdict.poor) OCR_WAIT_POOR_MS else OCR_WAIT_MS)
+        lastOcr = lines.orEmpty()
         val withText = TreeAdequacy.withText(verdict, lines)
         treeVerdict = withText
         // 树不够用、屏上文字也一行没有:照实说为什么,模型才知道该看图找,而不是再读一次
         return TreeRead(withText, lines, status.takeIf { qualityWire(withText) != null && lines.isNullOrEmpty() })
+    }
+
+    /** A named OCR-only target must not be dispatched at a contradictory point. This is not icon recognition. */
+    suspend fun checkTextPoint(target: String?, x: Int, y: Int): ToolExecution? {
+        if (surface.id != "phone" || lastSnapshot?.elements?.isNotEmpty() != false || target == null) return null
+        fun norm(text: String) = text.lowercase().filter(Char::isLetterOrDigit)
+        val label = norm(target).replace(Regex("(标签|按钮|入口|选项|button|tab)$"), "")
+        if (label.length !in 2..30) return null
+        fun matching(lines: List<VisibleTextLine>): VisibleTextLine? {
+            val exact = lines.filter { norm(it.text) == label }
+            val candidates = exact.ifEmpty { lines.filter {
+                // A small Chinese glyph or adjacent icon can be misread. A near match can
+                // reject a contradictory point, but never rewrites or dispatches a tap.
+                val raw = norm(it.text)
+                val word = if (raw.length == label.length + 1 && raw[1] == label[0]) raw.drop(1) else raw
+                label.length >= 3 && label.all { c -> Character.UnicodeScript.of(c.code) == Character.UnicodeScript.HAN } &&
+                    word.length == label.length && word.first() == label.first() && word.last() == label.last() &&
+                    word.zip(label).count { (a, b) -> a != b } == 1
+            } }
+            val best = candidates.maxByOrNull { it.confidence ?: 0f } ?: return null
+            // Repeated readings of the same spot are one location; distinct matches are ambiguous.
+            return best.takeIf { candidates.all { other ->
+                kotlin.math.abs(other.bounds[0] + other.bounds[2] - best.bounds[0] - best.bounds[2]) <= 24 &&
+                    kotlin.math.abs(other.bounds[1] + other.bounds[3] - best.bounds[1] - best.bounds[3]) <= 24
+            } }
+        }
+        if (matching(lastOcr) == null) return null
+        val fresh = screenAttempt { screen.peek() } ?: return null
+        if (fresh.protected || fresh.packageName != lastSnapshot?.packageName) return null
+        val (lines, _) = readScreenText(fresh, 2_500)
+        val match = matching(lines.orEmpty().filter { it.confidence == null || it.confidence >= .6f }) ?: return null
+        val b = match.bounds
+        if (x in (b[0] - 12)..(b[2] + 12) && y in (b[1] - 12)..(b[3] + 12)) return null
+        val center = listOf((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
+        val failure = fail("tap_text_mismatch", Feedback.format("tap_text_mismatch", "text" to match.text, "x" to center[0], "y" to center[1]))
+        return failure.with(content = JsonObject(failure.content + buildJsonObject {
+            put("center", JsonArray(center.map(::JsonPrimitive)))
+            put("bounds", JsonArray(b.map(::JsonPrimitive)))
+            put("inputDispatched", false)
+        }))
     }
 
     /**
@@ -573,6 +618,7 @@ internal class ScreenSession(
         ocrStatus != null && locator != null -> Feedback.format("tree_poor.no_text.visual", "ocr" to ocrStatus)
         ocrStatus != null -> Feedback.format("tree_poor.no_text", "ocr" to ocrStatus)
         locator != null -> Feedback.format("tree_poor.visual", "tree_poor" to Feedback["tree_poor"])
+        visionEnabled -> Feedback.format("tree_poor.image", "tree_poor" to Feedback["tree_poor"])
         else -> Feedback["tree_poor"]
     }
 

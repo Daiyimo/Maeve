@@ -5,6 +5,7 @@ import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.prompt.Feedback
 import com.daiyimo.maeve.core.vision.JvmTestImageOps
 import com.daiyimo.maeve.core.tool.FakeScreen
+import com.daiyimo.maeve.core.tool.execute
 import com.daiyimo.maeve.core.vision.VisionService
 import com.daiyimo.maeve.core.vision.says
 import kotlinx.coroutines.test.runTest
@@ -91,7 +92,9 @@ class TreeQualityTest {
 
     // ---- 读屏结果 ----
 
-    private class OcrScreen(var elements: List<UiElement>, val lines: List<VisibleTextLine>) : ScreenPort by FakeScreen() {
+    private class OcrScreen(var elements: List<UiElement>, var lines: List<VisibleTextLine>) : ScreenPort by FakeScreen() {
+        val taps = mutableListOf<Pair<Int, Int>>()
+        override suspend fun tapXY(x: Int, y: Int): ActionResult { taps += x to y; return ActionResult.Ok(changed = true) }
         var ocrReads = 0
         var shots = 0
         override suspend fun snapshot() = ScreenSnapshot("p1", "com.example", elements, 1080, 2400)
@@ -108,6 +111,45 @@ class TreeQualityTest {
     )
 
     private fun JsonObject.s(k: String) = this[k]?.jsonPrimitive?.content
+
+    @Test fun namedCoordinateCannotMissAUniqueCurrentOcrLabel() = runTest {
+        val s = OcrScreen(emptyList(), listOf(VisibleTextLine("制作推荐", listOf(272, 451, 367, 461))))
+        val d = toolDispatcher(s)
+        d.executeRead(Part.ToolCall("o", "phone_observe", "{}"))
+        val miss = d.execute(Part.ToolCall("t", "phone_tap", """{"x":319,"y":501,"target":"制作推荐标签"}"""))
+        assertEquals("tap_text_mismatch", miss.content.s("error"))
+        assertTrue(s.taps.isEmpty())
+        val hit = d.execute(Part.ToolCall("t2", "phone_tap", """{"x":319,"y":456,"target":"制作推荐标签"}"""))
+        assertEquals("true", hit.content.s("ok"))
+        assertEquals(1, s.taps.size)
+    }
+
+    @Test fun coordinateTextCheckUsesFreshPositionAndLeavesUnlabeledIconsAlone() = runTest {
+        val s = OcrScreen(emptyList(), listOf(VisibleTextLine("制作推荐", listOf(272, 451, 367, 461))))
+        val d = toolDispatcher(s)
+        d.executeRead(Part.ToolCall("o", "phone_observe", "{}"))
+        s.lines = listOf(VisibleTextLine("制作推荐", listOf(272, 351, 367, 361)))
+        val moved = d.execute(Part.ToolCall("t", "phone_tap", """{"x":319,"y":456,"target":"制作推荐标签"}"""))
+        assertEquals("tap_text_mismatch", moved.content.s("error"))
+        assertTrue(s.taps.isEmpty())
+        val reads = s.ocrReads
+        val icon = d.execute(Part.ToolCall("i", "phone_tap", """{"x":830,"y":25,"target":"搜索图标"}"""))
+        assertEquals("true", icon.content.s("ok"))
+        assertEquals(reads, s.ocrReads)
+        assertEquals(1, s.taps.size)
+    }
+
+    @Test fun decoratedSingleCharacterOcrErrorDoesNotJustifyAnUnrelatedPoint() = runTest {
+        val s = OcrScreen(emptyList(), listOf(
+            VisibleTextLine("华特動处", listOf(634, 430, 728, 442), .8f),
+            VisibleTextLine("军需处", listOf(450, 430, 550, 442), .9f)))
+        val d = toolDispatcher(s)
+        d.executeRead(Part.ToolCall("o", "phone_observe", "{}"))
+        val miss = d.execute(Part.ToolCall("t", "phone_tap", """{"x":672,"y":516,"target":"特勤处标签"}"""))
+        assertEquals("tap_text_mismatch", miss.content.s("error"))
+        assertTrue(s.taps.isEmpty())
+        assertEquals(listOf(681, 436), miss.content["center"]!!.jsonArray.map { it.jsonPrimitive.content.toInt() })
+    }
 
     @Test fun unusableTreeForTextOnlyModelGetsFilteredOcrWithCentersAndHint() = runTest {
         val s = OcrScreen(emptyList(), chat)
@@ -142,6 +184,8 @@ class TreeQualityTest {
         assertEquals("empty_elements", r.content.s("imageReason"))
         assertEquals("unusable", r.content.s("treeQuality"))
         assertTrue(r.image != null)
+        assertTrue(r.content.s("hint")!!, "phone_screenshot" in r.content.s("hint")!!)
+        assertTrue(r.content.s("hint")!!, "modal" in r.content.s("hint")!!)
         assertEquals(3, r.content["visibleText"]!!.jsonArray.size)
     }
 

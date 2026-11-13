@@ -73,6 +73,7 @@ internal class Tap(f: ScreenFamily) : ScreenTool(f, "tap") {
         if (ref != null && (x != null || y != null)) throw ArgError("x", "give either ref+snapshotId or x+y, not both")
         if (ref != null) return tapByRef(ctx, ref, clicks == 2)
         if (x == null || y == null) throw ArgError(if (x == null) "x" else "y", if (x == null) "required with y when no ref is given" else "required with x when no ref is given")
+        ctx.session.checkTextPoint(label, x, y)?.let { return it }
         return tapByPoint(ctx, x, y, clicks == 2)
     }
 

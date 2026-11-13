@@ -20,7 +20,7 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** Explicit opt-in only: uses the device owner's configured model for one small task.
+/** Explicit opt-in only: uses the device owner's configured model for one bounded task.
  * No key is read out of native storage, logged or copied to the test process.
  */
 @RunWith(AndroidJUnit4::class)
@@ -83,8 +83,9 @@ class ConfiguredChatDeviceTest {
             InstrumentationRegistry.getArguments().getString("maeve_verify_configured_chat") == "true")
         assumeTrue("A native main model must already be configured", app.providers.configFor(ModelRole.Main) != null)
         assumeTrue("Run without an active user task", app.taskState.runs.value.isEmpty())
-        val phoneTask = InstrumentationRegistry.getArguments().getString("maeve_verify_phone_task") == "true"
-        val goal = if (phoneTask) "打开系统计算器，清空后计算37+58，告诉我结果。不要进行其他操作。" else "你好"
+        val customGoal = InstrumentationRegistry.getArguments().getString("maeve_verify_goal")?.takeIf { it.isNotBlank() }
+        val phoneTask = customGoal != null || InstrumentationRegistry.getArguments().getString("maeve_verify_phone_task") == "true"
+        val goal = customGoal ?: if (phoneTask) "打开系统计算器，清空后计算37+58，告诉我结果。不要进行其他操作。" else "你好"
         val originalPace = com.daiyimo.maeve.settings.FeatureFlags.get(context).operatingPace()
         if (phoneTask) com.daiyimo.maeve.settings.FeatureFlags.get(context).setOperatingPace(com.daiyimo.maeve.core.cap.phone.OperatingPace.FAST)
         FlutterLaunchDeviceTest().prepareInteractiveDisplay()
@@ -127,7 +128,7 @@ class ConfiguredChatDeviceTest {
                 }
                 var sawPreview = false
                 var sawSteps = false
-                waitFor("The configured model did not finish its task", if (phoneTask) 180_000 else 60_000) {
+                waitFor("The configured model did not finish its task", if (customGoal != null) 300_000 else if (phoneTask) 180_000 else 60_000) {
                     val exchange = app.chat.ui.value.exchanges.lastOrNull()
                     val status = exchange?.status
                     if (phoneTask) {
@@ -160,14 +161,16 @@ class ConfiguredChatDeviceTest {
                             it.x!! in 0 until it.width && it.y!! in 0 until it.height
                     })
                     assertTrue(pointers.filter { it.screenshotId != null }.all { store.screen(runId, it.screenshotId!!) != null })
-                    val lastFrame = store.events(runId).filterIsInstance<com.daiyimo.maeve.core.record.RunEvent.Media>().last()
-                    val file = requireNotNull(store.screen(runId, lastFrame.mediaId))
-                    val bitmap = requireNotNull(android.graphics.BitmapFactory.decodeFile(file.absolutePath))
-                    val visible = kotlinx.coroutines.runBlocking { com.daiyimo.maeve.cap.phone.a11y.PhoneOcr.read(bitmap) }
-                    // The large result, not an old answer in the smaller history line.
-                    val number = visible.filter { it.bounds.size == 4 && Regex("[\\d,.\\s]+" ).matches(it.text) }
-                        .maxByOrNull { it.bounds[3] - it.bounds[1] }?.text?.replace(",", "")?.replace(" ", "")?.toBigDecimalOrNull()
-                    assertTrue("The actual calculator result must be 95 rather than trusting the model's claim", number?.compareTo(95.toBigDecimal()) == 0)
+                    if (customGoal == null) {
+                        val lastFrame = store.events(runId).filterIsInstance<com.daiyimo.maeve.core.record.RunEvent.Media>().last()
+                        val file = requireNotNull(store.screen(runId, lastFrame.mediaId))
+                        val bitmap = requireNotNull(android.graphics.BitmapFactory.decodeFile(file.absolutePath))
+                        val visible = kotlinx.coroutines.runBlocking { com.daiyimo.maeve.cap.phone.a11y.PhoneOcr.read(bitmap) }
+                        // The large result, not an old answer in the smaller history line.
+                        val number = visible.filter { it.bounds.size == 4 && Regex("[\\d,.\\s]+" ).matches(it.text) }
+                            .maxByOrNull { it.bounds[3] - it.bounds[1] }?.text?.replace(",", "")?.replace(" ", "")?.toBigDecimalOrNull()
+                        assertTrue("The actual calculator result must be 95 rather than trusting the model's claim", number?.compareTo(95.toBigDecimal()) == 0)
+                    }
                 }
                 val ui = app.chat.ui.value
                 val id = requireNotNull(ui.conversationId)

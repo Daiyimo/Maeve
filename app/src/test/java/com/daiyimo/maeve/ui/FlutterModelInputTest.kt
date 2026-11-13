@@ -12,6 +12,20 @@ import org.junit.rules.TemporaryFolder
 import javax.crypto.KeyGenerator
 
 class FlutterModelInputTest {
+    @Test fun legacyStepPlanConfigurationUsesDocumentedImagesUnlessExplicitlyDisabled() {
+        val s = store()
+        val p = s.connect("阶跃星辰", ProviderConfig.Kind.OpenAiCompat, StepModelProfiles.PLAN,
+            "fixture-key", emptyList(), typed = setOf("step-3.7-flash"), untested = true)
+        val legacy = com.daiyimo.maeve.core.model.Capabilities(true, false, 64_000, false)
+        assertTrue(s.use(ModelRole.Main, p.id, "step-3.7-flash", legacy))
+        assertTrue("Old preset defaults must not silently hide screenshots", s.configFor(ModelRole.Main)!!.capabilities.vision)
+        assertTrue(FlutterModelSettings(s).choices().single().vision)
+        assertTrue(store().configFor(ModelRole.Main)!!.capabilities.vision)
+        s.setModelVision(p.id, "step-3.7-flash", false)
+        assertFalse(s.configFor(ModelRole.Main)!!.capabilities.vision)
+        assertFalse(FlutterModelSettings(s).choices().single().vision)
+        assertFalse(store().configFor(ModelRole.Main)!!.capabilities.vision)
+    }
     @Test fun flutterShowsOneStepPresetWithBothOfficialEndpoints() {
         val catalog = FlutterModelSettings.presets()
         assertEquals(listOf("阶跃星辰"), catalog.map { it["label"] })
