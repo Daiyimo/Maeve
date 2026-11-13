@@ -1,6 +1,7 @@
 package com.daiyimo.maeve.wechat
 
 import android.content.Intent
+import android.app.ActivityOptions
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
@@ -39,15 +40,21 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
         if (!enabled) closeBackground()
     }
 
-    fun open() {
+    suspend fun open() {
+        check(!active) { "请等当前 Amoo 回复完成" }
+        closeBackground()?.join()
+        launchForeground()
+    }
+
+    private fun launchForeground() {
         check(ScreenAccessibility.instance.value != null) { "请开启 Maeve 无障碍服务" }
         app.startActivity(Intent().setClassName(PACKAGE, "$PACKAGE.chat.activity.ChatMainActivity")
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), ActivityOptions.makeBasic().setLaunchDisplayId(0).toBundle())
     }
 
     private suspend fun openForRequest() {
         cleanup?.join()
-        if (!background) { targetDisplay = 0; open(); return }
+        if (!background) { targetDisplay = 0; launchForeground(); return }
         val connection = binding ?: app.phone.sharedShell.acquire().also { binding = it }
         val shell = withTimeoutOrNull(10_000) { connection.shell.filterNotNull().first { it.asBinder().pingBinder() } }
             ?: throw AmooUiException("手机助手尚未连接，后台 Amoo 未启动。请先连接手机助手；不会自动切到前台。")
@@ -67,18 +74,23 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
         }
     }
 
-    private fun closeBackground() {
+    private fun closeBackground(): Job? {
         val screen = display
         val connection = binding
         display = null; binding = null; targetDisplay = 0
-        if (connection == null) return
+        if (connection == null) return cleanup
         cleanup = scope.launch(Dispatchers.IO) {
             if (screen != null) {
-                runCatching { connection.shell.value?.finishDisplay(screen.displayId, arrayOf(PACKAGE), emptyArray()) }
+                runCatching {
+                    connection.shell.value?.finishDisplay(screen.displayId, arrayOf(PACKAGE), emptyArray())?.let { result ->
+                        android.util.Log.i("SystemAmooWechat", "后台屏幕收尾 kept=${result.getStringArray("kept")?.size ?: 0} note=${result.getString("note")}")
+                    }
+                }
                 screen.release()
             }
             app.phone.sharedShell.release()
         }
+        return cleanup
     }
 
     @Synchronized fun start() {
@@ -113,7 +125,12 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
                 catch (e: AmooUiException) { android.util.Log.w("SystemAmooWechat", e.message.orEmpty()); lastError = e.message; e.message.orEmpty() }
                 catch (_: Exception) {
                     "系统 Amoo 对话未能完成。请检查无障碍服务，并在 Amoo 页面确认当前对话。".also { lastError = it }
-                } finally { active = false }
+                } finally {
+                    // Amoo 的 singleTask 界面不能长期留在虚拟屏上，否则系统前台入口只会复用那块屏的任务。
+                    // 回发之前先将聊天任务留在主屏后方，再释放独立屏；错误和取消也必须收尾。
+                    withContext(NonCancellable) { closeBackground()?.join() }
+                    active = false
+                }
                 withContext(Dispatchers.IO) { reply(request, response) }
             }
         }

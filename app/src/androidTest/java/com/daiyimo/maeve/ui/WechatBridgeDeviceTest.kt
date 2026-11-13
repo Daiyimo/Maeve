@@ -42,7 +42,10 @@ class WechatBridgeDeviceTest {
                     val root = w.root
                     try { root?.packageName?.toString() == "com.stepos.ailauncher" } finally { root?.recycle() }
                 })
-            } finally { display.release() }
+            } finally {
+                shell.finishDisplay(display.displayId, arrayOf("com.stepos.ailauncher"), emptyArray())
+                display.release()
+            }
         }
     }
     @Test fun liveAmooChatDoesNotCallMaeveModelWhenExplicitlyRequested() = kotlinx.coroutines.runBlocking<Unit> {
@@ -72,8 +75,14 @@ class WechatBridgeDeviceTest {
                 assertTrue(app.wechat.store.journal(messageId, peer, text))
                 app.wechat.relay.forward(peer, messageId, text)
                 val deadline = started + 150_000
+                val privateDisplays = mutableSetOf<Int>()
                 while (app.wechat.store.pending().any { p -> p.messageId == messageId } && System.currentTimeMillis() < deadline) {
-                    if (shell != null) assertEquals("Background chat must not switch the user's main task", beforeMain, shell.topTaskId(0))
+                    if (shell != null) {
+                        assertEquals("Background chat must not switch the user's main task", beforeMain, shell.topTaskId(0))
+                        shell.displayOfPackage("com.stepos.ailauncher").takeIf { it > 0 }?.let { displayId ->
+                            privateDisplays.add(displayId)
+                        }
+                    }
                     Thread.sleep(100)
                 }
                 assertFalse("The production delivery loop must confirm the actual WeChat send", app.wechat.store.pending().any { p -> p.messageId == messageId })
@@ -84,6 +93,28 @@ class WechatBridgeDeviceTest {
                 assertFalse("Default ClawPhone agent must not answer", reply.contains("ClawPhone", ignoreCase = true))
                 assertEquals("No Maeve model request may be made for WeChat chat", beforeCalls, app.usage.snapshot().rows.sumOf { it.counts.calls })
                 assertEquals("Chat may not create a Maeve task", beforeTasks, app.remoteTasks.list(100).map { it.id }.toSet())
+                if (shell != null) {
+                    assertTrue("The test must actually use a private display", privateDisplays.isNotEmpty())
+                    val manager = context.getSystemService(android.hardware.display.DisplayManager::class.java)
+                    assertTrue("Private displays must be released before WeChat confirms delivery", privateDisplays.all { manager.getDisplay(it) == null })
+                    // 模拟系统前台入口的普通启动，不用 Maeve 的 openAmoo 动作替收尾逻辑兜底。
+                    context.startActivity(Intent().setClassName("com.stepos.ailauncher", "com.stepos.ailauncher.chat.activity.ChatMainActivity")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    val frontDeadline = System.currentTimeMillis() + 8_000
+                    while (shell.packageOfTask(shell.topTaskId(0)) != "com.stepos.ailauncher" && System.currentTimeMillis() < frontDeadline) Thread.sleep(100)
+                    assertEquals("The normal system Amoo entry must open after a WeChat reply", "com.stepos.ailauncher", shell.packageOfTask(shell.topTaskId(0)))
+                    var inputVisible = false
+                    while (!inputVisible && System.currentTimeMillis() < frontDeadline) {
+                        val screen = support.service().rootInActiveWindow
+                        try {
+                            val nodes = screen?.findAccessibilityNodeInfosByViewId("com.stepos.ailauncher:id/et_input_bar").orEmpty()
+                            inputVisible = nodes.any { node -> node.isVisibleToUser }
+                            nodes.forEach { node -> node.recycle() }
+                        } finally { screen?.recycle() }
+                        if (!inputVisible) Thread.sleep(100)
+                    }
+                    assertTrue("The real Amoo input must be visible on the main screen", inputVisible)
+                }
                 android.util.Log.i("WechatLiveCheck", "background=$background deliveredMs=${System.currentTimeMillis() - started}")
             } finally {
                 instrumentation.runOnMainSync { app.wechat.systemAmoo.setBackground(original) }
