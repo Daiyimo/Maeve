@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:maeve_flutter/ui/common/selection_field.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maeve_flutter/app/maeve_app.dart';
@@ -96,13 +97,23 @@ void main() {
       });
       await mount(tester, settings);
       await open(tester, const AmooWechatPage());
-      expect(find.text('系统 Amoo · 前台'), findsOneWidget);
-      await tester.ensureVisible(find.text('后台接入 Amoo'));
-      await tester.tap(find.text('后台接入 Amoo'));
+      expect(
+        tester
+            .widget<MaeveSegments<bool>>(find.byType(MaeveSegments<bool>))
+            .value,
+        isFalse,
+      );
+      await tester.ensureVisible(find.text('后台'));
+      await tester.tap(find.text('后台'));
       await tester.pumpAndSettle();
       expect(settings.wechatStatus['background'], isTrue);
       expect(settings.wechatStatus['enabled'], isTrue);
-      expect(find.text('系统 Amoo · 后台'), findsOneWidget);
+      expect(
+        tester
+            .widget<MaeveSegments<bool>>(find.byType(MaeveSegments<bool>))
+            .value,
+        isTrue,
+      );
       expect(settings.wechatActions, contains('setBackground'));
     },
   );
@@ -113,8 +124,8 @@ void main() {
     final settings = FakeSettingsBridge();
     await mount(tester, settings);
     await open(tester, const AmooWechatPage());
-    await tester.ensureVisible(find.text('后台接入 Amoo'));
-    await tester.tap(find.text('后台接入 Amoo'));
+    await tester.ensureVisible(find.text('后台'));
+    await tester.tap(find.text('后台'));
     await tester.pumpAndSettle();
     expect(settings.wechatActions, isNot(contains('setBackground')));
   });
@@ -180,6 +191,41 @@ void main() {
       );
       expect(settings.savedModels.single['kind'], 'OpenAiCompat');
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Long selectors search and cancel without changing the chosen value',
+    (tester) async {
+      final settings = FakeSettingsBridge();
+      settings.values['presets'] = [
+        ...(settings.values['presets'] as List),
+        for (var i = 0; i < 20; i++)
+          {
+            'id': 'provider-$i',
+            'label': '服务商 $i',
+            'kind': 'OpenAiCompat',
+            'baseUrl': 'https://provider$i.example/v1',
+          },
+      ];
+      await mount(tester, settings);
+      await open(tester, const AddModelPage());
+      await tester.tap(find.byKey(const ValueKey('provider-preset-阶跃星辰')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('selection-search')),
+        '服务商 17',
+      );
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, '服务商 17'), findsOneWidget);
+      expect(find.text('服务商 16'), findsNothing);
+      await tester.tap(find.byTooltip('关闭选择'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('provider-preset-阶跃星辰')),
+        findsOneWidget,
+      );
+      expect(settings.savedModels, isEmpty);
     },
   );
 

@@ -91,6 +91,37 @@ void main() {
     return controller;
   }
 
+  testWidgets(
+    'Jump to latest is hidden on new empty tasks after scrolling history',
+    (tester) async {
+      final bridge = FakeChatBridge();
+      final controller = await mount(tester, bridge);
+      expect(find.byIcon(Icons.arrow_downward_rounded), findsNothing);
+      bridge.emitUi(
+        conversationId: 'c1',
+        exchanges: [
+          for (var i = 0; i < 16; i++)
+            FakeChatBridge.exchange('第 $i 条较长的消息用于滚动历史验证'),
+        ],
+      );
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byKey(const ValueKey('chat-list')),
+        const Offset(0, 1600),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.arrow_downward_rounded), findsOneWidget);
+      controller.create();
+      await tester.pumpAndSettle();
+      await tester.drag(
+        find.byKey(const ValueKey('chat-list')),
+        const Offset(0, 400),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.arrow_downward_rounded), findsNothing);
+    },
+  );
+
   testWidgets('Home has no workbench entry or right-edge workbench', (
     tester,
   ) async {

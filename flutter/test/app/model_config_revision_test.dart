@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:maeve_flutter/ui/common/selection_field.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maeve_flutter/app/maeve_app.dart';
@@ -124,7 +125,7 @@ void main() {
       );
       final listed = find.byWidgetPredicate(
         (w) =>
-            w is DropdownButtonFormField<String> &&
+            w is MaeveSelectField<String> &&
             w.decoration.labelText == '选择获取的模型',
       );
       await tester.ensureVisible(listed);
@@ -142,8 +143,7 @@ void main() {
       );
       final effort = find.byWidgetPredicate(
         (w) =>
-            w is DropdownButtonFormField<String> &&
-            w.decoration.labelText == '思考强度',
+            w is MaeveSelectField<String> && w.decoration.labelText == '思考强度',
       );
       await tester.ensureVisible(effort);
       await tester.tap(effort);
@@ -245,11 +245,10 @@ void main() {
       expect(tester.takeException(), isNull);
       final effort = find.byWidgetPredicate(
         (w) =>
-            w is DropdownButtonFormField<String> &&
-            w.decoration.labelText == '思考强度',
+            w is MaeveSelectField<String> && w.decoration.labelText == '思考强度',
       );
       expect(
-        tester.widget<DropdownButtonFormField<String>>(effort).initialValue,
+        tester.widget<MaeveSelectField<String>>(effort).initialValue,
         'default',
       );
     },

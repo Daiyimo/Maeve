@@ -64,7 +64,11 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   void _onScroll() {
-    final show = _scroll.hasClients && _scroll.position.extentAfter > 180;
+    if (!mounted) return;
+    final show =
+        !MaeveScope.read(context).active.isEmpty &&
+        _scroll.hasClients &&
+        _scroll.position.extentAfter > 180;
     if (show != _showJump && mounted) setState(() => _showJump = show);
   }
 
@@ -106,6 +110,7 @@ class _ChatPageState extends State<ChatPage> {
           !_scroll.hasClients || _scroll.position.extentAfter < 140;
       _renderedTask = taskSignature;
       _renderedConversation = conversation.id;
+      if (changedConversation) _showJump = false;
       if (changedConversation || following) _toBottom();
     }
     final padding = MediaQuery.viewPaddingOf(context);
@@ -207,7 +212,7 @@ class _ChatPageState extends State<ChatPage> {
             onStop: controller.stop,
           ),
         ),
-        if (_showJump)
+        if (!conversation.isEmpty && _showJump)
           Positioned(
             right: MaeveSpace.s16,
             bottom: bottomSafe + 104,

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../app/maeve_controller.dart';
 import '../../bridge/maeve_settings_bridge.dart';
 import '../common/app_page.dart';
+import '../common/selection_field.dart';
 import 'settings_components.dart';
 
 class AmooWechatPage extends StatefulWidget {
@@ -159,35 +160,37 @@ class _AmooWechatPageState extends State<AmooWechatPage>
               icon: Icons.chat_bubble_outline_rounded,
               title: status == null ? '正在读取微信状态' : state,
             ),
-            SettingsTile(
-              icon: Icons.swap_horiz_rounded,
-              title: status?['background'] == true
-                  ? '系统 Amoo · 后台'
-                  : '系统 Amoo · 前台',
-              value: status?['amooReady'] == true ? '可用' : '需要授权',
-              subtitle: status?['amooReady'] == true
-                  ? background
-                        ? '在独立屏幕中使用系统 Amoo，不切换当前界面'
-                        : '收到微信消息时会切到 Amoo，完成后原样回发'
-                  : '请安装系统 Amoo 并开启 Maeve 无障碍服务',
-            ),
-            SettingsSwitchTile(
-              icon: Icons.layers_outlined,
-              title: '后台接入 Amoo',
-              subtitle: status?['backgroundReady'] == true
-                  ? '使用手机助手的独立屏幕处理微信消息'
-                  : '需要先在系统授权连接手机助手',
-              value: status?['background'] == true,
-              enabled:
-                  !_busy &&
-                  status != null &&
-                  status['amooActive'] != true &&
-                  (status['background'] == true ||
-                      status['backgroundReady'] == true),
-              onChanged: (value) => _update('setBackground', enabled: value),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('系统 Amoo'),
+                  const SizedBox(height: 10),
+                  MaeveSegments<bool>(
+                    value: background,
+                    options: const {false: '前台', true: '后台'},
+                    disabled: status?['backgroundReady'] == true
+                        ? const {}
+                        : const {true},
+                    onChanged:
+                        _busy || status == null || status['amooActive'] == true
+                        ? null
+                        : (value) => _update('setBackground', enabled: value),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    status?['backgroundReady'] != true
+                        ? '后台接入需要连接手机助手'
+                        : background
+                        ? '在独立屏幕处理，不切换当前界面'
+                        : '收到消息时打开系统 Amoo',
+                  ),
+                ],
+              ),
             ),
           ],
-          footnote: '前台方式会打开系统 Amoo。后台方式需要手机助手，在独立屏幕中使用同一个系统入口；你正在前台使用 Amoo 时不会抢占。聊天不使用 Maeve 的模型 API。',
+          footnote: '聊天由系统 Amoo 处理，不使用 Maeve 模型 API。',
         ),
         if (!bound)
           SettingsSection(

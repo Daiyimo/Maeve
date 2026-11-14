@@ -6,6 +6,7 @@ import '../../bridge/maeve_settings_bridge.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
+import '../common/selection_field.dart';
 import 'settings_components.dart';
 
 class AddModelPage extends StatefulWidget {
@@ -280,13 +281,11 @@ class _AddModelPageState extends State<AddModelPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              DropdownButtonFormField<String>(
+              MaeveSelectField<String>(
                 key: ValueKey('provider-preset-$_presetId'),
                 initialValue: _presets.any((p) => p.id == _presetId)
                     ? _presetId
                     : null,
-                isExpanded: true,
-                menuMaxHeight: 400,
                 decoration: _decoration(context, '服务商预设'),
                 items: [
                   for (final p in _presets)
@@ -312,10 +311,9 @@ class _AddModelPageState extends State<AddModelPage> {
                 ),
               if (_custom) ...[
                 const SizedBox(height: 20),
-                DropdownButtonFormField<String>(
+                MaeveSelectField<String>(
                   key: ValueKey('custom-protocol-$_kind'),
                   initialValue: _kind,
-                  isExpanded: true,
                   decoration: _decoration(context, '接口协议'),
                   items: const [
                     DropdownMenuItem(
@@ -357,25 +355,24 @@ class _AddModelPageState extends State<AddModelPage> {
                     ),
                   ),
                   if (_preset?.planUrl != null)
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('API')),
-                        ButtonSegment(value: true, label: Text('Plan')),
-                      ],
-                      selected: {isPlan},
-                      showSelectedIcon: false,
-                      onSelectionChanged: _saving
-                          ? null
-                          : (value) => setState(() {
-                              _invalidateCatalog(
-                                clearKey: !{
-                                  _api,
-                                  _plan,
-                                }.contains(_url.text.trim()),
-                              );
-                              _url.text = value.single ? _planUrl : _apiUrl;
-                              _kind = 'OpenAiCompat';
-                            }),
+                    SizedBox(
+                      width: 160,
+                      child: MaeveSegments<bool>(
+                        value: isPlan,
+                        options: const {false: 'API', true: 'Plan'},
+                        onChanged: _saving
+                            ? null
+                            : (value) => setState(() {
+                                _invalidateCatalog(
+                                  clearKey: !{
+                                    _api,
+                                    _plan,
+                                  }.contains(_url.text.trim()),
+                                );
+                                _url.text = value ? _planUrl : _apiUrl;
+                                _kind = 'OpenAiCompat';
+                              }),
+                      ),
                     ),
                 ],
               ),
@@ -443,12 +440,11 @@ class _AddModelPageState extends State<AddModelPage> {
                 ),
               const SizedBox(height: 20),
               if (_models.isNotEmpty) ...[
-                DropdownButtonFormField<String>(
+                MaeveSelectField<String>(
                   key: ValueKey('listed-models-$_generation'),
-                  isExpanded: true,
-                  borderRadius: BorderRadius.circular(18),
-                  menuMaxHeight: 380,
-                  style: MaeveType.body.copyWith(color: c.ink),
+                  initialValue: _models.any((m) => m['id'] == _model.text)
+                      ? _model.text
+                      : null,
                   decoration: _decoration(context, '选择获取的模型'),
                   items: [
                     for (final model in _models)
@@ -508,13 +504,9 @@ class _AddModelPageState extends State<AddModelPage> {
                 ],
               ),
               const SizedBox(height: 20),
-              DropdownButtonFormField<String>(
+              MaeveSelectField<String>(
                 key: ValueKey('model-reasoning-${_levels.join(',')}-$_effort'),
                 initialValue: _effort,
-                isExpanded: true,
-                borderRadius: BorderRadius.circular(18),
-                menuMaxHeight: 380,
-                style: MaeveType.body.copyWith(color: c.ink),
                 decoration: _decoration(context, '思考强度'),
                 items: [
                   const DropdownMenuItem(value: 'default', child: Text('模型默认')),
