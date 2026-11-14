@@ -61,6 +61,26 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
         'phoneSupported': true,
         'presets': [
           {
+            'id': 'DeepSeek',
+            'label': 'DeepSeek',
+            'kind': 'OpenAiCompat',
+            'baseUrl': 'https://api.deepseek.com',
+          },
+          {
+            'id': 'Anthropic',
+            'label': 'Anthropic',
+            'kind': 'Anthropic',
+            'baseUrl': 'https://api.anthropic.com',
+          },
+          {
+            'id': 'Ollama',
+            'label': 'Ollama',
+            'kind': 'OpenAiCompat',
+            'baseUrl': 'http://127.0.0.1:11434/v1',
+            'selfHosted': true,
+          },
+          {'id': '自定义', 'label': '自定义', 'kind': 'OpenAiCompat', 'baseUrl': ''},
+          {
             'id': '阶跃星辰',
             'label': '阶跃星辰',
             'kind': 'OpenAiCompat',

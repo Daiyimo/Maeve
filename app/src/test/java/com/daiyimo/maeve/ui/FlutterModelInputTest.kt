@@ -37,12 +37,14 @@ class FlutterModelInputTest {
         assertFalse(FlutterModelSettings(s).choices().single().vision)
         assertFalse(store().configFor(ModelRole.Main)!!.capabilities.vision)
     }
-    @Test fun flutterShowsOneStepPresetWithBothOfficialEndpoints() {
+    @Test fun flutterExposesAllPresetsAndStepPlanOnlyOnStep() {
         val catalog = FlutterModelSettings.presets()
-        assertEquals(listOf("阶跃星辰"), catalog.map { it["label"] })
-        assertEquals(StepModelProfiles.API, catalog.single()["baseUrl"])
-        assertEquals(StepModelProfiles.PLAN, catalog.single()["planUrl"])
-        assertEquals("OpenAiCompat", catalog.single()["kind"])
+        assertTrue(catalog.map { it["label"] }.containsAll(listOf("DeepSeek", "阶跃星辰", "Anthropic", "Gemini", "OpenAI", "自定义")))
+        val step = catalog.single { it["label"] == "阶跃星辰" }
+        assertEquals(StepModelProfiles.API, step["baseUrl"])
+        assertEquals(StepModelProfiles.PLAN, step["planUrl"])
+        assertEquals("OpenAiCompat", step["kind"])
+        assertTrue(catalog.filter { it["label"] != "阶跃星辰" }.none { "planUrl" in it })
         assertFalse(catalog.any { "apiKey" in it })
     }
     @get:Rule val tmp = TemporaryFolder()

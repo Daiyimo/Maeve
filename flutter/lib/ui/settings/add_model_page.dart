@@ -30,13 +30,61 @@ class _AddModelPageState extends State<AddModelPage> {
   String? _error, _catalogNote;
   List<Map<String, dynamic>> _models = [];
   List<String> _levels = [];
+  String _presetId = '阶跃星辰';
+  bool _initializedPreset = false;
+  List<NativeProviderPreset> get _presets =>
+      MaeveScope.read(context).native.presets;
   NativeProviderPreset? get _preset {
-    final presets = MaeveScope.read(context).native.presets;
-    return presets.isEmpty ? null : presets.first;
+    for (final p in _presets) {
+      if (p.id == _presetId) return p;
+    }
+    return null;
   }
 
-  String get _apiUrl => _preset?.baseUrl ?? _api;
-  String get _planUrl => _preset?.planUrl ?? _plan;
+  NativeProviderPreset? get _stepPreset {
+    for (final p in _presets) {
+      if (p.baseUrl == _api) return p;
+    }
+    return null;
+  }
+
+  String get _apiUrl => _stepPreset?.baseUrl ?? _api;
+  String get _planUrl => _stepPreset?.planUrl ?? _plan;
+  bool get _custom => _presetId == '自定义';
+  bool get _optionalKey => _custom || _preset?.selfHosted == true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initializedPreset) return;
+    _initializedPreset = true;
+    if (widget.config != null) {
+      _presetId = '自定义';
+      for (final p in _presets) {
+        if (p.kind == _kind &&
+            (p.baseUrl == _url.text || p.planUrl == _url.text)) {
+          _presetId = p.id;
+          break;
+        }
+      }
+    }
+  }
+
+  void _selectPreset(String id) {
+    setState(() {
+      _presetId = id;
+      final p = _preset;
+      _invalidateCatalog(clearKey: true);
+      _name.text = p?.label ?? '';
+      _url.text = p?.baseUrl ?? '';
+      _kind = p?.kind ?? 'OpenAiCompat';
+      _model.clear();
+      _vision = p?.vision ?? false;
+      _levels = p?.reasoningLevels ?? [];
+      _effort = 'default';
+    });
+  }
+
   bool get _retainedKey {
     final original = widget.config;
     if (original == null) {
@@ -57,7 +105,8 @@ class _AddModelPageState extends State<AddModelPage> {
         {_api, _plan}.contains(url) && {_api, _plan}.contains(original.baseUrl);
   }
 
-  bool get _canFetch => _key.text.trim().isNotEmpty || _retainedKey;
+  bool get _canFetch =>
+      _key.text.trim().isNotEmpty || _retainedKey || _optionalKey;
 
   @override
   void initState() {
@@ -136,16 +185,18 @@ class _AddModelPageState extends State<AddModelPage> {
           _api,
           _plan,
         }.contains(_url.text.trim().replaceFirst(RegExp(r'/+$'), ''))) {
-      for (final p in _preset?.modelProfiles ?? <Map<String, dynamic>>[]) {
+      for (final p in _stepPreset?.modelProfiles ?? <Map<String, dynamic>>[]) {
         if (p['id'] == id) {
           profile = p;
           break;
         }
       }
     }
-    _vision = profile?['vision'] == true;
+    _vision = profile?['vision'] as bool? ?? _preset?.vision ?? false;
     _levels = List<String>.from(
-      profile?['reasoningLevels'] as List? ?? const [],
+      profile?['reasoningLevels'] as List? ??
+          _preset?.reasoningLevels ??
+          const [],
     );
     if (!_levels.contains(_effort)) _effort = 'default';
   }
@@ -229,16 +280,66 @@ class _AddModelPageState extends State<AddModelPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SettingsSection(
-                title: '服务商预设',
-                rows: const [
-                  SettingsRow(
-                    title: '阶跃星辰',
-                    subtitle: '一个接入，选择 API 或 Plan',
-                    icon: Icons.auto_awesome_outlined,
-                  ),
+              DropdownButtonFormField<String>(
+                key: ValueKey('provider-preset-$_presetId'),
+                initialValue: _presets.any((p) => p.id == _presetId)
+                    ? _presetId
+                    : null,
+                isExpanded: true,
+                menuMaxHeight: 400,
+                decoration: _decoration(context, '服务商预设'),
+                items: [
+                  for (final p in _presets)
+                    DropdownMenuItem(
+                      value: p.id,
+                      child: Text(p.label, overflow: TextOverflow.ellipsis),
+                    ),
                 ],
+                onChanged: _saving
+                    ? null
+                    : (id) {
+                        if (id != null) _selectPreset(id);
+                      },
               ),
+              if (!_custom)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _saving ? null : () => _selectPreset('自定义'),
+                    icon: const Icon(Icons.edit_rounded, size: 18),
+                    label: const Text('自定义接入'),
+                  ),
+                ),
+              if (_custom) ...[
+                const SizedBox(height: 20),
+                DropdownButtonFormField<String>(
+                  key: ValueKey('custom-protocol-$_kind'),
+                  initialValue: _kind,
+                  isExpanded: true,
+                  decoration: _decoration(context, '接口协议'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'OpenAiCompat',
+                      child: Text('OpenAI Chat Completions'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'OpenAiResponses',
+                      child: Text('OpenAI Responses'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Anthropic',
+                      child: Text('Anthropic Messages'),
+                    ),
+                    DropdownMenuItem(value: 'Gemini', child: Text('Gemini')),
+                  ],
+                  onChanged: _saving
+                      ? null
+                      : (kind) => setState(() {
+                          _kind = kind!;
+                          _invalidateCatalog(clearKey: true);
+                        }),
+                ),
+              ],
               const SizedBox(height: 20),
               TextFormField(
                 controller: _name,
@@ -255,26 +356,27 @@ class _AddModelPageState extends State<AddModelPage> {
                       style: MaeveType.bodyStrong.copyWith(color: c.ink),
                     ),
                   ),
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(value: false, label: Text('API')),
-                      ButtonSegment(value: true, label: Text('Plan')),
-                    ],
-                    selected: {isPlan},
-                    showSelectedIcon: false,
-                    onSelectionChanged: _saving
-                        ? null
-                        : (value) => setState(() {
-                            _invalidateCatalog(
-                              clearKey: !{
-                                _api,
-                                _plan,
-                              }.contains(_url.text.trim()),
-                            );
-                            _url.text = value.single ? _planUrl : _apiUrl;
-                            _kind = 'OpenAiCompat';
-                          }),
-                  ),
+                  if (_preset?.planUrl != null)
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('API')),
+                        ButtonSegment(value: true, label: Text('Plan')),
+                      ],
+                      selected: {isPlan},
+                      showSelectedIcon: false,
+                      onSelectionChanged: _saving
+                          ? null
+                          : (value) => setState(() {
+                              _invalidateCatalog(
+                                clearKey: !{
+                                  _api,
+                                  _plan,
+                                }.contains(_url.text.trim()),
+                              );
+                              _url.text = value.single ? _planUrl : _apiUrl;
+                              _kind = 'OpenAiCompat';
+                            }),
+                    ),
                 ],
               ),
               const SizedBox(height: 12),
@@ -308,10 +410,17 @@ class _AddModelPageState extends State<AddModelPage> {
                 decoration: _decoration(
                   context,
                   'API Key',
-                  _retainedKey ? '留空保留已保存的 Key' : '输入此接入的 Key',
+                  _retainedKey
+                      ? '留空保留已保存的 Key'
+                      : _optionalKey
+                      ? '服务需要认证时填写'
+                      : '输入此接入的 Key',
                 ),
                 onChanged: (_) => setState(() => _invalidateCatalog()),
-                validator: (v) => (v?.trim().isNotEmpty == true || _retainedKey)
+                validator: (v) =>
+                    (v?.trim().isNotEmpty == true ||
+                        _retainedKey ||
+                        _optionalKey)
                     ? null
                     : '请填写 API Key',
               ),

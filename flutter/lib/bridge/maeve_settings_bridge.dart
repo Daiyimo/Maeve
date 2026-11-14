@@ -35,11 +35,14 @@ class NativeProviderPreset {
     this.planUrl,
     this.modelProfiles = const [],
     this.selfHosted = false,
+    this.vision = false,
+    this.reasoningLevels = const [],
   });
   final String id, label, kind, baseUrl;
   final String? planUrl;
   final List<Map<String, dynamic>> modelProfiles;
-  final bool selfHosted;
+  final bool selfHosted, vision;
+  final List<String> reasoningLevels;
   factory NativeProviderPreset.fromMap(Map<dynamic, dynamic> map) =>
       NativeProviderPreset(
         id: map['id'] as String,
@@ -52,6 +55,10 @@ class NativeProviderPreset {
             Map<String, dynamic>.from(row as Map),
         ],
         selfHosted: map['selfHosted'] == true,
+        vision: map['vision'] == true,
+        reasoningLevels: List<String>.from(
+          map['reasoningLevels'] as List? ?? const [],
+        ),
       );
 }
 

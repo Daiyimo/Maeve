@@ -100,7 +100,7 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
     suspend fun list(input: FlutterModelInput): Map<String, Any> {
         val revision = listingRevision.incrementAndGet()
         val key = credential(input)
-        require(!key.isNullOrBlank()) { "请先填写此站点的 API Key" }
+        require(!StepModelProfiles.isEndpoint(input.baseUrl) || !key.isNullOrBlank()) { "请先填写此站点的 API Key" }
         return when (val result = store.listModels(input.kind, input.baseUrl, key)) {
             is ModelListResult.Failed -> mapOf("models" to emptyList<Any>(), "error" to result.reason.text)
             is ModelListResult.Ok -> {
@@ -117,10 +117,12 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
     }
 
     companion object {
-        fun presets(): List<Map<String, Any>> = ProviderPresets.all.filter { it.baseUrl == StepModelProfiles.API }.map { p ->
+        fun presets(): List<Map<String, Any>> = ProviderPresets.all.map { p ->
             mapOf("id" to p.label, "label" to p.label, "kind" to p.kind.name,
-                "baseUrl" to p.baseUrl, "planUrl" to StepModelProfiles.PLAN, "selfHosted" to p.selfHosted,
-                "modelProfiles" to listOf("step-5-preview", "step-3.7-flash", "step-3.5-flash", "step-3.5-flash-2603").map { model ->
+                "baseUrl" to p.baseUrl, "selfHosted" to p.selfHosted,
+                "vision" to p.capabilities.vision, "reasoningLevels" to p.reasoningLevels,
+                *if (p.baseUrl == StepModelProfiles.API) arrayOf("planUrl" to StepModelProfiles.PLAN) else emptyArray(),
+                "modelProfiles" to (if (p.baseUrl == StepModelProfiles.API) listOf("step-5-preview", "step-3.7-flash", "step-3.5-flash", "step-3.5-flash-2603") else emptyList()).map { model ->
                     mapOf("id" to model, "vision" to StepModelProfiles.of(model)!!.vision, "reasoningLevels" to StepModelProfiles.levels(model))
                 })
         }

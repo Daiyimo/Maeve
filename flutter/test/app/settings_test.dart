@@ -12,7 +12,6 @@ import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/system_access_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_wechat_page.dart';
-import 'package:maeve_flutter/ui/settings/settings_components.dart';
 
 import '../support/fake_chat_bridge.dart';
 import '../support/fake_settings_bridge.dart';
@@ -119,6 +118,70 @@ void main() {
     await tester.pumpAndSettle();
     expect(settings.wechatActions, isNot(contains('setBackground')));
   });
+
+  testWidgets(
+    'Presets and custom protocols populate independent connection fields',
+    (tester) async {
+      final settings = FakeSettingsBridge();
+      await mount(tester, settings);
+      await open(tester, const AddModelPage());
+      await tester.tap(find.byKey(const ValueKey('provider-preset-阶跃星辰')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Anthropic').last);
+      await tester.pumpAndSettle();
+      String field(String key) => tester
+          .widget<TextFormField>(find.byKey(ValueKey(key)))
+          .controller!
+          .text;
+      expect(field('model-base-url'), 'https://api.anthropic.com');
+      expect(find.text('Plan'), findsNothing);
+      await tester.enterText(
+        find.byKey(const ValueKey('model-api-key')),
+        'temporary-key',
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('provider-preset-Anthropic')),
+      );
+      await tester.tap(find.byKey(const ValueKey('provider-preset-Anthropic')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('自定义').last);
+      await tester.pumpAndSettle();
+      expect(field('model-base-url'), isEmpty);
+      expect(field('model-api-key'), isEmpty);
+      expect(
+        find.byKey(const ValueKey('custom-protocol-OpenAiCompat')),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('model-base-url')),
+        'https://custom.example/v1',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('model-name')),
+        'custom-model',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await Scrollable.ensureVisible(
+        tester.element(find.text('保存并使用')),
+        alignment: .7,
+      );
+      await tester.scrollUntilVisible(
+        find.text('保存并使用'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('保存并使用'));
+      await tester.pumpAndSettle();
+      expect(
+        settings.savedModels.single['baseUrl'],
+        'https://custom.example/v1',
+      );
+      expect(settings.savedModels.single['kind'], 'OpenAiCompat');
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('WeChat read errors recover and login can be cancelled', (
     tester,
@@ -279,7 +342,7 @@ void main() {
       final settings = FakeSettingsBridge(configured: false);
       await mount(tester, settings);
       await open(tester, const AddModelPage());
-      expect(find.widgetWithText(SettingsRow, '阶跃星辰'), findsOneWidget);
+      expect(find.text('阶跃星辰'), findsWidgets);
       expect(find.text('DeepSeek'), findsNothing);
       expect(find.text('OpenAI Responses'), findsNothing);
       final field = find.byKey(const ValueKey('model-base-url'));
