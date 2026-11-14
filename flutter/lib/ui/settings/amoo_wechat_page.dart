@@ -183,7 +183,7 @@ class _AmooWechatPageState extends State<AmooWechatPage>
                     status?['backgroundReady'] != true
                         ? '后台接入需要连接手机助手'
                         : background
-                        ? '在独立屏幕处理，不切换当前界面'
+                        ? '收到消息时不打开系统 Amoo，在独立后台处理'
                         : '收到消息时打开系统 Amoo',
                   ),
                 ],
