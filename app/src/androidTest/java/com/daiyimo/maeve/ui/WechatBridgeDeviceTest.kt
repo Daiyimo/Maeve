@@ -56,6 +56,7 @@ class WechatBridgeDeviceTest {
         val support = com.daiyimo.maeve.cap.phone.a11y.DeviceSupport
         support.service()
         val background = InstrumentationRegistry.getArguments().getString("backgroundAmoo") == "true"
+        val policyProbe = InstrumentationRegistry.getArguments().getString("policyProbe") == "true"
         val shell = if (background) support.shell() else null
         val original = app.wechat.systemAmoo.background
         check(app.wechat.store.enabled() && app.wechat.store.account() != null) { "Bind and enable WeChat first" }
@@ -71,7 +72,12 @@ class WechatBridgeDeviceTest {
                 app.wechat.sync()
                 val beforeMain = shell?.topTaskId(0)
                 val started = System.currentTimeMillis()
-                val text = "请你做一个简短的自我介绍，说明你是什么助手。"
+                val text = if (policyProbe) {
+                    check(FeatureFlags.get(context).bridgeAmoo())
+                    "请实际读取 /sdcard/Android/media/${context.packageName}/amoo/execution-policy.json 和同目录 wechat/control.json。" +
+                        "仅返回 JSON：policy 为第一份文件的 allowMaeve，legacyAllow 为第二份的 allowMaeve，legacyEnabled 为第二份的 enabled。" +
+                        "这是读文件检查，不要创建 Maeve 任务，也不要修改任何文件。"
+                } else "请你做一个简短的自我介绍，说明你是什么助手。"
                 assertTrue(app.wechat.store.journal(messageId, peer, text))
                 app.wechat.relay.forward(peer, messageId, text)
                 val deadline = started + 150_000
@@ -89,14 +95,20 @@ class WechatBridgeDeviceTest {
                 assertEquals("The reply must belong to this request; error=${app.wechat.systemAmoo.lastError}", id,
                     app.getSharedPreferences("wechat_system_amoo", 0).getString("lastReplyRequest", null))
                 val reply = app.getSharedPreferences("wechat_system_amoo", 0).getString("lastReply", "").orEmpty()
-                assertTrue("System Amoo must introduce itself", reply.contains("Amoo", ignoreCase = true))
+                if (policyProbe) {
+                    for ((key, expected) in mapOf("policy" to "true", "legacyAllow" to "true", "legacyEnabled" to "false")) {
+                        assertTrue("System Amoo must read $key=$expected", Regex("\\\"$key\\\"\\s*:\\s*$expected").containsMatchIn(reply))
+                    }
+                } else assertTrue("System Amoo must introduce itself", reply.contains("Amoo", ignoreCase = true))
                 assertFalse("Default ClawPhone agent must not answer", reply.contains("ClawPhone", ignoreCase = true))
                 assertEquals("No Maeve model request may be made for WeChat chat", beforeCalls, app.usage.snapshot().rows.sumOf { it.counts.calls })
                 assertEquals("Chat may not create a Maeve task", beforeTasks, app.remoteTasks.list(100).map { it.id }.toSet())
                 if (shell != null) {
+                    val cleanupDeadline = System.currentTimeMillis() + 10_000
+                    while (app.wechat.systemAmoo.active && System.currentTimeMillis() < cleanupDeadline) Thread.sleep(50)
                     assertTrue("The test must actually use a private display", privateDisplays.isNotEmpty())
                     val manager = context.getSystemService(android.hardware.display.DisplayManager::class.java)
-                    assertTrue("Private displays must be released before WeChat confirms delivery", privateDisplays.all { manager.getDisplay(it) == null })
+                    assertTrue("Private displays must be released after reply delivery", privateDisplays.all { manager.getDisplay(it) == null })
                     // 模拟系统前台入口的普通启动，不用 Maeve 的 openAmoo 动作替收尾逻辑兜底。
                     context.startActivity(Intent().setClassName("com.stepos.ailauncher", "com.stepos.ailauncher.chat.activity.ChatMainActivity")
                         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -156,6 +168,14 @@ class WechatBridgeDeviceTest {
                 assertFalse(before.containsKey("token"))
                 assertEquals(!original, call(scenario, "setExecution", !original)["executionEnabled"])
                 assertEquals(!original, FeatureFlags.get(context).bridgeAmoo())
+                val policyRoot = File(context.externalMediaDirs.first(), "amoo")
+                for (enabled in listOf(true, false, true, !original)) {
+                    assertEquals(enabled, call(scenario, "setExecution", enabled)["executionEnabled"])
+                    fun read(path: String) = org.json.JSONObject(File(policyRoot, path).readText())
+                    assertEquals(enabled, read("execution-policy.json").getBoolean("allowMaeve"))
+                    assertEquals(enabled, read("wechat/control.json").getBoolean("allowMaeve"))
+                    assertFalse(read("wechat/control.json").getBoolean("enabled"))
+                }
                 assertEquals(receiving, app.wechat.store.enabled())
                 scenario.recreate()
                 assertEquals(!original, call(scenario, "snapshot")["executionEnabled"])
@@ -164,7 +184,7 @@ class WechatBridgeDeviceTest {
         } finally {
             flags.setBridgeAmoo(original)
             flags.setInterceptAmoo(intercept)
-            app.wechat.relay.syncControl()
+            app.wechat.syncControl()
         }
     }
 

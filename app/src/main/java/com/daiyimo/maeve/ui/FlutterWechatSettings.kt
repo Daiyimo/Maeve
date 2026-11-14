@@ -46,7 +46,7 @@ internal class FlutterWechatSettings(private val app: MaeveApp, private val scop
                 val value = requireNotNull(enabled)
                 FeatureFlags.get(app).setBridgeAmoo(value)
                 if (!value) FeatureFlags.get(app).setInterceptAmoo(false)
-                runtime.relay.syncControl()
+                runtime.syncControl()
             }
             "unbind" -> {
                 login?.cancelAndJoin(); qr = null; error = null

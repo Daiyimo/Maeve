@@ -12,6 +12,17 @@ import org.junit.rules.TemporaryFolder
 import javax.crypto.KeyGenerator
 
 class FlutterModelInputTest {
+    @Test fun addingAnotherModelKeepsLegacyRoleOnlyConfiguration() {
+        val s = store()
+        val p = s.connect("models.example", ProviderConfig.Kind.OpenAiCompat, "https://models.example/v1", "fixture-key", emptyList())
+        assertTrue(s.use(ModelRole.Main, p.id, "legacy-first", com.daiyimo.maeve.core.model.Capabilities(true, false, 64000, false)))
+        val settings = FlutterModelSettings(s)
+        settings.save(FlutterModelInput.parse(values(model = "second") + ("apiKey" to "")))
+        assertEquals(setOf("legacy-first", "second"), settings.choices().map { it.model }.toSet())
+        val reloaded = FlutterModelSettings(store())
+        reloaded.select(reloaded.choices().first { it.model == "legacy-first" }.id)
+        assertEquals(2, reloaded.choices().size)
+    }
     @Test fun legacyStepPlanConfigurationUsesDocumentedImagesUnlessExplicitlyDisabled() {
         val s = store()
         val p = s.connect("阶跃星辰", ProviderConfig.Kind.OpenAiCompat, StepModelProfiles.PLAN,

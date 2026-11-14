@@ -73,6 +73,8 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
             typed = setOf(input.model), untested = true)
         check(store.setModelVision(provider.id, input.model, caps.vision))
         store.list().firstOrNull { it.providerId == provider.id && it.model == input.model }?.let { store.save(it.copy(capabilities = caps), null) }
+        // 旧配置可能只有角色记录而没有 typedModels；切换主模型前先固定已保存的模型，避免 prune 把它从列表删除。
+        store.list().forEach { saved -> store.markTyped(saved.providerId, saved.model) }
         check(store.use(ModelRole.Main, provider.id, input.model, caps))
         check(store.setReasoningEffort(ModelRole.Main, input.reasoningEffort))
         store.rememberModelReasoning(provider.id, input.model, input.reasoningEffort)
@@ -81,7 +83,14 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
     /** Draft listing never saves a key. A retained key is bound to its original endpoint. */
     private fun credential(input: FlutterModelInput): String? {
         input.apiKey.takeIf { it.isNotBlank() }?.let { return it }
-        val previous = input.id?.let { wanted -> choices().firstOrNull { it.id == wanted } } ?: return null
+        val previous = input.id?.let { wanted -> choices().firstOrNull { it.id == wanted } }
+        if (input.id == null) {
+            val provider = store.providers.value.singleOrNull {
+                it.kind == input.kind && it.baseUrl.trimEnd('/') == input.baseUrl.trimEnd('/') && it.name == input.name
+            } ?: return null
+            return store.providerKey(provider.id)
+        }
+        if (previous == null) return null
         val sameService = previous.baseUrl.trimEnd('/') == input.baseUrl.trimEnd('/') ||
             StepModelProfiles.isEndpoint(previous.baseUrl) && StepModelProfiles.isEndpoint(input.baseUrl)
         require(sameService && previous.kind == input.kind.name) { "切换服务商后，请填写该站点的 API Key" }

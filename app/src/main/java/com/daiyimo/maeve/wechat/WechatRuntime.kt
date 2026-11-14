@@ -26,6 +26,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -61,8 +63,10 @@ class WechatRuntime(
     private val gateway = ChannelGateway(owners,
         { threadId -> app.taskState.run(threadId)?.activeAsk },
         object : ChannelGateway.Route {
-            override suspend fun newTask(peer: ChannelPeer, messageId: String, text: String) =
+            override suspend fun newTask(peer: ChannelPeer, messageId: String, text: String) {
                 relay.forward(peer, messageId, text)
+                systemAmoo.notifyRequestReady()
+            }
 
             override suspend fun answer(threadId: String, askId: String, text: String): Boolean =
                 app.taskState.run(threadId)?.answerFromChannel(text, askId) == true
@@ -85,6 +89,8 @@ class WechatRuntime(
     private var registration: AutoCloseable? = null
     private var monitor: Job? = null
     private var delivery: Job? = null
+    private val replyReady = Channel<Unit>(Channel.CONFLATED)
+    fun notifyReplyReady() { replyReady.trySend(Unit) }
     private val network = WechatNetwork(context) { restartMonitor() }
     private val _state = MutableStateFlow<WechatConnectionState>(
         if (store.account() == null) WechatConnectionState.NeedsBinding else WechatConnectionState.Off)
@@ -95,15 +101,17 @@ class WechatRuntime(
 
     init {
         scope.launch {
-            // 停用旧 OpenClaw 默认 agent 通道，保留微信绑定与去重账本。
-            runCatching {
-                context.externalMediaDirs.firstOrNull()?.let { media ->
-                    WechatAmooRelay.atomic(File(media, "amoo/wechat/control.json"), "{\"enabled\":false,\"session\":\"\"}")
-                }
-            }
             FeatureFlags.get(context).bridgeAmooChanges().collect {
-                runCatching { relay.syncControl() }.onFailure { Log.w(TAG, "WeChat relay control unavailable") }
+                runCatching { syncControl() }.onFailure { Log.w(TAG, "WeChat relay control unavailable") }
             }
+        }
+    }
+
+    /** 私有收件控制与 Amoo 可读执行策略一起更新；旧中转脚本始终停用。 */
+    fun syncControl() {
+        relay.syncControl()
+        context.externalMediaDirs.firstOrNull()?.let { media ->
+            AmooExecutionPolicy.write(File(media, "amoo"), FeatureFlags.get(context).bridgeAmoo())
         }
     }
 
@@ -123,7 +131,7 @@ class WechatRuntime(
             while (currentCoroutineContext().isActive && store.enabled()) {
                 try {
                     val retry = relay.deliver(channel::send)
-                    delay(if (retry) 3_000 else 150)
+                    if (retry) delay(3_000) else withTimeoutOrNull(500) { replyReady.receive() }
                 } catch (e: CancellationException) { throw e }
                 catch (_: Exception) { delay(3_000) }
             }
@@ -157,7 +165,7 @@ class WechatRuntime(
     fun setEnabled(enabled: Boolean) {
         if (enabled) check(store.account() != null) { "Bind WeChat before enabling it" }
         store.setEnabled(enabled)
-        relay.syncControl()
+        syncControl()
         if (enabled) ensureRunning() else {
             context.stopService(Intent(context, WechatService::class.java))
             stop()
@@ -175,7 +183,7 @@ class WechatRuntime(
                 store.account()?.let { old -> owners.unbind(ChannelPeer(WechatChannel.ID, old.ownerId, "")) }
                 store.saveAccount(account)
                 store.setEnabled(true)
-                relay.syncControl()
+                syncControl()
                 owners.bind(ChannelPeer(WechatChannel.ID, account.ownerId, ""))
                 ensureRunning()
                 return account
@@ -193,7 +201,7 @@ class WechatRuntime(
         store.account()?.let { old -> owners.unbind(ChannelPeer(WechatChannel.ID, old.ownerId, "")) }
         stop()
         store.clear()
-        relay.syncControl()
+        syncControl()
         session?.let(relay::clearSession)
         _state.value = WechatConnectionState.NeedsBinding
     }
@@ -208,7 +216,7 @@ class WechatRuntime(
         var failures = 0
         while (currentCoroutineContext().isActive && store.enabled()) {
             try {
-                relay.syncControl()
+                syncControl()
                 channel.pollOnce()
                 failures = 0
                 if (store.enabled()) _state.value = WechatConnectionState.Connected
@@ -217,7 +225,7 @@ class WechatRuntime(
             } catch (e: WechatHttpException) {
                 if (e.httpCode == 401 || e.httpCode == 403) {
                     store.setEnabled(false)
-                    relay.syncControl()
+                    syncControl()
                     _state.value = WechatConnectionState.NeedsBinding
                     context.stopService(Intent(context, WechatService::class.java))
                     return

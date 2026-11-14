@@ -140,6 +140,10 @@ void main() {
         const SettingsHubPage(),
       );
       await tester.pumpAndSettle();
+      expect(find.text('悬浮胶囊'), findsNothing);
+      await tester.ensureVisible(find.text('系统授权'));
+      await tester.tap(find.text('系统授权'));
+      await tester.pumpAndSettle();
       expect(find.text('悬浮胶囊'), findsOneWidget);
       final tile = find.byKey(const ValueKey('capsule-toggle'));
       await tester.scrollUntilVisible(

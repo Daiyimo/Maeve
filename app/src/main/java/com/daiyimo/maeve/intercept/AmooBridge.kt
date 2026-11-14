@@ -149,7 +149,7 @@ class AmooBridge(private val app: MaeveApp) {
         const val DIR = "amoo"
         const val IN = "in"
         const val OUT = "out"
-        const val POLL_MS = 1_500L
+        const val POLL_MS = 200L
         const val WAIT_MS = 15 * 60_000L
         const val MAX_IN_FLIGHT = 4
         val ID = Regex("[A-Za-z0-9_-]{1,64}")

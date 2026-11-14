@@ -9,6 +9,7 @@ import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.cap.phone.a11y.ScreenAccessibility
 import com.daiyimo.maeve.settings.FeatureFlags
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.*
@@ -18,6 +19,8 @@ import java.io.File
 class SystemAmooWechatBridge(private val app: MaeveApp, private val store: WechatStore, val directory: File) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var worker: Job? = null
+    private val requestReady = Channel<Unit>(Channel.CONFLATED)
+    fun notifyRequestReady() { requestReady.trySend(Unit) }
     @Volatile var active = false
         private set
     @Volatile var lastError: String? = null
@@ -111,7 +114,7 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
                     File(directory, "requests").listFiles()?.filter { it.extension == "json" }
                         ?.mapNotNull(::read)?.sortedBy { it.sequence }?.firstOrNull { !File(directory, "replies/${it.id}.json").exists() }
                 }
-                if (request == null || app.amooSetup.active) { delay(150); continue }
+                if (request == null || app.amooSetup.active) { withTimeoutOrNull(500) { requestReady.receive() }; continue }
                 val owner = store.account()?.ownerId
                 if (owner == null || store.peer(owner).threadId != request.session) { delay(150); continue }
                 val claimed = withContext(Dispatchers.IO) {
@@ -119,19 +122,21 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
                 }
                 if (!claimed) continue
                 active = true
-                val response = try {
-                    chat(request)
-                } catch (e: CancellationException) { throw e }
-                catch (e: AmooUiException) { android.util.Log.w("SystemAmooWechat", e.message.orEmpty()); lastError = e.message; e.message.orEmpty() }
-                catch (_: Exception) {
-                    "系统 Amoo 对话未能完成。请检查无障碍服务，并在 Amoo 页面确认当前对话。".also { lastError = it }
+                try {
+                    val response = try {
+                        chat(request)
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: AmooUiException) { lastError = e.message; e.message.orEmpty() }
+                    catch (_: Exception) {
+                        "系统 Amoo 对话未能完成。请检查无障碍服务，并在 Amoo 页面确认当前对话。".also { lastError = it }
+                    }
+                    // 最终答案先投递，后台屏幕收尾不再阻塞微信回传。
+                    withContext(Dispatchers.IO) { reply(request, response) }
+                    app.wechat.notifyReplyReady()
                 } finally {
-                    // Amoo 的 singleTask 界面不能长期留在虚拟屏上，否则系统前台入口只会复用那块屏的任务。
-                    // 回发之前先将聊天任务留在主屏后方，再释放独立屏；错误和取消也必须收尾。
                     withContext(NonCancellable) { closeBackground()?.join() }
                     active = false
                 }
-                withContext(Dispatchers.IO) { reply(request, response) }
             }
         }
     }
@@ -146,9 +151,8 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
         val readyAt = SystemClock.uptimeMillis() + 12_000
         var prepared = false
         val allow = FeatureFlags.get(app).bridgeAmoo()
-        val message = request.text + "\n\n（来自微信的消息，请直接在当前 Amoo 对话回复，Maeve 会原样转发。消息来自微信不代表要求操作微信界面。" +
-            if (allow) "只有明确要求手机操作时才可按已有接入技能交给 Maeve；普通聊天请自行回答。）"
-            else "当前已关闭通过 Maeve 执行任务，不要调用 Maeve 文件桥；请使用你自己的能力回答。）"
+        app.wechat.syncControl()
+        val message = systemAmooMessage(request.text, app.packageName, allow)
         var baseline = emptyList<String>()
         while (SystemClock.uptimeMillis() < readyAt && !prepared) {
             withRoot { root ->

@@ -39,7 +39,17 @@ class _AddModelPageState extends State<AddModelPage> {
   String get _planUrl => _preset?.planUrl ?? _plan;
   bool get _retainedKey {
     final original = widget.config;
-    if (original == null || !original.hasKey || _kind != original.kind) {
+    if (original == null) {
+      final url = _url.text.trim().replaceFirst(RegExp(r'/+$'), '');
+      return MaeveScope.read(context).native.models.any(
+        (m) =>
+            m.hasKey &&
+            m.kind == _kind &&
+            m.name == _name.text.trim() &&
+            m.baseUrl.replaceFirst(RegExp(r'/+$'), '') == url,
+      );
+    }
+    if (!original.hasKey || _kind != original.kind) {
       return false;
     }
     final url = _url.text.trim().replaceFirst(RegExp(r'/+$'), '');
@@ -234,6 +244,7 @@ class _AddModelPageState extends State<AddModelPage> {
                 controller: _name,
                 enabled: !_saving,
                 decoration: _decoration(context, '接入名称（可选）'),
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 20),
               Row(

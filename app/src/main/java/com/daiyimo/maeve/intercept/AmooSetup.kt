@@ -46,6 +46,7 @@ class AmooSetup(private val app: MaeveApp) {
     /** 用户点了「一键接入」。等他自己切到 amoo 聊天,剩下的我们来做。 */
     fun start() {
         FeatureFlags.get(app).setBridgeAmoo(true)
+        app.wechat.syncControl()
         inbox().mkdirs()
         injectedAt = 0L
         _stage.value = Stage.Waiting
@@ -162,7 +163,7 @@ class AmooSetup(private val app: MaeveApp) {
         const val POLL_MS = 2_000L
 
         /** 技能契约版本:改动说明口径/桥协议就 +1,旧版本跑着一看便知。 */
-        const val SKILL_VERSION = 6
+        const val SKILL_VERSION = 7
     }
 }
 
@@ -188,8 +189,10 @@ internal fun setupInstruction(pkg: String, version: Int): String {
         (微信、小程序、游戏、跨应用流程、点按、滑动、输入文字、读屏),一律交给手机端 Maeve 执行,
         不要自己尝试,也不要回复「界面功能不支持」;纯云侧查询(天气、提醒、打车、机票酒店)可以自己来。
         微信只是消息来源，不代表用户要求操作微信界面；问候、测试、聊天、写作、纯文本生成和云端查询必须由 Amoo 自己回复，禁止将回复微信用户的工作转成 Maeve 任务。
+        每次派发前读取 ${root}execution-policy.json 的 allowMaeve；为 false 时不得调用 Maeve，普通聊天继续自行回复。
+        旧 wechat/control.json 的 enabled 只表示旧脚本停用，不能当成执行开关；使用最新消息给出的包名和文件桥路径，不沿用旧 Dev 包路径。
         3) 执行方式:把 {"goal":"<用中文写清要做的事>"} 写入 ${root}in/<时间戳>.json;
-        然后每 2 秒读 ${root}out/<时间戳>.json,直到 status 不是 running;
+        然后使用脚本每 0.2 秒读 ${root}out/<时间戳>.json,直到 status 不是 running;
         把 answer 原样告诉用户;最多等 15 分钟,中途不要放弃;failed 时把 note 说清楚。
         4) 装好后先覆盖写 ${root}skill.json,内容是 {"skill":"maeve-bridge","version":$version};
         本次仅安装接入，不要启动 Maeve 任务做问候测试，也不要求用户在 Maeve 配置模型；微信聊天必须由 Amoo 自己回复。

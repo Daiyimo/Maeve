@@ -13,7 +13,6 @@ import 'amoo_page.dart';
 import 'about_pages.dart';
 import 'palette_strip.dart';
 import 'execution_settings_page.dart';
-import 'capsule_toggle.dart';
 import 'run_history_page.dart';
 import 'welcome_page.dart';
 
@@ -41,7 +40,6 @@ class SettingsHubPage extends StatelessWidget {
           title: '执行与设备',
           topSpacing: 12,
           rows: [
-            const CapsuleToggle(),
             SettingsTile(
               icon: Icons.receipt_long_outlined,
               title: '执行记录',
