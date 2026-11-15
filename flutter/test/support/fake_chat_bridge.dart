@@ -74,6 +74,13 @@ class FakeChatBridge extends MaeveChatBridge {
   final deleted = <String>[];
   final opened = <String>[];
 
+  /// 删一个对话的连带影响(runningTask / schedules),按对话 id 摆;没摆的按“什么都没有”。
+  final Map<String, Map<String, dynamic>> deleteImpacts = {};
+
+  @override
+  Future<Map<String, dynamic>> deleteImpact(String id) async =>
+      deleteImpacts[id] ?? const {};
+
   @override
   Future<List<Map<String, dynamic>>> conversations() async =>
       List.of(_conversations);

@@ -416,6 +416,9 @@ void main() {
 
     await requestDelete();
     expect(bridge.deleted, isEmpty);
+    // 没有任务和定时任务的普通对话:不说「停止 0 段对话、移除 0 个定时任务」。
+    expect(find.text('将删除这段对话及其工作区附件。全局执行统计保留。'), findsOneWidget);
+    expect(find.textContaining('0 段对话'), findsNothing);
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(bridge.deleted, isEmpty);
@@ -425,6 +428,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(bridge.deleted, ['c1']);
     expect(find.text('保留的重要对话'), findsNothing);
+  });
+
+  testWidgets('删除确认只提实际会发生的连带影响', (tester) async {
+    final bridge = FakeChatBridge(
+      conversations: [
+        FakeChatBridge.conversation('c1', '带着计划和任务的对话'),
+        FakeChatBridge.conversation('c2', '另一段对话'),
+      ],
+    )..deleteImpacts['c1'] = {'runningTask': true, 'schedules': 2};
+    addTearDown(bridge.dispose);
+    await pumpApp(tester, controller: MaeveController(bridge: bridge));
+    await tester.tap(find.byTooltip('打开对话列表'));
+    await tester.pumpAndSettle();
+    await tester.longPress(find.text('带着计划和任务的对话'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('将停止 1 段对话的运行或排队任务，移除 2 个定时任务，并删除这段对话及其工作区附件。全局执行统计保留。'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('取消'));
+    await tester.pumpAndSettle();
+    expect(bridge.deleted, isEmpty);
   });
 
   testWidgets('抽屉遮罩点一下关掉,不换页', (tester) async {

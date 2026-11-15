@@ -41,13 +41,20 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
       return;
     }
     if (!mounted) return;
+    final subject = ids.length == 1 ? '这段对话' : '选中的 ${ids.length} 段对话';
+    // 只提实际会发生的:普通对话不说「停止 0 段对话、移除 0 个定时任务」。
+    final consequences = <String>[
+      if (running > 0) '停止 $running 段对话的运行或排队任务',
+      if (schedules > 0) '移除 $schedules 个定时任务',
+    ];
+    final detail = consequences.isEmpty
+        ? '将删除$subject及其工作区附件。全局执行统计保留。'
+        : '将${consequences.join('，')}，并删除$subject及其工作区附件。全局执行统计保留。';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(ids.length == 1 ? '删除这段对话？' : '删除选中的 ${ids.length} 段对话？'),
-        content: Text(
-          '将停止 $running 段对话的运行或排队任务，移除 $schedules 个定时任务，并删除对话和工作区附件。全局执行统计保留。',
-        ),
+        content: Text(detail),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
