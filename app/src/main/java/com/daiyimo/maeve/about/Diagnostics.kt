@@ -14,6 +14,7 @@ import com.daiyimo.maeve.core.shell.SetupInputs
 import com.daiyimo.maeve.core.shell.SetupStep
 import com.daiyimo.maeve.settings.AccessibilityState
 import com.daiyimo.maeve.settings.ChatGptSignInFailureRecord
+import com.daiyimo.maeve.settings.SystemStatus
 import java.net.URI
 
 /**
@@ -324,3 +325,23 @@ object Diagnostics {
         return Redactor.pageData(out)
     }
 }
+
+/** 引导页的输入:由系统状态加上引导页自己记的几项(用户确认过的、跳过的、回头重做的)组成。引导页和诊断信息共用这一份。 */
+fun SystemStatus.setupInputs(
+    discovery: PairingDiscovery,
+    repair: Boolean,
+    accessibilitySkipped: Boolean = false,
+    confirmed: Set<SetupStep> = emptySet(),
+    revisit: SetupStep? = null,
+    stalledMs: Long = 0L,
+    usbAsked: Boolean = false,
+) = SetupInputs(
+    developerOptions = developerOptions, wirelessDebugging = wirelessDebugging,
+    status = builtinShell, discovery = discovery, notificationsAllowed = notificationsAllowed,
+    pairingChannel = pairingChannel, repair = repair,
+    usbDebugging = usbDebugging, accessibility = accessibility == AccessibilityState.On,
+    accessibilitySkipped = accessibilitySkipped, restrictedSettings = restrictedSettings,
+    confirmed = confirmed, revisit = revisit,
+    wirelessMissing = wirelessDebuggingMissing, stalledMs = stalledMs, usbAsked = usbAsked,
+    restart = helperRestart, developerSettingsMissing = developerSettingsMissing,
+)

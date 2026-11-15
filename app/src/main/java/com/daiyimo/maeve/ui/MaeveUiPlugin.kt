@@ -76,32 +76,6 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
                 }
             }
             "status" -> result.success(hostStatus())
-            "diagnostics" -> scope.launch {
-                try { result.success(withContext(Dispatchers.IO) { com.daiyimo.maeve.about.DiagnosticsCollector.safeSummary(context) }) }
-                catch (e: CancellationException) { throw e }
-                catch (_: Exception) { result.error("diagnostics_unavailable", "暂时无法读取诊断状态，请重试", null) }
-            }
-            "basicSelfCheck" -> scope.launch {
-                val monitor = com.daiyimo.maeve.settings.SystemStatusMonitor(context,
-                    com.daiyimo.maeve.cap.phone.PhoneServices.of(context).shellControl)
-                monitor.refresh()
-                val port = com.daiyimo.maeve.selfcheck.AndroidSelfCheck(context) { monitor.status.value }
-                try {
-                    val rows = kotlinx.coroutines.withTimeout(10_000) {
-                        val facts = port.facts()
-                        val device = com.daiyimo.maeve.core.selfcheck.SelfCheckRunner.judgeDevice(facts)
-                        val permissions = port.check(com.daiyimo.maeve.core.selfcheck.SelfCheck.PERMISSIONS)
-                        listOf("设备" to device, "系统权限" to permissions).map { (label, outcome) ->
-                            mapOf("label" to label, "status" to outcome.status.name.lowercase(),
-                                "advice" to outcome.advice?.let(SelfCheckCopy::advice))
-                        }
-                    }
-                    result.success(mapOf("partial" to true, "rows" to rows))
-                } catch (e: CancellationException) {
-                    if (e is kotlinx.coroutines.TimeoutCancellationException) result.error("selfcheck_timeout", "检查超时，请重试", null) else throw e
-                } catch (_: Exception) { result.error("selfcheck_unavailable", "暂时无法检查设备状态，请重试", null) }
-                finally { port.release(); monitor.stop() }
-            }
             "legal_notices" -> scope.launch {
                 try {
                     val data = withContext(Dispatchers.IO) {
@@ -143,7 +117,7 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
         "bridgeVersion" to 2,
         "hostBuild" to BuildConfig.GIT_HASH,
         "capabilities" to mapOf("submissionReceipts" to true, "draftRecovery" to true, "actionEffectReceipts" to true,
-            "deleteImpact" to true, "awaitDeletion" to true, "titleSearchOnly" to true, "localDiagnostics" to true),
+            "deleteImpact" to true, "awaitDeletion" to true, "titleSearchOnly" to true),
         "links" to mapOf("updates" to com.daiyimo.maeve.about.MaeveLinks.RELEASES, "feedback" to com.daiyimo.maeve.about.MaeveLinks.NEW_ISSUE),
         "versionCode" to BuildConfig.VERSION_CODE,
         "channel" to if (BuildConfig.DEBUG) "debug" else BuildConfig.BUILD_TYPE,
