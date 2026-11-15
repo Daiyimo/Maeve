@@ -126,6 +126,12 @@ class SettingsHubPage extends StatelessWidget {
               title: '新手引导',
               onTap: () => AppPage.open(context, const WelcomePage()),
             ),
+            SettingsTile(
+              icon: Icons.system_update_alt_rounded,
+              title: '获取更新',
+              subtitle: '查看新版本与更新说明',
+              onTap: () => openHostLink(context, 'updates', label: '更新'),
+            ),
           ],
         ),
         const SizedBox(height: 30),

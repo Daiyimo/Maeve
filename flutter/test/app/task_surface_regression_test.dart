@@ -152,7 +152,7 @@ void main() {
   );
 
   testWidgets(
-    'About exposes native read-only checks and support links without starting tasks',
+    'About keeps feedback only, and the update link lives under onboarding in settings',
     (tester) async {
       final bridge = FakeChatBridge();
       final calls = <MethodCall>[];
@@ -172,13 +172,6 @@ void main() {
               'feedback': 'https://example.test/feedback',
             },
           },
-          'basicSelfCheck' => {
-            'partial': true,
-            'rows': [
-              {'label': '设备', 'status': 'pass'},
-              {'label': '系统权限', 'status': 'fail', 'advice': '请在系统授权中开启无障碍'},
-            ],
-          },
           'open_url' => false,
           _ => null,
         };
@@ -187,21 +180,48 @@ void main() {
         () => messenger.setMockMethodCallHandler(MaeveBridge.methods, null),
       );
       await mount(tester, bridge);
+
+      // 关于页只留问题反馈:设备检查与本地诊断入口已移除,获取更新移到设置里。
       AppPage.open(
         tester.element(find.byType(Scaffold).first),
         const AboutPage(),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('设备与权限检查'));
+      expect(find.text('设备与权限检查'), findsNothing);
+      expect(find.text('预览本地诊断'), findsNothing);
+      expect(find.text('获取更新'), findsNothing);
+      expect(find.text('问题反馈'), findsOneWidget);
+      await tester.tap(find.text('问题反馈'));
       await tester.pumpAndSettle();
-      expect(calls.where((c) => c.method == 'basicSelfCheck').length, 1);
-      expect(find.text('设备：通过'), findsOneWidget);
-      expect(find.text('系统权限：需检查'), findsOneWidget);
-      expect(bridge.sent, isEmpty);
+      expect(calls.last.method, 'open_url');
+      expect(calls.last.arguments, {'url': 'https://example.test/feedback'});
+      expect(find.text('https://example.test/feedback'), findsOneWidget);
+      expect(find.text('复制链接'), findsOneWidget);
       await tester.tap(find.text('关闭'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('获取更新'));
+      expect(bridge.sent, isEmpty);
+
+      // 设置-关于:获取更新单独放在新手引导下面。
+      AppPage.open(
+        tester.element(find.byType(Scaffold).first),
+        const SettingsHubPage(),
+      );
       await tester.pumpAndSettle();
+      final updateTile = find.text('获取更新');
+      await tester.scrollUntilVisible(
+        updateTile,
+        180,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await Scrollable.ensureVisible(
+        tester.element(updateTile),
+        alignment: 0.4,
+      );
+      await tester.pumpAndSettle();
+      expect(updateTile, findsOneWidget);
+      await tester.tap(updateTile);
+      await tester.pumpAndSettle();
+      expect(calls.last.method, 'open_url');
       expect(calls.last.arguments, {'url': 'https://example.test/updates'});
       expect(find.text('https://example.test/updates'), findsOneWidget);
       expect(find.text('复制链接'), findsOneWidget);

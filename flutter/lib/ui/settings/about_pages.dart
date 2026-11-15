@@ -10,6 +10,57 @@ import '../../widgets/maeve_mark.dart';
 import '../../widgets/glass_surface.dart';
 import '../common/app_page.dart';
 
+/// 打开宿主 status 中 links[key] 指向的页面;未接桥、链接缺失或无法直接打开时,
+/// 给出可复制链接的备用入口。关于页与设置-关于的「获取更新」共用。
+Future<void> openHostLink(
+  BuildContext context,
+  String key, {
+  required String label,
+}) async {
+  String? url;
+  try {
+    final status = await MaeveBridge.methods
+        .invokeMethod<Map<Object?, Object?>>('status');
+    url = (status?['links'] as Map?)?[key]?.toString();
+  } catch (_) {
+    // 测试与未接桥时按链接缺失处理。
+  }
+  final link = url;
+  if (link == null || link.isEmpty) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('$label入口暂不可用。')));
+    }
+    return;
+  }
+  try {
+    if (await MaeveBridge.openUrl(link)) return;
+  } catch (_) {
+    /* 提供可复制的备用入口。 */
+  }
+  if (!context.mounted) return;
+  await showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('在浏览器打开'),
+      content: SelectableText(link),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('关闭'),
+        ),
+        FilledButton(
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: link));
+            if (context.mounted) Navigator.pop(context);
+          },
+          child: const Text('复制链接'),
+        ),
+      ],
+    ),
+  );
+}
+
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
 
@@ -19,7 +70,6 @@ class AboutPage extends StatefulWidget {
 
 class _AboutPageState extends State<AboutPage> {
   String? _host;
-  Map<String, String> _links = const {};
 
   @override
   void initState() {
@@ -33,94 +83,11 @@ class _AboutPageState extends State<AboutPage> {
           .invokeMethod<Map<Object?, Object?>>('status');
       if (!mounted || status == null) return;
       setState(() {
-        _links = Map<String, String>.from(status['links'] as Map? ?? const {});
         _host =
             '${status['version']} (${status['versionCode']}) · ${status['build']} · ${status['channel']} · Android ${status['android']}';
       });
     } catch (_) {
       // 测试与未接桥时静默:关于页不因为没有宿主就报错。
-    }
-  }
-
-  Future<void> _openSupport(String key) async {
-    final url = _links[key];
-    if (url == null) return;
-    try {
-      if (await MaeveBridge.openUrl(url)) return;
-    } catch (_) {
-      /* 提供可复制的备用入口。 */
-    }
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('在浏览器打开'),
-        content: SelectableText(url),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('关闭'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: url));
-              if (context.mounted) Navigator.pop(context);
-            },
-            child: const Text('复制链接'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _basicCheck() async {
-    try {
-      final report = await MaeveBridge.methods.invokeMapMethod<String, dynamic>(
-        'basicSelfCheck',
-      );
-      if (!mounted || report == null) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('设备与权限检查'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('仅检查设备信息与系统授权。虚拟屏幕、实际操作、浏览器和沙箱尚未验证；不会发送消息或更改系统设置。'),
-                const SizedBox(height: 16),
-                for (final row in report['rows'] as List? ?? [])
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${row['label']}：${row['status'] == 'pass' ? '通过' : '需检查'}',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        if (row['advice'] != null)
-                          Text(row['advice'] as String),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('关闭'),
-            ),
-          ],
-        ),
-      );
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('设备状态暂不可读，请重试。')));
-      }
     }
   }
 
@@ -160,82 +127,12 @@ class _AboutPageState extends State<AboutPage> {
           style: MaeveType.caption.copyWith(color: colors.ink2),
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 8,
-          children: [
-            OutlinedButton.icon(
-              onPressed: _links.containsKey('updates')
-                  ? () => _openSupport('updates')
-                  : null,
-              icon: const Icon(Icons.system_update_alt_rounded),
-              label: const Text('获取更新'),
-            ),
-            OutlinedButton.icon(
-              onPressed: _links.containsKey('feedback')
-                  ? () => _openSupport('feedback')
-                  : null,
-              icon: const Icon(Icons.feedback_outlined),
-              label: const Text('问题反馈'),
-            ),
-          ],
+        OutlinedButton.icon(
+          onPressed: () => openHostLink(context, 'feedback', label: '反馈'),
+          icon: const Icon(Icons.feedback_outlined),
+          label: const Text('问题反馈'),
         ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: _basicCheck,
-          icon: const Icon(Icons.verified_outlined),
-          label: const Text('设备与权限检查'),
-        ),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.fact_check_outlined),
-          label: const Text('预览本地诊断'),
-          onPressed: () async {
-            try {
-              final text = await MaeveBridge.methods.invokeMethod<String>(
-                'diagnostics',
-              );
-              if (!context.mounted || text == null) return;
-              await showDialog<void>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('本地诊断预览'),
-                  content: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '仅包含版本、构建和能力状态，不包含对话、截图、模型地址、账号或密钥。复制后由你决定分享给谁，不会自动上传。',
-                        ),
-                        const SizedBox(height: 12),
-                        SelectableText(text),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('关闭'),
-                    ),
-                    FilledButton(
-                      onPressed: () async {
-                        await Clipboard.setData(ClipboardData(text: text));
-                        if (context.mounted) Navigator.pop(context);
-                      },
-                      child: const Text('复制诊断'),
-                    ),
-                  ],
-                ),
-              );
-            } catch (_) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('诊断暂时不可用，请重试。')));
-              }
-            }
-          },
-        ),
         MaeveGlassSurface(
           padding: const EdgeInsets.all(22),
           child: Column(
