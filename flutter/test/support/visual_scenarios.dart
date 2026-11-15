@@ -1,7 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 import 'package:maeve_flutter/ui/settings/appearance_page.dart';
-import 'package:maeve_flutter/ui/settings/general_pages.dart';
 import 'package:maeve_flutter/ui/settings/about_pages.dart';
 import 'package:maeve_flutter/ui/settings/licenses_page.dart';
 import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
@@ -22,7 +21,6 @@ const visualPages = <String, Widget>{
   'execution': ExecutionSettingsPage(),
   'runs': RunHistoryPage(),
   'appearance': AppearancePage(),
-  'performance': PerformancePage(),
   'about': AboutPage(),
   'licenses': LicensesPage(),
   'welcome': WelcomePage(),

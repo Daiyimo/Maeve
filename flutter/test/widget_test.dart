@@ -543,20 +543,17 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
+    // 开关就在设置页行内(与触感反馈同一形态),不再跳子页面。
     await scrollTo(
       tester,
-      find.text('透明与动效'),
+      find.text('减少透明效果'),
       page: find.byType(SettingsHubPage),
     );
-    await tester.tap(find.text('透明与动效'));
-    await tester.pumpAndSettle();
     await tester.tap(find.text('减少透明效果'));
     await tester.pumpAndSettle();
 
     expect(find.byType(BackdropFilter), findsNothing);
 
-    await tester.tap(find.bySemanticsLabel('返回'));
-    await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel('返回'));
     await tester.pumpAndSettle();
     expect(find.byType(BackdropFilter), findsNothing);
