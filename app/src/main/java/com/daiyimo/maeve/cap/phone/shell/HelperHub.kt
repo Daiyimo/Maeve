@@ -150,6 +150,8 @@ open class HandoffProvider : ContentProvider() {
     override fun onCreate() = true
 
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
+        // 保活戳:助手经它让系统看到「provider 有客户端在用」,StepOS 的冷冻器据此不冻 Maeve。
+        if (method == HelperHandoff.METHOD_PING) return Bundle()
         if (method != HelperHandoff.METHOD_ATTACH) return null
         val ctx = context ?: return null
         return PhoneServices.of(ctx).hub.offer(extras, Binder.getCallingUid(), Binder.getCallingPid())

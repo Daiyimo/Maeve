@@ -15,6 +15,9 @@ import java.security.SecureRandom
 object HelperHandoff {
     const val SHELL_UID = 2000
     const val METHOD_ATTACH = "attach"
+
+    /** 助手的保活戳:不需要口令,只为让系统看到 provider 有客户端在用(见 [HelperProcess] 的说明)。 */
+    const val METHOD_PING = "ping"
     const val HELPER_CLASS = "com.daiyimo.maeve.shell.HelperMain"
 
     // 助手 → Maeve

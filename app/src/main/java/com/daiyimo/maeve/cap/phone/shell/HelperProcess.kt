@@ -21,6 +21,7 @@ import com.daiyimo.maeve.core.shell.PermissionCommands
 import com.daiyimo.maeve.core.shell.RestoreCommands
 import com.daiyimo.maeve.core.shell.RestoreWish
 import java.io.File
+import java.lang.reflect.Method
 import java.lang.reflect.Proxy
 import kotlin.system.exitProcess
 
@@ -119,13 +120,10 @@ object HelperProcess {
                 runCatching { service.releaseAll() }
                 exitProcess(0)
             }
-            val am = Class.forName("android.app.ActivityManager").getMethod("getService").invoke(null)!!
             val token = Binder()
+            var handedOff = false
             val holder = try {
-                am.javaClass.getMethod(
-                    "getContentProviderExternal", String::class.java, Int::class.javaPrimitiveType,
-                    IBinder::class.java, String::class.java,
-                ).invoke(am, authority, userId, token, TAG)
+                getProvider.invoke(amService, authority, userId, token, TAG)
             } catch (t: Throwable) {
                 Log.w(TAG, "getContentProviderExternal failed", t)
                 return Outcome.Failed
@@ -137,7 +135,6 @@ object HelperProcess {
                     Log.e(TAG, "provider $authority does not belong to $packageName/$appUid")
                     return Outcome.Rejected
                 }
-                val provider = holder.javaClass.getField("provider").get(holder)!!
                 val extras = Bundle().apply {
                     putString(HelperHandoff.KEY_NONCE, n)
                     putBinder(HelperHandoff.KEY_BINDER, service)
@@ -150,11 +147,7 @@ object HelperProcess {
                         putLong(HelperHandoff.KEY_GAVE_UP_AT, r.gaveUpAtMs)
                     }
                 }
-                val call = provider.javaClass.methods.first {
-                    it.name == "call" && it.parameterTypes.size == 5 && it.parameterTypes[0] == AttributionSource::class.java
-                }
-                val caller = AttributionSource.Builder(Process.myUid()).setPackageName(ShellContext.SHELL_PACKAGE).build()
-                val result = call.invoke(provider, caller, authority, HelperHandoff.METHOD_ATTACH, null, extras) as Bundle?
+                val result = invokeProvider(holder, HelperHandoff.METHOD_ATTACH, extras)
                 if (result?.getBoolean(HelperHandoff.KEY_ACCEPTED) != true) {
                     Log.w(TAG, "handoff rejected: ${result?.getString(HelperHandoff.KEY_REASON)}")
                     return Outcome.Rejected
@@ -168,23 +161,109 @@ object HelperProcess {
                     worker.post { onAppDied(appBinder) }
                 }
                 Log.i(TAG, "handed off to $packageName")
+                handedOff = true
+                startHeartbeat()
                 return Outcome.Accepted
             } catch (t: Throwable) {
                 Log.w(TAG, "handoff failed", t)
                 return Outcome.Failed
             } finally {
-                runCatching {
-                    am.javaClass.getMethod(
-                        "removeContentProviderExternalAsUser", String::class.java, IBinder::class.java, Int::class.javaPrimitiveType,
-                    ).invoke(am, authority, token, userId)
-                }
+                // 交接成功就不释放:助手活着就替 Maeve 占着「provider 有客户端在用」,见 [holdProvider]。
+                if (handedOff) holdProvider(token)
+                else releaseProvider(token)
             }
+        }
+
+        /** ActivityManager 的 provider 三件套;助手进程里只反射一次。 */
+        private val amService: Any by lazy {
+            @SuppressLint("PrivateApi")
+            Class.forName("android.app.ActivityManager").getMethod("getService").invoke(null)!!
+        }
+        private val getProvider: Method by lazy {
+            amService.javaClass.getMethod(
+                "getContentProviderExternal", String::class.java, Int::class.javaPrimitiveType,
+                IBinder::class.java, String::class.java,
+            )
+        }
+        private val removeProvider: Method by lazy {
+            amService.javaClass.getMethod(
+                "removeContentProviderExternalAsUser", String::class.java, IBinder::class.java, Int::class.javaPrimitiveType,
+            )
+        }
+
+        /** 在已取得的 provider 上发起一次调用(attach 和保活戳都走它)。 */
+        private fun invokeProvider(holder: Any, method: String, extras: Bundle?): Bundle? {
+            val provider = holder.javaClass.getField("provider").get(holder)!!
+            val call = provider.javaClass.methods.first {
+                it.name == "call" && it.parameterTypes.size == 5 && it.parameterTypes[0] == AttributionSource::class.java
+            }
+            val caller = AttributionSource.Builder(Process.myUid()).setPackageName(ShellContext.SHELL_PACKAGE).build()
+            return call.invoke(provider, caller, authority, method, null, extras) as Bundle?
+        }
+
+        /** 保活戳:经 provider 给 Maeve 发一次不需要口令的调用,让系统看到「provider 有客户端在用」。 */
+        private fun pingProvider(): Boolean {
+            val token = Binder()
+            val holder = runCatching { getProvider.invoke(amService, authority, userId, token, TAG) }.getOrNull() ?: return false
+            return try {
+                invokeProvider(holder, HelperHandoff.METHOD_PING, null) != null
+            } catch (t: Throwable) {
+                Log.w(TAG, "keep-alive ping failed", t)
+                false
+            } finally {
+                releaseProvider(token)
+            }
+        }
+
+        /**
+         * 定期戳 Maeve(见 [pingProvider])。
+         *
+         * StepOS 的冷冻器(日志 tag StepOSFreeze)会在 Maeve 退到后台后把它冻住:电池白名单、前台服务都拦不住,
+         * 用户回来时输入没人消费,等 5 秒就弹「Maeve无响应」。它自己的 BLOCK_FREEZE 日志表明,provider 有调用流过时
+         * (flag FLAG_USING_PROVIDER)冷冻被取消(cancel_pending)——光持有客户端不够,那个 flag 只认活跃调用,几十秒就衰退。
+         * 助手以 shell 身份常驻,每 [PING_INTERVAL_MS] 戳一次,Maeve 就不被冻:这正是助手存在的配置
+         * (一次性无线调试授权)下应有的行为——它得随时能动手机。代价是 Maeve 不再沉睡、轮询循环全程在跑;
+         * 对「随叫随到的手机 agent」这是应有的取舍。
+         */
+        private val heartbeat = object : Runnable {
+            override fun run() {
+                if (appToken == null) return
+                pingProvider()
+                worker.postDelayed(this, PING_INTERVAL_MS)
+            }
+        }
+
+        private fun startHeartbeat() {
+            worker.removeCallbacks(heartbeat)
+            worker.post(heartbeat)
+        }
+
+        private fun stopHeartbeat() = worker.removeCallbacks(heartbeat)
+
+        /** 交接成功后从 Maeve 进程取得的 provider 释放令牌;持有期间系统把 Maeve 当作「provider 有客户端在用」。 */
+        private var heldProviderToken: IBinder? = null
+
+        private fun holdProvider(token: IBinder) {
+            releaseHeldProvider()
+            heldProviderToken = token
+        }
+
+        private fun releaseHeldProvider() {
+            heldProviderToken?.let { releaseProvider(it) }
+            heldProviderToken = null
+        }
+
+        private fun releaseProvider(token: IBinder) {
+            runCatching { removeProvider.invoke(amService, authority, token, userId) }
         }
 
         /** Maeve 进程没了:它建的屏、静音、剪贴板改动跟着撤掉(和服务结束时一样),助手本身留着。 */
         private fun onAppDied(token: IBinder) {
             if (appToken !== token) return
             appToken = null
+            // Maeve 没了,它进程里的 provider 跟着没,客户端没有持有价值;下次交接会重新拿。
+            stopHeartbeat()
+            releaseHeldProvider()
             runCatching { service.releaseAll() }.onFailure { Log.w(TAG, "cleanup failed", it) }
             if (!installed()) {
                 Log.i(TAG, "$packageName is gone; exiting")
@@ -320,6 +399,9 @@ object HelperProcess {
         companion object {
             private const val PER_USER_RANGE = 100_000
             private val RETRY_DELAYS_MS = longArrayOf(0, 1_000, 3_000, 10_000)
+
+            /** 保活戳的间隔;冷冻器的评估周期约一分钟,2 秒足够在任何评估点上都不缺 flag。 */
+            private const val PING_INTERVAL_MS = 2_000L
         }
     }
 }
