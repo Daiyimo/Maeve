@@ -71,7 +71,27 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
             val before = shell.topTaskId(0)
             val result = withContext(Dispatchers.IO) { shell.runSystemCommand(targetDisplay,
                 "am start --display $targetDisplay -n $PACKAGE/.chat.activity.ChatMainActivity") }
-            if (result.getInt("exitCode", -1) != 0 || shell.topTaskId(0) != before) {
+            val exit = result.getInt("exitCode", -1)
+            // am start 对已存在的实例只投递 intent:用户刚在主机用过 Amoo 时,它会被唤醒到主屏。
+            // 那不是失败——把它挪到后台屏就是了;主屏归用户,后台屏归 Maeve。
+            var landed = false
+            val landBy = SystemClock.uptimeMillis() + LAND_WAIT_MS
+            while (SystemClock.uptimeMillis() < landBy && !landed) {
+                landed = shell.packageOfTask(shell.topTaskId(targetDisplay)) == PACKAGE
+                if (!landed && shell.packageOfTask(shell.topTaskId(0)) == PACKAGE) {
+                    shell.moveTask(shell.topTaskId(0), targetDisplay)
+                }
+                if (!landed) delay(200)
+            }
+            val mainNow = shell.topTaskId(0)
+            if (exit != 0 || !landed || mainNow != before) {
+                // 现场留足:屏号、退出码与输出、前后主屏顶任务及属主,下次直接从日志定位
+                android.util.Log.w("SystemAmooWechat",
+                    "background Amoo start: display=$targetDisplay exit=$exit output=${result.getString("output")} " +
+                    "landed=$landed mainBefore=$before/${shell.packageOfTask(before)} mainNow=$mainNow/${shell.packageOfTask(mainNow)}")
+            }
+            // 只有 Amoo 最终不在后台屏上才算失败;主屏前台怎么变是用户自己的事
+            if (!landed) {
                 throw AmooUiException("这台手机未能保持 Amoo 在后台屏幕中，已停止此次处理。请改用前台接入。")
             }
         }
@@ -263,7 +283,12 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
     }
 
     private class AmooUiException(message: String) : Exception(message)
-    companion object { const val PACKAGE = "com.stepos.ailauncher" }
+    companion object {
+        const val PACKAGE = "com.stepos.ailauncher"
+
+        /** am start 之后等 Amoo 在后台屏上落地这么久;任务建起来要一点时间。 */
+        private const val LAND_WAIT_MS = 3_000L
+    }
 }
 
 /** 只转发本轮完成后的实际答复，不用提示词伪装系统助手身份。 */
