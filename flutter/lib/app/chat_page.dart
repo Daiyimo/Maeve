@@ -45,6 +45,7 @@ class _ChatPageState extends State<ChatPage> {
   final ScrollController _scroll = ScrollController();
   final Set<String> _openTurns = {};
   bool _showJump = false;
+  bool _followLatest = true, _userScrolling = false;
   String _renderedTask = '', _renderedConversation = '';
   String? _draftKey;
   int _draftRestoreRevision = -1;
@@ -141,15 +142,21 @@ class _ChatPageState extends State<ChatPage> {
     }
   }
 
-  void _toBottom() {
+  void _toBottom({bool animate = true}) {
+    _followLatest = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scroll.hasClients) return;
-      _scroll.animateTo(
-        _scroll.position.maxScrollExtent,
-        duration: AppMotion.of(context).standard,
-        curve: MaeveMotion.glide,
-      );
+      if (!mounted || !_followLatest || !_scroll.hasClients) return;
+      if (animate) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: AppMotion.of(context).standard,
+          curve: MaeveMotion.glide,
+        );
+      } else {
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      }
     });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   @override
@@ -162,12 +169,11 @@ class _ChatPageState extends State<ChatPage> {
         '${conversation.id}:${conversation.messages.length}:${last?.executionSteps.length}:${last?.text.length}:${last?.status}';
     if (_renderedTask != taskSignature) {
       final changedConversation = _renderedConversation != conversation.id;
-      final following =
-          !_scroll.hasClients || _scroll.position.extentAfter < 140;
+      final following = _followLatest;
       _renderedTask = taskSignature;
       _renderedConversation = conversation.id;
       if (changedConversation) _showJump = false;
-      if (changedConversation || following) _toBottom();
+      if (changedConversation || following) _toBottom(animate: false);
     }
     final padding = MediaQuery.viewPaddingOf(context);
     final bottomSafe = padding.bottom;
@@ -191,36 +197,65 @@ class _ChatPageState extends State<ChatPage> {
     return Stack(
       children: [
         Positioned.fill(
-          child: ListView(
-            key: const ValueKey('chat-list'),
-            controller: _scroll,
-            padding: EdgeInsets.only(top: topInset, bottom: bottomInset),
-            children: [
-              Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: MaeveSpace.readingWidth,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: MaeveSpace.s24,
+          child: NotificationListener<ScrollMetricsNotification>(
+            onNotification: (notice) {
+              // 预览图异步到达也可能增加高度，即使还没有下一条记录也要跟上。
+              if (notice.depth == 0 &&
+                  _followLatest &&
+                  notice.metrics.extentAfter > 1) {
+                _toBottom(animate: false);
+              }
+              return false;
+            },
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notice) {
+                // 内容变高不代表用户离开底部；只让外层的真实手势改变跟随状态。
+                if (notice.depth != 0) return false;
+                if (notice is ScrollStartNotification &&
+                    notice.dragDetails != null) {
+                  _userScrolling = true;
+                  _followLatest = false;
+                }
+                if (_userScrolling && notice is ScrollEndNotification) {
+                  _followLatest = notice.metrics.extentAfter < 140;
+                  _userScrolling = false;
+                }
+                return false;
+              },
+              child: ListView(
+                key: const ValueKey('chat-list'),
+                controller: _scroll,
+                padding: EdgeInsets.only(top: topInset, bottom: bottomInset),
+                children: [
+                  Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        maxWidth: MaeveSpace.readingWidth,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: MaeveSpace.s24,
+                        ),
+                        child: conversation.isEmpty
+                            ? _EmptyHome(minHeight: emptyHeight)
+                            : _MessageList(
+                                conversation: conversation,
+                                openTurns: _openTurns,
+                                onToggleTurn: (key) => setState(() {
+                                  if (!_openTurns.add(key)) {
+                                    _openTurns.remove(key);
+                                  }
+                                }),
+                                onRetry: controller.sendQueued,
+                                onLongPress: (message) =>
+                                    _messageSheet(context, controller, message),
+                              ),
+                      ),
                     ),
-                    child: conversation.isEmpty
-                        ? _EmptyHome(minHeight: emptyHeight)
-                        : _MessageList(
-                            conversation: conversation,
-                            openTurns: _openTurns,
-                            onToggleTurn: (key) => setState(() {
-                              if (!_openTurns.add(key)) _openTurns.remove(key);
-                            }),
-                            onRetry: controller.sendQueued,
-                            onLongPress: (message) =>
-                                _messageSheet(context, controller, message),
-                          ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
         Positioned(

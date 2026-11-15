@@ -197,14 +197,27 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                 key: const ValueKey('conversation-search'),
                 onChanged: controller.setSearch,
                 style: MaeveType.body.copyWith(fontSize: 13.5, color: c.ink),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: '搜索标题',
+                  filled: true,
+                  fillColor: c.surface,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.rule),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.accent, width: 1.5),
+                  ),
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 10,
                   ),
-                  prefixIcon: Icon(Icons.search_rounded, size: 18),
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18),
                 ),
               ),
             ),

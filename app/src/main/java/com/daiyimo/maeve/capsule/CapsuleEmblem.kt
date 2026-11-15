@@ -21,10 +21,11 @@ internal fun CapsuleEmblem(modifier: Modifier, running: Boolean = false) {
             0f, 1f, infiniteRepeatable(tween(2400, easing = LinearEasing)), label = "edge")
         p
     } else 0f
+    val accent = MaeveTheme.colors.accent
     Canvas(modifier) {
         val unit = size.minDimension
         val center = Offset(size.width / 2, size.height / 2)
-        val purple = Color(0xff7654c5)
+        val purple = accent
         fun point(a: Float, r: Float) = center + Offset(cos(a) * r * unit, sin(a) * r * unit)
         fun thickness(a: Float) = .006f + .038f * ((1f + cos(a + PI.toFloat() / 4)) / 2).pow(1.7f)
         val path = Path().apply {

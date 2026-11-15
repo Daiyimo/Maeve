@@ -19,6 +19,12 @@ object ConversationTitler {
     const val TIMEOUT_MS = 8_000L
     private const val MAX_TITLE = 16
     private const val MAX_INPUT = 400
+    /** 开始执行就显示的本地短标题；模型标题回来后由原有只写一次的规则接替。 */
+    fun preview(first: String): String {
+        val page = AttachedPage.parse(first)
+        val words = UserScreenMessage.parse(page.words.ifBlank { page.page?.selection.orEmpty() }).words
+        return words.replace(Regex("\\s+"), " ").trim().take(MAX_TITLE).ifBlank { "新对话" }
+    }
 
     /**
      * 对话 [id] 还没有标题、也还没存过任何一轮时,按 [first] 起一个记下。[models] 依次试(轻量模型在前,主模型兜底)。

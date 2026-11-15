@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,6 +43,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
@@ -81,8 +83,8 @@ import kotlin.math.ceil
 
 /** 胶囊外面留给阴影的边:浮层窗口按内容大小,阴影画在窗口里面;留得越少,窗口挡住下面 App 的透明边越窄。 */
 internal val CapsuleShadowRoom = 8.dp
-private val CapsuleHeight = 44.dp
-private val BarHeight = 48.dp
+private val CapsuleHeight = 48.dp
+private val BarHeight = 58.dp
 private val LogoSize = 30.dp
 private const val FADE_MS = 400
 /** 截到屏幕时一颗上那一闪:多亮、多久退掉。 */
@@ -232,11 +234,14 @@ private fun PillRow(view: CapsuleView.Shown, end: Boolean, need: Boolean) {
         horizontalArrangement = Arrangement.spacedBy(8.dp, if (end) Alignment.End else Alignment.Start),
     ) {
         if (!end) CapsuleLogo(view.kind)
-        Leading(view.kind)
-        Text(
-            view.text, Modifier.weight(1f, fill = false), style = CapsuleText,
-            color = if (need) c.warn else c.ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
+        Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text("MAEVE", style = BarDetail.copy(fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold), color = c.accent)
+                Leading(view.kind)
+            }
+            Text(view.text, style = CapsuleText, color = if (need) c.warn else c.ink,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
         if (end) CapsuleLogo(view.kind)
     }
 }
@@ -403,11 +408,16 @@ private fun Modifier.morphGlass(m: Morph, end: Boolean, c: MaeveColors, need: Bo
     }.drawWithContent {
         val pill = EdgePill(m.width.value, end)
         val o = pill.createOutline(size, layoutDirection, this)
-        drawOutline(o, Color.White)
+        drawOutline(o, c.surfaceHigh.compositeOver(c.bg))
+        val visible = if (m.width.value > 0f) m.width.value.coerceAtMost(size.width) else size.width
+        val right = end != (layoutDirection == LayoutDirection.Rtl)
+        val edge = if (right) size.width - 3.dp.toPx() else size.width - visible + 3.dp.toPx()
+        drawLine(if (need) c.warnSolid else c.accent, Offset(edge, size.height * .32f),
+            Offset(edge, size.height * .68f), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
         drawContent()
         val stroke = (if (need) 1.dp else 0.5.dp).toPx()
         drawOutline(EdgePill(m.width.value, end, inset = stroke / 2).createOutline(size, layoutDirection, this),
-            if (need) c.warnSolid.copy(alpha = 0.5f) else c.accent.copy(alpha = .14f), style = Stroke(stroke))
+            if (need) c.warnSolid.copy(alpha = 0.7f) else c.edge, style = Stroke(stroke))
     }
 
 /** 宽 [width](0 或超出时按整块)、贴着一边([end] 时逻辑末端)的胶囊形;[inset] 往里收(画描边用)。 */
@@ -416,8 +426,14 @@ private class EdgePill(private val width: Float, private val end: Boolean, priva
         val w = if (width > 0f) width.coerceAtMost(size.width) else size.width
         val atRight = end != (layoutDirection == LayoutDirection.Rtl)
         val left = if (atRight) size.width - w else 0f
-        val r = minOf(size.height / 2, with(density) { 16.dp.toPx() }) - inset
-        return Outline.Rounded(RoundRect(left + inset, inset, left + w - inset, size.height - inset, CornerRadius(r, r)))
+        val outer = with(density) { 9.dp.toPx() } - inset
+        val inner = with(density) { 20.dp.toPx() } - inset
+        val near = CornerRadius(outer, outer)
+        val far = CornerRadius(inner, inner)
+        return Outline.Rounded(RoundRect(left + inset, inset, left + w - inset, size.height - inset,
+            topLeftCornerRadius = if (atRight) far else near,
+            topRightCornerRadius = if (atRight) near else far,
+            bottomRightCornerRadius = near, bottomLeftCornerRadius = near))
     }
 }
 
@@ -428,7 +444,7 @@ private fun TakeoverBar(view: CapsuleView.Shown, onStop: () -> Unit, onHandBack:
     val maxWidth = (LocalConfiguration.current.screenWidthDp - 32).coerceAtLeast(200).dp
     Row(
         Modifier.testTag("capsule-bar")
-            .glass(c, MaeveShapes.Pill, need = false)
+            .glass(c, RoundedCornerShape(10.dp, 20.dp, 10.dp, 10.dp), need = true)
             .widthIn(max = maxWidth)
             .height(BarHeight)
             .padding(horizontal = 6.dp),
@@ -464,5 +480,5 @@ private fun CapsuleLogo(kind: CapsuleKind = CapsuleKind.Idle) {
 internal fun Modifier.glass(c: MaeveColors, shape: Shape, need: Boolean): Modifier =
     shadow(8.dp, shape, clip = false, ambientColor = c.floatShadow.copy(alpha = 0.25f), spotColor = c.floatShadow.copy(alpha = 0.3f))
         .clip(shape)
-        .background(Color.White)
-        .border(if (need) 1.dp else .5.dp, if (need) c.warnSolid.copy(alpha = .5f) else c.accent.copy(alpha = .14f), shape)
+        .background(c.surfaceHigh.compositeOver(c.bg))
+        .border(if (need) 1.dp else .5.dp, if (need) c.warnSolid.copy(alpha = .5f) else c.edge, shape)

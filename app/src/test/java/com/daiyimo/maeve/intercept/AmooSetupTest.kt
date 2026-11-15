@@ -8,6 +8,22 @@ import org.junit.Test
 /** 一键接入发给 amoo 的那段说明:路径跟着包名走、覆盖升级不留旧版、装完写版本标记、试任务必须带上。 */
 class AmooSetupTest {
 
+    @Test fun recoversOnlyTheMatchingSetupMarkerTime() {
+        val file = java.io.File.createTempFile("setup-marker", ".json")
+        try {
+            file.writeText("""{"skill":"maeve-bridge","version":7}""")
+            assertTrue(file.setLastModified(20000L))
+            assertEquals(20000L, verifiedMarkerTime(file, 7))
+            assertNull(verifiedMarkerTime(file, 8))
+            file.writeText("""{"skill":"other","version":7}""")
+            assertNull(verifiedMarkerTime(file, 7))
+            file.writeText("""garbage {"skill":"maeve-bridge","version":7}""")
+            assertNull(verifiedMarkerTime(file, 7))
+            file.writeText("x".repeat(4097))
+            assertNull(verifiedMarkerTime(file, 7))
+        } finally { file.delete() }
+    }
+
     @Test fun wechatUsesTheSystemChatInsteadOfTheDefaultCliAgent() {
         val text = setupInstruction("com.example.maeve", 6)
         assertTrue(text.contains("直接送到本系统 Amoo 聊天界面"))

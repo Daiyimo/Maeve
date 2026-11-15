@@ -113,9 +113,9 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
-private val CardShape = RoundedCornerShape(26.dp)
+private val CardShape = RoundedCornerShape(12.dp, 24.dp, 12.dp, 12.dp)
 private val ScreenShape = RoundedCornerShape(14.dp)
-private val BubbleShape = RoundedCornerShape(16.dp, 16.dp, 5.dp, 16.dp)
+private val BubbleShape = RoundedCornerShape(12.dp, 12.dp, 4.dp, 12.dp)
 private val CardWidth = 322.dp
 private val ScreenWidth = 104.dp
 private val ZoomWidth = 300.dp
@@ -463,7 +463,15 @@ private fun CardFrame(height: Dp, fixed: Boolean = true, content: @Composable Co
     Column(
         Modifier.testTag("capsule-card").width(cardWidth()).then(if (fixed) Modifier.height(height) else Modifier.heightIn(max = height))
             .glass(c, CardShape, need = false).padding(12.dp),
-        content = content,
+        content = {
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.size(3.dp, 12.dp).background(c.accent, RoundedCornerShape(2.dp)))
+                Text("MAEVE", style = Sub.copy(fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold), color = c.accent)
+                Box(Modifier.weight(1f).height(1.dp).background(c.rule))
+            }
+            content()
+        },
     )
 }
 

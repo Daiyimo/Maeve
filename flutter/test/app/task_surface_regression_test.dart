@@ -580,6 +580,55 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Live task growth keeps the latest record above the composer without user scrolling',
+    (tester) async {
+      final bridge = FakeChatBridge()
+        ..frame = base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=',
+        );
+      await mount(tester, bridge);
+      void emit(int n) => bridge.emitUi(
+        conversationId: 'growing',
+        composer: 'busy',
+        exchanges: [
+          {
+            ...FakeChatBridge.exchange(
+              '打开计算器完成一个需要多步执行的任务，持续报告执行状态。',
+              status: 'working',
+              steps: n,
+            ),
+            'executionSteps': List.generate(
+              n,
+              (i) => {
+                'step': i + 1,
+                'title': '执行步骤 ${i + 1}',
+                'detail': '当前操作状态',
+              },
+            ),
+          },
+        ],
+      );
+      emit(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      emit(40);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
+      final latest = find.text('40  执行步骤 40');
+      expect(latest.hitTestable(), findsOneWidget);
+      expect(
+        tester.getBottomLeft(latest).dy,
+        lessThan(
+          tester.getTopLeft(find.byKey(const ValueKey('message-input'))).dy,
+        ),
+      );
+      expect(find.byKey(const ValueKey('live-execution-feed')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Native action results are visible during task execution', (
     tester,
   ) async {
@@ -618,7 +667,7 @@ void main() {
     );
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('点击系统设置'), findsOneWidget);
+    expect(find.textContaining('点击系统设置').hitTestable(), findsOneWidget);
     expect(find.textContaining('点击没有生效'), findsWidgets);
   });
 

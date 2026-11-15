@@ -333,6 +333,26 @@ void main() {
     expect(settings.amooActions, everyElement('snapshot'));
   });
 
+  testWidgets(
+    'Amoo shows setup verification time without fabricating a task result',
+    (tester) async {
+      final settings = FakeSettingsBridge()
+        ..amooStatus = NativeAmooStatus(
+          stage: 'done',
+          installed: true,
+          accessibility: true,
+          bridgeEnabled: true,
+          lastSetupAt: DateTime(2026, 11, 15, 10, 20, 30),
+        );
+      await mount(tester, settings);
+      await open(tester, const AmooPage());
+      expect(find.text('最近接入验证成功'), findsOneWidget);
+      expect(find.text('2026-11-15 10:20:30'), findsOneWidget);
+      await tester.ensureVisible(find.text('最近收到的任务结果'));
+      expect(find.text('尚无任务结果，收到任务回传后更新'), findsOneWidget);
+    },
+  );
+
   testWidgets('Amoo cannot start without its app and live accessibility', (
     tester,
   ) async {

@@ -85,7 +85,7 @@ class ConfiguredChatDeviceTest {
         assumeTrue("Run without an active user task", app.taskState.runs.value.isEmpty())
         val customGoal = InstrumentationRegistry.getArguments().getString("maeve_verify_goal")?.takeIf { it.isNotBlank() }
         val phoneTask = customGoal != null || InstrumentationRegistry.getArguments().getString("maeve_verify_phone_task") == "true"
-        val goal = customGoal ?: if (phoneTask) "打开系统计算器，清空后计算37+58，告诉我结果。不要进行其他操作。" else "你好"
+        val goal = customGoal ?: if (phoneTask) "打开系统计算器，先清空，再依次按3、7、+、5、8、=，确认屏幕上显示95后告诉我结果。必须实际按键，不要口算或只看历史。不要进行其他操作。" else "你好"
         val originalPace = com.daiyimo.maeve.settings.FeatureFlags.get(context).operatingPace()
         if (phoneTask) com.daiyimo.maeve.settings.FeatureFlags.get(context).setOperatingPace(com.daiyimo.maeve.core.cap.phone.OperatingPace.FAST)
         FlutterLaunchDeviceTest().prepareInteractiveDisplay()
@@ -126,8 +126,33 @@ class ConfiguredChatDeviceTest {
                     assertTrue("Native prerequisites blocked the configured greeting", app.chat.ui.value.blocked.isNullOrEmpty())
                     app.chat.ui.value.exchanges.isNotEmpty()
                 }
+                if (phoneTask) {
+                    // First-turn metadata must exist while executing, before a persisted result.
+                    val result = java.util.concurrent.CompletableFuture<List<*>>()
+                    scenario.onActivity { activity ->
+                        val plugin = activity.provideFlutterEngine(activity).plugins.get(MaeveChatPlugin::class.java) as MaeveChatPlugin
+                        plugin.onMethodCall(io.flutter.plugin.common.MethodCall("conversations", null), object : io.flutter.plugin.common.MethodChannel.Result {
+                            override fun success(value: Any?) { result.complete(value as List<*>) }
+                            override fun error(code: String, message: String?, details: Any?) { result.completeExceptionally(AssertionError(code)) }
+                            override fun notImplemented() { result.completeExceptionally(AssertionError("Missing conversation metadata")) }
+                        })
+                    }
+                    val id = app.chat.ui.value.conversationId
+                    val metadata = result.get(5, java.util.concurrent.TimeUnit.SECONDS).filterIsInstance<Map<*, *>>().single { it["id"] == id }
+                    val title = metadata["title"] as String
+                    assertTrue("A running first turn needs a title before task completion", title.isNotBlank() && title != "新对话")
+                    waitFor("The early task title must reach the Flutter header") {
+                        windowNodes().any { node ->
+                            val bounds = Rect().also { node.getBoundsInScreen(it) }
+                            bounds.top < context.resources.displayMetrics.density * 150 &&
+                                (node.text?.toString() == title || node.contentDescription?.toString()?.contains(title) == true)
+                        }
+                    }
+                }
                 var sawPreview = false
                 var sawSteps = false
+                var sawLatestAboveComposer = false
+                var capturedStepCount = -1
                 waitFor("The configured model did not finish its task", if (customGoal != null) 300_000 else if (phoneTask) 180_000 else 60_000) {
                     val exchange = app.chat.ui.value.exchanges.lastOrNull()
                     val status = exchange?.status
@@ -143,12 +168,33 @@ class ConfiguredChatDeviceTest {
                             }
                         }
                         sawSteps = sawSteps || exchange?.steps?.any { step -> labels.any { it.contains(step.title) } } == true
+                        val nodes = windowNodes()
+                        val input = nodes.firstOrNull { it.className == "android.widget.EditText" }
+                        val inputBounds = input?.let { Rect().also(it::getBoundsInScreen) }
+                        val newest = exchange?.steps?.lastOrNull()?.title
+                        val visibleLatest = newest != null && inputBounds != null && nodes.any { node ->
+                            val bounds = Rect().also(node::getBoundsInScreen)
+                            (node.text?.toString() ?: node.contentDescription?.toString()).orEmpty().contains(newest) &&
+                                bounds.top > context.resources.displayMetrics.heightPixels * .35f &&
+                                bounds.bottom <= inputBounds.top && bounds.height() > 0
+                        }
+                        sawLatestAboveComposer = sawLatestAboveComposer || visibleLatest
+                        if (visibleLatest && exchange!!.steps.size != capturedStepCount) {
+                            capturedStepCount = exchange.steps.size
+                            automation.takeScreenshot()?.let { bitmap ->
+                                File(app.cacheDir, "task-monitor-latest-device.png").outputStream().use {
+                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+                                }
+                                bitmap.recycle()
+                            }
+                        }
                     }
                     if (status is ExchangeStatus.Failed) fail("The configured provider returned a task failure")
                     app.chat.ui.value.composer == ComposerMode.Idle && status is ExchangeStatus.Done
                 }
                 if (phoneTask) {
                     assertTrue("The phone task's real steps must be visible while executing", sawSteps)
+                    assertTrue("The latest execution record must stay above the composer without scrolling", sawLatestAboveComposer)
                     assertTrue("The phone task's actual execution frame must appear in Flutter", sawPreview)
                     val runId = requireNotNull(app.chat.ui.value.exchanges.last().runId)
                     val store = com.daiyimo.maeve.record.RunStore(app)

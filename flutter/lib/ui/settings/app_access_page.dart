@@ -80,7 +80,35 @@ class _AppAccessPageState extends State<AppAccessPage> {
                   ),
                 if (_busy) const LinearProgressIndicator(),
                 TextField(
-                  decoration: const InputDecoration(labelText: '搜索应用或包名'),
+                  key: const ValueKey('app-access-search'),
+                  decoration: InputDecoration(
+                    hintText: '搜索应用或包名',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    filled: true,
+                    fillColor: Theme.of(context)
+                        .colorScheme
+                        .surfaceContainerHighest,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
                   onChanged: (value) => setState(() => _query = value),
                 ),
                 TextButton(

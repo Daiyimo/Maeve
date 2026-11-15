@@ -81,16 +81,16 @@ class _AmooPageState extends State<AmooPage> with WidgetsBindingObserver {
     'verifying' => '已发送，等待 Amoo 完成验证',
     'done' => '接入验证已完成',
     'failed' => '接入未完成，请重试并保持 Amoo 在前台',
-    _ => '尚未开始接入',
+    _ => _status?.lastSetupAt != null ? '上次接入验证已完成' : '尚未开始接入',
   };
+  String _time(DateTime time) => time.toLocal().toString().split('.').first;
 
   @override
   Widget build(BuildContext context) {
     final status = _status;
-    final last = status?.lastResultAt?.toLocal();
-    final latest = last == null
+    final latest = status?.lastResultAt == null
         ? null
-        : TimeOfDay.fromDateTime(last).format(context);
+        : _time(status!.lastResultAt!);
     return AppPage.list(
       title: 'Amoo',
       subtitle: '把手机操作交给 Maeve',
@@ -113,6 +113,18 @@ class _AmooPageState extends State<AmooPage> with WidgetsBindingObserver {
               title: '接入进度',
               subtitle: status == null ? '正在读取设备状态' : _stageText,
             ),
+            if (status?.setupStartedAt != null && status!.active)
+              SettingsTile(
+                icon: Icons.schedule_rounded,
+                title: '本次接入已开始',
+                subtitle: _time(status.setupStartedAt!),
+              ),
+            if (status?.lastSetupAt != null)
+              SettingsTile(
+                icon: Icons.check_circle_outline_rounded,
+                title: '最近接入验证成功',
+                subtitle: _time(status!.lastSetupAt!),
+              ),
             if (status != null && !status.installed)
               const SettingsTile(
                 icon: Icons.info_outline,
@@ -172,8 +184,8 @@ class _AmooPageState extends State<AmooPage> with WidgetsBindingObserver {
             ),
             SettingsTile(
               icon: Icons.history_rounded,
-              title: '最近收到的结果',
-              subtitle: latest == null ? '尚无结果记录' : '最近一次结果：$latest',
+              title: '最近收到的任务结果',
+              subtitle: latest == null ? '尚无任务结果，收到任务回传后更新' : '最近一次结果：$latest',
             ),
           ],
           footnote: '文件桥开启表示正在接收请求，不代表已通过接入验证。取消只停止本次接入，已开启的文件桥会保留。',

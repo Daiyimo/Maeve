@@ -136,6 +136,20 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
     final controller = MaeveScope.of(context);
     final expanded = _expanded ?? (message.active || message.failed);
     final rows = message.executionSteps;
+    final recordButton = message.runId == null
+        ? null
+        : TextButton.icon(
+            onPressed: () => AppPage.open(
+              context,
+              RunDetailsPage(
+                bridge: controller.chatBridge,
+                runId: message.runId!,
+                follow: message.active,
+              ),
+            ),
+            icon: const Icon(Icons.receipt_long_outlined, size: 15),
+            label: const Text('完整执行记录'),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -209,7 +223,14 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
             bridge: controller.chatBridge,
             conversationId: controller.hostConversationId!,
           ),
-        if (expanded)
+        if (expanded && widget.isLatest && message.active)
+          LiveExecutionFeed(
+            key: ValueKey(
+              'live-feed-${message.runId ?? controller.hostConversationId}',
+            ),
+            steps: rows,
+          )
+        else if (expanded)
           for (final step in rows) ExecutionStepView(step: step),
         if (widget.isLatest &&
             message.failed &&
@@ -223,13 +244,16 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
             ),
           ),
         if (widget.isLatest && message.active) ...[
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: controller.cancelRequested ? null : controller.stop,
-              icon: const Icon(Icons.stop_circle_outlined, size: 16),
-              label: Text(controller.cancelRequested ? '正在停止…' : '停止任务'),
-            ),
+          Wrap(
+            spacing: 8,
+            children: [
+              TextButton.icon(
+                onPressed: controller.cancelRequested ? null : controller.stop,
+                icon: const Icon(Icons.stop_circle_outlined, size: 16),
+                label: Text(controller.cancelRequested ? '正在停止…' : '停止任务'),
+              ),
+              ?recordButton,
+            ],
           ),
           if (message.detail != null &&
               message.detail!.isNotEmpty &&
@@ -276,24 +300,167 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
         ],
         if (_error != null)
           Text(_error!, style: MaeveType.caption.copyWith(color: colors.bad)),
-        if (message.runId != null)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => AppPage.open(
-                context,
-                RunDetailsPage(
-                  bridge: controller.chatBridge,
-                  runId: message.runId!,
-                  follow: message.active,
-                ),
-              ),
-              icon: const Icon(Icons.receipt_long_outlined, size: 15),
-              label: const Text('完整执行记录'),
-            ),
-          ),
+        if (recordButton != null && !(widget.isLatest && message.active))
+          Align(alignment: Alignment.centerLeft, child: recordButton),
         const SizedBox(height: 6),
       ],
+    );
+  }
+}
+
+/// 画面下方的固定记录窗口：新记录从底部进入，旧记录向上移。
+class LiveExecutionFeed extends StatefulWidget {
+  const LiveExecutionFeed({super.key, required this.steps});
+  final List<ExecutionStep> steps;
+  @override
+  State<LiveExecutionFeed> createState() => _LiveExecutionFeedState();
+}
+
+class _LiveExecutionFeedState extends State<LiveExecutionFeed> {
+  final _scroll = ScrollController();
+  bool _following = true;
+  double _extent = 92;
+  @override
+  void initState() {
+    super.initState();
+    _scroll.addListener(() {
+      final follow = _scroll.position.pixels < 24;
+      if (follow != _following && mounted) setState(() => _following = follow);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant LiveExecutionFeed oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final count = widget.steps.length - oldWidget.steps.length;
+    final offset = _scroll.hasClients ? _scroll.offset : 0.0;
+    final follow = _following;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      if (follow) {
+        _scroll.jumpTo(0);
+      } else if (count > 0) {
+        _scroll.jumpTo(
+          (offset + count * _extent).clamp(0, _scroll.position.maxScrollExtent),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = MaeveTheme.of(context).colors;
+    _extent = (92 * MediaQuery.textScalerOf(context).scale(14) / 14).clamp(
+      92,
+      180,
+    );
+    return Container(
+      key: const ValueKey('live-execution-feed'),
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: c.rule),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '实时执行记录',
+                    style: MaeveType.caption.copyWith(color: c.ink2),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _following ? null : () => _scroll.jumpTo(0),
+                  child: Text(_following ? '正在跟随最新' : '回到最新'),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: (_extent * 1.8).clamp(160, 230),
+            child: widget.steps.isEmpty
+                ? Center(
+                    child: Text(
+                      '等待第一条执行记录',
+                      style: MaeveType.caption.copyWith(color: c.ink3),
+                    ),
+                  )
+                : ListView.builder(
+                    key: const ValueKey('live-execution-list'),
+                    controller: _scroll,
+                    reverse: true,
+                    itemExtent: _extent,
+                    itemCount: widget.steps.length,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    itemBuilder: (context, index) {
+                      final step =
+                          widget.steps[widget.steps.length - 1 - index];
+                      final detail = step.detail.isNotEmpty
+                          ? step.detail
+                          : step.actions.map((a) => a.label).join(' · ');
+                      return Container(
+                        key: ValueKey('live-step-${step.step}'),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: index == 0 ? c.accentSoft : c.fill,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '${step.step.toString().padLeft(2, '0')}  ${step.title}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: MaeveType.caption.copyWith(
+                                color: step.failed ? c.bad : c.ink,
+                                fontWeight: index == 0
+                                    ? FontWeight.w600
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                            if (step.reason.isNotEmpty &&
+                                step.reason != step.title)
+                              Text(
+                                step.reason,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: MaeveType.hint.copyWith(color: c.ink2),
+                              ),
+                            if (detail.isNotEmpty)
+                              Text(
+                                detail,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: MaeveType.hint.copyWith(
+                                  color: step.failed ? c.bad : c.ink3,
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

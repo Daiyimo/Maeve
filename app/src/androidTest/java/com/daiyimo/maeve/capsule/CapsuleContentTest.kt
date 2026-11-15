@@ -9,6 +9,13 @@ import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -32,7 +39,7 @@ class CapsuleContentTest {
     @get:Rule val compose = createComposeRule()
 
     private val clicks = mutableListOf<String>()
-    @Test fun whiteDockKeepsAUsableTouchTargetEvenInDarkAppearance() {
+    @Test fun bookmarkDockKeepsAUsableTouchTargetAndUsesDarkSurface() {
         compose.setContent {
             MaeveTheme(dark = true, reduceMotion = true) { CapsuleContent(CapsuleView.Shown(CapsuleKind.Idle, ""), {}, {}, {}) }
         }
@@ -41,7 +48,24 @@ class CapsuleContentTest {
         assertTrue(bounds.width.value >= 44 && bounds.height.value >= 44)
         val pixels = dock.captureToImage().toPixelMap()
         val paper = pixels[pixels.width / 2, (pixels.height * .1f).toInt()]
-        assertTrue("Dock surface should remain white: $paper", paper.red > .97f && paper.green > .97f && paper.blue > .97f)
+        assertTrue("Dock should follow dark appearance: $paper", paper.red < .5f && paper.green < .5f && paper.blue < .5f)
+    }
+
+    @Test fun brandedBookmarkKeepsStatusAndActionsVisible() {
+        compose.setContent {
+            MaeveTheme(dark = false, reduceMotion = true) {
+                Column(Modifier.background(MaeveTheme.colors.bg).padding(20.dp)) {
+                    CapsuleContent(CapsuleView.Shown(CapsuleKind.Running, "正在整理执行记录"), {}, {}, {})
+                    CapsuleContent(CapsuleView.Shown(CapsuleKind.NeedAnswer, "请选择要处理的应用", pill = true), {}, {}, {})
+                    CapsuleContent(CapsuleView.Shown(CapsuleKind.HandedOver, "你来处理", detail = "完成后交回 Maeve"), {}, {}, {})
+                }
+            }
+        }
+        compose.onNodeWithText("MAEVE").assertIsDisplayed()
+        compose.onNodeWithText("请选择要处理的应用").assertIsDisplayed()
+        val image = compose.onNode(androidx.compose.ui.test.isRoot()).captureToImage().asAndroidBitmap()
+        java.io.File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "capsule-bookmark-preview.png")
+            .outputStream().use { image.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
     }
 
     private fun show(view: CapsuleView.Shown) {

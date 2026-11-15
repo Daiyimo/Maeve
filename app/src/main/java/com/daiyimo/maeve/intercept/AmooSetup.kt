@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
+import kotlinx.serialization.json.*
 
 /**
  * 一键接入 amoo。
@@ -28,6 +29,10 @@ import java.io.File
  * 输入框/发送按钮的 view id 写死在下面,换机型要重新核对。
  */
 class AmooSetup(private val app: MaeveApp) {
+    private val progressPrefs by lazy { app.getSharedPreferences("amoo_setup_progress", android.content.Context.MODE_PRIVATE) }
+    val lastVerifiedAt: Long? get() = progressPrefs.getLong("verified_at", 0).takeIf { it > 0 }
+        ?: verifiedMarkerTime(marker(), SKILL_VERSION)
+    val lastStartedAt: Long? get() = progressPrefs.getLong("started_at", 0).takeIf { it > 0 }
 
     enum class Stage { Idle, Waiting, Sending, Verifying, Done, Failed }
 
@@ -45,6 +50,7 @@ class AmooSetup(private val app: MaeveApp) {
 
     /** 用户点了「一键接入」。等他自己切到 amoo 聊天,剩下的我们来做。 */
     fun start() {
+        progressPrefs.edit().putLong("started_at", System.currentTimeMillis()).apply()
         FeatureFlags.get(app).setBridgeAmoo(true)
         app.wechat.syncControl()
         inbox().mkdirs()
@@ -120,6 +126,7 @@ class AmooSetup(private val app: MaeveApp) {
             while (isActive && System.currentTimeMillis() < deadline) {
                 delay(POLL_MS)
                 if (skillVersion() == SKILL_VERSION && marker().lastModified() >= injectedAt - 2_000) {
+                    progressPrefs.edit().putLong("verified_at", System.currentTimeMillis()).apply()
                     _stage.value = Stage.Done
                     return@launch
                 }
@@ -166,6 +173,15 @@ class AmooSetup(private val app: MaeveApp) {
         const val SKILL_VERSION = 7
     }
 }
+
+/** 升级前已经接入的用户，从真实且匹配当前版本的标记恢复时间，不借用任务结果时间。 */
+internal fun verifiedMarkerTime(marker: File, expectedVersion: Int): Long? = runCatching {
+    if (!marker.isFile || marker.length() !in 1..4096) return@runCatching null
+    val json = Json.parseToJsonElement(marker.readText()).jsonObject
+    if (json["skill"]?.jsonPrimitive?.content != "maeve-bridge" ||
+        json["version"]?.jsonPrimitive?.intOrNull != expectedVersion) return@runCatching null
+    marker.lastModified().takeIf { it > 0 }
+}.getOrNull()
 
 /** 从 amoo 写的 skill.json 里取版本号。 */
 internal fun parseSkillVersion(body: String): Int? =

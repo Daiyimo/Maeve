@@ -20,6 +20,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.isRoot
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performTextInput
@@ -97,6 +100,15 @@ class CapsuleCardContentTest {
         userTexts.mapIndexed { i, t -> PastTurn(com.daiyimo.maeve.core.agent.Turn(t, "收到", "succeeded", runId = "r$i")) },
         CapsuleThreads.PAGE, emptyList(),
     )
+
+    @Test fun brandedCardKeepsConversationAndComposerAccessible() {
+        show(CardView.Chat("preview", title = "今日安排"), thread = idleThread("帮我整理今天的安排"))
+        compose.onNodeWithText("MAEVE").assertIsDisplayed()
+        compose.onNodeWithContentDescription(CardCopy.COLLAPSE).assertIsDisplayed()
+        val image = compose.onNodeWithTag("capsule-card").captureToImage().asAndroidBitmap()
+        java.io.File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "capsule-card-preview.png")
+            .outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+    }
 
     @Test fun threadShowsScreenMessageWithTagAndWords() {
         show(CardView.Chat("c1", title = "t"), thread = idleThread("[[screen:s1]]", "[[screen:s1]]\n第三条有没有坑?", "[[screen:s2]]"))

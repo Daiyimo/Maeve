@@ -10,6 +10,18 @@ import org.junit.rules.TemporaryFolder
 class FlutterAmooSettingsTest {
     @get:Rule val tmp = TemporaryFolder()
 
+    @Test fun verifiedSetupHasItsOwnTimestampEvenWithoutTaskResults() {
+        val status = FlutterAmooSettings.snapshot(AmooSetup.Stage.Done, true, tmp.root, true, true,
+            lastSetupAt = 20000L, setupStartedAt = 10000L)
+        assertEquals(20000L, status["lastSetupAt"])
+        assertEquals(10000L, status["setupStartedAt"])
+        assertNull(status["lastResultAt"])
+        val restarted = FlutterAmooSettings.snapshot(AmooSetup.Stage.Idle, true, tmp.root, true, true,
+            lastSetupAt = 20000L, setupStartedAt = 10000L)
+        assertEquals(20000L, restarted["lastSetupAt"])
+        assertNull(restarted["lastResultAt"])
+    }
+
     @Test fun enabledBridgeDoesNotPretendSetupWasVerified() {
         val status = FlutterAmooSettings.snapshot(AmooSetup.Stage.Waiting, true, tmp.root, true, true)
         assertEquals("waiting", status["stage"])

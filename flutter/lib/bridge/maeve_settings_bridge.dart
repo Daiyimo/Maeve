@@ -7,10 +7,13 @@ class NativeAmooStatus {
     this.accessibility = false,
     this.bridgeEnabled = false,
     this.lastResultAt,
+    this.lastSetupAt,
+    this.setupStartedAt,
   });
   final String stage;
   final bool installed, accessibility, bridgeEnabled;
   final DateTime? lastResultAt;
+  final DateTime? lastSetupAt, setupStartedAt;
   bool get active => const ['waiting', 'sending', 'verifying'].contains(stage);
   factory NativeAmooStatus.fromMap(Map<dynamic, dynamic> map) =>
       NativeAmooStatus(
@@ -21,6 +24,16 @@ class NativeAmooStatus {
         lastResultAt: map['lastResultAt'] is num
             ? DateTime.fromMillisecondsSinceEpoch(
                 (map['lastResultAt'] as num).toInt(),
+              )
+            : null,
+        lastSetupAt: map['lastSetupAt'] is num
+            ? DateTime.fromMillisecondsSinceEpoch(
+                (map['lastSetupAt'] as num).toInt(),
+              )
+            : null,
+        setupStartedAt: map['setupStartedAt'] is num
+            ? DateTime.fromMillisecondsSinceEpoch(
+                (map['setupStartedAt'] as num).toInt(),
               )
             : null,
       );

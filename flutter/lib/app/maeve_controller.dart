@@ -548,9 +548,25 @@ class MaeveController extends ChangeNotifier {
     }
     activeId = conversationId ?? '';
     if (conversationId != null && conversationId.isNotEmpty) {
+      final first = (event['exchanges'] as List? ?? [])
+          .whereType<Map>()
+          .firstOrNull;
+      final words = _splitQuote(first?['goal'] as String? ?? '').words
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      final title = String.fromCharCodes(words.runes.take(18));
       if (conversations.every((c) => c.id != conversationId)) {
-        // 新对话(第一次发送才在 store 里建档):先放个占位,标题等 conversations 事件
-        conversations.insert(0, Conversation(id: conversationId, title: '新对话'));
+        conversations.insert(
+          0,
+          Conversation(
+            id: conversationId,
+            title: title.isEmpty ? '新对话' : title,
+          ),
+        );
+      } else if (!_summaryIds.contains(conversationId) &&
+          _find(conversationId).title == '新对话' &&
+          title.isNotEmpty) {
+        _find(conversationId).title = title;
       }
       activeId = conversationId;
     }

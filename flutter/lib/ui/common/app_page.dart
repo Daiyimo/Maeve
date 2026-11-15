@@ -198,14 +198,14 @@ class TopBar extends StatelessWidget {
     return BackdropGroup(
       child: Container(
         padding: EdgeInsets.only(top: safeTop),
-        color: Colors.transparent,
+        color: colors.bg,
         child: MaeveGlassSurface(
           tier: MaeveGlassTier.chrome,
           grouped: true,
           framed: false,
           shape: const RoundedRectangleBorder(),
           blur: true,
-          // 滚动后不用换材质,玻璃本身会采样;这里只在滚动时把填充压得更实一档。
+          // 顶栏底色遮住下层记录；滚动时仅加深自身材质。
           tint: elevated ? colors.ink : null,
           tintAlpha: elevated ? .02 : null,
           child: SizedBox(

@@ -6,6 +6,39 @@ import '../support/fake_settings_bridge.dart';
 
 void main() {
   test(
+    'A new task gets its title before any turn has completed or persisted',
+    () async {
+      final bridge = FakeChatBridge();
+      final controller = MaeveController(
+        bridge: bridge,
+        settingsBridge: FakeSettingsBridge(),
+      );
+      addTearDown(controller.dispose);
+      addTearDown(bridge.dispose);
+      controller.attach();
+      await Future<void>.delayed(Duration.zero);
+      bridge.emitUi(
+        conversationId: 'early',
+        composer: 'busy',
+        exchanges: [
+          FakeChatBridge.exchange(
+            '帮我查一下明天的天气',
+            status: 'working',
+            live: true,
+            line: '正在思考',
+          ),
+        ],
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.active.title, '帮我查一下明天的天气');
+      expect(controller.generating, isTrue);
+      bridge.emitConversations([FakeChatBridge.conversation('early', '明日天气')]);
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.active.title, '明日天气');
+    },
+  );
+
+  test(
     'An attached new turn survives a summary that precedes persistence',
     () async {
       final bridge = FakeChatBridge();

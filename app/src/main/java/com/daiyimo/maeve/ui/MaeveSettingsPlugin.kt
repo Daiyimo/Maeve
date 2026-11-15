@@ -124,6 +124,8 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                             media = app.externalMediaDirs.firstOrNull(),
                             installed = amooInstalled(),
                             accessibility = ScreenAccessibility.instance.value != null,
+                            lastSetupAt = app.amooSetup.lastVerifiedAt,
+                            setupStartedAt = app.amooSetup.lastStartedAt,
                         )
                     })
                 } catch (e: CancellationException) { throw e }

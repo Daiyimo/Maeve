@@ -319,7 +319,15 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
         if (uiJob != null) return
         val s = engineScope()
         // StateFlow:订阅即推当前值,之后每次 _ui 变更都推
-        uiJob = s.launch { app.chat.ui.collect { pushUi() } }
+        uiJob = s.launch {
+            var populated: String? = null
+            app.chat.ui.collect { ui ->
+                pushUi()
+                val id = ui.conversationId?.takeIf { ui.exchanges.isNotEmpty() }
+                if (id != populated && id != null) pushConversations()
+                populated = id
+            }
+        }
         changesJob = s.launch { app.conversations.changes.collect { pushConversations() } }
     }
 
@@ -376,13 +384,23 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
 
     // —— 数据映射(宿主 → 壳的稳定字符串码,壳不做业务判断)——
 
-    private fun summaries(): List<Map<String, Any?>> = app.conversations.list().map { c ->
-        mapOf(
+    private fun summaries(): List<Map<String, Any?>> {
+        val saved = app.conversations.list().map { c -> mapOf<String, Any?>(
             "id" to c.id,
             "title" to c.title,
             "updatedAt" to c.updatedAt,
             "pinned" to (c.pinnedAt != null),
-        )
+        ) }.toMutableList()
+        val present = saved.map { it["id"] }.toMutableSet()
+        val live = app.taskState.runs.value.associate { it.conversationId to it.goal }.toMutableMap()
+        val ui = app.chat.ui.value
+        ui.conversationId?.let { id -> ui.exchanges.firstOrNull()?.goal?.let { live[id] = it } }
+        for ((id, goal) in live) if (id !in present && goal.isNotBlank() && !app.conversations.deletionBlocked(id)) {
+            saved += mapOf("id" to id, "title" to (app.conversations.title(id) ?: com.daiyimo.maeve.chat.ConversationTitler.preview(goal)),
+                "updatedAt" to System.currentTimeMillis(), "pinned" to (app.conversations.pinnedAt(id) != null))
+            present += id
+        }
+        return saved.sortedByDescending { it["updatedAt"] as Long }
     }
 
     /** Compose 界面同一套检查:系统状态 + 有没有主模型。发送前现读一次,和回前台刷新一个来源。 */
