@@ -89,7 +89,7 @@ internal suspend inline fun Request.Builder.postInference(
     val context = currentCoroutineContext()
     // 追踪链路和请求计数都只数带标记的请求；同协程里的令牌刷新、目录请求不带标记，
     // 不会被算成模型调用。
-    if (context[TraceCall] != null || context[ModelHttpAttempts] != null) {
+    if (context[TraceCall] != null || context[ModelHttpAttempts] != null || context[com.daiyimo.maeve.core.run.RunBudgetContext] != null) {
         tag(InferenceRequest::class.java, InferenceRequest(protocol, payload, provider()))
     }
     return post(payload.toString().toRequestBody("application/json".toMediaType()))

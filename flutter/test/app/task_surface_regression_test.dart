@@ -12,11 +12,37 @@ import 'package:maeve_flutter/ui/settings/system_access_page.dart';
 import 'package:maeve_flutter/ui/settings/execution_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 import 'package:maeve_flutter/ui/settings/run_history_page.dart';
+import 'package:maeve_flutter/ui/settings/about_pages.dart';
 import 'package:maeve_flutter/models/execution.dart';
 import 'package:maeve_flutter/widgets/execution_view.dart';
 
 import '../support/fake_chat_bridge.dart';
 import '../support/fake_settings_bridge.dart';
+
+class EffectReviewBridge extends FakeChatBridge {
+  EffectReviewBridge()
+    : super(conversations: [FakeChatBridge.conversation('review', '待核对任务')]);
+  final reviews = <bool>[];
+  @override
+  Future<List<Map<String, dynamic>>> effectReceipts(
+    String conversationId,
+  ) async => [
+    {
+      'effectId': 'test-effect',
+      'sequence': 1,
+      'startedAt': 1794700000000,
+      'action': 'phone_tap',
+    },
+  ];
+  @override
+  Future<void> reconcileEffect(
+    String conversationId,
+    Map<String, dynamic> receipt,
+    bool applied,
+  ) async {
+    reviews.add(applied);
+  }
+}
 
 void main() {
   testWidgets(
@@ -90,6 +116,97 @@ void main() {
     await tester.pumpAndSettle();
     return controller;
   }
+
+  testWidgets(
+    'Unknown action review requires local checking and never restarts the task',
+    (tester) async {
+      final bridge = EffectReviewBridge();
+      final controller = await mount(tester, bridge);
+      bridge.emitUi(
+        conversationId: 'review',
+        exchanges: [
+          FakeChatBridge.exchange(
+            '执行测试任务',
+            status: 'failed',
+            answer: '动作结果尚未确认，请先核对',
+            steps: 1,
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+      final review = find.text('核对操作结果');
+      await tester.ensureVisible(review);
+      await tester.tap(review);
+      await tester.pumpAndSettle();
+      final applied = find.widgetWithText(FilledButton, '确认已执行');
+      expect(tester.widget<FilledButton>(applied).onPressed, isNull);
+      expect(bridge.reviews, isEmpty);
+      await tester.tap(find.byType(CheckboxListTile));
+      await tester.pump();
+      await tester.tap(applied);
+      await tester.pumpAndSettle();
+      expect(bridge.reviews, [true]);
+      expect(bridge.sent, isEmpty);
+      expect(controller.active.messages.last.status, 'failed');
+    },
+  );
+
+  testWidgets(
+    'About exposes native read-only checks and support links without starting tasks',
+    (tester) async {
+      final bridge = FakeChatBridge();
+      final calls = <MethodCall>[];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(MaeveBridge.methods, (call) async {
+        calls.add(call);
+        return switch (call.method) {
+          'status' => {
+            'version': 'test',
+            'versionCode': 1,
+            'build': 'test-build',
+            'channel': 'debug',
+            'android': 'test',
+            'links': {
+              'updates': 'https://example.test/updates',
+              'feedback': 'https://example.test/feedback',
+            },
+          },
+          'basicSelfCheck' => {
+            'partial': true,
+            'rows': [
+              {'label': '设备', 'status': 'pass'},
+              {'label': '系统权限', 'status': 'fail', 'advice': '请在系统授权中开启无障碍'},
+            ],
+          },
+          'open_url' => false,
+          _ => null,
+        };
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(MaeveBridge.methods, null),
+      );
+      await mount(tester, bridge);
+      AppPage.open(
+        tester.element(find.byType(Scaffold).first),
+        const AboutPage(),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('设备与权限检查'));
+      await tester.pumpAndSettle();
+      expect(calls.where((c) => c.method == 'basicSelfCheck').length, 1);
+      expect(find.text('设备：通过'), findsOneWidget);
+      expect(find.text('系统权限：需检查'), findsOneWidget);
+      expect(bridge.sent, isEmpty);
+      await tester.tap(find.text('关闭'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('获取更新'));
+      await tester.pumpAndSettle();
+      expect(calls.last.arguments, {'url': 'https://example.test/updates'});
+      expect(find.text('https://example.test/updates'), findsOneWidget);
+      expect(find.text('复制链接'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'Jump to latest is hidden on new empty tasks after scrolling history',
@@ -322,6 +439,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(find.text('自主执行'));
+      await tester.pumpAndSettle();
+      expect(controller.native.autonomous, isFalse);
+      await tester.tap(find.text('了解并开启'));
       await tester.pumpAndSettle();
       expect(controller.native.autonomous, isTrue);
       expect((await settings.load()).autonomous, isTrue);

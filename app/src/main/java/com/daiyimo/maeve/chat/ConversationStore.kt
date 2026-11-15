@@ -21,6 +21,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.UUID
 
 /** 每个对话一个小 JSON 文件,放在 App 私有目录;重启后仍在。 */
@@ -60,13 +63,10 @@ class ConversationStore(private val dir: File) {
             else -> chat
         }
         if (target == _current.value) return
-        dir.mkdirs()
-        runCatching {
-            when (target) {
-                null -> currentFile().delete()
-                CurrentChat.Fresh -> currentFile().writeText(CURRENT_FRESH)
-                is CurrentChat.Open -> currentFile().writeText(safe(target.id))
-            }
+        when (target) {
+            null -> check(!currentFile().exists() || currentFile().delete()) { "current_chat_unavailable" }
+            CurrentChat.Fresh -> atomicWrite(currentFile(), CURRENT_FRESH)
+            is CurrentChat.Open -> atomicWrite(currentFile(), safe(target.id))
         }
         _current.value = target
     }
@@ -107,6 +107,29 @@ class ConversationStore(private val dir: File) {
      */
     private val deleted = mutableSetOf<String>()
 
+    /** 完整删除的持久意图；保留失败会话供重试，但禁止再向旧编号提交任务。 */
+    @Synchronized fun beginDeletion(id: String) {
+        require(safe(id) == id && id.isNotEmpty())
+        if (deletionBlocked(id)) return
+        check(dir.isDirectory || dir.mkdirs())
+        val marker = File(dir, "$id.deleting")
+        val temp = File(dir, "$id.deleting.tmp")
+        FileOutputStream(temp).use { it.write("1".toByteArray()); it.fd.sync() }
+        Files.move(temp.toPath(), marker.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    }
+
+    @Synchronized fun deletionBlocked(id: String): Boolean =
+        File(dir, "${safe(id)}.deleting").exists() || File(dir, "${safe(id)}.removed").exists()
+
+    @Synchronized fun pendingDeletions(): List<String> =
+        dir.listFiles { f -> f.isFile && f.name.endsWith(".deleting") }.orEmpty().map { it.name.removeSuffix(".deleting") }
+
+    @Synchronized fun completeDeletion(id: String) {
+        val marker = File(dir, "${safe(id)}.deleting")
+        if (marker.exists()) Files.move(marker.toPath(), File(dir, "${safe(id)}.removed").toPath(),
+            StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    }
+
     /**
      * 删掉一个对话存下的一切:对话文件、标题、置顶、网页来源、分支来源,以及写到一半的临时文件和挪到一边的损坏文件。
      * 删了什么都发一次 [changes] 和 [deletions]。
@@ -120,7 +143,7 @@ class ConversationStore(private val dir: File) {
             f.isFile && (f.name == main || f.name.startsWith("$main.") || f.name == titleFile(conversationId).name || f.name == pinFile(conversationId).name ||
                 f.name == pageFile(conversationId).name || f.name == branchFile(conversationId).name)
         }
-            .orEmpty().forEach { it.delete() }
+            .orEmpty().forEach { check(it.delete() || !it.exists()) { "conversation_delete_failed" } }
         // 删掉的正是用户此刻在的那个:不再指着它,胶囊回落到最近那个
         if (_current.value == CurrentChat.Open(safe(conversationId))) setCurrent(null)
         _changes.tryEmit(conversationId)
@@ -143,9 +166,9 @@ class ConversationStore(private val dir: File) {
 
     private fun writeTitle(conversationId: String, title: String): Boolean {
         val t = title.trim()
-        if (t.isEmpty() || safe(conversationId) in deleted) return false
+        if (t.isEmpty() || safe(conversationId) in deleted || deletionBlocked(conversationId)) return false
         dir.mkdirs()
-        val ok = runCatching { titleFile(conversationId).writeText(t) }.isSuccess
+        val ok = runCatching { atomicWrite(titleFile(conversationId), t) }.isSuccess
         if (ok) _changes.tryEmit(conversationId)
         return ok
     }
@@ -158,11 +181,11 @@ class ConversationStore(private val dir: File) {
     /** 置顶([pinned] 为真,记下时间 [at])或取消置顶。删掉的对话不动。改了返回 true。 */
     @Synchronized
     fun setPinned(conversationId: String, pinned: Boolean, at: Long = System.currentTimeMillis()): Boolean {
-        if (safe(conversationId) in deleted) return false
+        if (safe(conversationId) in deleted || deletionBlocked(conversationId)) return false
         val f = pinFile(conversationId)
         val ok = if (pinned) {
             dir.mkdirs()
-            runCatching { f.writeText(at.toString()) }.isSuccess
+            runCatching { atomicWrite(f, at.toString()) }.isSuccess
         } else !f.exists() || f.delete()
         if (ok) _changes.tryEmit(conversationId)
         return ok
@@ -182,10 +205,10 @@ class ConversationStore(private val dir: File) {
     /** 记下对话从哪一页开始(之后在同一页上接着问时换成最新的那一页)。删掉的对话不动。写进去了返回 true。 */
     @Synchronized
     fun setPageOrigin(conversationId: String, origin: PageOrigin): Boolean {
-        if (safe(conversationId) in deleted) return false
+        if (safe(conversationId) in deleted || deletionBlocked(conversationId)) return false
         dir.mkdirs()
         val json = buildJsonObject { put("url", origin.url); put("host", origin.host); put("title", origin.title) }
-        val ok = runCatching { pageFile(conversationId).writeText(json.toString()) }.isSuccess
+        val ok = runCatching { atomicWrite(pageFile(conversationId), json.toString()) }.isSuccess
         if (ok) _changes.tryEmit(conversationId)
         return ok
     }
@@ -226,6 +249,7 @@ class ConversationStore(private val dir: File) {
         val records = read(source) ?: return false
         if (turn !in records.indices) return false
         if (file(targetId).exists()) return false
+        if (deletionBlocked(targetId)) return false
         deleted -= safe(targetId)
         write(targetId, records.take(if (includeTurn) turn + 1 else turn))
         title?.let { writeTitle(targetId, it) }
@@ -252,15 +276,7 @@ class ConversationStore(private val dir: File) {
         val json = buildJsonObject {
             put("parent", origin.parentId); put("turn", origin.parentTurn); put("after", origin.afterTurn); put("at", origin.at)
         }
-        val f = branchFile(conversationId)
-        val tmp = File(dir, "${f.name}.tmp")
-        runCatching {
-            tmp.writeText(json.toString())
-            if (!tmp.renameTo(f)) {
-                f.writeText(json.toString())
-                tmp.delete()
-            }
-        }
+        atomicWrite(branchFile(conversationId), json.toString())
     }
 
     /** 文件损坏时当作空对话,不让它挡住新任务。 */
@@ -311,12 +327,13 @@ class ConversationStore(private val dir: File) {
 
     @Synchronized
     fun append(conversationId: String, turn: Turn, files: List<SharedFile> = emptyList()) {
+        if (deletionBlocked(conversationId)) return
         deleted -= safe(conversationId)
         val f = file(conversationId)
         val prior = if (f.isFile) read(f) else emptyList()
         if (prior == null) {
             // 损坏的文件挪到一边留着,不拿新内容覆盖掉
-            f.renameTo(File(dir, "${f.name}.corrupt-${System.currentTimeMillis()}"))
+            Files.move(f.toPath(), File(dir, "${f.name}.corrupt-${UUID.randomUUID()}").toPath(), StandardCopyOption.ATOMIC_MOVE)
         }
         write(conversationId, prior.orEmpty() + (turn to files))
     }
@@ -343,6 +360,7 @@ class ConversationStore(private val dir: File) {
     }
 
     private fun write(conversationId: String, all: List<Pair<Turn, List<SharedFile>>>) {
+        if (deletionBlocked(conversationId)) return
         dir.mkdirs()
         val json = JsonArray(all.map { (it, fs) ->
             buildJsonObject {
@@ -371,14 +389,11 @@ class ConversationStore(private val dir: File) {
             }
         })
         // 先写临时文件再改名,写到一半被杀不会留下半个文件
-        val tmp = File(dir, "${file(conversationId).name}.tmp")
-        tmp.writeText(json.toString())
-        if (!tmp.renameTo(file(conversationId))) {
-            file(conversationId).writeText(json.toString())
-            tmp.delete()
-        }
+        atomicWrite(file(conversationId), json.toString())
         _changes.tryEmit(conversationId)
     }
+
+    private fun atomicWrite(target: File, text: String) = com.daiyimo.maeve.core.io.AtomicFiles.write(target, text.toByteArray(Charsets.UTF_8))
 
     private fun objects(o: JsonObject, k: String) = (o[k] as? JsonArray)?.mapNotNull { it as? JsonObject } ?: emptyList()
     private fun str(o: JsonObject, k: String) = (o[k] as? JsonPrimitive)?.contentOrNull

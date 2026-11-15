@@ -33,12 +33,18 @@ internal object ApkIntegrity {
 
     /** 给了摘要就必须是 sha256 且对得上;别的写法也算对不上,不放过。 */
     fun verify(file: File, size: Long?, digest: String?) {
+        requireMetadata(size, digest)
         corruptUnless(file.isFile && file.length() > 0)
         if (size != null) corruptUnless(file.length() == size)
         if (digest != null) {
             corruptUnless(digest.matches(Regex("sha256:[0-9a-fA-F]{64}")))
             corruptUnless(sha256(file).equals(digest.substringAfter(':'), ignoreCase = true))
         }
+    }
+
+    fun requireMetadata(size: Long?, digest: String?) {
+        corruptUnless(size != null && size in 1..512L * 1024 * 1024)
+        corruptUnless(digest != null && digest.matches(Regex("sha256:[0-9a-fA-F]{64}")))
     }
 
     /**

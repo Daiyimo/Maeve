@@ -26,6 +26,46 @@ class ModelSettingsPage extends StatelessWidget {
             text: controller.settingsError!,
             icon: Icons.info_outline,
           ),
+        if (controller.native.providerSnapshotAvailable &&
+            const [
+              'corrupt',
+              'unavailable',
+            ].contains(controller.native.providerState))
+          OutlinedButton.icon(
+            icon: const Icon(Icons.restore),
+            label: const Text('恢复最近完整模型配置'),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('恢复模型配置'),
+                  content: const Text(
+                    '将恢复最近一次完整保存的服务商、模型、角色与加密凭据。损坏文件会保留在本机，不会启动任务或恢复动作授权。',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('取消'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('恢复'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true) return;
+              try {
+                await controller.recoverProviders();
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('配置恢复失败，原文件已保留。')),
+                  );
+                }
+              }
+            },
+          ),
         if (controller.native.models.isEmpty)
           const EmptyView(
             icon: Icons.auto_awesome_outlined,
@@ -57,6 +97,50 @@ class ModelSettingsPage extends StatelessWidget {
                         icon: const Icon(Icons.tune_rounded, size: 20),
                         onPressed: () =>
                             AppPage.open(context, AddModelPage(config: model)),
+                      ),
+                      IconButton(
+                        tooltip: '删除模型 ${model.model}',
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        onPressed: () async {
+                          final action = await showDialog<String>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Text('删除 ${model.model}'),
+                              content: const Text(
+                                '删除模型会清理其角色引用，并保留同一服务商其他模型共用的密钥。删除整个服务商会一并删除其所有模型、登录凭据和本地密钥。正在运行的任务可能仍持有旧配置，建议先停止；本地删除不会撤销云端 Key。',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('取消'),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, 'provider'),
+                                  child: const Text('删除整个服务商'),
+                                ),
+                                FilledButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, 'model'),
+                                  child: const Text('仅删除此模型'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (action == null) return;
+                          try {
+                            await controller.deleteModel(
+                              model.id,
+                              wholeProvider: action == 'provider',
+                            );
+                          } catch (_) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('删除未能保存，请重试。')),
+                              );
+                            }
+                          }
+                        },
                       ),
                     ],
                   ),

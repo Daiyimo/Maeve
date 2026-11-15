@@ -10,9 +10,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven {
-            url = uri("flutter/build/host/outputs/repo")
-            content { includeGroup("com.daiyimo.maeve_flutter") }
+        for (mode in listOf("debug", "profile", "release")) {
+            maven {
+                url = uri(if (mode == "debug") "flutter/build/host/outputs/repo" else "flutter/build/host-$mode/host/outputs/repo")
+                content { includeModule("com.daiyimo.maeve_flutter", "flutter_$mode") }
+            }
         }
         maven {
             val storageUrl = System.getenv("FLUTTER_STORAGE_BASE_URL") ?: "https://storage.googleapis.com"

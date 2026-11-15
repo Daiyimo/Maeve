@@ -6,10 +6,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.CoroutineContext
 
 /** 删掉一个对话会连带什么:有没有在跑或排队的任务(会被停掉),绑在它上面的定时任务有几条(一起删)。 */
 data class DeleteImpact(val runningTask: Boolean, val schedules: Int)
+class DeleteIncomplete(val code: String, val stages: List<String>) : IllegalStateException(code)
 
 /**
  * 删掉一个对话:先删绑在它上面的定时任务(不让它们再开始新任务),再停掉它在跑、排队的任务并等它收尾
@@ -27,28 +30,51 @@ class ConversationDeleter(
     private val removeSchedule: (id: String) -> Unit,
     /** 删掉这个对话的工作区。 */
     private val deleteWorkspace: suspend (conversationId: String) -> Unit,
-    /** 停任务后最多等它收尾这么久;过了照删。 */
+    /** 停任务后最多等它收尾这么久;超时保留数据并报告 pending。 */
     private val stopWaitMs: Long = 15_000,
     /** 读写定时任务和对话记录在哪儿做。 */
     private val io: CoroutineContext = Dispatchers.IO,
     private val forgetRemoteTasks: (String) -> Unit = {},
+    private val deleteDrafts: (String) -> Unit = {},
 ) {
+    private val mutation = Mutex()
     fun impact(conversationId: String): DeleteImpact =
-        DeleteImpact(conversationId in active.value, runCatching { schedulesOf(conversationId).size }.getOrDefault(0))
+        DeleteImpact(conversationId in active.value, schedulesOf(conversationId).size)
 
-    suspend fun delete(conversationId: String) {
+    suspend fun delete(conversationId: String) = mutation.withLock {
         withContext(io) {
-            runCatching { schedulesOf(conversationId) }.getOrDefault(emptyList()).forEach { runCatching { removeSchedule(it) } }
+            store.beginDeletion(conversationId)
+            try { schedulesOf(conversationId).forEach { removeSchedule(it) } }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { throw DeleteIncomplete("delete_partial", listOf("schedules")) }
         }
         if (conversationId in active.value) {
             cancelTasks(conversationId)
-            withTimeoutOrNull(stopWaitMs) { active.first { conversationId !in it } }
+            val stopped = withTimeoutOrNull(stopWaitMs) { active.first { conversationId !in it }; true } == true
+            if (!stopped) throw DeleteIncomplete("delete_pending", listOf("tasks"))
         }
-        // 工作区删不掉(运行环境不支持等)也照样删对话记录
-        try { deleteWorkspace(conversationId) } catch (e: CancellationException) { throw e } catch (e: Exception) { }
+        // 保留会话作为重试入口，不能将附件清理失败宣告为完整删除。
+        try { deleteWorkspace(conversationId) } catch (e: CancellationException) { throw e } catch (_: Exception) { throw DeleteIncomplete("delete_partial", listOf("workspace")) }
         withContext(io) {
-            forgetRemoteTasks(conversationId)
-            store.delete(conversationId)
+            try { deleteDrafts(conversationId) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { throw DeleteIncomplete("delete_partial", listOf("drafts")) }
+            try { forgetRemoteTasks(conversationId) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { throw DeleteIncomplete("delete_partial", listOf("remote")) }
+            try { store.delete(conversationId); store.completeDeletion(conversationId) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { throw DeleteIncomplete("delete_partial", listOf("conversation")) }
+        }
+    }
+
+    /** 重启/超时后只继续已确认的删除；不重启旧任务或重放外部动作。 */
+    suspend fun reconcile() {
+        val pending = withContext(io) { store.pendingDeletions() }
+        pending.forEach { id ->
+            try { delete(id) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { /* 保留 marker，下一轮重试。 */ }
         }
     }
 }

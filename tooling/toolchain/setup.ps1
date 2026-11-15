@@ -1,7 +1,7 @@
 #requires -Version 5.1
 <#
 .SYNOPSIS
-    Install the pinned Maeve toolchain (JDK 17, Gradle 8.11.1, Flutter 3.47.7) into a
+    Install the pinned Maeve toolchain (JDK 17, Gradle 9.3.1, Flutter 3.47.7) into a
     directory outside the repository and write env.ps1 / env.sh for this machine.
 
 .DESCRIPTION
@@ -78,7 +78,7 @@ if (-not $SkipJdk) {
     Write-Step 'JDK skipped'
 }
 
-# --- Gradle 8.11.1 ----------------------------------------------------------
+# --- Gradle 9.3.1 ----------------------------------------------------------
 Write-Step "Gradle $($versions.gradle.version)"
 $gradleHome = Join-Path $Toolchains "gradle-$($versions.gradle.version)"
 $gradleBat = Join-Path $gradleHome "gradle-$($versions.gradle.version)\bin\gradle.bat"

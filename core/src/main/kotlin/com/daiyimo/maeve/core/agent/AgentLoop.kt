@@ -156,6 +156,8 @@ class AgentLoop(
     /** 同一网站、App 里连着做对外动作(发送、提交)时两次之间的间隔;默认不等。 */
     private val outwardPacing: OutwardPacing = OutwardPacing.Off,
     private val trace: RunTrace? = null,
+    private val budget: com.daiyimo.maeve.core.run.RunBudget? = null,
+    private val effects: com.daiyimo.maeve.core.action.ActionEffects? = null,
 ) {
     init {
         require(maxSteps > 0) { "maxSteps must be positive" }
@@ -273,6 +275,11 @@ class AgentLoop(
         } catch (e: CancellationException) {
             if (!cancelRequested) throw e
             TaskState.Cancelled
+        } catch (e: com.daiyimo.maeve.core.run.RunBudget.Exceeded) {
+            StopRules.modelFailed(e)
+        } catch (e: com.daiyimo.maeve.core.action.ActionEffects.Blocked) {
+            TaskState.Failed(if (e.code == "effect_already_recorded") "这一步已有执行回执，已阻止重复操作。请核对执行记录。"
+                else "动作结果尚未确认（${e.code}），已停止新操作。请先在目标应用核对已发生的事项，再点“核对操作结果”，不要直接重复提交。", FailKind.Guard)
         } finally {
             job = null
             user.clear()
@@ -377,7 +384,7 @@ class AgentLoop(
         val recorder = ActionRecorder(sink, clock, saveScreen = { id, png -> sink.media(id, png) })
         val executor = ActionExecutor(tools, guards, confirmations, gate = ::awaitGate, recorder = recorder, offScreen = tools.offScreenGuard(), approvals = approvals,
             provenance = provenance,
-            selfPackage = selfPackage, autonomous = autonomous, pacing = outwardPacing)
+            selfPackage = selfPackage, autonomous = autonomous, pacing = outwardPacing, budget = budget, effects = effects)
         var emptyNudged = false
         // 调过工具才有可核对的材料;交给用户付款和放行过对外动作一样,回答要另请核查
         var acted = false
@@ -667,7 +674,7 @@ class AgentLoop(
                     // 模型单步只会被守卫叫停、被确认关卡拦下,或因作用在 Maeve 自己身上、默认不碰名单里的 App、
                     // 密码 / 验证码页而不做;别的拒绝说明执行入口和这里对不上
                     check(action.hit != null ||
-                        action.code in setOf(Refusals.OWN_APP, Refusals.APP_DENIED, Refusals.SECRET_PAGE)) { "unexpected refusal ${action.code} for ${first.name}" }
+                        action.code in setOf(Refusals.OWN_APP, Refusals.APP_DENIED, Refusals.SECRET_PAGE, "target_unresolved", "approval_revoked")) { "unexpected refusal ${action.code} for ${first.name}" }
                     // 被确认关卡拦下:不计入失败熔断,交给模型走确认流程
                     track.after(tools.verb(first.name), ok = false, guard = action.before.isNotEmpty(), changed = null, recovery = false, app = null)
                     continue

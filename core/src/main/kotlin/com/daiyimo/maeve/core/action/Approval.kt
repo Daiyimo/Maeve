@@ -30,8 +30,9 @@ enum class ConfirmChoice { Once, Deny;
 
 /** 询问 / 自主:此刻是不是自主模式(中途换成自主时,正在跑的任务从下一步起照它)。由设置提供,测试里换成固定值。 */
 fun interface ApprovalSettings {
-    /** 自主模式:连付款也不先问(不对 Maeve 自己动手照旧,见 com.daiyimo.maeve.core.gate.SelfAppGuard)。 */
+    /** 自主只影响可恢复的普通写入，对外与不可逆动作仍需单次授权。 */
     fun autonomous(): Boolean
+    fun revision(): Long = 0
 
     companion object {
         /** 询问(默认):付款和工具声明要问的那几步(见 [Risk.ask])先问。 */
@@ -54,7 +55,7 @@ sealed interface Approval {
  */
 object ApprovalPolicy {
     fun decide(risk: Risk, run: RunProvenance = RunProvenance(), everyWrite: Boolean = false): Approval = when {
-        !risk.payment && risk.ask == null && !everyWrite -> Approval.Allow
+        !risk.payment && risk.ask == null && !risk.level.outward && !everyWrite -> Approval.Allow
         run.attendance == Attendance.Unattended || run.origin != RunOrigin.Ui -> Approval.Deny
         else -> Approval.Ask
     }

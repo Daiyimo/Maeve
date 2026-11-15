@@ -71,11 +71,12 @@ class NativeModelConfig {
     required this.baseUrl,
     this.vision = false,
     this.hasKey = false,
+    this.selfHostedHttp = false,
     this.reasoningEffort,
     this.reasoningLevels = const [],
   });
   final String id, name, model, kind, baseUrl;
-  final bool vision, hasKey;
+  final bool vision, hasKey, selfHostedHttp;
   final String? reasoningEffort;
   final List<String> reasoningLevels;
   factory NativeModelConfig.fromMap(Map<dynamic, dynamic> map) =>
@@ -87,6 +88,7 @@ class NativeModelConfig {
         baseUrl: map['baseUrl'] as String,
         vision: map['vision'] == true,
         hasKey: map['hasKey'] == true,
+        selfHostedHttp: map['selfHostedHttp'] == true,
         reasoningEffort: map['reasoningEffort'] as String?,
         reasoningLevels: List<String>.from(
           map['reasoningLevels'] as List? ?? const [],
@@ -107,6 +109,9 @@ class NativeSettings {
     this.presets = const [],
     this.autonomous = false,
     this.operatingPace = 'standard',
+    this.taskStepLimit = 60,
+    this.providerState = 'valid',
+    this.providerSnapshotAvailable = false,
     this.capsuleEnabled = true,
     this.accessibility = false,
     this.accessibilityRunning = false,
@@ -116,6 +121,9 @@ class NativeSettings {
     this.phoneSupported = false,
   });
   final String mode, accent, operatingPace;
+  final String providerState;
+  final bool providerSnapshotAvailable;
+  final int taskStepLimit;
   final bool welcomeSeen;
   final bool haptics,
       capsuleEnabled,
@@ -136,6 +144,9 @@ class NativeSettings {
     accent: map['accent'] as String? ?? 'reverie',
     autonomous: map['autonomous'] == true,
     operatingPace: map['operatingPace'] as String? ?? 'standard',
+    taskStepLimit: (map['taskStepLimit'] as num?)?.toInt() ?? 60,
+    providerState: map['providerState'] as String? ?? 'valid',
+    providerSnapshotAvailable: map['providerSnapshotAvailable'] == true,
     capsuleEnabled: map['capsuleEnabled'] as bool? ?? true,
     haptics: map['haptics'] as bool? ?? true,
     reduceTransparency: map['reduceTransparency'] as bool? ?? false,
@@ -161,14 +172,20 @@ class NativeSettings {
 abstract class MaeveSettingsBridge {
   const MaeveSettingsBridge();
   Future<NativeSettings> load();
+  Future<NativeSettings> recoverProviders() =>
+      throw UnsupportedError('provider_recovery');
   Future<NativeSettings> completeOnboarding();
   Future<Map<String, dynamic>> listModels(Map<String, String> values);
   Future<Map<String, dynamic>> modelUsage();
   Future<NativeSettings> setOperatingPace(String pace);
+  Future<NativeSettings> setTaskStepLimit(int limit) =>
+      throw UnsupportedError('task_budget');
   Future<NativeSettings> setCapsuleEnabled(bool enabled);
   Future<NativeSettings> appearance(Map<String, Object> values);
   Future<NativeSettings> saveModel(Map<String, String> values);
   Future<NativeSettings> selectModel(String id);
+  Future<NativeSettings> deleteModel(String id, {bool wholeProvider = false}) =>
+      throw UnsupportedError('delete_model');
   Future<void> openAccess(String target);
   Future<NativeAmooStatus> amoo(String action);
   Future<Map<String, dynamic>> wechat(String action, {bool? enabled});
@@ -178,6 +195,11 @@ abstract class MaeveSettingsBridge {
 class HostSettingsBridge extends MaeveSettingsBridge {
   const HostSettingsBridge();
   static const channel = MethodChannel('maeve/settings');
+  @override
+  Future<NativeSettings> deleteModel(String id, {bool wholeProvider = false}) =>
+      _call('deleteModel', {'id': id, 'wholeProvider': wholeProvider});
+  @override
+  Future<NativeSettings> recoverProviders() => _call('recoverProviders');
   @override
   Future<Map<String, dynamic>> wechat(String action, {bool? enabled}) async {
     final response = await channel.invokeMapMethod<String, dynamic>('wechat', {
@@ -224,6 +246,9 @@ class HostSettingsBridge extends MaeveSettingsBridge {
   @override
   Future<NativeSettings> setOperatingPace(String pace) =>
       _call('setOperatingPace', {'pace': pace});
+  @override
+  Future<NativeSettings> setTaskStepLimit(int limit) =>
+      _call('setTaskStepLimit', {'limit': limit});
   @override
   Future<NativeSettings> setCapsuleEnabled(bool enabled) =>
       _call('setCapsuleEnabled', {'enabled': enabled});

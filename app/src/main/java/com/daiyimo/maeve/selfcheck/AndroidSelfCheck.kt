@@ -446,7 +446,7 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
     override suspend fun release() {
         withContext(NonCancellable) {
             withContext(Dispatchers.Main) {
-                runCatching { SelfCheckTargetActivity.finishOpen() }
+                if (screen != null) runCatching { SelfCheckTargetActivity.finishOpen() }
                 web?.close()
                 web = null
             }

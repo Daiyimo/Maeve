@@ -6,10 +6,10 @@
 
 | 组件 | 版本 | 说明 |
 | --- | --- | --- |
-| JDK | Temurin 17.0.20.1 | AGP 8.7.3 要求 JDK 17；不要用系统默认的 JDK 24 |
-| Gradle | 8.11.1 | AGP 8.7.3 要求 Gradle 8.9 及以上；用 wrapper 固定 |
-| Android Gradle Plugin | 8.7.3 | `gradle/libs.versions.toml` 的 `agp` |
-| Kotlin | 2.1.20 | 同上 |
+| JDK | Temurin 17.0.20.1 | 与仓库构建一致，使用 JDK 17 |
+| Gradle | 9.3.1 | 使用项目 wrapper 固定 |
+| Android Gradle Plugin | 9.1.0 | `gradle/libs.versions.toml` 的 `agp` |
+| Kotlin | 2.4.0 | 同上 |
 | compileSdk / targetSdk / minSdk | 36 / 35 / 30 | `app/build.gradle.kts` |
 | Android build-tools | 36.0.0 | 平台 36 对应版本 |
 | NDK | 25.1.8937393 | 沙箱原生库使用的版本 |
@@ -23,7 +23,7 @@
 ```text
 <TOOLCHAINS>/
 ├── jdk-17/                      # JAVA_HOME
-├── gradle-8.11.1/gradle-8.11.1/ # Gradle 发行版；也可以只用项目 wrapper
+├── gradle-9.3.1/gradle-9.3.1/ # Gradle 发行版；也可以只用项目 wrapper
 └── flutter/                     # FLUTTER_ROOT；zip 解压后就是 flutter/bin
 
 <_ENV>/
@@ -86,7 +86,7 @@ powershell -NoProfile -File tooling/toolchain/verify.ps1
 ` .github/workflows/ci.yml` 用同一组版本：
 
 - `actions/setup-java` 固定 `temurin 17`
-- `gradle/actions/setup-gradle` 使用 wrapper，Gradle 版本由 `gradle-wrapper.properties` 固定为 8.11.1
+- `gradle/actions/setup-gradle` 使用 wrapper，Gradle 版本由 `gradle-wrapper.properties` 固定为 9.3.1
 - `subosito/flutter-action` 固定 `3.47.7`
 - Android job 先构建 Flutter AAR，再 `./gradlew :app:assembleDebug`
 
@@ -94,12 +94,10 @@ CI 不读本机的 `_env`，所以仓库里不能出现绝对路径；这正是 
 
 ## 8. 已知陷阱
 
-- **JDK 24**：AGP 8.7.3 会报 `Could not create task of type 'OutgoingVariantsReportTask'`。必须把 `JAVA_HOME` 指到 17。
+- **JDK**：使用清单指定的 JDK 17，避免构建结果依赖系统默认版本。
 - **系统代理**：`flutter test` 走 loopback WebSocket，代理会把它打断。`NO_PROXY` 必须含 `127.0.0.1,localhost,::1`。
 - **Git Bash 路径**：`PATH` 里要放 POSIX 形式（`/d/...`），`FLUTTER_ROOT` 用 `cygpath` 转一次。
 - **盘符搬家**：Gradle 缓存从 `GRADLE_USER_HOME` 推导；不要在任何 `.gradle.kts` 里写死缓存路径。
-- **compileSdk 36 + AGP 8.7.3**：AGP 8.7.3 官方只测到 35，项目用 `android.suppressUnsupportedCompileSdk=36` 显式接受这个组合；升级 AGP 是单独的版本决策。
-- **两套 Gradle**：宿主 `:app` 用本仓库固定的 Gradle 8.11.1 / AGP 8.7.3；`flutter build aar` 生成的 `.android` 工程用 Flutter 模板自带的 Gradle 9.3.1 / AGP 9.1.0。AAR 是两者的边界，不要试图把两套版本强行统一。
 - **pub 缓存搬家**：换 `PUB_CACHE` 后跑一次 `flutter pub get --offline`，否则 analyze 会报 `include_file_not_found`。
 - **空格与中文路径**：Gradle、Flutter 和 NDK 都对路径敏感，工具链放在纯 ASCII、无空格的目录下。
 
@@ -111,3 +109,13 @@ CI 不读本机的 `_env`，所以仓库里不能出现绝对路径；这正是 
 - [ ] `bash flutter/tool/verify.sh` 通过
 - [ ] `./gradlew :app:assembleDebug` 通过
 - [ ] CI 的版本号同步修改
+
+## Flutter 模式
+
+Android `debug/perf/release` 分别消费 `flutter_debug/flutter_profile/flutter_release`。Gradle 的对应 `flutterBuildDebugAar/flutterBuildPerfAar/flutterBuildReleaseAar` 任务自动生成 AAR；输出分别为 `flutter/build/host`、`host-profile`、`host-release`。perf 包名后缀为 `.perf`，使用开发签名，不能当作发行候选包。`-PskipFlutterAar` 仅供已有相同源码、相同模式 AAR 的验证环境使用。
+
+版本清单以 `versions.json` 为源；发行签名、递增 versionCode、同 hash 安装升级和真机验收仍是发行前独立门禁。
+
+## JVM 测试平台
+
+沙箱/文件系统和进程契约需要 Linux 的 POSIX 权限、符号链接与 `/bin/sh`，Windows 上的这些失败不能靠放宽安全断言解决。CI 在 Linux 上运行；JavaScript 页面读取/选择器契约使用清单 `testNode.version` 指定的 Node，缺少时测试会标记跳过。Node 只供这些宿主测试，Android 包内运行时不受此项更改影响。

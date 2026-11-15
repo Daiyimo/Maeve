@@ -205,12 +205,12 @@ class ToolDispatcherInteractTest {
     }
 
     // 在留言框里回车是发送:发消息不花钱,屏上有金额也直接做
-    @Test fun enterInAFieldSendsWithoutAsking() = runTest {
+    @Test fun enterInAFieldRequiresApprovalBeforeSending() = runTest {
         for (key in listOf("Enter", "Control+Enter")) {
             val web = shop(field)
             val r = gated(web, """{"action":"key","key":"$key"}""")
-            assertTrue(key, r["error"]?.toString()?.contains("confirmation_required") != true)
-            assertTrue(key, web.calls.any { it.startsWith("combo") })
+            assertTrue(key, r["error"]?.toString()?.contains("confirmation_required") == true)
+            assertTrue(key, web.calls.none { it.startsWith("combo") })
         }
     }
 

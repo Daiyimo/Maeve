@@ -13,6 +13,7 @@ import 'amoo_page.dart';
 import 'about_pages.dart';
 import 'palette_strip.dart';
 import 'execution_settings_page.dart';
+import 'app_access_page.dart';
 import 'run_history_page.dart';
 import 'welcome_page.dart';
 
@@ -68,6 +69,12 @@ class SettingsHubPage extends StatelessWidget {
               title: '系统授权',
               subtitle: '权限与手机助手连接',
               onTap: () => AppPage.open(context, const SystemAccessPage()),
+            ),
+            SettingsTile(
+              icon: Icons.admin_panel_settings_outlined,
+              title: '应用访问',
+              subtitle: '允许操作的应用与分享范围',
+              onTap: () => AppPage.open(context, const AppAccessPage()),
             ),
             SettingsTile(
               icon: Icons.link_rounded,

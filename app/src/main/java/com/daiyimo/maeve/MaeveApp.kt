@@ -212,12 +212,24 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
 
     /** 对话记录:整个进程一份,任务服务、聊天界面、结果卡片的按钮共用。 */
     val conversations: ConversationStore by lazy { ConversationStore(this) }
+    val chatEventRevision = java.util.concurrent.atomic.AtomicLong()
+    val chatEventEpoch = java.util.UUID.randomUUID().toString()
+    val submissionReceipts by lazy {
+        com.daiyimo.maeve.chat.SubmissionReceipts(java.io.File(filesDir, "chat-submissions.json"))
+    }
+    val chatDrafts by lazy {
+        com.daiyimo.maeve.chat.ChatDraftStore(java.io.File(filesDir, "chat-drafts.json"), conversations::deletionBlocked)
+    }
+    val actionEffects by lazy {
+        com.daiyimo.maeve.core.action.ActionEffectStore(java.io.File(filesDir, "action-effects"))
+    }
 
     /** 删对话(侧栏长按):连带它的任务、定时任务和工作区。 */
     val conversationDeleter: ConversationDeleter by lazy {
         val app = this
         ConversationDeleter(
             conversations, taskState.activeConversations,
+            deleteDrafts = { id -> chatDrafts.removeConversation(id); actionEffects.delete(id) },
             forgetRemoteTasks = { id ->
                 if (com.daiyimo.maeve.core.remote.RemoteTaskService.isConversation(id)) remoteTasks.forget(id)
             },
@@ -368,6 +380,14 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
         ).start()
         // 上次异常退出时留下的改动(App 被静音)在这里恢复
         scope.launch { taskRecovery.recover() }
+        scope.launch {
+            while (true) {
+                try { conversationDeleter.reconcile() }
+                catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (_: Exception) { /* 存储不可用时不宣布删除完成。 */ }
+                kotlinx.coroutines.delay(60_000)
+            }
+        }
         // 上次进程被杀时没结束的运行:现在就标为中断并告知,不等任务服务起来
         // 恢复要读改写整份运行账本并落盘,放后台:Application.onCreate 是启动关键路径
         scope.launch {

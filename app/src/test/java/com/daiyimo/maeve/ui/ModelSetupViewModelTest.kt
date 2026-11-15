@@ -71,7 +71,7 @@ class ModelSetupViewModelTest {
     }
 
     private fun TestScope.vm(s: ProviderStore = store()) =
-        ModelSetupViewModel(s, backgroundScope, io = StandardTestDispatcher(testScheduler))
+        ModelSetupViewModel(s, backgroundScope, io = StandardTestDispatcher(testScheduler), selfHostedHttpConsent = true)
 
     private val deepseekUrl = "https://api.deepseek.com"
     private val qwenUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -605,7 +605,7 @@ class ModelSetupViewModelTest {
     /** 选择页里手填模型名:先试调用,不通不选、说原因;通了才选上、记为核实过。 */
     @Test fun manualPickProbesFirst() = runTest {
         val store = store()
-        val p = store.connect("192.168.1.5", ProviderConfig.Kind.OpenAiCompat, "http://192.168.1.5:8000/v1", "", emptyList())
+        val p = store.connect("192.168.1.5", ProviderConfig.Kind.OpenAiCompat, "http://192.168.1.5:8000/v1", "", emptyList(), selfHostedHttp = true)
         val vm = vm(store)
         runCurrent()
         reply = { throw ModelError.ModelNotFound("gemini") }

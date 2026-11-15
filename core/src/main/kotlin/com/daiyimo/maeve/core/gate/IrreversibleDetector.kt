@@ -44,7 +44,7 @@ object IrreversibleDetector {
      */
     val STRONG: Map<String, IrrevAction> = linkedMapOf(
         "支付" to IrrevAction.pay, "付款" to IrrevAction.pay, "转账" to IrrevAction.pay,
-        "删除" to IrrevAction.delete, "撤回" to IrrevAction.delete,
+        "删除" to IrrevAction.delete, "撤回" to IrrevAction.delete, "卸载" to IrrevAction.delete,
         "下单" to IrrevAction.order, "购买" to IrrevAction.order, "结算" to IrrevAction.order, "结账" to IrrevAction.order,
         "取消订单" to IrrevAction.order, "确认收货" to IrrevAction.order, "退款" to IrrevAction.order,
         "转发" to IrrevAction.send,
@@ -104,7 +104,7 @@ object IrreversibleDetector {
     val ENGLISH: Map<String, IrrevAction> = linkedMapOf(
         "send" to IrrevAction.send, "post" to IrrevAction.send, "reply" to IrrevAction.send,
         "pay" to IrrevAction.pay, "donate" to IrrevAction.pay,
-        "delete" to IrrevAction.delete, "remove" to IrrevAction.delete, "clear all" to IrrevAction.delete,
+        "delete" to IrrevAction.delete, "remove" to IrrevAction.delete, "clear all" to IrrevAction.delete, "uninstall" to IrrevAction.delete,
         "place order" to IrrevAction.order, "buy now" to IrrevAction.order, "checkout" to IrrevAction.order,
     )
 

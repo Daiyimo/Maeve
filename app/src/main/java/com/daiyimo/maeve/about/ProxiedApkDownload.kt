@@ -29,13 +29,13 @@ class ProxiedApkDownload(
     @Volatile private var bytes = 0L
     @Volatile private var total = -1L
 
-    fun start(url: String, file: File) {
+    fun start(url: String, file: File, expectedSize: Long? = null, digest: String? = null) {
         cancel()
         target = file
         bytes = 0
         total = -1
         job = scope.launch {
-            runCatching { fetch(http, url, file, onCall = { call = it }) { done, size -> bytes = done; total = size } }
+            runCatching { fetch(http, url, file, onCall = { call = it }, expectedSize = expectedSize, digest = digest) { done, size -> bytes = done; total = size } }
                 .onFailure { if (it is CancellationException) throw it }
         }
     }
@@ -60,15 +60,18 @@ class ProxiedApkDownload(
         private const val PART = ".part"
 
         /** 把 [url] 下到 [file]:边下边报进度(已下、总共,不知道总共为 -1);不是 2xx、或没下完整就抛错,不留目标文件。 */
-        suspend fun fetch(http: OkHttpClient, url: String, file: File, onCall: (Call) -> Unit = {}, progress: (Long, Long) -> Unit) {
+        suspend fun fetch(http: OkHttpClient, url: String, file: File, onCall: (Call) -> Unit = {}, expectedSize: Long? = null, digest: String? = null, progress: (Long, Long) -> Unit) {
             val part = File(file.path + PART)
             try {
                 val call = http.newCall(Request.Builder().url(url).build())
+                call.timeout().timeout(10, java.util.concurrent.TimeUnit.MINUTES)
                 onCall(call)
                 call.execute().use { resp ->
                     if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
                     val body = resp.body ?: throw IOException("empty body")
                     val size = body.contentLength()
+                    val limit = expectedSize ?: (512L * 1024 * 1024)
+                    if (limit <= 0 || limit > 512L * 1024 * 1024 || size > limit) throw IOException("download_size_limit")
                     var done = 0L
                     progress(0, size)
                     body.byteStream().use { input ->
@@ -78,6 +81,7 @@ class ProxiedApkDownload(
                                 coroutineContext.ensureActive()
                                 val n = input.read(buf)
                                 if (n < 0) break
+                                if (done + n > limit) throw IOException("download_size_limit")
                                 out.write(buf, 0, n)
                                 done += n
                                 progress(done, size)
@@ -85,7 +89,9 @@ class ProxiedApkDownload(
                         }
                     }
                     if (size >= 0 && done != size) throw IOException("incomplete download")
+                    if (expectedSize != null && done != expectedSize) throw IOException("download_size_mismatch")
                 }
+                if (digest != null) ApkIntegrity.verify(part, expectedSize, digest)
                 if (!part.renameTo(file)) throw IOException("cannot move download")
             } finally {
                 part.delete()

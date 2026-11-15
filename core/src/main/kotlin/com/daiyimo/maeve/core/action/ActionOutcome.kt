@@ -69,6 +69,8 @@ internal object Refusals {
             OWN_APP -> Feedback["own_app"]
             APP_DENIED -> Feedback["app_denied"]
             SECRET_PAGE -> Feedback.format("screen.needs_human", "reason" to "login")
+            "target_unresolved" -> "The target cannot be confirmed. The action was not run. Read a fresh snapshot or locate and verify a named target before trying again. Do not repeat blind coordinates."
+            "approval_revoked" -> "Approval settings changed before execution. The action was not run; request fresh local approval if it is still needed."
             else -> code
         }) else {
             val blocked = if (reason != null) mismatch(hit, reason) else required(hit, everyWrite)
@@ -78,9 +80,10 @@ internal object Refusals {
             val message = when (code) {
                 "guard_stopped" -> "Maeve's operation guard stopped the task."
                 "guard_warning" -> "Maeve's operation guard flagged this action; it was not run."
-                "confirmation_required" -> if (everyWrite) "this step needs your confirmation (${hit?.matched})" else "this step spends money (${hit?.matched})"
-                "confirmation_mismatch" -> "this payment step (${hit?.matched}) does not match what the user approved ($reason)"
-                "approval_unavailable" -> "this step spends money and this run cannot get the user's approval; the action was not run"
+                "confirmation_required" -> "this step needs single-use confirmation (${hit?.matched})"
+                "confirmation_mismatch" -> "this step (${hit?.matched}) does not match what the user approved ($reason)"
+                "approval_unavailable" -> "this external action cannot get trusted local approval; the action was not run"
+                "approval_revoked" -> "approval settings changed before execution; the action was not run"
                 "target_unresolved" -> "that ref is not on the latest snapshot; call maeve.snapshot() again"
                 OWN_APP -> Feedback["own_app"]
                 APP_DENIED -> Feedback["app_denied"]
@@ -105,7 +108,7 @@ internal object Refusals {
             everyWrite -> "This app is on the confirm-every-write list (such as WeChat), so every step needs your confirmation and this one was not run. " +
                 "Call request_confirmation describing this step, and do it right after you approve. $SINGLE_USE"
             hit.action == IrrevAction.pay -> "This step is a payment, so it was not run. $PAYMENT_TAKEOVER"
-            else -> "This step spends money (${hit.action.name}), so it was not run. First call request_confirmation saying where, what is bought and how much it costs, and do it after the user approves. $SINGLE_USE"
+            else -> "This external or irreversible step (${hit.action.name}) was not run. First call request_confirmation with its exact target and content (and the amount for an order), then do it only after local approval. $SINGLE_USE"
         })
         put("recoverable", true); put("counts_as_failure", false)
     }

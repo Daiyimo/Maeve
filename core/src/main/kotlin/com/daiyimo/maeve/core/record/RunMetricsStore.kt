@@ -76,12 +76,10 @@ class RunMetricsStore(private val file: File, private val keep: Int = DEFAULT_KE
     private fun persist(rows: List<RunMetrics>) {
         runCatching {
             file.parentFile?.mkdirs()
-            val staging = File(file.path + ".tmp")
             val content = rows.takeLast(keep).joinToString("") { row ->
                 JSON.encodeToString(RunMetrics.serializer(), row) + "\n"
             }
-            staging.writeText(content)
-            check(staging.renameTo(file)) { "rename failed" }
+            com.daiyimo.maeve.core.io.AtomicFiles.write(file, content.toByteArray(Charsets.UTF_8))
         }
     }
 

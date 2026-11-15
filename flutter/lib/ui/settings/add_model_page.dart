@@ -33,6 +33,7 @@ class _AddModelPageState extends State<AddModelPage> {
   List<String> _levels = [];
   String _presetId = '阶跃星辰';
   bool _initializedPreset = false;
+  bool _selfHostedHttp = false;
   List<NativeProviderPreset> get _presets =>
       MaeveScope.read(context).native.presets;
   NativeProviderPreset? get _preset {
@@ -113,6 +114,7 @@ class _AddModelPageState extends State<AddModelPage> {
   void initState() {
     super.initState();
     final config = widget.config;
+    _selfHostedHttp = config?.selfHostedHttp ?? false;
     _name.text = config?.name ?? '阶跃星辰';
     _kind = config?.kind ?? 'OpenAiCompat';
     _url.text = config?.baseUrl ?? _api;
@@ -161,6 +163,7 @@ class _AddModelPageState extends State<AddModelPage> {
   }
 
   Map<String, String> _values() => {
+    'selfHostedHttp': _selfHostedHttp.toString(),
     if (widget.config != null) 'id': widget.config!.id,
     'name': _name.text.trim(),
     'baseUrl': _url.text.trim(),
@@ -396,6 +399,21 @@ class _AddModelPageState extends State<AddModelPage> {
                       : '请输入有效的 HTTP(S) 地址';
                 },
               ),
+              if (_url.text.trim().startsWith('http://'))
+                CheckboxListTile(
+                  value: _selfHostedHttp,
+                  onChanged: _saving
+                      ? null
+                      : (value) => setState(() {
+                          _selfHostedHttp = value == true;
+                          _invalidateCatalog();
+                        }),
+                  title: const Text('允许连接我的本机或局域网 HTTP 服务'),
+                  subtitle: const Text(
+                    'HTTP 不加密，API Key 和对话可能被网络中的其他设备读取。只允许直接连接，不允许公网 HTTP 或代理转发。',
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
               const SizedBox(height: 20),
               TextFormField(
                 key: const ValueKey('model-api-key'),

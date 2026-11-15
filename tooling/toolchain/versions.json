@@ -25,5 +25,9 @@
     "minSdk": "30",
     "buildTools": "36.0.0",
     "ndk": "25.1.8937393"
+  },
+  "testNode": {
+    "version": "24.15.0",
+    "purpose": "JVM JavaScript contract tests"
   }
 }

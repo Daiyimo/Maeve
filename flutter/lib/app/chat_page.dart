@@ -46,6 +46,10 @@ class _ChatPageState extends State<ChatPage> {
   final Set<String> _openTurns = {};
   bool _showJump = false;
   String _renderedTask = '', _renderedConversation = '';
+  String? _draftKey;
+  int _draftRestoreRevision = -1;
+  MaeveController? _draftController;
+  bool _restoringDraft = false, _submitting = false;
 
   /// 正在引用的那条消息(引用 chip)。
   ({String text, bool fromUser})? _quote;
@@ -54,10 +58,12 @@ class _ChatPageState extends State<ChatPage> {
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    _input.addListener(_saveDraft);
   }
 
   @override
   void dispose() {
+    _saveDraft();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -72,18 +78,67 @@ class _ChatPageState extends State<ChatPage> {
     if (show != _showJump && mounted) setState(() => _showJump = show);
   }
 
-  void _send(MaeveController controller) {
+  void _saveDraft() {
+    if (_restoringDraft || _draftKey == null || _draftController == null) {
+      return;
+    }
+    _draftController!.saveDraft(_draftKey!, _input.text, _quote);
+  }
+
+  void _bindDraft(MaeveController controller) {
+    if (_draftRestoreRevision == controller.draftRestoreRevision) _saveDraft();
+    if (_draftKey == controller.draftKey &&
+        _draftRestoreRevision == controller.draftRestoreRevision) {
+      return;
+    }
+    _draftRestoreRevision = controller.draftRestoreRevision;
+    _draftController = controller;
+    _draftKey = controller.draftKey;
+    final saved = controller.drafts[_draftKey];
+    _restoringDraft = true;
+    _quote = saved?.quote;
+    _input.text = saved?.text ?? '';
+    _restoringDraft = false;
+  }
+
+  Future<void> _send(MaeveController controller) async {
+    final inputValue = _input.value;
     final text = _input.text;
-    if (text.trim().isEmpty) return;
-    final quote = _quote;
-    controller.send(
-      text,
-      quote: quote?.text,
-      quoteFromUser: quote?.fromUser ?? false,
-    );
-    _input.clear();
-    setState(() => _quote = null);
-    _toBottom();
+    if (text.trim().isEmpty || _submitting) return;
+    final quote = _quote, key = _draftKey;
+    _saveDraft();
+    _submitting = true;
+    try {
+      final accepted = await controller.send(
+        text,
+        quote: quote?.text,
+        quoteFromUser: quote?.fromUser ?? false,
+      );
+      if (!mounted) return;
+      if (!accepted) {
+        _notice(context, controller.chatError ?? '宿主未接收，草稿已保留。请检查前置条件。');
+        return;
+      }
+      if (controller.drafts[key] == (text: text, quote: quote)) {
+        controller.saveDraft(key!, '', null);
+      }
+      if (_draftKey == key && _input.value == inputValue && _quote == quote) {
+        _input.clear();
+        setState(() => _quote = null);
+      }
+      _toBottom();
+    } catch (_) {
+      if (mounted) {
+        _notice(
+          context,
+          controller.chatError ??
+              controller.draftError ??
+              '发送结果尚未确认，草稿已保留。请先检查对话，避免重复发送。',
+        );
+      }
+    } finally {
+      _submitting = false;
+    }
   }
 
   void _toBottom() {
@@ -100,6 +155,7 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
+    _bindDraft(controller);
     final conversation = controller.active;
     final last = conversation.messages.lastOrNull;
     final taskSignature =
@@ -771,6 +827,38 @@ class _ComposerDock extends StatelessWidget {
                           ),
                         ),
                 ),
+                if (controller.draftError != null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          controller.draftError!,
+                          style: MaeveType.hint.copyWith(color: colors.bad),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: controller.retryDraftStorage,
+                        child: const Text('重试保存'),
+                      ),
+                    ],
+                  ),
+                if (controller.chatError != null)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          controller.chatError!,
+                          style: MaeveType.hint.copyWith(color: colors.bad),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: controller.reconnecting
+                            ? null
+                            : controller.reconnect,
+                        child: Text(controller.reconnecting ? '连接中…' : '重新连接'),
+                      ),
+                    ],
+                  ),
                 _ComposerBar(
                   controller: controller,
                   input: input,
@@ -907,7 +995,10 @@ class _ComposerBarState extends State<_ComposerBar> {
                     if (busy)
                       _RoundKey(
                         icon: Icons.stop_rounded,
-                        tooltip: '停止生成',
+                        tooltip: controller.cancelRequested
+                            ? '正在停止，等待任务收尾'
+                            : '停止任务',
+                        enabled: !controller.cancelRequested,
                         ink: true,
                         onTap: widget.onStop,
                       ),

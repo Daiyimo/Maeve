@@ -62,6 +62,9 @@ android {
         // 用本机调试签名,能直接覆盖调试包、保留数据;可被性能工具采样。./gradlew :app:assemblePerf
         create("perf") {
             initWith(getByName("release"))
+            applicationIdSuffix = ".perf"
+            versionNameSuffix = "-perf"
+            resValue("string", "app_name", "Maeve Perf")
             signingConfig = signingConfigs.getByName("debug")
             isProfileable = true
             matchingFallbacks += "release"
@@ -91,36 +94,32 @@ val flutterExecutable: String = if (flutterRootDir != null) {
 } else {
     "flutter"
 }
-val flutterDebugRepo = rootProject.layout.projectDirectory.dir("flutter/build/host/outputs/repo")
-val flutterBuildAar by tasks.registering(Exec::class) {
-    group = "build"
-    description = "构建 :app 使用的 Flutter debug AAR(flutter build aar --debug)。"
-    workingDir(rootProject.file("flutter"))
-    commandLine(flutterExecutable, "build", "aar", "--debug", "--no-profile", "--no-release")
-    inputs.files(
-        rootProject.fileTree("flutter/lib"),
-        rootProject.file("flutter/pubspec.yaml"),
-        rootProject.file("flutter/pubspec.lock"),
-    ).withPropertyName("flutterShellInputs")
-    outputs.dir(flutterDebugRepo)
-    doFirst {
-        val executable = File(flutterExecutable)
-        if (executable.isAbsolute && !executable.exists()) {
-            throw GradleException(
-                "找不到 Flutter:$flutterExecutable。设置 FLUTTER_ROOT,或把 flutter 放进 PATH;" +
-                    "工具链标准见 tooling/toolchain/README.md。",
-            )
-        }
+// 每种 Android 变体只消费同模式 AAR；不同模式输出互不覆盖。
+for ((mode, variant) in listOf("debug" to "Debug", "profile" to "Perf", "release" to "Release")) {
+    val output = rootProject.file(if (mode == "debug") "flutter/build" else "flutter/build/host-$mode")
+    val aar = tasks.register<Exec>("flutterBuild${variant}Aar") {
+        group = "build"
+        workingDir(rootProject.file("flutter"))
+        commandLine(flutterExecutable, "build", "aar", "--$mode",
+            *listOf("debug", "profile", "release").filter { it != mode }.map { "--no-$it" }.toTypedArray(),
+            "--output", output.absolutePath)
+        inputs.files(rootProject.fileTree("flutter/lib"), rootProject.fileTree("flutter/assets"),
+            rootProject.file("flutter/pubspec.yaml"), rootProject.file("flutter/pubspec.lock"))
+        inputs.property("flutterMode", mode)
+        inputs.property("flutterOutputRoot", output.absolutePath)
+        outputs.dir(File(output, "host/outputs/repo"))
     }
-}
-if (!providers.gradleProperty("skipFlutterAar").isPresent) {
-    tasks.named("preBuild").configure { dependsOn(flutterBuildAar) }
+    if (!providers.gradleProperty("skipFlutterAar").isPresent) {
+        tasks.matching { it.name == "pre${variant}Build" }.configureEach { dependsOn(aar) }
+    }
 }
 
 // Resolve the generated POM and its transitive engine dependencies through Maven.
 // A fresh CI runner must not depend on a developer's Gradle cache hashes.
 dependencies {
-    implementation("com.daiyimo.maeve_flutter:flutter_debug:1.0")
+    debugImplementation("com.daiyimo.maeve_flutter:flutter_debug:1.0") { isChanging = true }
+    add("perfImplementation", "com.daiyimo.maeve_flutter:flutter_profile:1.0") { isChanging = true }
+    releaseImplementation("com.daiyimo.maeve_flutter:flutter_release:1.0") { isChanging = true }
     implementation(project(":core"))
     implementation(libs.protobuf.lite)
     implementation(platform(libs.compose.bom))
@@ -156,6 +155,9 @@ dependencies {
     androidTestImplementation(libs.okhttp.mockwebserver)
     androidTestImplementation(libs.junit)
 }
+
+// 本地模块使用固定坐标，但 AAR 会随源码改变，不能复用昨天缓存的二进制。
+configurations.configureEach { resolutionStrategy.cacheChangingModulesFor(0, "seconds") }
 
 // LicensesTest 读仓库的 licenses/THIRD_PARTY_NOTICES.md:让它参与测试的增量判断
 tasks.withType<Test>().configureEach {

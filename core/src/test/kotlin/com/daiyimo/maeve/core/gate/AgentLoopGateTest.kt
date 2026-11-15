@@ -137,12 +137,12 @@ class AgentLoopGateTest {
         val r = m.result(3)
         assertEquals("false", r.s("ok")); assertEquals("confirmation_required", r.s("error"))
         assertEquals("order", r.s("action")); assertEquals("提交订单", r.s("matched"))
-        assertTrue(r.s("message").startsWith("This step spends money (order), so it was not run. First call request_confirmation"))
+        assertTrue(r.s("message").contains("external or irreversible step (order)"))
         assertTrue(r.s("message"), "uses it up whether it succeeds or not" in r.s("message"))
         // 打字后回车是发送:发消息不花钱,屏上有金额也照常做
-        assertEquals(null, m.result(4)["error"])
+        assertEquals("confirmation_required", m.result(4).s("error"))
         assertTrue("request_confirmation" in m.offeredTools[0])
-        assertEquals(listOf("required"), sink.events.filterIsInstance<RunEvent.Confirmation>().map { it.decision })
+        assertEquals(listOf("required", "required"), sink.events.filterIsInstance<RunEvent.Confirmation>().map { it.decision })
     }
 
     // C1:读屏后界面变了(「+」变「提交订单」),不带 target 的坐标点击也要拦
@@ -287,24 +287,26 @@ class AgentLoopGateTest {
         assertEquals("confirmation_required", m.result(7).s("error"))
     }
 
-    @Test fun withoutGateNothingIsBlocked() = runTest {
+    @Test fun missingGateCannotBypassApproval() = runTest {
         val s = ChatScreen()
         val m = FakeModel(OBSERVE, TYPE, tapSend(), ask(), FINISH)
         com.daiyimo.maeve.core.testing.assertAnswered(DONE, loop(m, s, gate = null).run("t"))
-        assertEquals(listOf("@e3"), s.taps)
+        assertTrue(s.taps.isEmpty())
         assertFalse("request_confirmation" in m.offeredTools[0])
         // M5
         assertEquals("unknown_tool", m.result(4).s("error"))
     }
 
     // M3
-    @Test fun unresolvedTapIsLoggedWithWhere() = runTest {
+    @Test fun unresolvedTapIsRefusedWithoutExecuting() = runTest {
         val sink = ListSink()
-        loop(FakeModel(OBSERVE, tools(call("phone_tap", """{"x":500,"y":500}""")), tools(call("phone_tap", """{"ref":"@e3","snapshotId":"gone"}""")), FINISH), ChatScreen(), sink).run("t")
-        val logs = sink.events.filterIsInstance<RunEvent.State>().filter { it.name == "gate_unresolved" }.map { it.detail }
-        assertEquals(2, logs.size)
-        assertEquals("phone_tap x=500,y=500 freshRead=true", logs[0])
-        assertEquals("phone_tap ref=@e3 snapshotId=gone age=unknown", logs[1])
+        val screen = ChatScreen()
+        val model = FakeModel(OBSERVE, tools(call("phone_tap", """{"x":500,"y":500}""")), tools(call("phone_tap", """{"ref":"@e3","snapshotId":"gone"}""")), FINISH)
+        loop(model, screen, sink).run("t")
+        assertEquals("target_unresolved", model.result(2).s("error"))
+        assertEquals("target_unresolved", model.result(3).s("error"))
+        assertTrue(screen.taps.isEmpty())
+        assertTrue(sink.events.filterIsInstance<RunEvent.State>().none { it.name == "gate_unresolved" })
     }
 
     private fun visionLoop(m: ChatModel, s: ChatScreen, vararg vision: Any, approvals: ApprovalSettings = ApprovalSettings.ASK) = AgentLoop(
@@ -315,22 +317,23 @@ class AgentLoopGateTest {
     private fun lookFor(target: String) = step(tools(call("phone_find_visually", """{"target":"$target"}""")))
 
     // 自绘界面上(读屏没有元素)看图找到的点:视觉模型看到「发送」,不花钱,直接点
-    @Test fun locatedSendOnBlankScreenRunsWithoutAsking() = runTest {
+    @Test fun locatedSendOnBlankScreenNeedsApproval() = runTest {
         val s = ChatScreen().apply { png = FRAME_A; blank = true }
         lateinit var m: StepModel
         m = StepModel(lookFor("右下角的图标"), { m.tapLocated()(it) }, step(failure("停")))
         visionLoop(m, s, """{"bbox_2d":[800,900,990,990],"seen":"发送"}""", "是").run("t")
         assertEquals("vision", m.results[0].s("source"))
-        assertEquals(1, s.taps.size)
+        assertTrue(s.taps.isEmpty())
     }
 
     // 读屏没有文字、视觉模型也没给所见文字:看不出要花钱,照样点
-    @Test fun locatedTapWithNothingToJudgeRunsWithoutAsking() = runTest {
+    @Test fun locatedTapWithNothingToJudgeIsRefused() = runTest {
         val s = ChatScreen().apply { png = FRAME_A; blank = true }
         lateinit var m: StepModel
         m = StepModel(lookFor("右下角的图标"), { m.tapLocated()(it) }, step(failure("停")))
         visionLoop(m, s, """{"bbox_2d":[800,900,990,990]}""", "是").run("t")
-        assertEquals(1, s.taps.size)
+        assertTrue(s.taps.isEmpty())
+        assertEquals("target_unresolved", m.results[1].s("error"))
     }
 
     // 裁定:自绘界面上复看确认过的所见文字就是判定依据;没有不可逆的词就放行(留痕)
@@ -338,12 +341,12 @@ class AgentLoopGateTest {
         val s = ChatScreen().apply { png = FRAME_A; blank = true }
         val sink = ListSink()
         lateinit var m: StepModel
-        m = StepModel(lookFor("开始按钮"), { m.tapLocated()(it) }, step(FINISH))
+        m = StepModel(step(OBSERVE), lookFor("开始按钮"), { m.tapLocated()(it) }, step(FINISH))
         val l = AgentLoop(m, toolDispatcher(s, vision = VisionService(says("""{"bbox_2d":[300,400,700,500],"seen":"开始游戏"}""", "是"), JvmTestImageOps)),
             "BASE", sink = sink, confirmations = ConfirmationGate())
         com.daiyimo.maeve.core.testing.assertAnswered(DONE, l.run("t"))
         assertEquals(1, s.taps.size)
-        assertEquals(1, sink.events.filterIsInstance<RunEvent.State>().count { it.name == "gate_unresolved" })
+        assertEquals(0, sink.events.filterIsInstance<RunEvent.State>().count { it.name == "gate_unresolved" })
     }
 
     // 复审 2:看过 phone_describe 之后的坐标点击按看图得来的点对待
@@ -353,9 +356,10 @@ class AgentLoopGateTest {
         val m = FakeModel(desc, tools(call("phone_tap", """{"x":900,"y":950}""")), tools(call("phone_tap", """{"x":900,"y":950,"target":"右下角图标"}""")), failure("停"))
         visionLoop(m, s, "[屏幕] 自绘页面").run("t")
         val noTarget = m.result(2)
-        assertEquals("invalid_arguments", noTarget.s("error")); assertTrue("target" in noTarget.s("message"))
-        // 看不出要花钱:照样点
-        assertEquals(1, s.taps.size)
+        assertEquals("target_unresolved", noTarget.s("error"))
+        // 只有画面描述不足以确认具体目标，不能盲点。
+        assertEquals("target_unresolved", m.result(3).s("error"))
+        assertTrue(s.taps.isEmpty())
     }
 
     @Test fun coordinateTapAfterDescriptionOnNamedElementIsAllowed() = runTest {

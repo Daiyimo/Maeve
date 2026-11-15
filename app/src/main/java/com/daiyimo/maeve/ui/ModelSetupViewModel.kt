@@ -315,6 +315,7 @@ class ModelSetupViewModel(
     private val systemSpeech: () -> SystemCapability = { SystemCapability(available = false, onDevice = false) },
     /** 选语音模型时试转用的转写器,和按住说话用的是同一种建法(带客户端标识头)。 */
     private val transcriber: (Provider) -> Transcriber = { p -> Transcriber(ProviderStore.modelHttp, store.clientHeaders(p)) },
+    private val selfHostedHttpConsent: Boolean = false,
 ) {
     private val _state = MutableStateFlow(snapshot(ModelSetupUi(AddForm.of(ProviderPresets.all.first()))))
     val state: StateFlow<ModelSetupUi> = _state.asStateFlow()
@@ -463,7 +464,11 @@ class ModelSetupViewModel(
             val key = f.apiKey.trim()
             val baseUrl = f.baseUrl.trim()
             val typed = f.typedModel
-            val models = when (val r = withContext(io) { store.listModels(f.kind, baseUrl, key.ifEmpty { null }, f.sessionHeader) }) {
+            if (baseUrl.startsWith("http://") && !selfHostedHttpConsent && !f.isSelfHosted) {
+                _state.update { it.copy(form = it.form.copy(test = ListState.Failed("请使用 HTTPS，或明确选择自托管局域网服务"))) }
+                return@launch
+            }
+            val models = when (val r = withContext(io) { store.listModels(f.kind, baseUrl, key.ifEmpty { null }, f.sessionHeader, selfHostedHttp = selfHostedHttpConsent || f.isSelfHosted) }) {
                 is ModelListResult.Ok -> r.models
                 is ModelListResult.Failed -> {
                     if (r.reason != ListFailure.NotSupported && typed.isEmpty()) {
@@ -495,6 +500,7 @@ class ModelSetupViewModel(
                     val p = store.connect(
                         f.providerName, f.kind, baseUrl, key, models, f.sessionHeader, setOf(typed),
                         typed = if (listed == null) setOf(typed) else emptySet(),
+                        selfHostedHttp = selfHostedHttpConsent || f.isSelfHosted,
                     )
                     if (!noTools && store.roles.value.main == null) use(ModelRole.Main, p, typed, ModelOptions.ofProvider(p, store.list()))
                 }
@@ -511,7 +517,7 @@ class ModelSetupViewModel(
             }
             val noneUsable = probed.main == null && probed.rejected.isNotEmpty()
             val saved = withContext(io) {
-                val p = store.connect(f.providerName, f.kind, baseUrl, key, models, f.sessionHeader, setOfNotNull(probed.main))
+                val p = store.connect(f.providerName, f.kind, baseUrl, key, models, f.sessionHeader, setOfNotNull(probed.main), selfHostedHttp = selfHostedHttpConsent || f.isSelfHosted)
                 if (!noneUsable && store.roles.value.main == null) {
                     val options = ModelOptions.ofProvider(p, store.list())
                     (probed.main ?: ModelOptions.defaultMain(options, f.familyTokens) ?: options.firstOrNull()?.id)
@@ -550,7 +556,7 @@ class ModelSetupViewModel(
             val typed = f.typedModel
             val saved = withContext(io) {
                 store.connect(
-                    f.providerName, f.kind, baseUrl, key.ifEmpty { null }, emptyList(), f.sessionHeader, untested = true,
+                    f.providerName, f.kind, baseUrl, key.ifEmpty { null }, emptyList(), f.sessionHeader, untested = true, selfHostedHttp = selfHostedHttpConsent || f.isSelfHosted,
                 ).also { p -> if (typed.isNotEmpty()) store.markTyped(p.id, typed) }
             }
             _state.update {
@@ -690,7 +696,7 @@ class ModelSetupViewModel(
         model: String, endpoint: ModelEndpoint?, caps: Capabilities, exampleKind: ProviderConfig.Kind, listMissing: Boolean,
     ): ProbeOutcome {
         val result = try {
-            withContext(io) { withTimeout(PROBE_TIMEOUT_MS) { store.probe(kind, baseUrl, key, sessionHeader, model, endpoint, caps) } }
+            withContext(io) { withTimeout(PROBE_TIMEOUT_MS) { store.probe(kind, baseUrl, key, sessionHeader, model, endpoint, caps, selfHostedHttp = selfHostedHttpConsent || _state.value.form.isSelfHosted || store.providers.value.any { it.baseUrl == baseUrl && it.selfHostedHttp }) } }
         } catch (e: TimeoutCancellationException) {
             return ProbeOutcome.Failed(tr(R.string.model_probe_timeout, model, (PROBE_TIMEOUT_MS / 1000).toInt()))
         }

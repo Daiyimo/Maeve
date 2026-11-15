@@ -39,7 +39,7 @@ class ApprovalStoreTest {
         assertFalse(ApprovalStore(f).autonomous.value)
     }
 
-    @Test fun runsInAskHaveAGateAndRunsInAutonomousDoNot() {
+    @Test fun everyRunRetainsAConfirmationGate() {
         val c = control()
         val ask = c.start()
         assertFalse(ask.startedAutonomous)
@@ -49,7 +49,7 @@ class ApprovalStoreTest {
         val auto = c.start()
         assertTrue(auto.startedAutonomous)
         assertTrue(auto.autonomous())
-        assertNull(auto.gate())
+        assertNotNull(auto.gate())
     }
 
     @Test fun remoteRunsAlwaysAskAndIgnoreTheSwitch() {

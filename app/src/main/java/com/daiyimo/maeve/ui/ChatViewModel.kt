@@ -664,6 +664,7 @@ class ChatViewModel(
 
     /** 发送输入框里的话;有引用时引用写在话的前面(见 [QuoteMessage]),发出去后清掉。返回 false 表示没发出去(条件不满足,或任务在跑)。 */
     fun send(text: String, check: Prerequisites.Check): Boolean {
+        if (_ui.value.conversationId?.let(store::deletionBlocked) == true) return false
         refreshParallel()
         val ui = _ui.value
         if (ui.importing) return false
@@ -1004,6 +1005,7 @@ class ChatViewModel(
 
     /** 切到某个对话;任务在跑时不切。 */
     suspend fun openConversation(id: String) {
+        check(!store.deletionBlocked(id)) { "conversation_deleting" }
         refreshParallel()
         if (parallel()) return switchTo(id)
         if (busy()) return
@@ -1113,12 +1115,23 @@ class ChatViewModel(
      * 停任务、删定时任务、删文件在后台做(见 `ConversationDeleter`)。
      */
     fun deleteConversation(id: String) {
-        if (!deleting.add(id)) return
+        scope.launch {
+            try { deleteConversationAwait(id) }
+            catch (e: CancellationException) { throw e }
+            catch (_: Exception) { /* 会话保留在列表中，允许重试。 */ }
+        }
+    }
+
+    /** Flutter 必须等完整清理回执；失败保留可重试的会话，不宣告完成。 */
+    suspend fun deleteConversationAwait(id: String) {
+        check(deleting.add(id)) { "delete_pending" }
         _deleted.update { it + id }
         if (id == _ui.value.conversationId) startOver(id) else unpark(id)
-        scope.launch {
-            try { removeConversation(id) } catch (e: CancellationException) { throw e } catch (e: Exception) { } finally { deleting -= id }
-        }
+        try { removeConversation(id) }
+        catch (e: Exception) {
+            _deleted.update { it - id }
+            throw e
+        } finally { deleting -= id }
     }
 
     /** 用户在侧栏给对话 [id] 改名:换成 [title](去掉两头空白;空的不改)。之后起好的标题不会再盖掉它。 */

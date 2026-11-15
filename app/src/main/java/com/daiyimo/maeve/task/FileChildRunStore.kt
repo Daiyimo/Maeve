@@ -26,8 +26,6 @@ class FileChildRunStore(private val file: File) : ChildRunStore {
 
     private fun persist() {
         file.parentFile?.mkdirs()
-        val temp = File(file.parentFile, file.name + ".tmp")
-        FileOutputStream(temp).use { out -> out.write(Json.encodeToString(records.values.toList()).toByteArray()); out.fd.sync() }
-        check(temp.renameTo(file)) { "child run store rename failed" }
+        com.daiyimo.maeve.core.io.AtomicFiles.write(file, Json.encodeToString(records.values.toList()).toByteArray(Charsets.UTF_8))
     }
 }

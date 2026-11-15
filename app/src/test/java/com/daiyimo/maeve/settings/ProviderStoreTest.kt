@@ -140,7 +140,7 @@ class ProviderStoreTest {
         s.use(ModelRole.Main, p.id, "m1", none)
         val id = s.configFor(ModelRole.Main)!!.id
         val saved = ModelContextSettings(triggerTokens = 40_000)
-        val blocked = File(tmp.root, "providers.json.tmp")
+        val blocked = File(tmp.root, "providers-transaction.json.tmp")
         assertTrue(blocked.mkdir())
         assertFalse(s.setModelContext(id, saved))
         assertNull(s.modelFor(ModelRole.Main)!!.capabilities.compactionTriggerTokens)
@@ -484,7 +484,7 @@ class ProviderStoreTest {
     @Test
     fun localServiceWithoutKeyHasNoKey() {
         val s = store()
-        val p = s.connect("local", ProviderConfig.Kind.OpenAiCompat, "http://192.168.1.5:8000/v1", "", emptyList())
+        val p = s.connect("local", ProviderConfig.Kind.OpenAiCompat, "http://192.168.1.5:8000/v1", "", emptyList(), selfHostedHttp = true)
         assertFalse(s.hasKey(p.id))
     }
 
@@ -752,7 +752,7 @@ class ProviderStoreTest {
             val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Maeve/1.2.3")
             val responsesBase = server.url("/v1").toString()
             val listed = ListedModel("r-only", endpoint = ModelEndpoint(ModelProtocol.Responses, responsesBase))
-            val p = s.connect("Go", ProviderConfig.Kind.OpenAiCompat, "https://go.test/v1", "k", listOf(listed), sessionHeader = "x-test-session")
+            val p = s.connect("Go", ProviderConfig.Kind.OpenAiCompat, responsesBase, "k", listOf(listed), sessionHeader = "x-test-session", selfHostedHttp = true)
             s.use(ModelRole.Main, p.id, "r-only", none)
             server.enqueue(okhttp3.mockwebserver.MockResponse().setHeader("Content-Type", "text/event-stream")
                 .setBody("data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n"))
@@ -803,7 +803,7 @@ class ProviderStoreTest {
                 """{"choices":[{"message":{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function",""" +
                     """"function":{"name":"get_time","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}""",
             ))
-            assertEquals(ProbeResult.ToolCalled, s.probe(ProviderConfig.Kind.OpenAiCompat, url, "sk", "x-test-session", "m", null, none))
+            assertEquals(ProbeResult.ToolCalled, s.probe(ProviderConfig.Kind.OpenAiCompat, url, "sk", "x-test-session", "m", null, none, selfHostedHttp = true))
             val req = server.takeRequest()
             assertEquals("/v1/chat/completions", req.path)
             assertEquals("Maeve/1.2.3", req.getHeader("User-Agent"))
@@ -814,7 +814,7 @@ class ProviderStoreTest {
             assertFalse("Chat Completions 不给回复上限", body.contains("max_tokens"))
 
             server.enqueue(okhttp3.mockwebserver.MockResponse().setResponseCode(400).setBody("""{"error":{"type":"MissingSessionID"}}"""))
-            val e = s.probe(ProviderConfig.Kind.OpenAiCompat, url, "sk", null, "m", null, none) as ProbeResult.Failed
+            val e = s.probe(ProviderConfig.Kind.OpenAiCompat, url, "sk", null, "m", null, none, selfHostedHttp = true) as ProbeResult.Failed
             assertTrue(e.error.message.orEmpty(), e.error.message.orEmpty().contains("MissingSessionID"))
             assertNull(server.takeRequest().getHeader("x-test-session"))
 
@@ -823,7 +823,7 @@ class ProviderStoreTest {
                 "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"function_call\",\"call_id\":\"c1\",\"name\":\"get_time\",\"arguments\":\"{}\"}}\n\n" +
                     "data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n",
             ))
-            assertEquals(ProbeResult.ToolCalled, s.probe(ProviderConfig.Kind.OpenAiResponses, url, "sk", null, "m", null, none))
+            assertEquals(ProbeResult.ToolCalled, s.probe(ProviderConfig.Kind.OpenAiResponses, url, "sk", null, "m", null, none, selfHostedHttp = true))
             val responses = server.takeRequest()
             assertEquals("/v1/responses", responses.path)
             assertEquals("Maeve/1.2.3", responses.getHeader("User-Agent"))
@@ -843,7 +843,7 @@ class ProviderStoreTest {
             val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Maeve/1.2.3")
             server.enqueue(okhttp3.mockwebserver.MockResponse().setHeader("Content-Type", "application/json")
                 .setBody("""{"choices":[{"message":{"role":"assistant","content":"It is noon."},"finish_reason":"stop"}]}"""))
-            assertEquals(ProbeResult.NoToolCall, s.probe(ProviderConfig.Kind.OpenAiCompat, server.url("/v1").toString(), "sk", null, "m", null, none))
+            assertEquals(ProbeResult.NoToolCall, s.probe(ProviderConfig.Kind.OpenAiCompat, server.url("/v1").toString(), "sk", null, "m", null, none, selfHostedHttp = true))
         } finally {
             server.shutdown()
         }
@@ -858,7 +858,7 @@ class ProviderStoreTest {
             server.enqueue(okhttp3.mockwebserver.MockResponse().setHeader("Content-Type", "application/json").setBody(
                 """{"content":[{"type":"tool_use","id":"t1","name":"get_time","input":{}}],"stop_reason":"tool_use","usage":{"input_tokens":1,"output_tokens":1}}""",
             ))
-            assertEquals(ProbeResult.ToolCalled, s.probe(ProviderConfig.Kind.Anthropic, server.url("/").toString(), "sk", null, "m", null, none))
+            assertEquals(ProbeResult.ToolCalled, s.probe(ProviderConfig.Kind.Anthropic, server.url("/").toString(), "sk", null, "m", null, none, selfHostedHttp = true))
             val body = server.takeRequest().body.readUtf8()
             assertTrue(body, body.contains("\"max_tokens\":1024"))
             assertTrue(body.contains("get_time"))

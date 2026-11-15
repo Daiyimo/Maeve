@@ -2,6 +2,7 @@ package com.daiyimo.maeve.core.model
 
 import com.daiyimo.maeve.core.net.NetProxy
 import com.daiyimo.maeve.core.net.ProxyFailure
+import com.daiyimo.maeve.core.net.BoundedResponseReader
 import com.daiyimo.maeve.core.trace.TraceCall
 import com.daiyimo.maeve.core.usage.ModelHttpAttempts
 import kotlinx.coroutines.CancellableContinuation
@@ -66,6 +67,7 @@ internal object HttpSupport {
     /** 带 [InferenceRequest] 的请求才记一次模型 HTTP 尝试,供用量统计。 */
     private suspend fun countAttempt(req: Request) {
         if (req.tag(InferenceRequest::class.java) != null) {
+            currentCoroutineContext()[com.daiyimo.maeve.core.run.RunBudgetContext]?.budget?.httpAttempt()
             currentCoroutineContext()[ModelHttpAttempts]?.start()
         }
     }
@@ -148,24 +150,30 @@ internal object HttpSupport {
      */
     private fun readEvents(response: Response, attempt: TraceCall.Attempt?, onEvent: (String) -> Boolean, active: () -> Boolean): RawResponse {
         val source = response.body?.source() ?: throw ModelError.BadResponse("流式响应没有内容")
+        val reader = BoundedResponseReader(source)
         val data = mutableListOf<String>()
         var events = 0
+        var eventBytes = 0
         /** 交付一个攒齐的事件;true 表示协议层已到终态,读循环就此收尾,不再等连接关闭。 */
         fun flush(): Boolean {
             if (data.isEmpty()) return false
-            events++
+            if (++events > 20000) throw IOException("response_event_count_limit")
             val event = data.joinToString("\n")
             attempt?.packet(event)
             val terminal = onEvent(event)
             data.clear()
+            eventBytes = 0
             return terminal
         }
         while (active()) {
-            val line = source.readUtf8Line() ?: break
+            val line = reader.line() ?: break
             if (line.isEmpty()) {
                 if (flush()) break
             } else if (line.startsWith("data:")) {
-                data += line.removePrefix("data:").removePrefix(" ")
+                val value = line.removePrefix("data:").removePrefix(" ")
+                eventBytes += value.toByteArray(Charsets.UTF_8).size + 1
+                if (eventBytes > 1024 * 1024) throw IOException("response_event_limit")
+                data += value
             }
         }
         if (!active()) return RawResponse(response.code, response.header("retry-after"), "")
@@ -178,7 +186,12 @@ internal object HttpSupport {
     }
 
     /** 把整个响应读成 [RawResponse]:状态码、Retry-After 头、正文全文。 */
-    private fun Response.readFully(): RawResponse = RawResponse(code, header("retry-after"), body?.string().orEmpty())
+    private fun Response.readFully(): RawResponse {
+        val source = body?.source() ?: return RawResponse(code, header("retry-after"), "")
+        val limit = 8 * 1024 * 1024L
+        if ((body?.contentLength() ?: -1) > limit || source.request(limit + 1)) throw IOException("response_total_limit")
+        return RawResponse(code, header("retry-after"), source.readUtf8())
+    }
 
     /** 连接失败时收尾:协程还活着,就把分好类的网络/代理错误抛回去。 */
     private fun CancellableContinuation<RawResponse>.resumeNetworkFailure(http: OkHttpClient, req: Request, e: IOException) {
@@ -186,7 +199,15 @@ internal object HttpSupport {
     }
 
     /** Retry-After 头(秒,可能带小数)换成毫秒;不是数字算没有。 */
-    fun retryAfterMs(header: String?): Long? = header?.trim()?.toDoubleOrNull()?.let { (it * 1000).toLong() }
+    fun retryAfterMs(header: String?, nowMs: Long = System.currentTimeMillis()): Long? {
+        val value = header?.trim()?.takeIf { it.length <= 128 } ?: return null
+        value.toDoubleOrNull()?.let { seconds ->
+            if (!seconds.isFinite() || seconds < 0) return null
+            return (seconds.coerceAtMost(120.0) * 1000).toLong()
+        }
+        val at = runCatching { java.time.ZonedDateTime.parse(value, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME).toInstant().toEpochMilli() }.getOrNull() ?: return null
+        return (at - nowMs).takeIf { it >= 0 }?.coerceAtMost(120_000)
+    }
 
     /** 407:途中的代理要账号密码(或拒了给的)。 */
     private const val PROXY_AUTH_REQUIRED = 407

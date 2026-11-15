@@ -52,6 +52,83 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
     }
   }
 
+  Future<void> _reviewEffects() async {
+    final controller = MaeveScope.read(context);
+    final id = controller.hostConversationId;
+    if (id == null || _acting) return;
+    setState(() {
+      _acting = true;
+      _error = null;
+    });
+    try {
+      final receipts = await controller.chatBridge.effectReceipts(id);
+      if (!mounted) return;
+      if (receipts.isEmpty) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('没有待核对的操作回执。')));
+      }
+      for (final receipt in receipts) {
+        if (!mounted) return;
+        var checked = false;
+        final choice = await showDialog<bool>(
+          context: context,
+          builder: (context) => StatefulBuilder(
+            builder: (context, update) => AlertDialog(
+              title: const Text('核对操作结果'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '操作开始时间：${DateTime.fromMillisecondsSinceEpoch((receipt['startedAt'] as num).toInt()).toLocal()}',
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      '这个操作没有可靠的完成回执。请到目标应用查看消息、订单、文件等实际结果，再记录核对结论。记录后不会自动继续旧任务，也不会恢复旧授权。',
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: checked,
+                      onChanged: (value) =>
+                          update(() => checked = value == true),
+                      title: const Text('我已在目标应用核对实际结果'),
+                      controlAffinity: ListTileControlAffinity.leading,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('稍后核对'),
+                ),
+                TextButton(
+                  onPressed: checked
+                      ? () => Navigator.pop(context, false)
+                      : null,
+                  child: const Text('确认未执行'),
+                ),
+                FilledButton(
+                  onPressed: checked
+                      ? () => Navigator.pop(context, true)
+                      : null,
+                  child: const Text('确认已执行'),
+                ),
+              ],
+            ),
+          ),
+        );
+        if (choice == null) break;
+        await controller.chatBridge.reconcileEffect(id, receipt, choice);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = '回执暂不可读或任务仍在运行，请停止任务后重新核对。');
+    } finally {
+      if (mounted) setState(() => _acting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final message = widget.message;
@@ -90,7 +167,11 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       Text(
-                        message.statusLabel,
+                        widget.isLatest &&
+                                message.active &&
+                                controller.cancelRequested
+                            ? '正在停止，等待任务收尾'
+                            : message.statusLabel,
                         style: MaeveType.hint.copyWith(
                           color: message.failed ? colors.bad : colors.ink2,
                         ),
@@ -130,7 +211,26 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
           ),
         if (expanded)
           for (final step in rows) ExecutionStepView(step: step),
+        if (widget.isLatest &&
+            message.failed &&
+            controller.supportsEffectReceipts)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: _acting ? null : _reviewEffects,
+              icon: const Icon(Icons.fact_check_outlined, size: 16),
+              label: const Text('核对操作结果'),
+            ),
+          ),
         if (widget.isLatest && message.active) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: controller.cancelRequested ? null : controller.stop,
+              icon: const Icon(Icons.stop_circle_outlined, size: 16),
+              label: Text(controller.cancelRequested ? '正在停止…' : '停止任务'),
+            ),
+          ),
           if (message.detail != null &&
               message.detail!.isNotEmpty &&
               message.detail != message.text)

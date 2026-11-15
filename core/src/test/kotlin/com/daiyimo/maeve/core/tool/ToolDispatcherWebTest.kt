@@ -679,21 +679,24 @@ class ToolDispatcherWebTest {
     @Test fun pageLimitIsLiftedOnASiteAfterAnOutwardAction() = runTest {
         val web = FakeWebPort().apply {
             elements = listOf(
-                UiElement("@e1", "button", "立即沟通", 900, 300, listOf(800, 100, 999, 160), null, true, false, false),
+                UiElement("@e1", "button", "提交", 900, 300, listOf(800, 100, 999, 160), null, true, false, false),
                 UiElement("@e2", "link", "下一个职位", 540, 1300, listOf(0, 1200, 999, 1400), null, true, false, false),
             )
         }
         val t = toolDispatcher(FakeScreen(), web = web, workspacePath = { WorkspacePathCheck.Ok },
             webPacing = { PagePacing.human(kotlin.random.Random(1), limits = PagePacing.Limits(pageCap = 2)) })
         val sink = object : RunSink { override fun event(e: RunEvent) {} }
-        val executor = ActionExecutor(t, OperationGuards(), null, gate = {}, recorder = ActionRecorder(sink), autonomous = true)
+        val grant = com.daiyimo.maeve.core.gate.ConfirmationGate()
+        val executor = ActionExecutor(t, OperationGuards(), grant, gate = {}, recorder = ActionRecorder(sink), autonomous = true)
         suspend fun run(name: String, args: String) = executor.run(Part.ToolCall("c", name, args), Origin.Model(1)).execution()
         t.go("https://jobs.example.com/a")
         t.go("https://jobs.example.com/b")
         var sid = t.execute(call("web_observe")).content.s("snapshotId")
         // 只是浏览:到了上限照样不做
         assertEquals("page_limit", run("web_tap", """{"ref":"@e2","snapshotId":"$sid"}""").content.s("error"))
-        // 对外动作本身不拦
+        // 对外动作必须取得单次同意，再检查页面浏览预算
+        grant.declare(com.daiyimo.maeve.core.gate.ConfirmationRequest(com.daiyimo.maeve.core.risk.IrrevAction.submit, "提交", "申请", null, "jobs.example.com"), "jobs.example.com")
+        grant.decide(true, 1)
         assertEquals(JsonPrimitive(true), run("web_tap", """{"ref":"@e1","snapshotId":"$sid"}""").content["ok"])
         assertTrue(web.calls.any { it.startsWith("tapRef @e1") })
         // 之后在这个网站上换页照常,换来的页照样停留

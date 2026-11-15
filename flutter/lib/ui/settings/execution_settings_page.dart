@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/maeve_controller.dart';
 import '../common/app_page.dart';
+import '../common/selection_field.dart';
 import 'settings_components.dart';
 
 class ExecutionSettingsPage extends StatefulWidget {
@@ -14,6 +15,28 @@ class _ExecutionSettingsPageState extends State<ExecutionSettingsPage> {
   bool _saving = false;
   String? _error;
   Future<void> _select(bool enabled) async {
+    if (enabled && !MaeveScope.read(context).native.autonomous) {
+      final accepted = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('开启自主执行'),
+          content: const Text(
+            'Maeve 将连续执行可恢复的普通操作，可能修改应用中的内容。发送、提交、删除、付款仍需单次确认；远程任务不能代替你授权。你可以随时停止任务或关闭此开关。',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('了解并开启'),
+            ),
+          ],
+        ),
+      );
+      if (accepted != true || !mounted) return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -69,7 +92,7 @@ class _ExecutionSettingsPageState extends State<ExecutionSettingsPage> {
             SettingsTile(
               icon: Icons.play_circle_outline_rounded,
               title: '自主执行',
-              subtitle: '连续执行手机操作，不再逐次确认；付款也不先询问',
+              subtitle: '连续执行普通操作；发送、提交、删除及付款仍需确认',
               enabled: controller.settingsLoaded && !_saving,
               trailing: Icon(
                 controller.native.autonomous
@@ -79,7 +102,50 @@ class _ExecutionSettingsPageState extends State<ExecutionSettingsPage> {
               onTap: () => _select(true),
             ),
           ],
-          footnote: '设置保存在本机。开启自主从后续步骤生效，当前待确认事项仍需按卡片处理。关闭自主后，新任务恢复询问；已按自主开始的任务，请停止后重新发起。',
+          footnote: '设置保存在本机，切换从下一动作边界生效，并撤销尚未使用的单次授权。已经发出的动作不会因停止或关闭开关而撤回。',
+        ),
+        SettingsSection(
+          title: '任务预算',
+          rows: [
+            MaeveSelectField<int>(
+              initialValue: controller.native.taskStepLimit,
+              decoration: const InputDecoration(labelText: '每个任务最多执行步数'),
+              items:
+                  ({
+                        20,
+                        40,
+                        60,
+                        100,
+                        200,
+                        500,
+                        controller.native.taskStepLimit,
+                      }.toList()..sort())
+                      .map(
+                        (value) => DropdownMenuItem(
+                          value: value,
+                          child: Text('$value 步'),
+                        ),
+                      )
+                      .toList(),
+              onChanged: _saving
+                  ? null
+                  : (value) async {
+                      if (value == null) return;
+                      setState(() {
+                        _saving = true;
+                        _error = null;
+                      });
+                      try {
+                        await controller.setTaskStepLimit(value);
+                      } catch (_) {
+                        if (mounted) setState(() => _error = '任务预算未能保存，请重试。');
+                      } finally {
+                        if (mounted) setState(() => _saving = false);
+                      }
+                    },
+            ),
+          ],
+          footnote: '下次任务生效。父任务与子任务共享步数、10 分钟主动执行时间和 120 次模型调用上限；等待你确认或修复权限时暂停主动计时。实际费用以服务商账单为准。',
         ),
         SettingsSection(
           title: '操作节奏',

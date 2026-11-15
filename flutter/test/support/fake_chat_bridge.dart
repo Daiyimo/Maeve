@@ -151,12 +151,16 @@ class FakeChatBridge extends MaeveChatBridge {
   /// 发一个 ui 快照(宿主那边 _ui 变了就会推的那种)。
   void emitUi({
     String? conversationId,
+    String? epoch,
+    int? revision,
     String composer = 'idle',
     List<String>? blocked,
     List<Map<String, dynamic>> exchanges = const [],
   }) {
     ui = {
       'kind': 'ui',
+      'epoch': ?epoch,
+      'revision': ?revision,
       'conversationId': conversationId,
       'composer': composer,
       'blocked': blocked,
@@ -166,6 +170,7 @@ class FakeChatBridge extends MaeveChatBridge {
   }
 
   Future<void> dispose() => _events.close();
+  void emitError(Object error) => _events.addError(error);
 
   void emitConversations(List<Map<String, dynamic>> items) {
     _conversations

@@ -58,7 +58,7 @@ class TapVisionFlowTest {
     /** 名字长到像是屏上几段文字拼起来的:同样可疑。 */
     private val stitchedName = "热搜榜单这一块写着好几段文字拼起来的说明文字"
     private val stitchedBox = uiEl("@e2", stitchedName, listOf(0, 0, 999, 999))
-    private val smallButton = uiEl("@e3", "设置", listOf(0, 100, 999, 160))
+    private val smallButton = uiEl("@e3", "设置", listOf(0, 100, 999, 360))
 
     private fun rows(vararg names: String) = names.mapIndexed { i, n -> uiEl("@e$i", n, listOf(0, 100 + i * 60, 999, 150 + i * 60)) }
 

@@ -32,7 +32,8 @@ internal object StopRules {
 
     /** 模型调用失败(重试过仍不行,或重试也没用)。 */
     fun modelFailed(e: Throwable): TaskState.Failed =
-        if (e is ModelError) TaskState.Failed(userReason(e), FailKind.Model)
+        if (e is com.daiyimo.maeve.core.run.RunBudget.Exceeded) TaskState.Failed("任务已达到预算（${e.message}），已停止新动作。请检查已完成事项后再明确发起下一项任务。", FailKind.Guard)
+        else if (e is ModelError) TaskState.Failed(userReason(e), FailKind.Model)
         else TaskState.Failed("模型调用异常:${e.message ?: e::class.simpleName}", FailKind.Model)
 
     fun guard(v: GuardVerdict): TaskState.Failed {

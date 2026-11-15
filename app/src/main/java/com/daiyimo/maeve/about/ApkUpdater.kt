@@ -63,6 +63,7 @@ class ApkUpdater(private val context: Context, private val net: NetProxy = NetPr
     fun download(release: ReleaseInfo) {
         val url = requireNotNull(release.apkUrl)
         ApkIntegrity.requireOfficialUrl(url)
+        ApkIntegrity.requireMetadata(release.apkSize, release.apkDigest)
         if (prefs.getString("url", null) == url && state(release).phase in
             listOf(DownloadPhase.Downloading, DownloadPhase.Paused, DownloadPhase.Ready)) return
         cancel()
@@ -72,21 +73,10 @@ class ApkUpdater(private val context: Context, private val net: NetProxy = NetPr
         folder.listFiles()?.forEach { it.delete() }
         // remove 的后台清理可能晚于下一次下载,不能复用旧任务的文件名。
         val target = File(folder, "update-${UUID.randomUUID()}.apk")
-        if (net.proxyFor(Uri.parse(url).host.orEmpty()) != null) {
+        run {
             check(prefs.edit().putBoolean("viaApp", true).putString("url", url).putString("file", target.name).commit()) { "could not save download" }
-            proxied.start(url, target)
+            proxied.start(url, target, release.apkSize, release.apkDigest)
             return
-        }
-        val request = DownloadManager.Request(Uri.parse(url))
-            .setTitle("Maeve ${release.version}")
-            .setMimeType("application/vnd.android.package-archive")
-            // 只在下载中显示通知:完成后的通知一点就会绕过下面的校验直接打开安装包,所以不留。
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
-            .setDestinationUri(Uri.fromFile(target))
-        val id = manager.enqueue(request)
-        if (!prefs.edit().putLong("id", id).putString("url", url).putString("file", target.name).commit()) {
-            manager.remove(id)
-            error("could not save download")
         }
     }
 
@@ -122,6 +112,13 @@ class ApkUpdater(private val context: Context, private val net: NetProxy = NetPr
             val installed = installedInfo(SIGNING_FLAGS)
             if (archive.packageName != context.packageName || archive.longVersionCode <= installed.longVersionCode) {
                 throw ApkRejected(ApkRejected.Reason.NotNewer)
+            }
+            if (archive.applicationInfo == null || archive.applicationInfo!!.minSdkVersion > android.os.Build.VERSION.SDK_INT)
+                throw ApkRejected(ApkRejected.Reason.Corrupt)
+            java.util.zip.ZipFile(target).use { zip ->
+                val abis = zip.entries().asSequence().map { it.name }.filter { it.startsWith("lib/") && it.endsWith(".so") }
+                    .map { it.split('/')[1] }.toSet()
+                if (abis.isNotEmpty() && android.os.Build.SUPPORTED_ABIS.none { it in abis }) throw ApkRejected(ApkRejected.Reason.Corrupt)
             }
             ApkIntegrity.requireSameSigner(installed.signers(), archive.signers(), archive.signerHistory())
         } catch (e: ApkRejected) {

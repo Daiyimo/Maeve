@@ -1,6 +1,8 @@
 import '../bridge/maeve_settings_bridge.dart';
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 
@@ -34,6 +36,18 @@ class MaeveController extends ChangeNotifier {
   String? settingsError;
   bool settingsLoaded = false;
   bool _disposed = false;
+  Future<void>? _capabilityLoading;
+  Set<String>? _features;
+  bool reconnecting = false;
+  Future<void> _loadCapabilities() async {
+    try {
+      _features = await _bridge.supportedFeatures();
+    } catch (_) {
+      chatError = '无法读取宿主能力，请重新连接后重试';
+      rethrow;
+    }
+  }
+
   int _settingsRevision = 0;
 
   Future<void> refreshSettings() async {
@@ -53,7 +67,11 @@ class MaeveController extends ChangeNotifier {
     if (_disposed) return;
     native = next;
     settingsLoaded = true;
-    settingsError = null;
+    settingsError = switch (next.providerState) {
+      'corrupt' => '模型配置或凭据损坏，原文件已保留，暂时禁止写入。',
+      'unavailable' => '模型配置暂时不可读，已禁止写入，请恢复存储后重试。',
+      _ => null,
+    };
     if (appearance) {
       mode = switch (next.mode) {
         'light' => ThemeMode.light,
@@ -86,6 +104,15 @@ class MaeveController extends ChangeNotifier {
       _applySettings(await settingsBridge.selectModel(id), appearance: false);
   Future<void> saveModel(Map<String, String> values) async =>
       _applySettings(await settingsBridge.saveModel(values), appearance: false);
+  Future<void> recoverProviders() async => _applySettings(
+    await settingsBridge.recoverProviders(),
+    appearance: false,
+  );
+  Future<void> deleteModel(String id, {bool wholeProvider = false}) async =>
+      _applySettings(
+        await settingsBridge.deleteModel(id, wholeProvider: wholeProvider),
+        appearance: false,
+      );
   Future<void> completeOnboarding() async => _applySettings(
     await settingsBridge.completeOnboarding(),
     appearance: false,
@@ -99,6 +126,12 @@ class MaeveController extends ChangeNotifier {
   Future<void> setOperatingPace(String pace) async {
     final revision = ++_settingsRevision;
     final next = await settingsBridge.setOperatingPace(pace);
+    if (revision == _settingsRevision) _applySettings(next, appearance: false);
+  }
+
+  Future<void> setTaskStepLimit(int limit) async {
+    final revision = ++_settingsRevision;
+    final next = await settingsBridge.setTaskStepLimit(limit);
     if (revision == _settingsRevision) _applySettings(next, appearance: false);
   }
 
@@ -123,13 +156,191 @@ class MaeveController extends ChangeNotifier {
   final List<Conversation> conversations = [];
   Set<String> _summaryIds = {};
   String activeId = '';
+  int _draftGeneration = DateTime.now().microsecondsSinceEpoch;
+  Future<void>? _draftLoading;
+  Future<void> _draftWrites = Future.value();
+  Timer? _draftTimer;
+  bool _draftStorageFailed = false;
+  int _draftStoreRevision = 0;
+  bool _draftDirty = false;
+  String? draftError;
+  int draftRestoreRevision = 0;
+  String? _resumeDraftKey;
+  final _draftKeys = <String, String>{};
+  String get draftKey => activeId.isEmpty
+      ? 'new:$_draftGeneration'
+      : _draftKeys[activeId] ?? activeId;
+  final drafts =
+      <String, ({String text, ({String text, bool fromUser})? quote})>{};
+
+  void saveDraft(
+    String key,
+    String text,
+    ({String text, bool fromUser})? quote,
+  ) {
+    if (_disposed || drafts[key] == (text: text, quote: quote)) return;
+    if (text.isEmpty && quote == null) {
+      if (drafts.remove(key) == null) return;
+    } else {
+      drafts[key] = (text: text, quote: quote);
+    }
+    _draftDirty = true;
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 250), () {
+      unawaited(flushDrafts().catchError((_) {}));
+    });
+  }
+
+  /// 提交前必须持久化原 requestId。普通输入合并写入，不把业务正文放进诊断。
+  Future<void> flushDrafts() async {
+    _draftTimer?.cancel();
+    await (_capabilityLoading ??= _loadCapabilities());
+    await (_draftLoading ??= _restoreDrafts());
+    if (_draftStorageFailed) throw StateError('drafts_unavailable');
+    final state = jsonEncode({
+      'schemaVersion': 1,
+      'generation': _draftGeneration,
+      'activeKey': draftKey,
+      'aliases': {
+        for (final e in _draftKeys.entries)
+          if (drafts.containsKey(e.value) ||
+              _pendingSubmissions.containsKey(e.value) ||
+              e.key == activeId)
+            e.key: e.value,
+      },
+      'drafts': {
+        for (final e in drafts.entries)
+          e.key: {
+            'text': e.value.text,
+            'quote': e.value.quote == null
+                ? null
+                : {
+                    'text': e.value.quote!.text,
+                    'fromUser': e.value.quote!.fromUser,
+                  },
+          },
+      },
+      'pending': {
+        for (final e in _pendingSubmissions.entries)
+          e.key: {
+            'id': e.value.id,
+            'text': e.value.text,
+            'quote': e.value.quote,
+            'fromUser': e.value.fromUser,
+          },
+      },
+    });
+    final write = _draftWrites.catchError((_) {}).then((_) async {
+      if (_draftStorageFailed) throw StateError('drafts_unavailable');
+      _draftStoreRevision = await _bridge.saveDraftState(
+        state,
+        _draftStoreRevision,
+      );
+    });
+    _draftWrites = write;
+    try {
+      await write;
+      if (identical(_draftWrites, write)) _draftDirty = false;
+      final hadError = draftError != null;
+      draftError = null;
+      if (hadError && !_disposed) notifyListeners();
+    } catch (_) {
+      _draftStorageFailed = true;
+      draftError = '草稿尚未保存到设备，请检查存储后重试';
+      if (!_disposed) notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> _restoreDrafts() async {
+    try {
+      if (_features != null && !_features!.contains('draftRecovery')) {
+        _draftStorageFailed = true;
+        draftError = '宿主不支持草稿恢复，请先升级应用；当前输入已保留';
+        return;
+      }
+      final stored = await _bridge.loadDraftState();
+      final raw = stored.state;
+      _draftStoreRevision = stored.revision;
+      if (raw == null) return;
+      final state = jsonDecode(raw) as Map;
+      if (state['schemaVersion'] != 1) throw StateError('drafts_schema');
+      final untouched = drafts.isEmpty && _navigationGeneration == 0;
+      final savedDrafts = (state['drafts'] as Map).map((key, row) {
+        final q = row['quote'];
+        return MapEntry(key as String, (
+          text: row['text'] as String,
+          quote: q == null
+              ? null
+              : (text: q['text'] as String, fromUser: q['fromUser'] == true),
+        ));
+      });
+      final savedPending = (state['pending'] as Map).map(
+        (key, row) => MapEntry(key as String, (
+          id: row['id'] as String,
+          text: row['text'] as String,
+          quote: row['quote'] as String?,
+          fromUser: row['fromUser'] == true,
+        )),
+      );
+      final aliases = Map<String, String>.from(state['aliases'] as Map);
+      final generation = (state['generation'] as num).toInt();
+      final activeKey = state['activeKey'] as String;
+      // 先完整解析再发布；读取期间的新输入不能被旧草稿覆盖。
+      for (final e in savedDrafts.entries) {
+        drafts.putIfAbsent(e.key, () => e.value);
+      }
+      _pendingSubmissions.addAll(savedPending);
+      for (final e in aliases.entries) {
+        _draftKeys.putIfAbsent(e.key, () => e.value);
+      }
+      if (untouched) _draftGeneration = generation;
+      if (untouched) _resumeDraftKey = activeKey;
+      draftRestoreRevision++;
+      if (!_disposed) notifyListeners();
+    } catch (_) {
+      _draftStorageFailed = true;
+      draftError = '无法恢复本地草稿，原文件已保留。请勿重复发送未确认的任务';
+      if (!_disposed) notifyListeners();
+    }
+  }
+
   String search = '';
+  Future<void> retryDraftStorage() async {
+    await _draftWrites.catchError((_) {});
+    _draftStorageFailed = false;
+    _draftLoading = _restoreDrafts();
+    try {
+      await flushDrafts();
+    } catch (_) {
+      /* 保留界面上的修复提示。 */
+    }
+  }
 
   /// 会话抽屉的筛选:全部 / 置顶。
   int listFilter = 0;
 
   /// 宿主当前对话(ui.conversationId);壳里没有对话时为 null。
   String? hostConversationId;
+  String? _requestedConversation;
+  bool _acceptNewConversation = false;
+  int _summaryGeneration = 0;
+  final _eventRevisions = <String, int>{};
+  String? _chatEpoch;
+  final _retiredEpochs = <String>{};
+  bool get supportsEffectReceipts =>
+      _features?.contains('actionEffectReceipts') ?? false;
+  final _pendingSubmissions =
+      <String, ({String id, String text, String? quote, bool fromUser})>{};
+  final _sending = <String>{};
+  final _deletedIds = <String>{};
+  final _deletingIds = <String>{};
+  final _pinningIds = <String>{};
+  final _cancelRequested = <String>{};
+  bool get cancelRequested => _cancelRequested.contains(activeId);
+  int _navigationGeneration = 0;
+  Future<void> _navigation = Future.value();
+  String? chatError;
 
   /// 发送被前置条件拦下时的问题码(no_model / accessibility / …);为空表示没被拦。
   List<String> blocked = const [];
@@ -144,19 +355,90 @@ class MaeveController extends ChangeNotifier {
   /// 在 MaeveApp.initState 里调一次。
   void attach() {
     unawaited(refreshSettings());
+    _capabilityLoading ??= _loadCapabilities();
+    _draftLoading ??= _capabilityLoading!.then((_) => _restoreDrafts());
     if (_chatSub != null) return;
-    _chatSub = _bridge.chatStream.listen(_onChatEvent);
+    _chatSub = _bridge.chatStream.listen(
+      _onChatEvent,
+      onError: (_) {
+        if (!_disposed) {
+          connected = false;
+          chatError = '对话连接已中断，当前输入已保留，请重新连接';
+          notifyListeners();
+        }
+      },
+    );
     unawaited(_bootstrap());
+  }
+
+  Future<void> reconnect() async {
+    if (_disposed || reconnecting) return;
+    reconnecting = true;
+    notifyListeners();
+    try {
+      await _chatSub?.cancel();
+      _chatSub = null;
+      _capabilityLoading = null;
+      _draftLoading = null;
+      _draftStorageFailed = false;
+      chatError = null;
+      attach();
+      await _draftLoading;
+    } catch (_) {
+      chatError = '仍无法连接宿主，请稍后重试';
+    } finally {
+      reconnecting = false;
+      if (!_disposed) notifyListeners();
+    }
   }
 
   Future<void> _bootstrap() async {
     try {
+      await _draftLoading;
+      final generation = _summaryGeneration;
+      final navigation = _navigationGeneration;
       final items = await _bridge.conversations();
       if (_disposed) return;
       connected = true;
-      _applyConversations(items);
+      if (generation == _summaryGeneration) _applyConversations(items);
+      if (navigation != _navigationGeneration) return;
+      final resume = _resumeDraftKey;
+      _resumeDraftKey = null;
+      if (resume != null &&
+          (drafts.containsKey(resume) ||
+              _pendingSubmissions.containsKey(resume))) {
+        final id = _draftKeys.entries
+            .where((e) => e.value == resume && _summaryIds.contains(e.key))
+            .firstOrNull
+            ?.key;
+        if (id != null || _summaryIds.contains(resume)) {
+          activeId = id ?? resume;
+          _requestedConversation = activeId;
+          await _bridge.openConversation(activeId);
+        } else if (resume.startsWith('new:')) {
+          activeId = '';
+          _requestedConversation = '';
+          final created = await _bridge.createConversation();
+          if (_disposed || navigation != _navigationGeneration) return;
+          if (created != null && created.isNotEmpty) {
+            _draftKeys[created] = resume;
+            _requestedConversation = created;
+            activeId = created;
+          }
+        }
+        notifyListeners();
+        return;
+      }
       final current = hostConversationId;
-      if (current != null && conversations.any((c) => c.id == current)) {
+      final desired = _requestedConversation;
+      if (desired != null &&
+          desired.isNotEmpty &&
+          !_deletedIds.contains(desired)) {
+        activeId = desired;
+        await _bridge.openConversation(desired);
+      } else if (desired == '') {
+        activeId = '';
+      } else if (current != null && conversations.any((c) => c.id == current)) {
         activeId = current;
       } else if (conversations.isNotEmpty) {
         activeId = conversations.first.id;
@@ -166,15 +448,31 @@ class MaeveController extends ChangeNotifier {
     } catch (_) {
       if (_disposed) return;
       connected = false;
+      chatError ??= '对话暂时不可读，当前输入已保留，请重新连接';
       // 桥不在(理论上同进程不可能):保持空态,不假装有数据
       notifyListeners();
     }
   }
 
   void _onChatEvent(dynamic event) {
-    if (event is! Map) return;
+    if (event is! Map || _disposed) return;
+    final epoch = event['epoch'] as String?;
+    if (epoch != null && epoch != _chatEpoch) {
+      if (_retiredEpochs.contains(epoch)) return;
+      if (_chatEpoch != null) _retiredEpochs.add(_chatEpoch!);
+      _chatEpoch = epoch;
+      _eventRevisions.clear();
+      _summaryGeneration++;
+    }
+    final revision = (event['revision'] as num?)?.toInt();
+    final key = '${event['kind']}:${event['conversationId'] ?? ''}';
+    if (revision != null) {
+      if (revision <= (_eventRevisions[key] ?? -1)) return;
+      _eventRevisions[key] = revision;
+    }
     switch (event['kind']) {
       case 'conversations':
+        _summaryGeneration++;
         _applyConversations(event['items']);
         notifyListeners();
       case 'ui':
@@ -186,6 +484,7 @@ class MaeveController extends ChangeNotifier {
   void _applyConversations(dynamic raw) {
     final items = (raw as List<dynamic>? ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
+        .where((e) => !_deletedIds.contains(e['id']))
         .toList();
     final previous = {
       for (final conversation in conversations) conversation.id: conversation,
@@ -222,6 +521,23 @@ class MaeveController extends ChangeNotifier {
 
   /// 宿主轮次快照 → 壳的消息列表。一问一答 = 用户气泡 + 助手轮次。
   void _applyUi(Map event) {
+    final incoming = event['conversationId'] as String? ?? '';
+    if (_deletedIds.contains(incoming) || _deletingIds.contains(incoming)) {
+      return;
+    }
+    if (activeId.isEmpty && _acceptNewConversation && incoming.isNotEmpty) {
+      _draftKeys[incoming] = draftKey;
+    }
+    if (_requestedConversation != null && incoming != _requestedConversation) {
+      if (!(_requestedConversation == '' &&
+          _acceptNewConversation &&
+          incoming.isNotEmpty)) {
+        return;
+      }
+      _draftKeys[incoming] = draftKey;
+      _requestedConversation = incoming;
+      _acceptNewConversation = false;
+    }
     final previousHost = hostConversationId;
     hostConversationId = event['conversationId'] as String?;
     final conversationId = hostConversationId;
@@ -250,6 +566,9 @@ class MaeveController extends ChangeNotifier {
     conversation.messages
       ..clear()
       ..addAll(exchanges.whereType<Map>().expand(_messagesOfExchange));
+    if (!conversation.messages.any((m) => !m.isUser && m.active)) {
+      _cancelRequested.remove(conversationId);
+    }
   }
 
   Iterable<Message> _messagesOfExchange(Map exchange) sync* {
@@ -325,6 +644,8 @@ class MaeveController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _draftTimer?.cancel();
+    if (_draftDirty) unawaited(flushDrafts().catchError((_) {}));
     _disposed = true;
     _chatSub?.cancel();
     super.dispose();
@@ -338,12 +659,15 @@ class MaeveController extends ChangeNotifier {
   /// 占位会话——它是"这个入口接到了"的可见证据,不是真实内容。宿主那边的
   /// openConversation 会把真实轮次带回来(对话不存在时是空的)。
   void openThread(String threadId) {
+    _navigationGeneration++;
+    _requestedConversation = threadId;
     if (conversations.every((conversation) => conversation.id != threadId)) {
       conversations.insert(0, Conversation(id: threadId, title: threadId));
     }
     activeId = threadId;
     notifyListeners();
-    unawaited(_bridge.openConversation(threadId));
+    _navigation = _bridge.openConversation(threadId);
+    unawaited(_navigation.catchError((_) => _navigationFailed()));
   }
 
   /// 抽屉列表:置顶 → 按天分组,搜索与筛选在这里生效。
@@ -352,10 +676,7 @@ class MaeveController extends ChangeNotifier {
     var items = conversations.where((conversation) {
       if (listFilter == 1 && !conversation.pinned) return false;
       if (query.isEmpty) return true;
-      return conversation.title.toLowerCase().contains(query) ||
-          conversation.messages.any(
-            (message) => message.text.toLowerCase().contains(query),
-          );
+      return conversation.title.toLowerCase().contains(query);
     }).toList();
 
     items.sort((a, b) {
@@ -374,6 +695,7 @@ class MaeveController extends ChangeNotifier {
 
   /// 状态行的一句人话(B3:不走秒)。
   String get statusLine {
+    if (chatError != null) return chatError!;
     if (!connected) return '本机 · 未连接';
     if (generating) return '正在思考';
     if (settingsLoaded && native.currentModelId == null) return '等待模型配置';
@@ -438,38 +760,98 @@ class MaeveController extends ChangeNotifier {
 
   void select(String id) {
     if (activeId == id) return;
+    _navigationGeneration++;
+    chatError = null;
     activeId = id;
     notifyListeners();
-    unawaited(_bridge.openConversation(id));
+    _requestedConversation = id;
+    _navigation = _bridge.openConversation(id);
+    unawaited(_navigation.catchError((_) => _navigationFailed()));
   }
 
   /// 新对话:宿主切到新状态(还没说话就没有 id),壳进入空态;第一句话发出去时
   /// 宿主才建档,conversations 事件随之带来真实列表。
   void create() {
-    _bridge.newConversation();
+    final generation = ++_navigationGeneration;
+    chatError = null;
+    _draftGeneration++;
+    final key = 'new:$_draftGeneration';
+    _requestedConversation = '';
+    _acceptNewConversation = false;
     activeId = '';
     generating = false;
+    _navigation = _bridge.createConversation().then((id) {
+      if (_disposed || generation != _navigationGeneration) return;
+      if (id != null && id.isNotEmpty) {
+        _draftKeys[id] = key;
+        _requestedConversation = id;
+        hostConversationId = id;
+        activeId = id;
+      }
+      notifyListeners();
+    });
+    unawaited(_navigation.catchError((_) => _navigationFailed()));
+    notifyListeners();
+  }
+
+  void _navigationFailed() {
+    if (_disposed) return;
+    chatError = '切换对话失败，请重新选择';
     notifyListeners();
   }
 
   void togglePin(String id) {
+    if (!_pinningIds.add(id)) return;
     final conversation = _find(id);
     final pinned = !conversation.pinned;
-    conversation.pinned = pinned;
-    notifyListeners();
-    unawaited(_bridge.setPinned(id, pinned));
+    unawaited(_savePin(id, pinned));
   }
 
-  void delete(String id) {
+  Future<void> _savePin(String id, bool pinned) async {
+    try {
+      await _bridge.setPinned(id, pinned);
+      if (_disposed || _deletedIds.contains(id)) return;
+      _find(id).pinned = pinned;
+      notifyListeners();
+    } catch (_) {
+      if (!_disposed) {
+        chatError = '置顶状态未能保存，请重试';
+        notifyListeners();
+      }
+    } finally {
+      _pinningIds.remove(id);
+    }
+  }
+
+  Future<void> delete(String id) async {
+    await (_capabilityLoading ??= _loadCapabilities());
+    if (!(_features?.contains('awaitDeletion') ?? false)) {
+      throw UnsupportedError('awaitDeletion');
+    }
+    if (!_deletingIds.add(id)) throw StateError('delete_pending');
+    try {
+      await _bridge.delete(id);
+      _deletedIds.add(id);
+    } finally {
+      _deletingIds.remove(id);
+    }
+    if (_disposed) return;
+    drafts.remove(_draftKeys[id] ?? id);
+    _pendingSubmissions.remove(_draftKeys[id] ?? id);
+    _draftKeys.remove(id);
+    // 原生完整删除也清理了私有草稿，因此在提交剩余草稿前读取新的存储代次。
+    await _draftWrites.catchError((_) {});
+    _draftStoreRevision = (await _bridge.loadDraftState()).revision;
+    _draftStorageFailed = false;
+    await flushDrafts();
     conversations.removeWhere((conversation) => conversation.id == id);
     if (activeId == id) {
       activeId = conversations.isNotEmpty ? conversations.first.id : '';
-      if (activeId.isNotEmpty) {
-        unawaited(_bridge.openConversation(activeId));
-      }
+      _requestedConversation = activeId;
+      _navigationGeneration++;
+      if (activeId.isNotEmpty) await _bridge.openConversation(activeId);
     }
     notifyListeners();
-    unawaited(_bridge.delete(id));
   }
 
   Conversation _find(String id) => conversations.firstWhere(
@@ -483,18 +865,106 @@ class MaeveController extends ChangeNotifier {
   /// 发送:转发给宿主(建档、落盘、跑任务都归它)。界面先不动——用户这句话会随
   /// 下一个 ui 事件回来(宿主把它加进 exchanges)。被拦下时(缺模型、无障碍没开…)
   /// 宿主把问题码放在 ui.blocked,输入区据此提示。
-  void send(String raw, {String? quote, bool quoteFromUser = false}) {
+  Future<bool> send(
+    String raw, {
+    String? quote,
+    bool quoteFromUser = false,
+  }) async {
     final text = raw.trim();
-    if (text.isEmpty) return;
-    unawaited(_bridge.send(text, quote: quote, quoteFromUser: quoteFromUser));
+    if (text.isEmpty) return false;
+    final key = draftKey;
+    final navigation = _navigationGeneration;
+    if (!_sending.add(key)) return false;
+    try {
+      await (_capabilityLoading ??= _loadCapabilities());
+      if (!(_features?.contains('submissionReceipts') ?? false) ||
+          !(_features?.contains('draftRecovery') ?? false)) {
+        chatError = '宿主不支持可靠发送，请先升级应用；当前输入已保留';
+        if (!_disposed) notifyListeners();
+        return false;
+      }
+      await (_draftLoading ??= _restoreDrafts());
+      if (_draftStorageFailed) throw StateError('drafts_unavailable');
+      await _navigation;
+      if (_disposed || navigation != _navigationGeneration) return false;
+      chatError = null;
+      final pending = _pendingSubmissions[key];
+      if (pending != null) {
+        final accepted = await _bridge.submissionReceipt(pending.id);
+        if (accepted == null) throw StateError('receipt_unknown');
+        _settleDraft(key, accepted);
+        await flushDrafts();
+        if (pending.text.trim() == text &&
+            pending.quote == quote &&
+            pending.fromUser == quoteFromUser) {
+          return accepted;
+        }
+      }
+      final id =
+          'ui_${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
+      _pendingSubmissions[key] = (
+        id: id,
+        text: raw,
+        quote: quote,
+        fromUser: quoteFromUser,
+      );
+      await flushDrafts();
+      _acceptNewConversation = activeId.isEmpty;
+      bool? accepted;
+      try {
+        accepted = await _bridge.submit(
+          id,
+          activeId,
+          text,
+          quote: quote,
+          quoteFromUser: quoteFromUser,
+        );
+      } catch (_) {
+        accepted = await _bridge.submissionReceipt(id);
+      }
+      if (accepted == null) throw StateError('receipt_unknown');
+      _settleDraft(key, accepted);
+      await flushDrafts();
+      return accepted;
+    } finally {
+      _sending.remove(key);
+    }
+  }
+
+  void _settleDraft(String key, bool accepted) {
+    final sent = _pendingSubmissions.remove(key);
+    final current = drafts[key];
+    if (accepted &&
+        sent != null &&
+        current?.text == sent.text &&
+        current?.quote?.text == sent.quote &&
+        (current?.quote?.fromUser ?? false) == sent.fromUser) {
+      drafts.remove(key);
+    }
   }
 
   /// 重发(失败轮次的重试):当新的一句话发给宿主。
-  void sendQueued(Message message) => send(message.text);
+  void sendQueued(Message message) {
+    unawaited(send(message.text).catchError((_) => false));
+  }
 
   /// 停止当前任务:宿主 TaskService.cancel。
   void stop() {
-    _bridge.cancel();
+    unawaited(requestStop());
+  }
+
+  Future<void> requestStop() async {
+    final id = activeId;
+    if (id.isEmpty || !_cancelRequested.add(id)) return;
+    notifyListeners();
+    try {
+      await _bridge.cancelConversation(id);
+      // 接收取消请求不代表任务已经停止；只有宿主终态能解除等待。
+    } catch (_) {
+      _cancelRequested.remove(id);
+      chatError = '停止请求未能确认，请重试';
+      if (!_disposed) notifyListeners();
+    }
   }
 }
 

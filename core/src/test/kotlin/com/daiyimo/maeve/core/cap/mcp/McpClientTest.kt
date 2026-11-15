@@ -240,7 +240,7 @@ class McpClientTest {
         // 不花钱的对外调用:无人值守也直接做(只记审批),不在判定时就调服务端
         val decision = ConfirmDecision(tools, null, provenance = RunProvenance(RunOrigin.Trigger, Attendance.Unattended))
             .judge("mcp_demo__send", buildJsonObject {}, Origin.Model(1))
-        assertEquals(Decision.Clear, decision)
+        assertTrue(decision is Decision.Denied)
         assertEquals(0, endpoint.calls)
     }
 

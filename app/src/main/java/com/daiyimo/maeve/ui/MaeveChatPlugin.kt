@@ -20,6 +20,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.encodeToString
+import com.daiyimo.maeve.chat.SubmissionReceipts
 import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 import com.daiyimo.maeve.record.RunStore
@@ -44,6 +48,11 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
     private var monitor: SystemStatusMonitor? = null
     private var uiJob: Job? = null
     private var changesJob: Job? = null
+    private var summaryJob: Job? = null
+    private val receipts get() = app.submissionReceipts
+    private fun receiptMap(r: SubmissionReceipts.Receipt) = mapOf("requestId" to r.requestId,
+        "conversationId" to r.conversationId, "accepted" to r.accepted,
+        "state" to if (r.accepted == null) "receipt_unknown" else if (r.accepted) "accepted" else "rejected")
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         app = binding.applicationContext as MaeveApp
@@ -64,16 +73,90 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
-            "conversations" -> result.success(summaries())
+            "effectReceipts" -> engineScope().launch {
+                try {
+                    val id = requireNotNull(call.argument<String>("conversationId"))
+                    result.success(withContext(Dispatchers.IO) { app.actionEffects.receipts(id)
+                        .filter { it.state in setOf(com.daiyimo.maeve.core.action.ActionEffectStore.State.Started, com.daiyimo.maeve.core.action.ActionEffectStore.State.Unknown) }
+                        .map { mapOf("effectId" to it.effectId, "sequence" to it.startedSequence, "startedAt" to it.startedAt, "action" to it.action) } })
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("effect_receipts_unavailable", "无法读取操作回执，请勿重复提交", null) }
+            }
+            "reconcileEffect" -> engineScope().launch {
+                try { submissions.withLock {
+                    val id = requireNotNull(call.argument<String>("conversationId"))
+                    check(app.chat.ui.value.conversationId == id && id !in app.taskState.activeConversations.value) { "task_active" }
+                    val effectId = requireNotNull(call.argument<String>("effectId"))
+                    val seq = requireNotNull(call.argument<Number>("sequence")).toLong()
+                    val applied = requireNotNull(call.argument<Boolean>("applied"))
+                    withContext(Dispatchers.IO) { app.actionEffects.reconcile(id, effectId, seq, applied) }
+                    result.success(null)
+                } } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("effect_changed", "任务仍在运行或回执已变化，请停止后重新核对", null) }
+            }
+            "loadDrafts" -> engineScope().launch {
+                try { result.success(withContext(Dispatchers.IO) { app.chatDrafts.loadVersioned().let { mapOf("revision" to it.first, "state" to it.second) } }) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("drafts_unavailable", "无法读取草稿，原文件已保留，请勿重复发送", null) }
+            }
+            "saveDrafts" -> engineScope().launch {
+                try {
+                    val source = requireNotNull(call.argument<String>("state"))
+                    val expected = requireNotNull(call.argument<Number>("revision")).toLong()
+                    val revision = withContext(Dispatchers.IO) { app.chatDrafts.save(source, expected) }
+                    result.success(revision)
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("drafts_unavailable", "草稿尚未保存，请检查本地存储", null) }
+            }
+            "conversations" -> engineScope().launch {
+                try { result.success(withContext(Dispatchers.IO) { summaries() }) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("history_unavailable", "暂时无法读取对话列表", null) }
+            }
             "open" -> {
                 val id = call.argument<String>("id")?.takeIf { it.isNotBlank() }
                 if (id == null) {
                     result.error("bad_args", "open needs a non-empty id", null)
                 } else engineScope().launch {
+                    try {
+                    submissions.withLock {
                     app.chat.openConversation(id)
                     pushUi()
                     result.success(null)
+                    }
+                    } catch (e: CancellationException) { throw e }
+                    catch (_: Exception) { result.error("conversation_unavailable", "无法打开此对话，请重新选择", null) }
                 }
+            }
+            "sendReceipt" -> engineScope().launch {
+                try {
+                    val id = requireNotNull(call.argument<String>("requestId"))
+                    result.success(withContext(Dispatchers.IO) { receipts.find(id)?.let(::receiptMap) })
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("receipt_unavailable", "无法读取提交回执，请勿盲目重发", null) }
+            }
+            "submit" -> engineScope().launch {
+                try { submissions.withLock {
+                    val id = requireNotNull(call.argument<String>("requestId"))
+                    val text = requireNotNull(call.argument<String>("text")?.trim()?.takeIf { it.isNotBlank() })
+                    val conversation = call.argument<String>("conversationId").orEmpty()
+                    val quote = call.argument<String>("quote")?.takeIf { it.isNotBlank() }
+                    val fromUser = call.argument<Boolean>("quoteFromUser") ?: false
+                    val digest = java.security.MessageDigest.getInstance("SHA-256")
+                        .digest(kotlinx.serialization.json.Json.encodeToString(listOf(text, quote.orEmpty(), fromUser.toString())).toByteArray())
+                        .joinToString("") { "%02x".format(it) }
+                    val old = withContext(Dispatchers.IO) { receipts.find(id) }
+                    val receipt = withContext(Dispatchers.IO) { receipts.begin(id, digest, conversation) }
+                    if (old != null) { result.success(receiptMap(receipt)); return@withLock }
+                    val current = app.chat.ui.value.conversationId.orEmpty()
+                    val accepted = if (current != conversation) false else {
+                        if (quote != null) app.chat.quote(if (fromUser) QuoteMessage.From.You else QuoteMessage.From.Maeve, quote)
+                        app.chat.send(text, check())
+                    }
+                    val settled = withContext(Dispatchers.IO) { receipts.settle(id, accepted) }
+                    result.success(receiptMap(settled))
+                } } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("submission_unknown", "无法确认发送结果，请查询回执", null) }
             }
             "send" -> {
                 val text = call.argument<String>("text")?.trim()
@@ -93,13 +176,20 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                 }
             }
             "cancel" -> {
-                TaskService.cancel(app)
+                val id = call.argument<String>("conversationId")
+                if (id != null && app.chat.ui.value.conversationId != id) {
+                    return result.error("task_changed", "任务已切换，请在当前对话重新操作", null)
+                }
+                app.chat.cancel()
                 result.success(null)
             }
-            "new" -> {
-                app.chat.newConversation()
-                pushUi()
-                result.success(null)
+            "new" -> engineScope().launch {
+                try { submissions.withLock {
+                    app.chat.newConversation()
+                    pushUi()
+                    result.success(mapOf("conversationId" to app.chat.ui.value.conversationId))
+                } } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("conversation_unavailable", "新对话未能建立，请重试", null) }
             }
             "setPinned" -> {
                 val id = call.argument<String>("id")
@@ -107,25 +197,48 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                 if (id.isNullOrBlank()) {
                     result.error("bad_args", "setPinned needs a non-empty id", null)
                 } else {
-                    app.conversations.setPinned(id, pinned)
-                    pushConversations()
-                    result.success(null)
+                    engineScope().launch {
+                        try { submissions.withLock {
+                            withContext(Dispatchers.IO) { check(app.conversations.setPinned(id, pinned)) }
+                            pushConversations()
+                            result.success(null)
+                        } } catch (e: CancellationException) { throw e }
+                        catch (_: Exception) { result.error("pin_unavailable", "置顶状态未能保存，请重试", null) }
+                    }
                 }
+            }
+            "deleteImpact" -> engineScope().launch {
+                val id = call.argument<String>("id") ?: return@launch result.error("bad_args", "id required", null)
+                try {
+                    val impact = withContext(Dispatchers.IO) { app.chat.deleteImpact(id) }
+                    result.success(mapOf("runningTask" to impact.runningTask, "schedules" to impact.schedules))
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("impact_unavailable", "暂时无法确认删除影响", null) }
             }
             "delete" -> {
                 val id = call.argument<String>("id")
                 if (id.isNullOrBlank()) {
                     result.error("bad_args", "delete needs a non-empty id", null)
                 } else {
-                    app.conversations.delete(id)
-                    pushConversations()
-                    result.success(null)
+                    engineScope().launch {
+                        try {
+                            submissions.withLock { app.chat.deleteConversationAwait(id) }
+                            pushConversations()
+                            result.success(null)
+                        } catch (e: CancellationException) { throw e }
+                        catch (e: com.daiyimo.maeve.chat.DeleteIncomplete) {
+                            result.error(e.code, "对话尚未完整清理，请稍后重试", mapOf("stages" to e.stages, "retryable" to true))
+                        } catch (_: Exception) { result.error("delete_partial", "删除未完成，请重试", null) }
+                    }
                 }
             }
             "refresh" -> engineScope().launch {
-                app.chat.refresh()
-                pushConversations()
-                result.success(null)
+                try { submissions.withLock {
+                    app.chat.refresh()
+                    pushConversations()
+                    result.success(null)
+                } } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("history_unavailable", "暂时无法刷新对话，请重试", null) }
             }
             "preview" -> engineScope().launch {
                 val id = call.argument<String>("conversationId")
@@ -211,6 +324,7 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
     }
 
     private fun stopWatching() {
+        summaryJob?.cancel()
         uiJob?.cancel()
         changesJob?.cancel()
         uiJob = null
@@ -223,6 +337,8 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
         events.success(
             mapOf(
                 "kind" to "ui",
+                "revision" to app.chatEventRevision.incrementAndGet(),
+                "epoch" to app.chatEventEpoch,
                 "conversationId" to ui.conversationId,
                 "composer" to when (ui.composer) {
                     ComposerMode.Idle -> "idle"
@@ -248,7 +364,14 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
 
     private fun pushConversations() {
         val events = sink ?: return
-        events.success(mapOf("kind" to "conversations", "items" to summaries()))
+        summaryJob?.cancel()
+        summaryJob = engineScope().launch {
+            try {
+                val items = withContext(Dispatchers.IO) { summaries() }
+                if (sink === events) events.success(mapOf("kind" to "conversations", "revision" to app.chatEventRevision.incrementAndGet(), "epoch" to app.chatEventEpoch, "items" to items))
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { if (sink === events) events.error("history_unavailable", "暂时无法读取对话列表", null) }
+        }
     }
 
     // —— 数据映射(宿主 → 壳的稳定字符串码,壳不做业务判断)——
@@ -329,6 +452,7 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
     }.getOrNull()
 
     companion object {
+        private val submissions = Mutex()
         const val CHANNEL = "maeve/chat"
         const val EVENTS = "maeve/chat/events"
     }

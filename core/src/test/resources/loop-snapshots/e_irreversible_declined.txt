@@ -1,15 +1,15 @@
 outcome: Failed(reason=用户没有同意下单, kind=GaveUp)
 
 ## main #1
-system: len=14648 #21ba8112 | You are Maeve, the user's personal assistant on their phone. Your job is to get ⏎…
-tools: #5a25ebb5 [wait, ask_user, request_confirmation, end_not_done, phone_list_apps, phone_launch_app, phone_set_alarm, phone_set_timer, phone_add_calendar_event]
+system: len=14981 #bc41d61e | You are Maeve, the user's personal assistant on their phone. Your job is to get ⏎…
+tools: #5d6e9602 [wait, ask_user, request_confirmation, end_not_done, phone_list_apps, phone_launch_app, phone_set_alarm, phone_set_timer, phone_add_calendar_event]
 user:
   text #426c7a51 | 买一副耳机
   ctx:runtime_state source="runtime" #274489e7 | Current place: no screen or page read yet ⏎…
 
 ## main #2
-system: len=26796 #7a65f047 | You are Maeve, the user's personal assistant on their phone. Your job is to get ⏎…
-tools: #46ea43ca [wait, ask_user, request_confirmation, end_not_done, view_past_screens, hand_to_user, handle_obstacle, phone_observe, phone_list_elements, phone_tap, phone_scroll, phone_swipe, phone_type_text, phone_clear_text, phone_back, phone_press_key, phone_diagnose, phone_query, phone_find, phone_extract, phone_collect, phone_wait, phone_event, phone_dialog, phone_gesture, phone_set_wheel, phone_run, phone_system_command, phone_list_apps, phone_launch_app, phone_app_after_task, phone_share_text, phone_set_alarm, phone_set_timer, phone_show_alarms, phone_add_calendar_event]
+system: len=27129 #54b628ae | You are Maeve, the user's personal assistant on their phone. Your job is to get ⏎…
+tools: #e3953c67 [wait, ask_user, request_confirmation, end_not_done, view_past_screens, hand_to_user, handle_obstacle, phone_observe, phone_list_elements, phone_tap, phone_scroll, phone_swipe, phone_type_text, phone_clear_text, phone_back, phone_press_key, phone_diagnose, phone_query, phone_find, phone_extract, phone_collect, phone_wait, phone_event, phone_dialog, phone_gesture, phone_set_wheel, phone_run, phone_system_command, phone_list_apps, phone_launch_app, phone_app_after_task, phone_share_text, phone_set_alarm, phone_set_timer, phone_show_alarms, phone_add_calendar_event]
 … 1 messages unchanged
 assistant:
   call main_1 phone_observe {}
@@ -22,7 +22,7 @@ tool:
 assistant:
   call main_2 phone_tap {"ref":"@e3","snapshotId":"s1"}
 tool:
-  result main_2 error #1a8026cb | {"ok":false,"error":"confirmation_required","action":"order","matched":"提交订单","message":"This step spends money (order), so it was not run. First call request_confirmation saying where, what is bought…
+  result main_2 error #f34a57bb | {"ok":false,"error":"confirmation_required","action":"order","matched":"提交订单","message":"This external or irreversible step (order) was not run. First call request_confirmation with its exact target a…
   ctx:runtime_state source="runtime" #868b42dd | Current place: app com.x ⏎…
 
 ## main #4

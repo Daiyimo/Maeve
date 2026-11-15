@@ -21,8 +21,8 @@ class AgentLoopFrameTest {
     private fun images(msgs: List<Message>) = msgs.flatMap { it.parts }.filterIsInstance<Part.Image>()
 
     @Test fun actionResultFollowedByFrameAndSentFramesAreKeptInOrder() = runTest {
-        val tap = call("phone_tap", """{"x":500,"y":500}""")
-        val m = FakeModel(tools(call("phone_observe")), tools(tap), *(1..5).map { tools(call("phone_tap", """{"x":${it * 100},"y":300}""")) }.toTypedArray(), finish())
+        val tap = call("phone_tap", """{"x":500,"y":50}""")
+        val m = FakeModel(tools(call("phone_observe")), tools(tap), *(1..5).map { tools(call("phone_tap", """{"x":${it * 100},"y":50}""")) }.toTypedArray(), finish())
         AgentLoop(m, toolDispatcher(FakeScreen(), visionEnabled = true), "BASE").run("t")
         val msgs = m.requests[2]
         val at = msgs.indexOfFirst { it.parts.any { p -> p is Part.ToolResult && p.callId == tap.id } }
@@ -42,7 +42,7 @@ class AgentLoopFrameTest {
     }
 
     @Test fun textOnlyMainGetsNoFrames() = runTest {
-        val m = FakeModel(tools(call("phone_observe")), tools(call("phone_tap", """{"x":500,"y":500}""")), finish())
+        val m = FakeModel(tools(call("phone_observe")), tools(call("phone_tap", """{"x":500,"y":50}""")), finish())
         AgentLoop(m, toolDispatcher(FakeScreen()), "BASE").run("t")
         assertTrue("images in requests: ${m.requests.map { images(it).map(Part.Image::screenshotId) }}", m.requests.all { images(it).isEmpty() })
         assertEquals(5, m.requests[2].withoutRuntime().size)

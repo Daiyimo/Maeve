@@ -25,18 +25,18 @@ class ApprovalStore(private val file: File) {
         _autonomous = MutableStateFlow((o?.get("autonomous") as? JsonPrimitive)?.booleanOrNull ?: false)
     }
 
-    /** 自主模式:打开时连付款也不先问你(询问时只有付款先问)。换它请走 [ApprovalControl.setAutonomous],正在跑的任务才会跟着换。 */
+    /** 自主模式:普通可恢复操作连续执行，对外动作仍需单次同意，付款交还用户。换它请走 [ApprovalControl.setAutonomous],正在跑的任务才会跟着换。 */
     val autonomous: StateFlow<Boolean> = _autonomous.asStateFlow()
 
     @Synchronized fun setAutonomous(on: Boolean) {
+        save(on)
         _autonomous.value = on
-        save()
     }
 
-    @Synchronized private fun save() {
+    @Synchronized private fun save(on: Boolean) {
         file.parentFile?.mkdirs()
         val tmp = File(file.parentFile, file.name + ".tmp")
-        tmp.writeText(buildJsonObject { put("autonomous", _autonomous.value) }.toString())
+        tmp.writeText(buildJsonObject { put("autonomous", on) }.toString())
         Files.move(tmp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
     }
 }

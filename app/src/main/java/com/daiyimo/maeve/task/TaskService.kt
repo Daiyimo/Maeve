@@ -264,6 +264,7 @@ class TaskService : Service() {
         provenance: RunProvenance = RunProvenance(), triggerKey: String? = null,
         triggerActionGoal: String? = null, triggerThreadId: String? = null, mcpExternalId: String? = null, messageId: String? = null,
         channelPeer: ChannelPeer? = null, channelMessageId: String? = null) {
+        if (requestedConversation != null && ConversationStore.shared(this).deletionBlocked(requestedConversation)) return
         parallel = FeatureFlags.get(this).speedFlags().parallelTasks
         // 同一对话里正在执行或排队的任务收到新原话时，交给它的 Inbox。
         requestedConversation?.let(center::byConversation)?.let { existing ->

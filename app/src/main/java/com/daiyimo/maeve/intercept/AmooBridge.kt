@@ -17,6 +17,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * amoo 文件桥。
@@ -36,6 +38,11 @@ class AmooBridge(private val app: MaeveApp) {
     private val flags = FeatureFlags.get(app)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val inFlight = AtomicInteger(0)
+    private val activeIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val retryAt = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    private val receipts = FileBridgeReceipts(File(app.filesDir, "amoo-receipts"))
+    private val scanner = MailboxScanner()
+    private val outputMutex = Mutex()
 
     @Volatile
     private var poller: Job? = null
@@ -70,50 +77,74 @@ class AmooBridge(private val app: MaeveApp) {
         val root = root() ?: return
         val inbox = File(root, IN)
         if (!inbox.isDirectory && !inbox.mkdirs()) return
-        val requests = inbox.listFiles()?.filter { it.isFile && it.name.endsWith(".json") } ?: return
-        for (file in requests.sortedBy { it.name }.take(MAX_IN_FLIGHT - inFlight.get())) {
-            val id = file.name.removeSuffix(".json")
-            if (!ID.matches(id)) continue
-            // 先改名占位:同一个请求不会被两轮扫地重复认领。
+        val requests = scanner.batch(inbox)
+        for (file in requests.sortedBy { !it.name.endsWith(".claimed") }.take(100)) {
+            if (inFlight.get() >= MAX_IN_FLIGHT) break
+            val id = file.name.substringBeforeLast('.')
+            if (!ID.matches(id) || android.os.SystemClock.elapsedRealtime() < (retryAt[id] ?: 0) || !activeIds.add(id)) continue
             val claimed = File(inbox, "$id.claimed")
-            if (!file.renameTo(claimed)) continue
-            val body = runCatching { claimed.readText() }.getOrNull() ?: continue
-            val req = parseAmooRequest(body)
-            if (req?.goal.isNullOrBlank()) {
-                writeResult(root, id, null, "failed", null, "request is not a {\"goal\":\"...\"} object")
-                claimed.delete()
-                continue
-            }
-            claimed.delete()
+            if (file != claimed && (claimed.exists() || !file.renameTo(claimed))) { activeIds.remove(id); continue }
             inFlight.incrementAndGet()
             scope.launch {
                 try {
-                    handle(root, id, req!!.goal)
-                } finally {
-                    inFlight.decrementAndGet()
+                    val body = claimed.inputStream().use { input ->
+                        val bytes = ByteArray(16 * 1024 + 1)
+                        var count = 0
+                        while (count < bytes.size) {
+                            val read = input.read(bytes, count, bytes.size - count)
+                            if (read < 0) break
+                            count += read
+                        }
+                        bytes.copyOf(count)
+                    }
+                    val req = if (body.size <= 16 * 1024) parseAmooRequest(body.toString(Charsets.UTF_8), allowExpired = receipts.contains(id)) else null
+                    if (req == null || req.requestId != null && req.requestId != id) {
+                        writeResult(root, id, null, "failed", null, "invalid_or_expired_request")
+                    } else handle(root, id, req.goal)
+                    claimed.delete()
+                    retryAt.remove(id)
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (_: Exception) {
+                    retryAt[id] = android.os.SystemClock.elapsedRealtime() + 30_000
+                    // 冷却只是调度提示，不是去重依据；私有回执继续保留 unknown。
+                    if (retryAt.size > 128) retryAt.keys.firstOrNull { it != id }?.let(retryAt::remove)
                 }
+                finally { activeIds.remove(id); inFlight.decrementAndGet() }
             }
         }
     }
 
     private suspend fun handle(root: File, id: String, goal: String) {
-        if (!flags.bridgeAmoo()) {
-            writeResult(root, id, null, "failed", null, "用户已关闭通过 Maeve 执行任务；Amoo 聊天仍可使用。")
+        val (receipt, fresh) = try { receipts.begin(id, goal, rejected = !flags.bridgeAmoo()) }
+        catch (e: IllegalStateException) {
+            if (e.message !in setOf("request_conflict", "receipt_capacity")) throw e
+            writeResult(root, id, null, "failed", null, e.message)
             return
         }
-        val requestId = UUID.randomUUID().toString()
-        val started = runCatching { tasks.start(goal, null, requestId) }
-        val taskId = started.getOrNull()?.id
-        if (taskId == null) {
-            val why = started.exceptionOrNull()?.message ?: "Maeve refused to start the task"
-            writeResult(root, id, null, "failed", null, why)
-            Log.w(TAG, "start refused: $why")
+        if (receipt.rejected) {
+            writeResult(root, id, null, "failed", null, if (receipt.rejectionCode == "queue_full") "queue_full: 待处理请求已达上限，请稍后明确发起新的任务。"
+                else "用户已关闭通过 Maeve 执行任务；Amoo 聊天仍可使用。")
             return
+        }
+        val taskId = receipt.taskId
+        if (fresh) {
+            try { tasks.start(goal, null, taskId) }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (_: Exception) {
+                writeResult(root, id, taskId, "receipt_unknown", null, "提交结果未知，请查询原任务，不能自动重发。")
+                throw IllegalStateException("receipt_unknown")
+            }
+        } else {
+            try { tasks.get(taskId) }
+            catch (_: Exception) {
+                writeResult(root, id, taskId, "receipt_unknown", null, "原任务回执不可用，未重新启动任务。")
+                throw IllegalStateException("receipt_unknown")
+            }
         }
         Log.i(TAG, "request $id -> task $taskId (${goal.length} chars)")
         writeResult(root, id, taskId, "running", null, null)
-        val deadline = System.currentTimeMillis() + WAIT_MS
-        while (System.currentTimeMillis() < deadline) {
+        val deadline = android.os.SystemClock.elapsedRealtime() + WAIT_MS
+        while (android.os.SystemClock.elapsedRealtime() < deadline) {
             delay(POLL_MS)
             val state = runCatching { tasks.get(taskId)?.state }.getOrNull() ?: continue
             val status = RemoteStatus.of(state)
@@ -121,26 +152,41 @@ class AmooBridge(private val app: MaeveApp) {
             val answer = (state as? TaskState.Succeeded)?.answer
             val reason = (state as? TaskState.Failed)?.reason
             writeResult(root, id, taskId, status, answer, reason)
+            receipts.finish(id)
             Log.i(TAG, "request $id finished: $status")
             return
         }
         writeResult(
             root, id, taskId, "running", null,
-            "still running after ${WAIT_MS / 1000}s; ask again or check the task list"
+            "deferred: task_id remains queryable; this timeout did not cancel the task"
         )
+        throw IllegalStateException("deferred")
     }
 
     private suspend fun writeResult(root: File, id: String, taskId: String?, status: String, answer: String?, note: String?) {
         withContext(Dispatchers.IO) {
-            runCatching {
-                val out = File(root, OUT).apply { mkdirs() }
-                val tmp = File(out, "$id.tmp")
-                tmp.writeText(amooResultJson(id, taskId, status, answer, note))
-                if (!tmp.renameTo(File(out, "$id.json"))) {
-                    File(out, "$id.json").writeText(amooResultJson(id, taskId, status, answer, note))
-                    tmp.delete()
-                }
-            }.onFailure { Log.w(TAG, "write result $id failed: ${it.message}") }
+            outputMutex.withLock {
+            val out = File(root, OUT).apply { check(isDirectory || mkdirs()) }
+            val now = System.currentTimeMillis()
+            val previous = java.nio.file.Files.newDirectoryStream(out.toPath()).use { entries ->
+                entries.asSequence().take(4097).map { it.toFile() }.toList()
+            }
+            check(previous.size <= 4096) { "output_entry_capacity" }
+            val managed = previous.filter { it.isFile && it.name.endsWith(".json") }
+            managed.filter { now - it.lastModified() > 7 * 86_400_000L }.forEach { it.delete() }
+            previous.filter { it.isFile && it.name.endsWith(".tmp") && now - it.lastModified() > 3_600_000L }.forEach { it.delete() }
+            val target = File(out, "$id.json")
+            check(target.exists() || previous.count { it.exists() } < 4096) { "output_entry_capacity" }
+            val json = amooResultJson(id, taskId, status, answer?.take(4000), note)
+            val data = json.toByteArray(Charsets.UTF_8)
+            check(data.size <= 64 * 1024)
+            check(previous.filter { it.isFile && it.exists() && it != target }.sumOf { it.length() } + data.size <= 16 * 1024 * 1024)
+            val temp = File(out, "$id-${UUID.randomUUID()}.tmp")
+            try {
+                java.nio.file.Files.write(temp.toPath(), data, java.nio.file.StandardOpenOption.CREATE_NEW, java.nio.file.StandardOpenOption.WRITE)
+                java.nio.file.Files.move(temp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            } finally { temp.delete() }
+            }
         }
     }
 
@@ -154,15 +200,6 @@ class AmooBridge(private val app: MaeveApp) {
         const val MAX_IN_FLIGHT = 4
         val ID = Regex("[A-Za-z0-9_-]{1,64}")
     }
-}
-
-/** amoo 写进来的请求:{ "goal": "..." }。格式不认识就返回 null,不让它建空任务。 */
-internal data class AmooRequest(val goal: String)
-
-internal fun parseAmooRequest(body: String): AmooRequest? {
-    val goal = jsonString(body, "goal")?.trim()
-    if (goal.isNullOrEmpty()) return null
-    return AmooRequest(goal.take(4000))
 }
 
 /** 写回给 amoo 的结果。字段名叫 status/answer,和 Maeve 的 /api/v1 任务接口一致,便于它复用同一套理解。 */

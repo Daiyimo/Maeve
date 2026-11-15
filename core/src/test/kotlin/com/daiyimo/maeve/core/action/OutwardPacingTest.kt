@@ -71,7 +71,8 @@ class OutwardPacingTest {
     private class GreetPage : ScreenPort by FakeScreen() {
         val taps = mutableListOf<String>()
         private val shown = listOf(
-            UiElement("@e1", "button", "立即沟通", 900, 300, listOf(800, 100, 999, 160), null, true, false, false),
+            UiElement("@recipient", "text", "招聘方", 0, 0, listOf(0, 0, 500, 80), null, false, false, false),
+            UiElement("@e1", "button", "提交", 900, 300, listOf(800, 100, 999, 160), null, true, false, false),
             UiElement("@e2", "button", "下一个", 900, 1300, listOf(800, 500, 999, 560), null, true, false, false),
         )
         override suspend fun snapshot() = ScreenSnapshot("s1", "com.jobs", shown, 1080, 2400)
@@ -87,8 +88,15 @@ class OutwardPacingTest {
         val tools = toolDispatcher(screen)
         tools.execute(Part.ToolCall("o", "phone_observe", "{}"))
         val pacing = OutwardPacing.human(Random(9))
-        val executor = ActionExecutor(tools, OperationGuards(), null, gate = {}, recorder = ActionRecorder(sink, { currentTime }), autonomous = true, pacing = pacing)
-        suspend fun tap(id: String, ref: String) = executor.run(Part.ToolCall(id, "phone_tap", """{"ref":"$ref","snapshotId":"s1"}"""), Origin.Model(1))
+        val grant = com.daiyimo.maeve.core.gate.ConfirmationGate()
+        val executor = ActionExecutor(tools, OperationGuards(), grant, gate = {}, recorder = ActionRecorder(sink, { currentTime }), autonomous = true, pacing = pacing)
+        suspend fun tap(id: String, ref: String): ActionOutcome {
+            if (ref == "@e1") {
+                grant.declare(com.daiyimo.maeve.core.gate.ConfirmationRequest(com.daiyimo.maeve.core.risk.IrrevAction.submit, "招聘方", "提交申请", null, "com.jobs"), "com.jobs")
+                grant.decide(true, 1)
+            }
+            return executor.run(Part.ToolCall(id, "phone_tap", """{"ref":"$ref","snapshotId":"s1"}"""), Origin.Model(1))
+        }
         tap("c1", "@e1")
         val gap = pacing.waitBefore("com.jobs", currentTime)
         assertTrue("$gap", gap in limits.firstGapMs)

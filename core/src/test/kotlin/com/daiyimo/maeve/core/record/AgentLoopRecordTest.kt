@@ -44,15 +44,15 @@ class AgentLoopRecordTest {
     @Test fun emitsStartReplyResultEnd() {
         val m = FakeModel(
             reply(Part.Text("先看看"), call("phone_observe")),
-            reply(call("phone_tap", """{"x":500,"y":500}""")),
+            reply(call("phone_tap", """{"x":500,"y":50}""")),
             com.daiyimo.maeve.core.testing.answerReply("好了"),
         )
         val ev = run(m).events
         assertEquals(
-            // 坐标处没有元素:不可逆判定无从判断,放行并记一条 gate_unresolved
+            // 使用真实命名控件内的坐标，执行成功后保留因果记录。
             // 最后一条不带调用的回复是回答:先字面核对,再记下代码找到的来源
             // 第一次读屏展开了手机一组:下一次问模型之前记一条 tools_opened
-            listOf("TaskStarted", "PromptVersion", "ModelReply", "ToolResult", "Observed", "Activity", "State", "ModelReply", "ToolResult", "Activity", "State", "ModelReply", "AnswerCheck", "Sources", "TaskEnded"),
+            listOf("TaskStarted", "PromptVersion", "ModelReply", "ToolResult", "Observed", "Activity", "State", "ModelReply", "ToolResult", "Activity", "ModelReply", "AnswerCheck", "Sources", "TaskEnded"),
             ev.map { it::class.simpleName },
         )
         assertEquals("帮我查", (ev[0] as RunEvent.TaskStarted).goal)
@@ -61,7 +61,6 @@ class AgentLoopRecordTest {
         assertEquals(RunEvent.State((ev[6] as RunEvent.State).atMs, "tools_opened", "phone"), ev[6])
         val t2 = ev[8] as RunEvent.ToolResult
         assertEquals(2, t2.step); assertEquals("phone_tap", t2.tool)
-        assertEquals(RunEvent.State((ev[10] as RunEvent.State).atMs, "gate_unresolved", "phone_tap x=500,y=500 freshRead=true"), ev[10])
         assertEquals("observe", (ev[5] as RunEvent.Activity).kind)
         assertEquals("act", (ev[9] as RunEvent.Activity).kind)
         val end = ev.last() as RunEvent.TaskEnded

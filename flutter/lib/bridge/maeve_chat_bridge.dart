@@ -10,6 +10,13 @@ import '../models/execution.dart';
 /// 测试里换 [FakeChatBridge] 之类的实现,界面代码一行不动。
 abstract class MaeveChatBridge {
   const MaeveChatBridge();
+  Future<Set<String>> supportedFeatures() async => const {
+    'submissionReceipts',
+    'draftRecovery',
+    'deleteImpact',
+    'awaitDeletion',
+    'actionEffectReceipts',
+  };
 
   /// 会话摘要:[{id, title, updatedAt(epoch ms), pinned}]。
   Future<List<Map<String, dynamic>>> conversations();
@@ -21,16 +28,48 @@ abstract class MaeveChatBridge {
   Future<bool> send(String text, {String? quote, bool quoteFromUser = false});
 
   /// 停止当前任务。
+  Future<bool?> submit(
+    String requestId,
+    String conversationId,
+    String text, {
+    String? quote,
+    bool quoteFromUser = false,
+  }) => send(text, quote: quote, quoteFromUser: quoteFromUser);
+  Future<bool?> submissionReceipt(String requestId) async => null;
+  Future<String?> loadDrafts() async => null;
+  Future<void> saveDrafts(String state) async {}
+  Future<({int revision, String? state})> loadDraftState() async =>
+      (revision: 0, state: await loadDrafts());
+  Future<int> saveDraftState(String state, int revision) async {
+    await saveDrafts(state);
+    return revision + 1;
+  }
+
+  Future<List<Map<String, dynamic>>> effectReceipts(
+    String conversationId,
+  ) async => [];
+  Future<void> reconcileEffect(
+    String conversationId,
+    Map<String, dynamic> receipt,
+    bool applied,
+  ) async => throw UnsupportedError('effect_receipts');
+
   Future<void> cancel();
+  Future<void> cancelConversation(String conversationId) => cancel();
 
   /// 新对话(宿主切到全新状态,还没说话就没有 id)。
   Future<void> newConversation();
+  Future<String?> createConversation() async {
+    await newConversation();
+    return null;
+  }
 
   /// 置顶 / 取消置顶。
   Future<void> setPinned(String id, bool pinned);
 
   /// 删除对话。
   Future<void> delete(String id);
+  Future<Map<String, dynamic>> deleteImpact(String id) async => {};
   Future<Uint8List?> preview(String conversationId);
   Future<RunDetails> runDetails(String runId);
   Future<List<Map<String, dynamic>>> runs();
@@ -44,6 +83,63 @@ abstract class MaeveChatBridge {
 /// 真机实现:全部转发给平台通道(见 MaeveBridge / 宿主 MaeveChatPlugin)。
 class HostChatBridge extends MaeveChatBridge {
   const HostChatBridge();
+  @override
+  Future<Set<String>> supportedFeatures() async {
+    final snapshot = await MaeveBridge.methods
+        .invokeMapMethod<String, dynamic>('status')
+        .timeout(const Duration(seconds: 5));
+    if (((snapshot?['bridgeVersion'] as num?)?.toInt() ?? 0) < 2) return {};
+    return {
+      for (final e in (snapshot?['capabilities'] as Map? ?? const {}).entries)
+        if (e.value == true) e.key as String,
+    };
+  }
+
+  @override
+  Future<({int revision, String? state})> loadDraftState() async {
+    final value = await MaeveBridge.chatMethods
+        .invokeMapMethod<String, dynamic>('loadDrafts')
+        .timeout(const Duration(seconds: 5));
+    return (
+      revision: value!['revision'] as int,
+      state: value['state'] as String?,
+    );
+  }
+
+  @override
+  Future<int> saveDraftState(String state, int revision) async =>
+      (await MaeveBridge.chatMethods
+          .invokeMethod<int>('saveDrafts', {
+            'state': state,
+            'revision': revision,
+          })
+          .timeout(const Duration(seconds: 5)))!;
+  @override
+  Future<List<Map<String, dynamic>>> effectReceipts(
+    String conversationId,
+  ) async => [
+    for (final row
+        in await MaeveBridge.chatMethods.invokeListMethod('effectReceipts', {
+              'conversationId': conversationId,
+            }) ??
+            [])
+      Map<String, dynamic>.from(row as Map),
+  ];
+  @override
+  Future<void> reconcileEffect(
+    String conversationId,
+    Map<String, dynamic> receipt,
+    bool applied,
+  ) => MaeveBridge.chatMethods.invokeMethod<void>('reconcileEffect', {
+    'conversationId': conversationId,
+    'effectId': receipt['effectId'],
+    'sequence': receipt['sequence'],
+    'applied': applied,
+  });
+  @override
+  Future<void> cancelConversation(String conversationId) => MaeveBridge
+      .chatMethods
+      .invokeMethod<void>('cancel', {'conversationId': conversationId});
   @override
   Future<List<Map<String, dynamic>>> runs() async => [
     for (final row
@@ -91,10 +187,44 @@ class HostChatBridge extends MaeveChatBridge {
       MaeveBridge.send(text, quote: quote, quoteFromUser: quoteFromUser);
 
   @override
+  Future<bool?> submit(
+    String requestId,
+    String conversationId,
+    String text, {
+    String? quote,
+    bool quoteFromUser = false,
+  }) async {
+    final receipt = await MaeveBridge.chatMethods
+        .invokeMapMethod('submit', {
+          'requestId': requestId,
+          'conversationId': conversationId,
+          'text': text,
+          'quote': quote,
+          'quoteFromUser': quoteFromUser,
+        })
+        .timeout(const Duration(seconds: 15));
+    return receipt?['accepted'] as bool?;
+  }
+
+  @override
+  Future<bool?> submissionReceipt(String requestId) async {
+    final receipt = await MaeveBridge.chatMethods
+        .invokeMapMethod('sendReceipt', {'requestId': requestId})
+        .timeout(const Duration(seconds: 5));
+    return receipt?['accepted'] as bool?;
+  }
+
+  @override
   Future<void> cancel() => MaeveBridge.cancel();
 
   @override
   Future<void> newConversation() => MaeveBridge.newConversation();
+
+  @override
+  Future<String?> createConversation() async {
+    final state = await MaeveBridge.chatMethods.invokeMapMethod('new');
+    return state?['conversationId'] as String?;
+  }
 
   @override
   Future<void> setPinned(String id, bool pinned) =>
@@ -102,6 +232,14 @@ class HostChatBridge extends MaeveChatBridge {
 
   @override
   Future<void> delete(String id) => MaeveBridge.delete(id);
+  @override
+  Future<Map<String, dynamic>> deleteImpact(String id) async =>
+      Map<String, dynamic>.from(
+        await MaeveBridge.chatMethods.invokeMapMethod('deleteImpact', {
+              'id': id,
+            }) ??
+            {},
+      );
 
   @override
   Stream<dynamic> get chatStream => MaeveBridge.chatStream;

@@ -254,7 +254,9 @@ class TaskRun(
     // 带对话编号的那份先写:收不带编号的状态时读到的编号就已经是这个任务的(界面据此不把别的对话的状态接到屏上)
     private val mirrored = listOf(_runId, _sharedFiles, _tagged, _state, _takeoverStage, _frames, _displayId, _appShown, _webOpen, _activities, _steers)
 
+    private var runBudget: com.daiyimo.maeve.core.run.RunBudget? = null
     private fun setState(s: TaskState) = synchronized(service.taskState.shownLock) {
+        runBudget?.pause(s is TaskState.WaitingInput || s is TaskState.WaitingConfirmation || s is TaskState.WaitingTakeover || s is TaskState.Held)
         _tagged.value = conversationId to s
         _state.value = s
     }
@@ -531,16 +533,18 @@ class TaskRun(
             // 前一个任务替这个拿着的那份,自己的拿上了就放开
             wakeHandoff?.release()
             wakeHandoff = null
-            val model = env.modelFactory(service, session) ?: return TaskState.Failed(tr(R.string.fail_no_main_model), FailKind.Environment)
+            val stepLimit = FeatureFlags.get(service).taskStepLimit()
+            val budget = com.daiyimo.maeve.core.run.RunBudget(maxSteps = stepLimit).also { runBudget = it }
+            val model = env.modelFactory(service, session)?.let(budget::wrap) ?: return TaskState.Failed(tr(R.string.fail_no_main_model), FailKind.Environment)
             // 用户在浏览器页上对着一页问的:那一页借给这个任务当当前网页标签(见 PageLoans);开跑时页面还开着才借得到
             val pageLoan = if (provenance.origin == RunOrigin.Ui) withContext(Dispatchers.Main) { UserBrowser.existing()?.claim(conversationId, key) } else null
-            val light = env.lightModelFactory(service, session)
+            val light = env.lightModelFactory(service, session)?.let(budget::wrap)
             // 同一模型分成两个实例并不会更便宜或更快;禁止它给批量/收尾工具反而只会增加改派和逐步操作。
             // 这只跳过逐步分工,轻量角色仍可用于意图判断、标题和收尾等辅助调用。
             val routedLight = light?.takeIf {
                 !ProviderStore.get(service).roles.value.sameModel(ModelRole.Main, ModelRole.Light)
             }
-            val vision = env.visionModelFactory(service, session)
+            val vision = env.visionModelFactory(service, session)?.let(budget::wrap)
 
             val (knowledge, skills) = withContext(Dispatchers.IO) {
                 // 用户对某个 App/站点的补充放在私有目录 personal/apps、personal/sites 下
@@ -763,7 +767,6 @@ class TaskRun(
             }
             // 这个对话里用户发来的屏幕(跟着对话存在工作区里)
             val userScreens = (service.application as MaeveApp).userScreens.source(conversationId)
-            val stepLimit = if (conditionCheck) null else FeatureFlags.get(service).taskStepLimit()
             val runSpec = RunSpec(RunId(key), goal, conversationId,
                 priorTurns,
                 provenance, if (conditionCheck) setOf("web", "sandbox") else null, readOnly = conditionCheck,
@@ -796,9 +799,10 @@ class TaskRun(
                         conversationId = conversationId, inlineScreen = speed.inlineScreen,
                         adaptiveVision = speed.adaptiveVision)
                     AgentLoop(model, childTools, SystemPrompt.identity(), maxSteps = childSpec.stepBudget ?: AgentLoop.UNLIMITED_STEPS,
+                        effects = com.daiyimo.maeve.core.action.ActionEffects((service.application as MaeveApp).actionEffects, conversationId, childSpec.id.value),
                         // 子任务跟着询问 / 自主;询问时它也过关卡,子任务里花钱的一步一律不做
-                        confirmations = runApproval.gate(), approvals = runApproval, autonomous = runApproval.startedAutonomous,
-                        reviewFinalAnswer = false, flags = speed, outwardPacing = OutwardPacing.human())
+                        confirmations = runApproval.gate(), approvals = runApproval, autonomous = false,
+                        reviewFinalAnswer = false, flags = speed, outwardPacing = OutwardPacing.human(), budget = budget)
                 },
                 store = (service.application as MaeveApp).childRuns,
                 ownerAlive = { job?.isActive == true },
@@ -861,13 +865,15 @@ class TaskRun(
                     )
                 },
                 maxSteps = env.evalHooks.maxSteps ?: runSpec.stepBudget ?: AgentLoop.UNLIMITED_STEPS,
+                budget = budget,
+                effects = com.daiyimo.maeve.core.action.ActionEffects((service.application as MaeveApp).actionEffects, conversationId, key),
                 reviewFinalAnswer = false,
                 inputTimeoutMs = TaskService.INPUT_TIMEOUT_MS,
                 // 询问 / 自主:询问时只有花钱的一步先问(有确认关卡和 request_confirmation);自主时连付款也不问。
                 // 开工时询问、中途换成自主的,下一步起不再问;开工时自主的,换成询问留给下一个任务
                 confirmations = runApproval.gate(),
                 approvals = runApproval,
-                autonomous = runApproval.startedAutonomous,
+                autonomous = false,
                 confirmTimeoutMs = TaskService.CONFIRM_TIMEOUT_MS,
                 selfPackage = service.packageName,
                 flags = speed,

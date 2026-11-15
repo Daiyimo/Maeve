@@ -29,7 +29,7 @@ class AmooBridgeProtocolTest {
 
     @Test fun keepsGoalUnderLimit() {
         val long = "a".repeat(5000)
-        assertEquals(4000, parseAmooRequest("""{"goal":"$long"}""")?.goal?.length)
+        assertNull(parseAmooRequest("""{"goal":"$long"}"""))
     }
 
     @Test fun writesResultWithEscapes() {

@@ -67,10 +67,13 @@ class ConfirmDecision(
      */
     var outwardSite: String? = null
         private set
+    var approvalDigest: String? = null
+        private set
 
     /** 判定放在锁屏等待之后:按此刻重新读的一屏判。 */
     suspend fun judge(tool: String, args: JsonObject, origin: Origin): Decision {
         outwardSite = null
+        approvalDigest = null
         // 这一步落在哪里由界面一侧给出;点看图找到的 @vN 时参数已换成它登记的坐标和找的文字(只读,不另读屏)
         val aim = tools.interfaces.actionTarget(tools.declared(tool), args)
         val checked = aim.args
@@ -84,14 +87,7 @@ class ConfirmDecision(
         if (writing && AppTiers.tierOf(aim.aimed?.packageName) == AppTier.Deny) return Decision.DeniedApp
         if (entering && aim.aimed?.elements?.any { it.secret } == true) return Decision.SecretPage
         // 每步确认名单里的 App(微信):询问时每一步写操作都要用户同意;软规则,自主模式豁免
-        val everyWrite = writing && AppTiers.tierOf(aim.aimed?.packageName) == AppTier.ConfirmEveryWrite
-        if (autonomous || approvals.autonomous()) {
-            val target = tools.gateTarget(tool)
-            if (IrreversibleDetector.needsCheck(target, args)) {
-                outwardSite = outward(IrreversibleDetector.classify(target, checked, aim.aimed), aim.aimed)
-            }
-            return Decision.Clear
-        }
+        val everyWrite = writing && !approvals.autonomous() && AppTiers.tierOf(aim.aimed?.packageName) == AppTier.ConfirmEveryWrite
         val policy = origin.policy
         val target = tools.gateTarget(tool)
         tools.approvalRisk(tool, checked)?.let { declared ->
@@ -100,10 +96,9 @@ class ConfirmDecision(
         val typing = if (verb == Verb.TypeText) (args["text"] as? JsonPrimitive)?.contentOrNull else null
         // 每步确认名单里的 App(微信):每一步写操作都要用户同意,和看起来可不可逆无关;
         // 问不到人时按 Approval.Deny 停下(见 [ApprovalPolicy]),不擅自放行
-        if (everyWrite) {
+        if (everyWrite && !IrreversibleDetector.needsCheck(target, args)) {
             return approve(tool, checked, origin, null, Risk(ActionRisk.Change), aim.aimed, typing, null, everyWrite) ?: Decision.Clear
         }
-        if (confirmations == null && !policy.judgeWithoutGate) return Decision.Clear
         // 没有可判的不可逆字样的动作(一般改动、界面间移动)不花钱,不用问
         if (!IrreversibleDetector.needsCheck(target, args)) return Decision.Clear
         val snap = aim.aimed
@@ -119,7 +114,9 @@ class ConfirmDecision(
         outwardSite = outward(hit, fresh ?: snap)
         approve(tool, checked, origin, hit, risk, fresh ?: snap, typing, seen, everyWrite)?.let { return it }
         if (hit != null || !IrreversibleDetector.unresolved(target, checked, snap, fresh)) return Decision.Clear
-        return if (policy.refuseUnresolved) Decision.Unresolved else Decision.Traced(unresolvedDetail(args, aim.readAgeMs, fresh != null))
+        // 有名字、经过定位与复看的视觉目标可继续；裸坐标/失效编号不能靠记日志后盲点。
+        if (aim.bySight && !seen.isNullOrBlank() && fresh != null && fresh.packageName == snap?.packageName) return Decision.Clear
+        return Decision.Unresolved
     }
 
     /** 命中的是发送、提交时这一屏的网站或 App。 */
@@ -146,9 +143,15 @@ class ConfirmDecision(
         }
         val required = Decision.Required(asked, risk.ask, everyWrite)
         val gate = confirmations?.takeIf { policy.usesGrant } ?: return required.also { audit("required") }
+        val granted = gate.granted
         val permit = risk.ask?.let { gate.permitsExactly(it, origin.step) } ?: gate.permits(asked, screen, origin.step, typing, listOfNotNull(seen))
         return when (val p = permit) {
-            Permit.Allowed -> null.also { audit("allowed") }
+            Permit.Allowed -> null.also {
+                approvalDigest = granted?.let { ActionEffectStore.digest(kotlinx.serialization.json.Json.encodeToString(
+                    kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<String>()),
+                    listOf(it.action.name, it.target, it.content, it.amount.orEmpty(), it.app))) }
+                audit("allowed")
+            }
             Permit.NoGrant -> required.also { audit("required") }
             is Permit.Mismatch -> Decision.Mismatch(asked, p.reason).also { audit("mismatch") }
         }

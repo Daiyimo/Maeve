@@ -114,7 +114,7 @@ class PrefixStabilityAdaptersTest {
             AnthropicModel(url, "k", "m", Capabilities(true, vision, contextTokens, true), OkHttpClient(), reasoningEffort = "medium")
         override val keys = setOf("system", "tools", "messages")
         override val replay = "SIG"
-        override val compactions = listOf(12, 22)
+        override val compactions = listOf(12, 21, 30)
         override fun zone0(body: JsonObject) = strip(body["system"]!!).toString() + strip(body["tools"]!!)
         override fun messages(body: JsonObject) = body["messages"]!!.jsonArray.map { strip(it).toString() }
         override fun tools(body: JsonObject) = body["tools"]!!.jsonArray.map { strip(it).toString() to it.jsonObject.str("name")!! }

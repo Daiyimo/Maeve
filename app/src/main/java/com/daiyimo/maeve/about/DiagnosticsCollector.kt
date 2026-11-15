@@ -59,6 +59,27 @@ fun SystemStatus.setupInputs(
 object DiagnosticsCollector {
     private const val RECENT_RUNS = 3
 
+    /** 默认预览只组装白名单字段；不读取运行记录、模型名称、地址或任何业务正文。 */
+    fun safeSummary(context: Context): String {
+        val app = context.applicationContext as MaeveApp
+        return kotlinx.serialization.json.buildJsonObject {
+            put("schemaVersion", kotlinx.serialization.json.JsonPrimitive(1))
+            put("version", kotlinx.serialization.json.JsonPrimitive(BuildConfig.VERSION_NAME))
+            put("versionCode", kotlinx.serialization.json.JsonPrimitive(BuildConfig.VERSION_CODE))
+            put("build", kotlinx.serialization.json.JsonPrimitive(BuildConfig.GIT_HASH))
+            put("channel", kotlinx.serialization.json.JsonPrimitive(BuildConfig.BUILD_TYPE))
+            put("sdk", kotlinx.serialization.json.JsonPrimitive(Build.VERSION.SDK_INT))
+            put("includesContent", kotlinx.serialization.json.JsonPrimitive(false))
+            put("includesScreenshots", kotlinx.serialization.json.JsonPrimitive(false))
+            put("partial", kotlinx.serialization.json.JsonPrimitive(true))
+            put("providerStore", kotlinx.serialization.json.JsonPrimitive(app.providers.loadState.value.name))
+            put("appAccessAvailable", kotlinx.serialization.json.JsonPrimitive(app.appAccess.current().available))
+            put("helperRunning", kotlinx.serialization.json.JsonPrimitive(app.phone.shellControl.status.value is com.daiyimo.maeve.core.shell.BuiltinShellStatus.Running))
+            put("accessibilityRunning", kotlinx.serialization.json.JsonPrimitive(com.daiyimo.maeve.cap.phone.a11y.ScreenAccessibility.instance.value != null))
+            put("notificationsAllowed", kotlinx.serialization.json.JsonPrimitive(app.getSystemService(NotificationManager::class.java).areNotificationsEnabled()))
+        }.toString()
+    }
+
     fun collect(context: Context, status: SystemStatus, setup: SetupInputs? = null): DiagnosticsSnapshot {
         val app = context.applicationContext as MaeveApp
         val phone = PhoneServices.of(app)

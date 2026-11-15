@@ -26,11 +26,28 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
     MaeveController controller,
     List<String> ids,
   ) async {
+    var running = 0, schedules = 0;
+    try {
+      for (final id in ids) {
+        final impact = await controller.chatBridge.deleteImpact(id);
+        if (impact['runningTask'] == true) running++;
+        schedules += (impact['schedules'] as num?)?.toInt() ?? 0;
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('无法读取删除影响，请重试。')));
+      }
+      return;
+    }
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(ids.length == 1 ? '删除这段对话？' : '删除选中的 ${ids.length} 段对话？'),
-        content: const Text('对话会从设备上的记录中移除，无法恢复。'),
+        content: Text(
+          '将停止 $running 段对话的运行或排队任务，移除 $schedules 个定时任务，并删除对话和工作区附件。全局执行统计保留。',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -44,13 +61,26 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
       ),
     );
     if (confirmed != true || !mounted) return;
+    final failed = <String>[];
     for (final id in ids) {
-      controller.delete(id);
+      try {
+        await controller.delete(id);
+      } catch (_) {
+        failed.add(id);
+      }
     }
+    if (!mounted) return;
     setState(() {
-      _selected.clear();
-      _selecting = false;
+      _selected
+        ..clear()
+        ..addAll(failed);
+      _selecting = failed.isNotEmpty;
     });
+    if (failed.isNotEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${failed.length} 段对话尚未完整删除，请重试。')),
+      );
+    }
   }
 
   void _rowMenu(MaeveController controller, Conversation conversation) {
@@ -168,7 +198,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                 onChanged: controller.setSearch,
                 style: MaeveType.body.copyWith(fontSize: 13.5, color: c.ink),
                 decoration: const InputDecoration(
-                  hintText: '搜索对话',
+                  hintText: '搜索标题',
                   isDense: true,
                   contentPadding: EdgeInsets.symmetric(
                     horizontal: 12,

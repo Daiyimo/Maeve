@@ -76,7 +76,7 @@ class ModelSetupNetworkTest {
 
     private fun setUp(): Pair<ProviderStore, ModelSetupViewModel> {
         val store = ProviderStore(tmp.root, AesGcmKeyCipher { key }, userAgent = "Maeve/1.2.3")
-        val vm = ModelSetupViewModel(store, scope, io = Dispatchers.IO)
+        val vm = ModelSetupViewModel(store, scope, io = Dispatchers.IO, selfHostedHttpConsent = true)
         vm.selectPreset(ProviderPresets.custom.label)
         vm.setKind(ProviderConfig.Kind.OpenAiCompat)
         vm.setBaseUrl(base)

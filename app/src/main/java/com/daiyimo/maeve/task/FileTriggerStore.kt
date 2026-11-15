@@ -36,8 +36,6 @@ class FileTriggerStore(private val file: File) : TriggerStore {
 
     private fun save() {
         file.parentFile?.mkdirs()
-        val temp = File(file.parentFile, file.name + ".tmp")
-        FileOutputStream(temp).use { out -> out.write(Json.encodeToString(memory.snapshot()).toByteArray()); out.fd.sync() }
-        check(temp.renameTo(file)) { "trigger store rename failed" }
+        com.daiyimo.maeve.core.io.AtomicFiles.write(file, Json.encodeToString(memory.snapshot()).toByteArray(Charsets.UTF_8))
     }
 }

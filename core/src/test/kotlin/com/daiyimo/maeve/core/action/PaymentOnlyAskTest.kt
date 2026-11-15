@@ -123,15 +123,15 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
     ) = AgentLoop(m, toolDispatcher(s), "BASE", sink = sink, confirmations = ConfirmationGate(),
         approvals = approvals, confirmTimeoutMs = timeout, flags = flags, selfPackage = self)
 
-    @Test fun sendsWithoutAskingAndAudits() = runTest {
+    @Test fun sendIsBlockedAndAuditedWithoutApproval() = runTest {
         val s = Chat(); val sink = Events()
         val m = FakeModel(OBSERVE, tap("@e3"), FINISH)
         loop(m, s, sink = sink).run("t")
-        assertEquals(listOf("@e3"), s.taps)
+        assertTrue(s.taps.isEmpty())
         val audit = sink.all.filterIsInstance<RunEvent.Approval>().single()
-        assertEquals(listOf("model", "send", "External", "false", "allowed"),
+        assertEquals(listOf("model", "send", "External", "false", "required"),
             listOf(audit.source, audit.action, audit.risk, audit.payment.toString(), audit.decision))
-        assertTrue(sink.all.none { it is RunEvent.Confirmation })
+        assertTrue(sink.all.any { it is RunEvent.Confirmation })
     }
 
     /**
@@ -139,11 +139,11 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
      * (2026-11-10 P0-2 起,往密码框里打字从这一列里移出:密码 / 验证码页交还用户,见
      * [typingIntoASecretFieldIsHandedToTheUser];原断言「密码框打字放行」随行为一并更新。)
      */
-    @Test fun deletingUninstallingAndPlainTapsAllRunWithoutAsking() = runTest {
+    @Test fun deleteAndUninstallNeedApprovalButPlainTapsRemainAllowed() = runTest {
         val s = Chat()
         val m = FakeModel(OBSERVE, tap("@e7"), tap("@e4"), tap("@e6"), FINISH)
         loop(m, s).run("t")
-        assertEquals(listOf("@e7", "@e4", "@e6"), s.taps)
+        assertEquals(listOf("@e6"), s.taps)
     }
 
     /** 密码 / 验证码页上要打字:交还用户,不代填;询问模式也不例外(硬规则)。 */
@@ -170,13 +170,13 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
         assertEquals(listOf("true", "required"), listOf(audit.payment.toString(), audit.decision))
     }
 
-    @Test fun salaryRangeDoesNotCauseAConfirmationLoop() = runTest {
+    @Test fun greetingRequiresApprovalWithoutTreatingSalaryAsPayment() = runTest {
         val s = Chat(page = applicationPage); val sink = Events()
         val m = FakeModel(OBSERVE, tap("@e3"), FINISH)
         loop(m, s, sink = sink).run("t")
-        assertEquals(listOf("@e3"), s.taps)
-        assertEquals("true", m.result(2).s("ok"))
-        assertTrue(sink.all.none { it is RunEvent.Confirmation })
+        assertTrue(s.taps.isEmpty())
+        assertEquals("confirmation_required", m.result(2).s("error"))
+        assertTrue(sink.all.any { it is RunEvent.Confirmation })
     }
 
     @Test fun donationStillRequiresUserTakeover() = runTest {
@@ -211,20 +211,22 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
         assertEquals("confirmation_required", m.result(4).s("error"))
     }
 
-    @Test fun confirmationIsOnlyForSpendingMoney() = runTest {
-        // 写不出金额的申请(发消息)不交给用户,直接告诉模型去做
+    @Test fun approvedSendRunsOnceWithoutRequiringAnAmount() = runTest {
         val s = Chat()
         val send = tools(call("request_confirmation", """{"action":"send","target":"张三","content":"明天见","app":"com.chat"}"""))
-        val m = FakeModel(OBSERVE, send, tap("@e3"), FINISH)
+        val m = FakeModel(OBSERVE, send, tap("@e3"), tap("@e3"), GIVE_UP)
         val l = loop(m, s)
-        l.run("t")
-        val r = m.result(2)
-        assertEquals("false", r.s("ok"))
-        assertTrue(r.toString(), "amount" in r.toString())
+        val run = async { l.run("t") }
+        advanceUntilIdle()
+        assertTrue(l.state.value is TaskState.WaitingConfirmation)
+        l.answerConfirmation(ConfirmChoice.Once)
+        run.await()
+        assertEquals("true", m.result(2).s("ok"))
         assertEquals(listOf("@e3"), s.taps)
+        assertEquals("confirmation_required", m.result(4).s("error"))
     }
 
-    @Test fun switchingToAutonomousMidRunStopsAskingEvenForPaymentFromTheNextStep() = runTest {
+    @Test fun switchingToAutonomousCannotBypassOrderApproval() = runTest {
         val s = Chat(page = checkoutPage)
         val approvals = Settable()
         val m = FakeModel(OBSERVE, tap("@e3"), tap("@e3"), FINISH)
@@ -237,14 +239,14 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
         }
         AgentLoop(flipping, toolDispatcher(s), "BASE", confirmations = ConfirmationGate(), approvals = approvals).run("t")
         assertEquals("confirmation_required", m.result(2).s("error"))
-        assertEquals(listOf("@e3"), s.taps)
+        assertTrue(s.taps.isEmpty())
     }
 
-    @Test fun batchStepsSendButStopAtPayment() = runTest {
+    @Test fun batchStepsCannotBypassExternalActionApproval() = runTest {
         val s = Chat()
         val send = tools(call("do_steps", """{"steps":[{"tool":"phone_tap","args":{"ref":"@e3","snapshotId":"s1"}}]}"""))
         loop(FakeModel(OBSERVE, send, FINISH), s, flags = SpeedFlags(batchSteps = true)).run("t")
-        assertEquals(listOf("@e3"), s.taps)
+        assertTrue(s.taps.isEmpty())
         val shop = Chat(page = checkoutPage)
         val order = tools(call("do_steps", """{"steps":[{"tool":"phone_tap","args":{"ref":"@e3","snapshotId":"s1"}}]}"""))
         val m = FakeModel(OBSERVE, order, GIVE_UP)

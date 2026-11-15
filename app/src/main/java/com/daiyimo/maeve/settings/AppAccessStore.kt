@@ -20,6 +20,7 @@ class AppAccessStore(private val file: File) : AppAccessPolicy {
     private var sensitiveCount = 0
 
     override fun current(): AppAccessState = mutable.value
+    @Synchronized fun reload() { mutable.value = load().copy(revision = current().revision + 1) }
 
     @Synchronized fun protectUi(): AutoCloseable {
         sensitiveCount++

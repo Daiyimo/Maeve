@@ -130,10 +130,15 @@ class RootCommandToolTest {
     }
 
     @Test
-    fun autonomousModeDoesNotAsk() = runTest {
+    fun autonomousModeStillNeedsApprovalForDestructiveCommands() = runTest {
         val port = FakeRoot()
         val m = FakeModel(root("rm /sdcard/x"), FINISH)
-        loop(m, port, autonomous = true).run("t")
+        val agent = loop(m, port, autonomous = true)
+        val pending = async { agent.run("t") }
+        advanceUntilIdle()
+        assertTrue(port.ran.isEmpty())
+        agent.answerConfirmation(ConfirmChoice.Once)
+        pending.await()
         assertEquals(listOf("rm /sdcard/x"), port.ran)
     }
 

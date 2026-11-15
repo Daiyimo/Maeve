@@ -40,9 +40,7 @@ class AudioMuteLedger(private val file: File?) {
             if (modes.isEmpty()) {
                 f.delete()
             } else {
-                val tmp = File(f.parentFile, f.name + ".tmp")
-                tmp.writeText(format(modes))
-                if (!tmp.renameTo(f)) error("rename failed")
+                com.daiyimo.maeve.core.io.AtomicFiles.write(f, format(modes).toByteArray(Charsets.UTF_8))
             }
         }
     }

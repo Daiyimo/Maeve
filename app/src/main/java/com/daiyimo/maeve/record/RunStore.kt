@@ -128,9 +128,8 @@ class RunStore internal constructor(
             File(dir, EVENTS).appendText(RunEvent.encode(e) + "\n")
             val summaryFile = File(dir, RUN_JSON)
             val summary = RunEvent.json.decodeFromString(RunSummary.serializer(), summaryFile.readText()).with(e)
-            val tmp = File(dir, "$RUN_JSON.tmp")
-            tmp.writeText(RunEvent.json.encodeToString(RunSummary.serializer(), summary))
-            if (!tmp.renameTo(summaryFile)) error("rename failed")
+            com.daiyimo.maeve.core.io.AtomicFiles.write(summaryFile,
+                RunEvent.json.encodeToString(RunSummary.serializer(), summary).toByteArray(Charsets.UTF_8))
             if (e is RunEvent.OutcomeJudged) metrics.update(runId) { it.copy(judged = e.outcome) }
         }.onFailure { runCatching { Log.w(TAG, "could not append to run $runId", it) } }
     }
@@ -282,9 +281,8 @@ class RunHandle internal constructor(
     private fun writeSummary() {
         sinceSummary = 0
         safely("summary") {
-            val tmp = File(dir, "${RunStore.RUN_JSON}.tmp")
-            tmp.writeText(RunEvent.json.encodeToString(RunSummary.serializer(), summary))
-            if (!tmp.renameTo(File(dir, RunStore.RUN_JSON))) error("rename failed")
+            com.daiyimo.maeve.core.io.AtomicFiles.write(File(dir, RunStore.RUN_JSON),
+                RunEvent.json.encodeToString(RunSummary.serializer(), summary).toByteArray(Charsets.UTF_8))
         }
     }
 

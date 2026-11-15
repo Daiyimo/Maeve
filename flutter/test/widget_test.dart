@@ -258,7 +258,7 @@ void main() {
     await tester.pump();
     expect(find.text('正在走这一步'), findsWidgets);
 
-    await tester.tap(find.byTooltip('停止生成'));
+    await tester.tap(find.byTooltip('停止任务'));
     await tester.pump();
     // 停止真的转给了宿主
     expect(bridge.cancelCalls, 1);

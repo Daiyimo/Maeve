@@ -68,7 +68,8 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                     val input = FlutterModelInput.parse(call.arguments as? Map<*, *> ?: emptyMap<Any, Any>(), requireModel = false)
                     result.success(withContext(Dispatchers.IO) { models.list(input) })
                 } catch (e: CancellationException) { throw e }
-                catch (e: IllegalArgumentException) { result.error("bad_args", e.message, null) }
+                catch (e: com.daiyimo.maeve.core.net.ModelNetworkDenied) { result.error(e.code, "模型地址未通过网络检查。请使用 HTTPS；自托管 HTTP 仅允许明确批准的本机或局域网直连。", null) }
+            catch (e: IllegalArgumentException) { result.error("bad_args", e.message, null) }
                 catch (_: Exception) { result.error("model_list_failed", "获取模型失败，请检查网络或手动填写模型名称", null) }
             }
             return
@@ -136,6 +137,11 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                 val value = settingsMutex.withLock { withContext(Dispatchers.IO) {
                     when (call.method) {
                         "snapshot" -> snapshot()
+                        "reloadProviders" -> { app.providers.reload(); snapshot() }
+                        "recoverProviders" -> { app.providers.recoverSnapshot(); snapshot() }
+                        "appAccess" -> FlutterAppAccessSettings(app).change(
+                            call.argument<String>("action") ?: "snapshot",
+                            call.argument<String>("packageName"), call.argument<Boolean>("enabled"))
                         "completeOnboarding" -> {
                             check(prefs.edit().putBoolean("welcomeSeen", true).commit())
                             snapshot()
@@ -157,6 +163,12 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                             FeatureFlags.get(app).setOperatingPace(pace)
                             snapshot()
                         }
+                        "setTaskStepLimit" -> {
+                            val limit = requireNotNull(call.argument<Int>("limit"))
+                            require(limit in 1..FeatureFlags.MAX_TASK_STEP_LIMIT)
+                            FeatureFlags.get(app).setTaskStepLimit(limit)
+                            snapshot()
+                        }
                         "setCapsuleEnabled" -> {
                             val enabled = requireNotNull(call.argument<Boolean>("enabled")) { "Capsule state is required" }
                             FeatureFlags.get(app).setCapsuleMode(if (enabled) CapsuleMode.Always else CapsuleMode.Off)
@@ -175,6 +187,10 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                             models.select(id)
                             snapshot()
                         }
+                        "deleteModel" -> {
+                            models.remove(requireNotNull(call.argument<String>("id")), call.argument<Boolean>("wholeProvider") == true)
+                            snapshot()
+                        }
                         "saveModel" -> {
                             val input = FlutterModelInput.parse(call.arguments as? Map<*, *> ?: emptyMap<Any, Any>())
                             models.save(input)
@@ -185,6 +201,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                 } }
                 if (value == null) result.notImplemented() else result.success(value)
             } catch (e: CancellationException) { throw e }
+            catch (e: com.daiyimo.maeve.core.net.ModelNetworkDenied) { result.error(e.code, "模型地址未通过网络检查。请使用 HTTPS；自托管 HTTP 仅允许明确批准的本机或局域网直连。", null) }
             catch (e: IllegalArgumentException) { result.error("bad_args", e.message ?: "Invalid settings", null) }
             catch (_: Exception) { result.error("settings_failed", "Unable to read or save native settings", null) }
         }
@@ -204,9 +221,12 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
             "welcomeSeen" to prefs.getBoolean("welcomeSeen", app.providers.providers.value.isNotEmpty()),
             "autonomous" to app.approvals.autonomous.value,
             "operatingPace" to FeatureFlags.get(app).operatingPace().name.lowercase(java.util.Locale.ROOT),
+            "taskStepLimit" to FeatureFlags.get(app).taskStepLimit(),
             "capsuleEnabled" to (FeatureFlags.get(app).capsuleMode() != CapsuleMode.Off),
             "haptics" to prefs.getBoolean("haptics", true), "reduceTransparency" to prefs.getBoolean("reduceTransparency", false),
             "currentModelId" to current?.let { FlutterModelSettings.id(it.providerId, it.model) }, "modelName" to current?.model,
+            "providerState" to app.providers.loadState.value.name.lowercase(java.util.Locale.ROOT),
+            "providerSnapshotAvailable" to app.providers.snapshotAvailable,
             "models" to models.choices().map { it.toMap() },
             "presets" to FlutterModelSettings.presets(),
             "accessibility" to a11y, "overlay" to Settings.canDrawOverlays(app),
@@ -226,7 +246,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
 /** Validates locally before any native configuration is changed. Secrets never enter a snapshot. */
 internal data class FlutterModelInput(val name: String, val kind: ProviderConfig.Kind,
     val baseUrl: String, val model: String, val apiKey: String,
-    val id: String? = null, val vision: Boolean? = null, val reasoningEffort: String? = null) {
+    val id: String? = null, val vision: Boolean? = null, val reasoningEffort: String? = null, val selfHostedHttp: Boolean = false) {
     companion object {
         fun parse(values: Map<*, *>, requireModel: Boolean = true): FlutterModelInput {
             fun text(key: String) = (values[key] as? String).orEmpty().trim()
@@ -238,7 +258,7 @@ internal data class FlutterModelInput(val name: String, val kind: ProviderConfig
             val vision = text("vision").takeIf { it.isNotEmpty() }?.let { requireNotNull(it.toBooleanStrictOrNull()) { "图片输入设置无效" } }
             return FlutterModelInput(text("name").ifEmpty { uri.host }, kind!!,
                 uri.toString().trimEnd('/'), text("model"), text("apiKey"),
-                text("id").takeIf { it.isNotEmpty() }, vision, text("reasoningEffort").takeIf { it.isNotEmpty() && it != "default" })
+                text("id").takeIf { it.isNotEmpty() }, vision, text("reasoningEffort").takeIf { it.isNotEmpty() && it != "default" }, text("selfHostedHttp") == "true")
         }
     }
 }

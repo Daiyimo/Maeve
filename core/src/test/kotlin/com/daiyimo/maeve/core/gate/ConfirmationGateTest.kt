@@ -95,10 +95,13 @@ class ConfirmationGateTest {
         // 场景 A:同意「明天见」,打进去的是「明天见 + 链接」
         assertTrue(approved(req(IrrevAction.send, "com.a")).permits(hit(IrrevAction.send), chat(typed = "明天见 http://x.example"), 2) is Permit.Mismatch)
         assertTrue(approved(req(IrrevAction.send, "com.a")).permits(hit(IrrevAction.send), chat(typed = ""), 2, typing = "明天见 http://x.example") is Permit.Mismatch)
-        // 申报内容被截短(以 … 结尾)时比前缀
+        // 省略号不允许给未展示的后缀授权；完整正文仍能逐字匹配。
         val long = "很长的一段话".repeat(40)
         val capped = long.take(199) + "…"
-        assertEquals(Permit.Allowed, approved(req(IrrevAction.send, "com.a", content = capped)).permits(hit(IrrevAction.send), chat(typed = long), 2))
+        assertTrue(approved(req(IrrevAction.send, "com.a", content = capped)).permits(hit(IrrevAction.send), chat(typed = long), 2) is Permit.Mismatch)
+        assertEquals(Permit.Allowed, approved(req(IrrevAction.send, "com.a", content = long)).permits(hit(IrrevAction.send), chat(typed = long), 2))
+        assertTrue(approved(req(IrrevAction.send, "com.a", content = "Hello")).permits(hit(IrrevAction.send), chat(typed = "hello"), 2) is Permit.Mismatch)
+        assertTrue(approved(req(IrrevAction.send, "com.a", content = "a b")).permits(hit(IrrevAction.send), chat(typed = "ab"), 2) is Permit.Mismatch)
         // phone_type_text 回车:比的是这一步要输入的字
         val empty = chat(typed = "")
         assertEquals(Permit.Allowed, approved(req(IrrevAction.send, "com.a")).permits(hit(IrrevAction.send), empty, 2, typing = "明天见"))

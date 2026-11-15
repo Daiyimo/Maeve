@@ -3,28 +3,31 @@ package com.daiyimo.maeve.settings
 import com.daiyimo.maeve.core.action.ApprovalSettings
 import com.daiyimo.maeve.core.gate.ConfirmationGate
 
-/**
- * 一个任务自己的审批设置:自主与否是开工时取全局的,之后跟着开发者选项里的「自主模式」变([set])。
- * 询问时只有付款先问;自主时连付款也不问。
- */
+/** 每次运行持有自己的可撤销审批状态；自主模式只放宽普通可恢复操作。 */
 class RunApproval(startAutonomous: Boolean) : ApprovalSettings {
-    /** 开工时就是自主:这个任务没有确认关卡,也不给 request_confirmation;中途关掉自主留给下一个任务。 */
+    /** 开工时的显示状态；运行中的策略始终现读 autonomous()。 */
     val startedAutonomous: Boolean = startAutonomous
     @Volatile private var auto = startAutonomous
+    @Volatile private var version = 0L
+    private val gates = mutableListOf<ConfirmationGate>()
 
     override fun autonomous(): Boolean = auto
+    override fun revision(): Long = version
 
-    fun set(autonomous: Boolean) {
+    @Synchronized fun set(autonomous: Boolean) {
+        if (auto == autonomous) return
         auto = autonomous
+        version++
+        gates.forEach { it.reset() }
     }
 
-    /** 这个任务(和它的子任务)用的付款确认关卡:开工时是询问才有,每次一份新的。 */
-    fun gate(): ConfirmationGate? = if (startedAutonomous) null else ConfirmationGate()
+    /** 每个父/子循环都有独立单次授权；切换模式时统一撤销未消费授权。 */
+    @Synchronized fun gate(): ConfirmationGate = ConfirmationGate().also { gates += it }
 }
 
 /**
  * 询问 / 自主是一个全局开关,存在 [ApprovalStore.autonomous],默认询问。每个任务开工时拿一份自己的([start]);
- * 换开关([setAutonomous]):存下来管之后的任务,正在跑的任务也跟着换(从询问换成自主,下一步起付款也不再问)。
+ * 换开关([setAutonomous]):存下来管之后的任务,正在跑的任务也跟着换(下一动作边界使用新设置，对外动作仍需单次同意)。
  */
 class ApprovalControl(private val store: ApprovalStore) {
     private val runs = mutableSetOf<RunApproval>()

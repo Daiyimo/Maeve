@@ -197,7 +197,7 @@ class ReasoningSettingsTest {
             server.start()
             val s = ProviderStore(tmp.root, AesGcmKeyCipher { key })
             val p = s.connect("Responses", ProviderConfig.Kind.OpenAiResponses, server.url("/v1").toString(), "k",
-                listOf(ListedModel("m", reasoningEfforts = listOf("high"))))
+                listOf(ListedModel("m", reasoningEfforts = listOf("high"))), selfHostedHttp = true)
             s.use(ModelRole.Main, p.id, "m", caps)
             s.setReasoningEffort(ModelRole.Main, "high")
             server.enqueue(MockResponse().setHeader("Content-Type", "text/event-stream")
@@ -215,7 +215,7 @@ class ReasoningSettingsTest {
             for (protocol in listOf(ModelProtocol.ChatCompletions, ModelProtocol.Messages, ModelProtocol.GenerateContent)) {
                 val s = ProviderStore(tmp.newFolder("p-${protocol.wire}"), AesGcmKeyCipher { key })
                 val p = s.connect("P", ProviderConfig.Kind.of(protocol), base, "k",
-                    listOf(ListedModel("m", endpoint = ModelEndpoint(protocol, base), reasoningEfforts = listOf("high"))))
+                    listOf(ListedModel("m", endpoint = ModelEndpoint(protocol, base), reasoningEfforts = listOf("high"))), selfHostedHttp = true)
                 s.use(ModelRole.Main, p.id, "m", caps)
                 assertTrue(s.setReasoningEffort(ModelRole.Main, "high"))
                 val reply = when (protocol) {

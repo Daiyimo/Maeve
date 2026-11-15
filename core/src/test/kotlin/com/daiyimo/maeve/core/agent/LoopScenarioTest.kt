@@ -303,7 +303,7 @@ class LoopScenarioTest {
 
     // (m) 不可逆操作:被拦下 → 申请确认 → 用户同意 → 发送 → 读到「已发送」→ 回答;做过对外的事,回答另请核查模型
     // 发送不花钱:不先问,直接发,发完读一遍核实
-    @Test fun irreversibleDoneDirectlyIsVerified() = runTest {
+    @Test fun approvedExternalActionIsVerified() = runTest {
         val screen = ScriptedScreen(listOf(
             Screen(CHAT, listOf(label("@e1", "张三", 40), field("@e2", "发消息"), button("@e3", "+", 950))),
             Screen(CHAT, listOf(label("@e1", "张三", 40), field("@e2", "明天见", hint = false), button("@e3", "发送", 950))),
@@ -312,12 +312,18 @@ class LoopScenarioTest {
         val main = fakeModel("main") {
             call("phone_observe")
             call("phone_type_text", "text" to "明天见", "ref" to "@e2", "snapshotId" to "s1")
+            call("request_confirmation", "action" to "send", "target" to "张三", "content" to "明天见", "app" to CHAT)
             call("phone_tap", "ref" to "@e3", "snapshotId" to "s1")
             call("phone_observe")
             answer("已给张三发了「明天见」,聊天里显示「已发送」。")
         }
         val checker = fakeModel("checker") { verdict("pass", "聊天里显示已发送", "给张三发明天见" to "已发送") }
-        val end = loop(main, toolDispatcher(screen), checker = checker).run("给张三发明天见")
+        val agent = loop(main, toolDispatcher(screen), checker = checker)
+        val running = async { agent.run("给张三发明天见") }
+        testScheduler.advanceUntilIdle()
+        assertTrue(agent.state.value is TaskState.WaitingConfirmation)
+        agent.answerConfirmation(com.daiyimo.maeve.core.action.ConfirmChoice.Once)
+        val end = running.await()
         assertTrue("$end", end is TaskState.Succeeded && end.verified)
         assertTrue(screen.calls.any { it.startsWith("tap @e3") })
         snapshot("m_irreversible_verified", end, "main" to main, "verifier" to checker)

@@ -200,7 +200,7 @@ class SteerInterruptTest {
     /** 一屏只有一个「立即沟通」;记下点了几次。 */
     private class GreetPage : ScreenPort by FakeScreen() {
         val taps = mutableListOf<String>()
-        private val shown = listOf(UiElement("@e1", "button", "立即沟通", 900, 300, listOf(800, 100, 999, 160), null, true, false, false))
+        private val shown = listOf(UiElement("@e1", "button", "提交", 900, 300, listOf(800, 100, 999, 160), null, true, false, false))
         override suspend fun snapshot() = ScreenSnapshot("s1", "com.jobs", shown, 1080, 2400)
         override suspend fun peek() = snapshot()
         override suspend fun tapRef(ref: String, snapshotId: String) = ActionResult.Ok(changed = true).also { taps += ref }
@@ -212,8 +212,11 @@ class SteerInterruptTest {
         val tools = toolDispatcher(screen)
         tools.execute(Part.ToolCall("o", "phone_observe", "{}"))
         val pacing = OutwardPacing.human(Random(9))
-        val executor = ActionExecutor(tools, OperationGuards(), null, gate = {}, recorder = ActionRecorder(RunSink.NONE, { currentTime }), autonomous = true, pacing = pacing)
+        val grant = com.daiyimo.maeve.core.gate.ConfirmationGate()
+        val executor = ActionExecutor(tools, OperationGuards(), grant, gate = {}, recorder = ActionRecorder(RunSink.NONE, { currentTime }), autonomous = true, pacing = pacing)
         suspend fun tap(id: String) = withContext(inbox.signal) {
+            grant.declare(com.daiyimo.maeve.core.gate.ConfirmationRequest(com.daiyimo.maeve.core.risk.IrrevAction.submit, "提交", "申请", null, "com.jobs"), "com.jobs")
+            grant.decide(true, 1)
             executor.run(Part.ToolCall(id, "phone_tap", """{"ref":"@e1","snapshotId":"s1"}"""), Origin.Model(1))
         }
         tap("c1")

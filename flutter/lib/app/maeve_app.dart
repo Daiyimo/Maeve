@@ -58,6 +58,8 @@ class _MaeveAppState extends State<MaeveApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(controller.refreshSettings());
+    } else {
+      unawaited(controller.flushDrafts().catchError((_) {}));
     }
   }
 

@@ -194,6 +194,8 @@ internal fun setupInstruction(pkg: String, version: Int): String {
         3) 执行方式:把 {"goal":"<用中文写清要做的事>"} 写入 ${root}in/<时间戳>.json;
         然后使用脚本每 0.2 秒读 ${root}out/<时间戳>.json,直到 status 不是 running;
         把 answer 原样告诉用户;最多等 15 分钟,中途不要放弃;failed 时把 note 说清楚。
+        同一任务重试必须使用原文件编号和完全相同的 goal，不得换编号重复执行；receipt_unknown 时说明结果未知并让用户核对原任务。
+        running/deferred 超时不表示任务已取消，继续按 task_id 查询。goal 最多 4000 字符，单个请求最多 16 KiB，不要静默截断任务内容。
         4) 装好后先覆盖写 ${root}skill.json,内容是 {"skill":"maeve-bridge","version":$version};
         本次仅安装接入，不要启动 Maeve 任务做问候测试，也不要求用户在 Maeve 配置模型；微信聊天必须由 Amoo 自己回复。
         5) 微信消息由 Maeve 直接送到本系统 Amoo 聊天界面处理，不使用 OpenClaw 默认 main agent，不要启动任何微信后台脚本。

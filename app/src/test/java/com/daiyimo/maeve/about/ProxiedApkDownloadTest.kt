@@ -56,4 +56,18 @@ class ProxiedApkDownloadTest {
         target.writeBytes(byteArrayOf(1, 2, 3))
         assertEquals(DownloadPhase.Ready, d.state(target).phase)
     }
+
+    @Test fun chunkedOversizeAndDigestMismatchNeverBecomeReady() = runTest {
+        for (digest in listOf<String?>(null, "sha256:" + "0".repeat(64))) {
+            proxy.enqueue(MockResponse().setChunkedBody("abcdef", 2))
+            val target = File(dir, "bounded.apk")
+            val failure = runCatching {
+                ProxiedApkDownload.fetch(client(), "http://releases.example.test/maeve.apk", target,
+                    expectedSize = if (digest == null) 3 else 6, digest = digest) { _, _ -> }
+            }.exceptionOrNull()
+            assertTrue(failure is IOException || failure is ApkRejected)
+            assertFalse(target.exists())
+            assertFalse(File(dir, "bounded.apk.part").exists())
+        }
+    }
 }

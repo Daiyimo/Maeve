@@ -71,9 +71,9 @@ private fun canonical(text: String): String = text.filterNot { it.isWhitespace()
  * 或过了 [MAX_STEPS] 步,同意作废。只能同意这一次;只在一次任务内有效,任务开始和结束时 [reset]。
  * 任务循环和界面回答可能在不同线程,读写都加锁。
  */
-class ConfirmationGate {
+class ConfirmationGate(private val nanoClock: () -> Long = System::nanoTime) {
     /** 一次可用的同意:用户答应的那条申报,以及回答发生在第几步。 */
-    private class Approval(val request: ConfirmationRequest, val step: Int)
+    private class Approval(val request: ConfirmationRequest, val step: Int, val at: Long)
 
     /** 已经交给用户、还在等他回答的那条申报。 */
     private var awaiting: ConfirmationRequest? = null
@@ -89,6 +89,7 @@ class ConfirmationGate {
         if (req.action == IrrevAction.pay) return DeclareResult.Unsupported
         if ((req.action to req.app) in refused) return DeclareResult.Declined
         if (foregroundApp == null || foregroundApp != req.app) return DeclareResult.Mismatch
+        approval = null
         awaiting = req
         return DeclareResult.Pending
     }
@@ -107,7 +108,7 @@ class ConfirmationGate {
             refused += req.action to req.app
             return
         }
-        approval = Approval(req, step)
+        approval = Approval(req, step, nanoClock())
     }
 
     /** 有一次已同意、还没用掉的操作。 */
@@ -139,7 +140,8 @@ class ConfirmationGate {
         val held = approval ?: return Permit.NoGrant
         approval = null
         val r = held.request
-        if (hit.action == IrrevAction.pay) return Permit.Mismatch("payment is never approved here")
+        if (hit.action == IrrevAction.pay) return Permit.Mismatch("payment requires user takeover")
+        if (nanoClock() - held.at > MAX_AGE_NANOS) return Permit.Mismatch("the approval expired (60 seconds)")
         if (step - held.step > MAX_STEPS) return Permit.Mismatch(expiredReason())
         if (hit.action != r.action) return Permit.Mismatch("approved ${r.action.name} but this step is ${hit.action.name}")
         val onScreen = screen ?: return Permit.Mismatch(appReason(r, null))
@@ -147,7 +149,7 @@ class ConfirmationGate {
         // 读屏一个带字的元素都没有、又有复看确认过的所见文字时,对象和内容都按那份文字核
         val bySight = textless(onScreen) && seenShows(r, seen)
         if (!bySight && !targetShown(r, onScreen)) return Permit.Mismatch(targetReason(r))
-        if (r.action == IrrevAction.send && !bySight && !contentMatches(r.content, onScreen, typing)) {
+        if (r.action == IrrevAction.send && !contentMatches(r.content, onScreen, typing)) {
             return Permit.Mismatch("the text to send is not exactly what was approved")
         }
         if (bindsAmount(hit, onScreen) && !AmountCheck(onScreen, hit.matched).agrees(r.amount)) {
@@ -164,6 +166,7 @@ class ConfirmationGate {
     fun permitsExactly(ask: ConfirmationRequest, step: Int): Permit {
         val held = approval ?: return Permit.NoGrant
         approval = null
+        if (nanoClock() - held.at > MAX_AGE_NANOS) return Permit.Mismatch("the approval expired (60 seconds)")
         if (step - held.step > MAX_STEPS) return Permit.Mismatch(expiredReason())
         if (held.request != ask) return Permit.Mismatch("approved a different action than this one")
         return Permit.Allowed
@@ -179,7 +182,7 @@ class ConfirmationGate {
      * 发送时只认屏幕顶部的标题栏(聊天对象的名字在那里),其余动作屏上任何地方都行。
      */
     private fun targetShown(r: ConfirmationRequest, s: ScreenSnapshot): Boolean {
-        val needle = canonical(r.target).take(MATCH_CHARS)
+        val needle = canonical(r.target)
         if (needle.length < 2) return false
         return s.elements.any { e ->
             !e.editable && needle in canonical(e.name) &&
@@ -192,12 +195,10 @@ class ConfirmationGate {
 
     /**
      * 要发的就是同意的那段话:点发送时某个输入框里的字和它相等,type_text 回车时要输入的字和它相等。
-     * 申报被截短(以 … 结尾)时比前缀。
+     * 内容逐字相等；省略号不是前缀授权，大小写和空白也属于内容。
      */
     private fun contentMatches(content: String, s: ScreenSnapshot, typing: String?): Boolean {
-        val truncated = content.endsWith("…")
-        val approved = canonical(content.removeSuffix("…"))
-        fun sameText(candidate: String) = canonical(candidate).let { if (truncated) it.startsWith(approved) else it == approved }
+        fun sameText(candidate: String) = candidate == content
         if (typing != null) return sameText(typing)
         return s.elements.any { it.editable && !it.hint && sameText(it.name) }
     }
@@ -207,7 +208,7 @@ class ConfirmationGate {
 
     /** 申报的对象出现在复看确认过的所见文字里(至少两个字)。 */
     private fun seenShows(r: ConfirmationRequest, seen: List<String>): Boolean {
-        val needle = canonical(r.target).take(MATCH_CHARS)
+        val needle = canonical(r.target)
         return needle.length >= 2 && seen.any { needle in canonical(it) }
     }
 
@@ -283,6 +284,7 @@ class ConfirmationGate {
     companion object {
         /** 同意后过了这么多步还没用就作废。 */
         const val MAX_STEPS = 3
+        private const val MAX_AGE_NANOS = 60_000_000_000L
         const val MATCH_CHARS = 20
         /** 发送对象要在这条线(0–999)以上:屏幕顶部约 15% 的标题栏。 */
         const val TITLE_BAND = 150

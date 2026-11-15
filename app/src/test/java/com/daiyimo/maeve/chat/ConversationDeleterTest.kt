@@ -79,23 +79,44 @@ class ConversationDeleterTest {
         assertFalse("a" in workspaces)
     }
 
-    /** 任务迟迟不收尾:等到上限照样删。 */
+    /** 任务迟迟不收尾:保留记录和附件，明确返回 pending。 */
     @Test fun givesUpWaitingAfterTheLimit() = runTest {
         val store = store()
         active.value = listOf("a")
-        val job = launch { deleter(store).delete("a") }
+        var failure: Exception? = null
+        val job = launch { try { deleter(store).delete("a") } catch (e: Exception) { failure = e } }
         advanceTimeBy(4_000)
         assertTrue("a" in workspaces)
         advanceTimeBy(2_000)
         job.join()
-        assertEquals(emptyList<Turn>(), store.turns("a"))
-        assertFalse("a" in workspaces)
+        assertTrue(store.turns("a").isNotEmpty())
+        assertTrue("a" in workspaces)
+        assertEquals("delete_pending", (failure as DeleteIncomplete).code)
     }
 
-    /** 工作区删不掉(设备不支持运行环境等)也照样删记录。 */
-    @Test fun recordsAreDeletedEvenIfTheWorkspaceFails() = runTest {
+    /** 工作区删不掉时保留会话作为恢复入口。 */
+    @Test fun recordsAreRetainedIfTheWorkspaceFails() = runTest {
         val store = store()
-        ConversationDeleter(store, active, {}, { emptyList() }, {}, { error("no sandbox") }, io = EmptyCoroutineContext).delete("a")
-        assertEquals(listOf("b"), store.list().map { it.id })
+        val result = runCatching { ConversationDeleter(store, active, {}, { emptyList() }, {}, { error("no sandbox") }, io = EmptyCoroutineContext).delete("a") }
+        assertEquals("delete_partial", (result.exceptionOrNull() as DeleteIncomplete).code)
+        assertEquals(setOf("a", "b"), store.list().map { it.id }.toSet())
+    }
+
+    @Test fun restartReconcilesPendingDeletionAndLateWritesCannotResurrectIt() = runTest {
+        val dir = tmp.newFolder()
+        val first = ConversationStore(dir)
+        first.append("a", Turn("hello", "ok", "succeeded"))
+        val failed = ConversationDeleter(first, active, {}, { emptyList() }, {}, { error("disk unavailable") }, io = EmptyCoroutineContext)
+        assertTrue(runCatching { failed.delete("a") }.isFailure)
+        val restarted = ConversationStore(dir)
+        assertEquals(listOf("a"), restarted.pendingDeletions())
+        assertTrue(restarted.deletionBlocked("a"))
+        ConversationDeleter(restarted, active, {}, { emptyList() }, {}, {}, io = EmptyCoroutineContext).reconcile()
+        assertTrue(restarted.list().isEmpty())
+        assertTrue(restarted.pendingDeletions().isEmpty())
+        val again = ConversationStore(dir)
+        again.append("a", Turn("late", "old result", "succeeded"))
+        assertTrue(again.list().isEmpty())
+        assertFalse(again.setTitle("a", "late title"))
     }
 }

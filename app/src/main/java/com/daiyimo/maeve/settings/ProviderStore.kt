@@ -58,6 +58,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import com.daiyimo.maeve.core.net.NetProxy
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import java.io.File
 import java.util.Base64
@@ -78,6 +79,7 @@ data class ProviderConfig(
     val name: String = "",
     /** 所属 [Provider] 的 id;为空时由 [ProviderStore.save] 按接口类型、地址和名字归到对应服务商。 */
     val providerId: String = "",
+    val selfHostedHttp: Boolean = false,
 ) {
     /**
      * 接口类型。[OpenAiResponses] 用在模型列表给某个模型写明 Responses 协议时、预设「OpenAI」,以及添加自定义服务商时选了它;
@@ -142,6 +144,8 @@ data class Provider(
      */
     val signIn: String? = null,
     val savedUntested: Boolean = false,
+    val selfHostedHttp: Boolean = false,
+    val hiddenModels: Set<String> = emptySet(),
     /** 按模型名保留，用途切换后也能找回。 */
     val contextSettings: Map<String, ModelContextSettings> = emptyMap(),
     /** 用户说的某个模型能不能看图(按模型名):比列表和预设初值都算数,见 [ModelOptions.seesImages]。 */
@@ -280,7 +284,7 @@ class ProviderStore(
     /** 发给模型服务的 User-Agent;App 给 `Maeve/<版本>`。 */
     private val userAgent: String = "Maeve",
     /** 列模型:接口类型、地址、Key、每个请求都带的头。 */
-    private val modelLister: suspend (ProviderConfig.Kind, String, String?, Map<String, String>) -> ModelListResult = ::listAvailable,
+    private val modelLister: (suspend (ProviderConfig.Kind, String, String?, Map<String, String>) -> ModelListResult)? = null,
     /** 「用 ChatGPT 登录」的授权服务(换令牌、刷新、注销)。 */
     val chatGptAuth: ChatGptAuth = defaultChatGptAuth,
     /** xAI 订阅登录(设备码、刷新)。 */
@@ -298,19 +302,40 @@ class ProviderStore(
     private val chatGptTokens = mutableMapOf<String, ChatGptTokens>()
     /** 每个订阅账号一份,和 ChatGPT 一样同一时刻只有一个在换令牌。 */
     private val accountTokens = mutableMapOf<String, AccountTokens>()
+    enum class LoadState { Missing, Valid, Corrupt, Unavailable }
+    private val _loadState = MutableStateFlow(LoadState.Missing)
+    val loadState: StateFlow<LoadState> = _loadState.asStateFlow()
+    private fun requireWritable() { check(_loadState.value in setOf(LoadState.Missing, LoadState.Valid)) { "provider_store_unavailable" } }
     private val configFile = File(dir, CONFIG_FILE)
     private val keyFile = File(dir, KEY_FILE)
     private val chatGptHostFile = File(dir, CHATGPT_HOST_FILE)
     private val json = Json { ignoreUnknownKeys = true }
 
-    private val _providers = MutableStateFlow<List<Provider>>(emptyList())
+    private var loading = false
+    private var transactionWriteRequested = false
+    private var transactionPoisoned = false
+    private var transactionDepth = 0
+    private var transactionThread: Thread? = null
+    private inner class PublishedValue<T>(initial: T) {
+        private val published = MutableStateFlow(initial)
+        private var staged = initial
+        var value: T
+            get() = if (transactionDepth > 0 && transactionThread === Thread.currentThread()) staged else published.value
+            set(next) { staged = next }
+        fun asStateFlow(): StateFlow<T> = published.asStateFlow()
+        fun publish() { published.value = staged }
+        fun rollback() { staged = published.value }
+    }
+    private val journalFile = File(dir, "providers-transaction.json")
+    private val snapshotFile = File(dir, "providers-snapshot.json")
+    private val _providers = PublishedValue<List<Provider>>(emptyList())
     /** 已连接的服务商,按连接的先后。 */
     val providers: StateFlow<List<Provider>> = _providers.asStateFlow()
 
-    private val _configs = MutableStateFlow<List<ProviderConfig>>(emptyList())
+    private val _configs = PublishedValue<List<ProviderConfig>>(emptyList())
     val configs: StateFlow<List<ProviderConfig>> = _configs.asStateFlow()
 
-    private val _roles = MutableStateFlow(RoleChoices())
+    private val _roles = PublishedValue(RoleChoices())
     /** 三个用途各选了什么;指向的配置都在 [configs] 里。 */
     val roles: StateFlow<RoleChoices> = _roles.asStateFlow()
 
@@ -319,12 +344,15 @@ class ProviderStore(
 
     init {
         dir.mkdirs()
-        load()
+        loading = true
+        try { mutate { load() } }
+        catch (_: java.io.IOException) { _loadState.value = LoadState.Unavailable }
+        finally { loading = false }
     }
 
-    fun list(): List<ProviderConfig> = _configs.value
+    @Synchronized fun list(): List<ProviderConfig> = _configs.value
 
-    fun provider(id: String): Provider? = _providers.value.firstOrNull { it.id == id }
+    @Synchronized fun provider(id: String): Provider? = _providers.value.firstOrNull { it.id == id }
 
     /**
      * 新增或替换同 id 的模型配置(新增的要再交给 [choose],否则下次读入时没人用会被删掉)。
@@ -334,17 +362,21 @@ class ProviderStore(
      */
     @Synchronized
     fun save(cfg: ProviderConfig, apiKey: String?) {
-        val p = provider(cfg.providerId) ?: findOrAddProvider(ProviderConnection.displayName(cfg), cfg.kind, cfg.baseUrl)
-        val attached = cfg.copy(providerId = p.id, kind = p.kind, baseUrl = p.baseUrl, name = p.name)
-        val list = _configs.value
-        val i = list.indexOfFirst { it.id == cfg.id }
-        _configs.value = if (i >= 0) list.toMutableList().also { it[i] = attached } else list + attached
-        if (apiKey != null) setKey(p.id, apiKey)
-        writeConfig()
+        return mutate {
+            requireWritable()
+            val p = provider(cfg.providerId) ?: findOrAddProvider(ProviderConnection.displayName(cfg), cfg.kind, cfg.baseUrl)
+            val attached = cfg.copy(providerId = p.id, kind = p.kind, baseUrl = p.baseUrl, name = p.name)
+            val list = _configs.value
+            val i = list.indexOfFirst { it.id == cfg.id }
+            _configs.value = if (i >= 0) list.toMutableList().also { it[i] = attached } else list + attached
+            if (apiKey != null) setKey(p.id, apiKey)
+            writeConfig()
+
+        }
     }
 
     /** 这个模型配置所属服务商的 Key。 */
-    fun apiKey(configId: String): String? =
+    @Synchronized fun apiKey(configId: String): String? =
         _configs.value.firstOrNull { it.id == configId }?.let { providerKey(it.providerId) }
 
     /** 服务商的 Key。解不开(例如密钥库被系统清掉)时当作没有 Key。 */
@@ -374,30 +406,40 @@ class ProviderStore(
         signIn: String? = null,
         typed: Set<String> = emptySet(),
         untested: Boolean = false,
+        selfHostedHttp: Boolean = false,
     ): Provider {
-        val found = findOrAddProvider(name, kind, baseUrl, signIn)
-        // 跳过测试时没有列表可存:这家之前列过的留着,不要用空表把已有的列表盖掉
-        val listed = if (untested && models.isEmpty()) found.models ?: models else models
-        val p = found.copy(
-            models = listed, sessionHeader = sessionHeader,
-            verifiedModels = found.verifiedModels + verified, typedModels = found.typedModels + typed,
-            // 这次没测、这家也没有核实过的模型、也没列过列表,才是「没测过」;别的情况一律按测过
-            savedUntested = untested && verified.isEmpty() && found.verifiedModels.isEmpty() && listed.isEmpty(),
-        )
-        _providers.value = _providers.value.map { if (it.id == p.id) p else it }
-        if (apiKey != null) setKey(p.id, apiKey)
-        writeConfig()
-        return p
+        return mutate {
+            requireWritable()
+            com.daiyimo.maeve.core.net.ModelNetworkPolicy(baseUrl, selfHostedHttp).validateForStorage()
+            val found = findOrAddProvider(name, kind, baseUrl, signIn)
+            // 跳过测试时没有列表可存:这家之前列过的留着,不要用空表把已有的列表盖掉
+            val listed = if (untested && models.isEmpty()) found.models ?: models else models
+            val p = found.copy(
+                models = listed, sessionHeader = sessionHeader, selfHostedHttp = selfHostedHttp, hiddenModels = found.hiddenModels - typed,
+                verifiedModels = found.verifiedModels + verified, typedModels = found.typedModels + typed,
+                // 这次没测、这家也没有核实过的模型、也没列过列表,才是「没测过」;别的情况一律按测过
+                savedUntested = untested && verified.isEmpty() && found.verifiedModels.isEmpty() && listed.isEmpty(),
+            )
+            _providers.value = _providers.value.map { if (it.id == p.id) p else it }
+            if (apiKey != null) setKey(p.id, apiKey)
+            writeConfig()
+            return p
+
+        }
     }
 
     /** 记下服务商最近一次列出的模型。列出来了,就说明「没测过」不再成立(跳过测试存下的那家在这里清掉标记)。 */
     @Synchronized
     fun rememberModels(providerId: String, models: List<ListedModel>) {
-        if (provider(providerId) == null) return
-        _providers.value = _providers.value.map {
-            if (it.id == providerId) it.copy(models = models, savedUntested = false) else it
+        return mutate {
+            requireWritable()
+            if (provider(providerId) == null) return
+            _providers.value = _providers.value.map {
+                if (it.id == providerId) it.copy(models = models, savedUntested = false) else it
         }
         writeConfig()
+
+        }
     }
 
     /**
@@ -407,27 +449,39 @@ class ProviderStore(
      */
     @Synchronized
     fun markVerified(providerId: String, model: String) {
-        val p = provider(providerId) ?: return
-        if (model in p.verifiedModels && !p.savedUntested) return
-        _providers.value = _providers.value.map {
-            if (it.id == providerId) it.copy(verifiedModels = it.verifiedModels + model, savedUntested = false) else it
+        return mutate {
+            requireWritable()
+            val p = provider(providerId) ?: return
+            if (model in p.verifiedModels && !p.savedUntested) return
+            _providers.value = _providers.value.map {
+                if (it.id == providerId) it.copy(verifiedModels = it.verifiedModels + model, savedUntested = false) else it
         }
         writeConfig()
+
+        }
     }
 
     /** 记下用户在这家手填的 [model](见 [Provider.typedModels])。 */
     @Synchronized
     fun markTyped(providerId: String, model: String) {
-        val p = provider(providerId) ?: return
-        if (model in p.typedModels) return
-        _providers.value = _providers.value.map { if (it.id == providerId) it.copy(typedModels = it.typedModels + model) else it }
-        writeConfig()
+        return mutate {
+            requireWritable()
+            val p = provider(providerId) ?: return
+            if (model in p.typedModels) return
+            _providers.value = _providers.value.map { if (it.id == providerId) it.copy(typedModels = it.typedModels + model) else it }
+            writeConfig()
+
+        }
     }
 
     /** 换掉一个服务商的 Key(它下面的模型都用这一个)。 */
     @Synchronized
     fun updateProviderKey(providerId: String, apiKey: String) {
-        if (provider(providerId) != null) setKey(providerId, apiKey)
+        return mutate {
+            requireWritable()
+            if (provider(providerId) != null) setKey(providerId, apiKey)
+
+        }
     }
 
     /**
@@ -437,14 +491,32 @@ class ProviderStore(
      */
     @Synchronized
     fun removeProvider(providerId: String) {
-        if (provider(providerId)?.kind == ProviderConfig.Kind.ChatGpt) {
-            writeAtomically(chatGptHostFile, buildJsonObject { put("hostId", chatGptRegistration().first) }.toString())
+        return mutate {
+            requireWritable()
+            if (provider(providerId)?.kind == ProviderConfig.Kind.ChatGpt) {
+                writeAtomically(chatGptHostFile, buildJsonObject { put("hostId", chatGptRegistration().first) }.toString())
         }
         _providers.value = _providers.value.filterNot { it.id == providerId }
         _configs.value = _configs.value.filterNot { it.providerId == providerId }
         _roles.value = _roles.value.keepOnly(_configs.value.map { it.id }.toSet())
         prune()
         if (providerId in keys) setKey(providerId, "")
+        writeConfig()
+
+        }
+    }
+
+    /** 删除本地模型选择，不删除共享服务商凭据，也不撤销云端 Key。 */
+    @Synchronized fun removeModel(providerId: String, model: String) = transaction {
+        requireWritable()
+        requireNotNull(provider(providerId))
+        _providers.value = _providers.value.map { p -> if (p.id != providerId) p else p.copy(
+            models = p.models?.filterNot { it.id == model }, typedModels = p.typedModels - model,
+            verifiedModels = p.verifiedModels - model, hiddenModels = p.hiddenModels + model,
+            contextSettings = p.contextSettings - model, visionOverrides = p.visionOverrides - model,
+            modelReasoning = p.modelReasoning - model) }
+        _configs.value = _configs.value.filterNot { it.providerId == providerId && it.model == model }
+        _roles.value = _roles.value.keepOnly(_configs.value.map { it.id }.toSet())
         writeConfig()
     }
 
@@ -454,10 +526,14 @@ class ProviderStore(
      */
     @Synchronized
     fun use(role: ModelRole, providerId: String, model: String, caps: Capabilities): Boolean {
-        val p = provider(providerId) ?: return false
-        val id = _configs.value.firstOrNull { it.providerId == p.id && it.model == model }?.id
-            ?: newId().also { save(ProviderConfig(it, p.kind, p.baseUrl, model, caps, p.name, p.id), null) }
-        return choose(role, RoleChoice.Model(id))
+        return mutate {
+            requireWritable()
+            val p = provider(providerId) ?: return false
+            val id = _configs.value.firstOrNull { it.providerId == p.id && it.model == model }?.id
+                ?: newId().also { save(ProviderConfig(it, p.kind, p.baseUrl, model, caps, p.name, p.id), null) }
+            return choose(role, RoleChoice.Model(id))
+
+        }
     }
 
     /**
@@ -467,37 +543,47 @@ class ProviderStore(
      */
     @Synchronized
     fun choose(role: ModelRole, choice: RoleChoice): Boolean {
-        if (choice is RoleChoice.Model && _configs.value.none { it.id == choice.configId }) return false
-        val next = _roles.value.with(role, choice) ?: return false
-        if (choice is RoleChoice.Model) {
-            _configs.value = _configs.value.map { c ->
-                if (c.id != choice.configId) c
-                else if (role == ModelRole.Main) c.copy(capabilities = c.capabilities.copy(toolCalls = true))
-                else c
-            }
+        return mutate {
+            requireWritable()
+            if (choice is RoleChoice.Model && _configs.value.none { it.id == choice.configId }) return false
+            val next = _roles.value.with(role, choice) ?: return false
+            if (choice is RoleChoice.Model) {
+                _configs.value = _configs.value.map { c ->
+                    if (c.id != choice.configId) c
+                    else if (role == ModelRole.Main) c.copy(capabilities = c.capabilities.copy(toolCalls = true))
+                    else c
+                }
         }
         _roles.value = next
         prune()
         writeConfig()
         return true
+
+        }
     }
 
     /** 只改这个用途;不支持的协议、跟随主模型的用途或列表明确不支持的档位不接受。 */
     @Synchronized
     fun setReasoningEffort(role: ModelRole, effort: String?): Boolean {
-        if (_roles.value[role] !is RoleChoice.Model) return false
-        val cfg = configFor(role) ?: return false
-        val listed = provider(cfg.providerId)?.models?.firstOrNull { it.id == cfg.model }
-        val options = ReasoningOptions.of(cfg, listed)
-        if (effort != null && (options == null || effort !in options.levels)) return false
-        _roles.value = _roles.value.copy(reasoningEfforts =
-            if (effort == null) _roles.value.reasoningEfforts - role else _roles.value.reasoningEfforts + (role to effort))
-        writeConfig()
-        return true
+        return mutate {
+            requireWritable()
+            if (_roles.value[role] !is RoleChoice.Model) return false
+            val cfg = configFor(role) ?: return false
+            val listed = provider(cfg.providerId)?.models?.firstOrNull { it.id == cfg.model }
+            val options = ReasoningOptions.of(cfg, listed)
+            if (effort != null && (options == null || effort !in options.levels)) return false
+            _roles.value = _roles.value.copy(reasoningEfforts =
+                if (effort == null) _roles.value.reasoningEfforts - role else _roles.value.reasoningEfforts + (role to effort))
+            writeConfig()
+            return true
+
+        }
     }
 
     @Synchronized
     fun setModelContext(configId: String, settings: ModelContextSettings): Boolean {
+        try { return mutate {
+        requireWritable()
         val cfg = _configs.value.firstOrNull { it.id == configId } ?: return false
         val p = provider(cfg.providerId) ?: return false
         if (!settings.validFor(cfg.capabilities.contextTokens)) return false
@@ -511,33 +597,46 @@ class ProviderStore(
         }
         _providers.value = updated
         return true
+
+        } } catch (_: java.io.IOException) { return false }
     }
 
     /** 记下用户说的 [model] 能不能看图(见 [Provider.visionOverrides]);服务商不存在时返回 false。 */
     @Synchronized
     fun setModelVision(providerId: String, model: String, sees: Boolean): Boolean {
-        val p = provider(providerId) ?: return false
-        _providers.value = _providers.value.map { if (it.id == p.id) p.copy(visionOverrides = p.visionOverrides + (model to sees)) else it }
-        writeConfig()
-        return true
+        return mutate {
+            requireWritable()
+            val p = provider(providerId) ?: return false
+            _providers.value = _providers.value.map { if (it.id == p.id) p.copy(visionOverrides = p.visionOverrides + (model to sees)) else it }
+            writeConfig()
+            return true
+
+        }
     }
 
     @Synchronized
     internal fun rememberModelReasoning(providerId: String, model: String, effort: String?) {
-        _providers.value = _providers.value.map { p ->
-            if (p.id == providerId) p.copy(modelReasoning = p.modelReasoning + (model to (effort ?: "default"))) else p
+        return mutate {
+            requireWritable()
+            _providers.value = _providers.value.map { p ->
+                if (p.id == providerId) p.copy(modelReasoning = p.modelReasoning + (model to (effort ?: "default"))) else p
         }
         writeConfig()
+        }
     }
 
     /** 看图模型的「看图定位已验证」(开发者选项里改);看图用主模型时改的是主模型那条配置。没有看图模型时不动。 */
     @Synchronized
     fun setVisionGroundingVerified(verified: Boolean) {
-        val id = _roles.value.resolve(ModelRole.Vision) ?: return
-        _configs.value = _configs.value.map { c ->
-            if (c.id == id) c.copy(capabilities = c.capabilities.copy(groundingVerified = verified)) else c
+        return mutate {
+            requireWritable()
+            val id = _roles.value.resolve(ModelRole.Vision) ?: return
+            _configs.value = _configs.value.map { c ->
+                if (c.id == id) c.copy(capabilities = c.capabilities.copy(groundingVerified = verified)) else c
         }
         writeConfig()
+
+        }
     }
 
     /**
@@ -545,7 +644,8 @@ class ProviderStore(
      * 看图这一路总是 true(用户选了它来看图);别的用途按 [ModelOptions.seesImages]——用户在这个模型上说过的为准,
      * 没说过而看图也用这条配置(选了同一个模型,或「用主模型」)的,同样算能看,截图直接附给它,不必另调一次看图。
      */
-    fun configFor(role: ModelRole): ProviderConfig? {
+    @Synchronized fun configFor(role: ModelRole): ProviderConfig? {
+        if (_loadState.value !in setOf(LoadState.Missing, LoadState.Valid)) return null
         val choices = _roles.value
         val cfg = choices.resolve(role)?.let { id -> _configs.value.firstOrNull { it.id == id } } ?: return null
         val p = provider(cfg.providerId)
@@ -567,7 +667,7 @@ class ProviderStore(
      * 记作看图、轻量,服务商和模型是主模型那条配置的。这是 App 里建可调用模型的唯一入口。
      * [session] 是这次调用属于的对话(同一段对话里建的模型都给同一个);服务商声明了会话头的,每个请求都带上它。
      */
-    fun modelFor(role: ModelRole, session: ModelSession = ModelSession.fresh()): ChatModel? = configFor(role)?.let { cfg ->
+    @Synchronized fun modelFor(role: ModelRole, session: ModelSession = ModelSession.fresh()): ChatModel? = configFor(role)?.let { cfg ->
         val p = provider(cfg.providerId)
         val source = UsageSource(cfg.providerId, p?.name ?: cfg.name, cfg.model, UsagePurpose.of(role))
         val listed = listedOf(cfg)
@@ -590,9 +690,9 @@ class ProviderStore(
      */
     suspend fun probe(
         kind: ProviderConfig.Kind, baseUrl: String, apiKey: String?, sessionHeader: String?,
-        model: String, endpoint: ModelEndpoint?, caps: Capabilities,
+        model: String, endpoint: ModelEndpoint?, caps: Capabilities, selfHostedHttp: Boolean = false,
     ): ProbeResult {
-        val cfg = ProviderConfig(PROBE_ID, kind, baseUrl, model, caps.copy(toolCalls = true))
+        val cfg = ProviderConfig(PROBE_ID, kind, baseUrl, model, caps.copy(toolCalls = true), selfHostedHttp = selfHostedHttp)
         val m = modelFactory(cfg, apiKey, endpoint, ClientSetup(headers(sessionHeader, ModelSession.fresh()), PROBE_MAX_TOKENS))
         return try {
             val reply = m.complete(PROBE_SYSTEM, listOf(Message(Role.User, listOf(Part.Text(PROBE_TEXT)), Author.Maeve)), listOf(PROBE_TOOL))
@@ -616,13 +716,14 @@ class ProviderStore(
         provider(cfg.providerId)?.models?.firstOrNull { it.id == cfg.model }
 
     /** 列出这个服务商的可用模型(见 [ModelCatalog]);不属于任何对话,声明了会话头的用新的会话号。 */
-    suspend fun listModels(kind: ProviderConfig.Kind, baseUrl: String, apiKey: String?, sessionHeader: String? = null): ModelListResult =
-        modelLister(kind, baseUrl, apiKey, headers(sessionHeader, ModelSession.fresh()))
+    suspend fun listModels(kind: ProviderConfig.Kind, baseUrl: String, apiKey: String?, sessionHeader: String? = null, selfHostedHttp: Boolean = false): ModelListResult =
+        modelLister?.invoke(kind, baseUrl, apiKey, headers(sessionHeader, ModelSession.fresh()))
+            ?: listAvailable(kind, baseUrl, apiKey, headers(sessionHeader, ModelSession.fresh()), selfHostedHttp)
 
     /** 重新列一个已连接服务商的模型:用存着的 Key;订阅登录用访问令牌(快过期先换新的)。 */
     suspend fun listModels(p: Provider): ModelListResult {
         if (p.kind != ProviderConfig.Kind.ChatGpt && p.kind != ProviderConfig.Kind.Xai) {
-            return listModels(p.kind, p.baseUrl, providerKey(p.id), p.sessionHeader)
+            return listModels(p.kind, p.baseUrl, providerKey(p.id), p.sessionHeader, p.selfHostedHttp)
         }
         val token = try {
             if (p.kind == ProviderConfig.Kind.ChatGpt) tokensFor(p.id).get(fresh = false) else accountTokensFor(p.id).get(fresh = false)
@@ -667,25 +768,35 @@ class ProviderStore(
      */
     @Synchronized
     fun chatGptRegistration(): Pair<String, String?> {
-        val saved = runCatching { json.parseToJsonElement(chatGptHostFile.readText()).jsonObject }.getOrNull()
-        val host = saved?.get("hostId")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-        val client = saved?.get("clientId")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
-        if (host != null) return host to client
-        val fresh = ChatGptAuth.newHostId()
-        writeAtomically(chatGptHostFile, buildJsonObject { put("hostId", fresh) }.toString())
-        return fresh to null
+        return mutate {
+            val saved = runCatching { json.parseToJsonElement(chatGptHostFile.readText()).jsonObject }.getOrNull()
+            val host = saved?.get("hostId")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+            val client = saved?.get("clientId")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+            if (host != null) return host to client
+            val fresh = ChatGptAuth.newHostId()
+            writeAtomically(chatGptHostFile, buildJsonObject { put("hostId", fresh) }.toString())
+            return fresh to null
+
+        }
     }
 
     /** 记下注册到的 client_id(换令牌前就记,换失败了下次也不用重新注册)。 */
     @Synchronized
     fun rememberChatGptClient(clientId: String) {
-        val host = chatGptRegistration().first
-        writeAtomically(chatGptHostFile, buildJsonObject { put("hostId", host); put("clientId", clientId) }.toString())
+        return mutate {
+            val host = chatGptRegistration().first
+            writeAtomically(chatGptHostFile, buildJsonObject { put("hostId", host); put("clientId", clientId) }.toString())
+
+        }
     }
 
     @Synchronized
     private fun saveChatGptSession(providerId: String, session: ChatGptSession) {
-        if (provider(providerId) != null) setKey(providerId, session.toJson())
+        return mutate {
+            requireWritable()
+            if (provider(providerId) != null) setKey(providerId, session.toJson())
+
+        }
     }
 
     private fun tokensFor(providerId: String): ChatGptTokens = synchronized(chatGptTokens) {
@@ -706,9 +817,11 @@ class ProviderStore(
      */
     @Synchronized
     fun connectAccount(session: AccountSession, models: List<ListedModel>): Provider {
-        val (name, kind, base) = when (session.provider) {
-            XaiAuth.PROVIDER -> Triple(XAI_NAME, ProviderConfig.Kind.Xai, XaiAuth.API_BASE)
-            else -> throw IllegalArgumentException("unknown account provider")
+        return mutate {
+            requireWritable()
+            val (name, kind, base) = when (session.provider) {
+                XaiAuth.PROVIDER -> Triple(XAI_NAME, ProviderConfig.Kind.Xai, XaiAuth.API_BASE)
+                else -> throw IllegalArgumentException("unknown account provider")
         }
         val existing = _providers.value.firstOrNull { it.kind == kind }
         if (existing == null) return connect(name, kind, base, session.toJson(), models)
@@ -718,24 +831,33 @@ class ProviderStore(
         setKey(p.id, session.toJson())
         writeConfig()
         return p
+
+        }
     }
 
     /** 退出登录:只清这台手机上的令牌。xAI 账号里的授权要到 xAI 的设置里自己断开。 */
     @Synchronized
     fun signOutAccount(providerId: String) {
-        val s = accountSession(providerId) ?: return
-        saveAccount(providerId, s.signedOut())
+        return mutate {
+            val s = accountSession(providerId) ?: return
+            saveAccount(providerId, s.signedOut())
+
+        }
     }
 
     @Synchronized
     private fun saveAccount(providerId: String, session: AccountSession) {
-        if (provider(providerId) == null) return
-        setKey(providerId, session.toJson())
-        val base = session.apiBase
-        if (base.isNotBlank() && provider(providerId)?.baseUrl != base) {
-            _providers.value = _providers.value.map { if (it.id == providerId) it.copy(baseUrl = base) else it }
-            _configs.value = _configs.value.map { if (it.providerId == providerId) it.copy(baseUrl = base) else it }
-            writeConfig()
+        return mutate {
+            requireWritable()
+            if (provider(providerId) == null) return
+            setKey(providerId, session.toJson())
+            val base = session.apiBase
+            if (base.isNotBlank() && provider(providerId)?.baseUrl != base) {
+                _providers.value = _providers.value.map { if (it.id == providerId) it.copy(baseUrl = base) else it }
+                _configs.value = _configs.value.map { if (it.providerId == providerId) it.copy(baseUrl = base) else it }
+                writeConfig()
+        }
+
         }
     }
 
@@ -755,7 +877,11 @@ class ProviderStore(
     /** 退出 OpenRouter 登录:删掉这台手机上的 Key;服务商、模型和用途留着。OpenRouter 那边的 Key 要用户到 Keys 页面删。 */
     @Synchronized
     fun signOutOpenRouter(providerId: String) {
-        if (provider(providerId)?.signIn == OPENROUTER_SIGN_IN && providerId in keys) setKey(providerId, "")
+        return mutate {
+            requireWritable()
+            if (provider(providerId)?.signIn == OPENROUTER_SIGN_IN && providerId in keys) setKey(providerId, "")
+
+        }
     }
 
     /**
@@ -764,9 +890,12 @@ class ProviderStore(
      */
     @Synchronized
     private fun saveRefreshed(providerId: String, before: AccountSession, after: AccountSession) {
-        val now = accountSession(providerId) ?: return
-        if (now.refreshToken != before.refreshToken || now.accessToken != before.accessToken) return
-        saveAccount(providerId, after)
+        return mutate {
+            val now = accountSession(providerId) ?: return
+            if (now.refreshToken != before.refreshToken || now.accessToken != before.accessToken) return
+            saveAccount(providerId, after)
+
+        }
     }
 
     private fun accountTokensFor(providerId: String): AccountTokens = synchronized(accountTokens) {
@@ -797,6 +926,15 @@ class ProviderStore(
         val baseUrl = if (cfg.kind == ProviderConfig.Kind.Xai) {
             provider(cfg.providerId)?.baseUrl?.takeIf { it.isNotBlank() } ?: adapterBase
         } else adapterBase
+        val configured = provider(cfg.providerId)
+        val allowHttp = configured?.selfHostedHttp ?: cfg.selfHostedHttp
+        if (allowHttp) {
+            val original = (configured?.baseUrl ?: cfg.baseUrl).toHttpUrl()
+            val target = baseUrl.toHttpUrl()
+            if (original.scheme != target.scheme || original.host != target.host || original.port != target.port)
+                throw com.daiyimo.maeve.core.net.ModelNetworkDenied("model_endpoint_changed")
+        }
+        val http = com.daiyimo.maeve.core.net.ModelNetworkPolicy(baseUrl, allowHttp).protect(http)
         return when (kind) {
             ProviderConfig.Kind.OpenAiCompat ->
                 OpenAiCompatModel(baseUrl, apiKey, cfg.model, cfg.capabilities, http, endpoint?.reasoningField, setup.headers,
@@ -822,6 +960,7 @@ class ProviderStore(
     }
 
     private fun findOrAddProvider(name: String, kind: ProviderConfig.Kind, baseUrl: String, signIn: String? = null): Provider {
+        requireWritable()
         val key = ProviderConnection.keyOf(kind, baseUrl, name)
         _providers.value.firstOrNull { it.key == key && it.signIn == signIn }?.let { return it }
         val p = Provider(newId(), name.trim(), kind, baseUrl.trim(), signIn = signIn)
@@ -830,6 +969,7 @@ class ProviderStore(
     }
 
     private fun setKey(providerId: String, apiKey: String) {
+        requireWritable()
         keys = if (apiKey.isEmpty()) keys - providerId else keys + (providerId to encode(cipher.encrypt(apiKey.toByteArray())))
         writeAtomically(keyFile, keysJson())
     }
@@ -841,25 +981,48 @@ class ProviderStore(
     }
 
     private fun load() {
-        if (configFile.isFile) runCatching {
-            val root = json.parseToJsonElement(configFile.readText()).jsonObject
-            _providers.value = root["services"]?.jsonArray?.mapNotNull { runCatching { providerOf(it.jsonObject) }.getOrNull() }.orEmpty()
-            _configs.value = root["providers"]?.jsonArray?.mapNotNull { runCatching { configOf(it.jsonObject) }.getOrNull() }.orEmpty()
-            val uses = root["uses"]?.jsonObject
-            _roles.value = if (uses != null) choicesOf(uses) else migrateRoles(root["roles"]?.jsonObject)
+        try {
+            val journal = if (journalFile.exists()) json.parseToJsonElement(journalFile.readText()).jsonObject.also {
+                require(it["schemaVersion"]?.jsonPrimitive?.int == 1)
+            } else null
+            if (journal == null && !configFile.exists() && !keyFile.exists()) _loadState.value = LoadState.Missing
+            if (journal == null && !configFile.exists() && keyFile.exists()) error("credentials_without_configuration")
+            if (journal != null || configFile.exists()) {
+                check(journal != null || configFile.isFile) { "configuration_unavailable" }
+                val root = journal?.get("config")?.jsonObject ?: json.parseToJsonElement(configFile.readText()).jsonObject
+                // 未知/损坏条目不能被静默丢弃后再写回空配置。
+                val providers = root["services"]?.jsonArray?.map { providerOf(it.jsonObject) }.orEmpty()
+                val configs = root["providers"]?.jsonArray?.map { configOf(it.jsonObject) }.orEmpty()
+                val keyRoot = journal?.get("keys")?.jsonObject ?: if (keyFile.exists()) json.parseToJsonElement(keyFile.readText()).jsonObject else JsonObject(emptyMap())
+                val loadedKeys = keyRoot.mapValues { it.value.jsonPrimitive.content }
+                loadedKeys.values.forEach { cipher.decrypt(decode(it)) }
+                _providers.value = providers
+                _configs.value = configs
+                keys = loadedKeys
+                val uses = root["uses"]?.jsonObject
+                _roles.value = if (uses != null) choicesOf(uses) else migrateRoles(root["roles"]?.jsonObject)
+                _loadState.value = LoadState.Valid
+            }
+            migrate()
+            repairStaleContextDefaults()
+            _roles.value = _roles.value.keepOnly(_configs.value.map { it.id }.toSet())
+            prune()
+            if (journal == null && configFile.isFile) {
+                val text = configJson()
+                if (configFile.readText() != text) writeAtomically(configFile, text)
+            }
+        } catch (_: java.io.IOException) {
+            _loadState.value = LoadState.Unavailable
+        } catch (_: Exception) {
+            _loadState.value = LoadState.Corrupt
         }
-        if (keyFile.isFile) runCatching {
-            keys = json.parseToJsonElement(keyFile.readText()).jsonObject.mapValues { it.value.jsonPrimitive.content }
-        }
-        migrate()
-        repairStaleContextDefaults()
-        // 指向不存在的配置的选择退回默认,没人用的配置删掉;和文件里的不一样(含刚迁移的用途)才写回
-        _roles.value = _roles.value.keepOnly(_configs.value.map { it.id }.toSet())
-        prune()
-        if (configFile.isFile) {
-            val text = configJson()
-            if (runCatching { configFile.readText() }.getOrNull() != text) writeAtomically(configFile, text)
-        }
+    }
+
+    @Synchronized fun reload() {
+        loading = true
+        try { mutate { load() } }
+        catch (_: java.io.IOException) { _loadState.value = LoadState.Unavailable }
+        finally { loading = false }
     }
 
     /**
@@ -949,6 +1112,8 @@ class ProviderStore(
         typedModels = o["typedModels"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet().orEmpty(),
         // 旧版本存下的没有这一项:那时每一家都走过「测试并保存」,按测过算
         savedUntested = o["untested"]?.jsonPrimitive?.booleanOrNull ?: false,
+        selfHostedHttp = o["selfHostedHttp"]?.jsonPrimitive?.booleanOrNull ?: false,
+        hiddenModels = o["hiddenModels"]?.jsonArray?.map { it.jsonPrimitive.content }?.toSet().orEmpty(),
         models = o["models"]?.jsonArray?.map { e ->
             val m = e.jsonObject
             ListedModel(
@@ -1022,6 +1187,8 @@ class ProviderStore(
                         p.sessionHeader?.let { put("sessionHeader", it) }
                         p.signIn?.let { put("signIn", it) }
                         if (p.savedUntested) put("untested", true)
+                        if (p.selfHostedHttp) put("selfHostedHttp", true)
+                        if (p.hiddenModels.isNotEmpty()) putJsonArray("hiddenModels") { p.hiddenModels.forEach { add(it) } }
                         if (p.verifiedModels.isNotEmpty()) putJsonArray("verifiedModels") { p.verifiedModels.forEach { add(it) } }
                         if (p.contextSettings.isNotEmpty()) putJsonObject("contextSettings") {
                             for ((model, settings) in p.contextSettings) putJsonObject(model) {
@@ -1093,15 +1260,99 @@ class ProviderStore(
         return root.toString()
     }
 
+    /** Flutter 一次保存涉及多个用例时，只有最外层形成一个提交点。 */
+    @Synchronized fun <T> transaction(block: ProviderStore.() -> T): T = mutate { block(this) }
+
+    val snapshotAvailable: Boolean get() = snapshotFile.isFile
+
+    /** 用户主动恢复最近完整配置；校验完成后才保留坏文件并提交替换。 */
+    @Synchronized fun recoverSnapshot() {
+        mutate {
+            check(_loadState.value in setOf(LoadState.Corrupt, LoadState.Unavailable))
+            check(snapshotFile.length() in 1..32 * 1024 * 1024)
+            val snapshot = json.parseToJsonElement(snapshotFile.readText()).jsonObject
+            require(snapshot["schemaVersion"]?.jsonPrimitive?.int == 1)
+            val config = snapshot.getValue("config").jsonObject
+            val restoredProviders = config.getValue("services").jsonArray.map { providerOf(it.jsonObject) }
+            val restoredConfigs = config.getValue("providers").jsonArray.map { configOf(it.jsonObject) }
+            val restoredKeys = snapshot.getValue("keys").jsonObject.mapValues { it.value.jsonPrimitive.content }
+            val providerIds = restoredProviders.map { it.id }.toSet()
+            require(providerIds.size == restoredProviders.size && restoredConfigs.all { it.providerId in providerIds })
+            require(restoredKeys.keys.all { it in providerIds })
+            restoredKeys.values.forEach { cipher.decrypt(decode(it)) }
+            _providers.value = restoredProviders
+            _configs.value = restoredConfigs
+            _roles.value = choicesOf(config.getValue("uses").jsonObject)
+            require(_roles.value.referenced.all { id -> restoredConfigs.any { it.id == id } })
+            keys = restoredKeys
+            // 保留原件供后续恢复，不将损坏配置混入新的完整状态。
+            val suffix = ".corrupt-" + UUID.randomUUID()
+            listOf(configFile, keyFile, journalFile).filter { it.isFile }.forEach { it.copyTo(File(it.parentFile, it.name + suffix)) }
+            _loadState.value = LoadState.Valid
+            transactionWriteRequested = true
+        }
+    }
+
+    private inline fun <T> mutate(block: () -> T): T {
+        val outer = transactionDepth == 0
+        val oldKeys = keys
+        val oldState = _loadState.value
+        val before = if (outer) configJson() else ""
+        if (outer) { transactionThread = Thread.currentThread(); transactionWriteRequested = false; transactionPoisoned = false }
+        transactionDepth++
+        var failed = false
+        try { return block() }
+        catch (e: Throwable) { failed = true; transactionPoisoned = true; _loadState.value = oldState; throw e }
+        finally {
+            try {
+                if (outer) {
+                    if (failed || transactionPoisoned || _loadState.value !in setOf(LoadState.Missing, LoadState.Valid)) {
+                        keys = oldKeys; _providers.rollback(); _configs.rollback(); _roles.rollback()
+                        if (transactionPoisoned && !failed) throw IllegalStateException("provider_transaction_aborted")
+                    } else {
+                        try {
+                            val config = configJson()
+                            if ((!loading && (config != before || keys != oldKeys)) || transactionWriteRequested || journalFile.exists()) {
+                                val payload = buildJsonObject {
+                                    put("schemaVersion", 1)
+                                    put("config", json.parseToJsonElement(config))
+                                    put("keys", json.parseToJsonElement(keysJson()))
+                                }.toString().toByteArray(Charsets.UTF_8)
+                                // 此次原子替换是逻辑提交点。凭据仍为 Keystore 密文。
+                                if (!loading || transactionWriteRequested || !journalFile.exists())
+                                    com.daiyimo.maeve.core.io.AtomicFiles.write(journalFile, payload)
+                                // 镜像失败时保留完整 journal；重启只读取已提交的完整状态。
+                                runCatching {
+                                    com.daiyimo.maeve.core.io.AtomicFiles.write(configFile, config.toByteArray(Charsets.UTF_8))
+                                    com.daiyimo.maeve.core.io.AtomicFiles.write(keyFile, keysJson().toByteArray(Charsets.UTF_8))
+                                    com.daiyimo.maeve.core.io.AtomicFiles.write(snapshotFile, payload)
+                                    check(journalFile.delete())
+                                }
+                            }
+                            _providers.publish(); _configs.publish(); _roles.publish()
+                        } catch (e: Throwable) {
+                            _loadState.value = oldState
+                            keys = oldKeys; _providers.rollback(); _configs.rollback(); _roles.rollback()
+                            throw e
+                        }
+                    }
+                }
+            } finally {
+                transactionDepth--
+                if (outer) transactionThread = null
+            }
+        }
+    }
+
     private fun keysJson() = buildJsonObject { keys.forEach { (id, v) -> put(id, v) } }.toString()
 
     private fun writeAtomically(f: File, text: String) {
+        requireWritable()
+        if (transactionDepth > 0 && (f == configFile || f == keyFile)) { transactionWriteRequested = true; return }
         val tmp = File(f.parentFile, f.name + ".tmp")
-        tmp.writeText(text)
-        if (!tmp.renameTo(f)) {
-            f.delete()
-            check(tmp.renameTo(f)) { "cannot write ${f.name}" }
-        }
+        java.io.FileOutputStream(tmp).use { it.write(text.toByteArray(Charsets.UTF_8)); it.fd.sync() }
+        java.nio.file.Files.move(tmp.toPath(), f.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+            java.nio.file.StandardCopyOption.REPLACE_EXISTING)
     }
 
     private fun encode(b: ByteArray) = Base64.getEncoder().encodeToString(b)
@@ -1164,13 +1415,15 @@ class ProviderStore(
          * 列模型的接口:OpenAI 兼容、Responses、ChatGPT 和 xAI 都是 `GET {base}/models`(Bearer;订阅登录的 [apiKey] 是访问令牌)。
          * [headers] 每个请求都带(见 [ClientHeaders])。
          */
-        suspend fun listAvailable(kind: ProviderConfig.Kind, baseUrl: String, apiKey: String?, headers: Map<String, String>): ModelListResult =
-            when (kind) {
+        suspend fun listAvailable(kind: ProviderConfig.Kind, baseUrl: String, apiKey: String?, headers: Map<String, String>, selfHostedHttp: Boolean = false): ModelListResult {
+            val catalog = ModelCatalog(com.daiyimo.maeve.core.net.ModelNetworkPolicy(baseUrl, selfHostedHttp).protect(shortHttp))
+            return when (kind) {
                 ProviderConfig.Kind.OpenAiCompat, ProviderConfig.Kind.OpenAiResponses, ProviderConfig.Kind.ChatGpt, ProviderConfig.Kind.Xai ->
                     catalog.openAiCompat(baseUrl, apiKey, headers)
                 ProviderConfig.Kind.Anthropic -> catalog.anthropic(baseUrl, apiKey.orEmpty(), headers)
                 ProviderConfig.Kind.Gemini -> catalog.gemini(baseUrl, apiKey.orEmpty(), headers)
             }
+        }
 
         /**
          * 调用这个模型用哪种适配器、交给它什么 Base URL。建模型([buildModel])和给思考档位([ReasoningOptions])都按它。

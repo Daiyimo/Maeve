@@ -22,22 +22,27 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
     data class Choice(val id: String, val providerId: String, val name: String,
         val model: String, val kind: String, val baseUrl: String,
         val vision: Boolean = false, val reasoningEffort: String? = null,
-        val reasoningLevels: List<String> = emptyList(), val hasKey: Boolean = false) {
+        val reasoningLevels: List<String> = emptyList(), val hasKey: Boolean = false, val selfHostedHttp: Boolean = false) {
         fun toMap(): Map<String, Any?> = mapOf("id" to id, "name" to name, "model" to model,
             "kind" to kind, "baseUrl" to baseUrl, "vision" to vision, "toolCalls" to true,
-            "reasoningEffort" to reasoningEffort, "reasoningLevels" to reasoningLevels, "hasKey" to hasKey)
+            "reasoningEffort" to reasoningEffort, "reasoningLevels" to reasoningLevels, "hasKey" to hasKey, "selfHostedHttp" to selfHostedHttp)
     }
 
     fun choices(): List<Choice> = store.providers.value.flatMap { p ->
-        ModelOptions.ofProvider(p, store.list()).map { m ->
+        ModelOptions.ofProvider(p, store.list()).filterNot { it.id in p.hiddenModels }.map { m ->
             val config = store.list().firstOrNull { it.providerId == p.id && it.model == m.id }
                 ?: ProviderConfig("", p.kind, p.baseUrl, m.id, m.capabilities)
             Choice(id(p.id, m.id), p.id, p.name, m.id, p.kind.name, p.baseUrl,
                 m.capabilities.vision,
                 if (m.id in p.modelReasoning) p.modelReasoning[m.id]?.takeUnless { it == "default" }
                 else store.roles.value.reasoningEffort(ModelRole.Main).takeIf { store.configFor(ModelRole.Main)?.let { it.providerId == p.id && it.model == m.id } == true },
-                ReasoningOptions.of(config, p.models?.firstOrNull { it.id == m.id })?.levels.orEmpty(), store.hasKey(p.id))
+                ReasoningOptions.of(config, p.models?.firstOrNull { it.id == m.id })?.levels.orEmpty(), store.hasKey(p.id), p.selfHostedHttp)
         }
+    }
+
+    fun remove(id: String, wholeProvider: Boolean) {
+        val choice = requireNotNull(choices().firstOrNull { it.id == id })
+        if (wholeProvider) store.removeProvider(choice.providerId) else store.removeModel(choice.providerId, choice.model)
     }
 
     fun select(id: String) {
@@ -51,6 +56,10 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
     }
 
     fun save(input: FlutterModelInput) {
+        store.transaction { saveTransaction(input) }
+    }
+
+    private fun saveTransaction(input: FlutterModelInput) {
         val previous = input.id?.let { wanted -> requireNotNull(choices().firstOrNull { it.id == wanted }) { "模型配置已不存在" } }
         val key = credential(input)
         if (StepModelProfiles.isEndpoint(input.baseUrl)) require(!key.isNullOrBlank()) { "请填写此站点的 API Key" }
@@ -70,7 +79,7 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
         require(input.reasoningEffort == null || input.reasoningEffort in ReasoningOptions.of(proposed, listed)?.levels.orEmpty()) { "此模型不支持所选的思考强度" }
         val provider = store.connect(input.name, input.kind, input.baseUrl,
             key, if (listed == null) emptyList() else targetProvider?.models.orEmpty().filter { it.id != input.model } + listed,
-            typed = setOf(input.model), untested = true)
+            typed = setOf(input.model), untested = true, selfHostedHttp = input.selfHostedHttp)
         check(store.setModelVision(provider.id, input.model, caps.vision))
         store.list().firstOrNull { it.providerId == provider.id && it.model == input.model }?.let { store.save(it.copy(capabilities = caps), null) }
         // 旧配置可能只有角色记录而没有 typedModels；切换主模型前先固定已保存的模型，避免 prune 把它从列表删除。
@@ -101,7 +110,7 @@ internal class FlutterModelSettings(private val store: ProviderStore) {
         val revision = listingRevision.incrementAndGet()
         val key = credential(input)
         require(!StepModelProfiles.isEndpoint(input.baseUrl) || !key.isNullOrBlank()) { "请先填写此站点的 API Key" }
-        return when (val result = store.listModels(input.kind, input.baseUrl, key)) {
+        return when (val result = store.listModels(input.kind, input.baseUrl, key, selfHostedHttp = input.selfHostedHttp)) {
             is ModelListResult.Failed -> mapOf("models" to emptyList<Any>(), "error" to result.reason.text)
             is ModelListResult.Ok -> {
                 if (listingRevision.get() == revision) draft = DraftCatalog(input.kind, input.baseUrl, keyHash(key), result.models)

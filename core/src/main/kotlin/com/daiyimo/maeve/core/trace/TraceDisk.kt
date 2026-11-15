@@ -67,14 +67,8 @@ internal class TraceDisk(private val directory: File, private var limit: Long) {
             reclaim(growth)
             if (growth > available) throw TraceDiskFull(block)
         }
-        val staged = File(file.parentFile, file.name + ".tmp")
-        try {
-            staged.writeBytes(data)
-            if (!staged.renameTo(file)) throw IOException("Trace write failed")
-            available -= growth
-        } finally {
-            staged.delete()
-        }
+        com.daiyimo.maeve.core.io.AtomicFiles.write(file, data)
+        available -= growth
     }
 
     private fun reserveHeldFor(dir: File) = (ROOT_RESERVE - File(dir, ROOT_NAME).length()).coerceAtLeast(0L)

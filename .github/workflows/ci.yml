@@ -77,6 +77,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Read JavaScript test runtime version
+        run: echo "NODE_TEST_VERSION=$(python3 -c 'import json; print(json.load(open("tooling/toolchain/versions.json"))["testNode"]["version"])')" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_TEST_VERSION }}
       - uses: gradle/actions/setup-gradle@v4
       - name: JVM unit tests
         run: ./gradlew :core:test --no-daemon --stacktrace

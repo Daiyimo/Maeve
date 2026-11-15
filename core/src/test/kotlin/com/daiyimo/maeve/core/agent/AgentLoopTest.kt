@@ -369,9 +369,9 @@ class AgentLoopTest {
 
     @Test fun onlyFirstToolCallExecuted() = runTest {
         val s = FakeScreen()
-        val m = FakeModel(tools(call("phone_tap", """{"x":500,"y":500}"""), call("phone_back")), finish())
+        val m = FakeModel(tools(call("phone_tap", """{"x":500,"y":50}"""), call("phone_back")), finish())
         loop(m, s).run("t")
-        assertEquals(listOf("tapXY 540 1201"), s.calls)
+        assertEquals(listOf("tapXY 540 120"), s.calls)
         val results = m.requests[1].withoutRuntime().last().results()
         assertEquals(2, results.size)
         assertEquals("parallel_tool_call_skipped", results[1].json().s("error"))
@@ -578,7 +578,7 @@ class AgentLoopTest {
     @Test fun repeatedTapWithProgressCanExceedOldStepLimit() = runTest {
         // 画面持续变化时，相同动作可超过旧的 60 步上限
         val s = FakeScreen().apply { result = ActionResult.Ok(changed = true) }
-        val m = FakeModel(*(1..65).map { tools(call("phone_tap", """{"x":105,"y":106}""")) }.toTypedArray(), finish())
+        val m = FakeModel(*(1..65).map { tools(call("phone_tap", """{"x":105,"y":50}""")) }.toTypedArray(), finish())
         loop(m, s, maxSteps = Int.MAX_VALUE).run("t")
         assertEquals(65, s.calls.size)
     }
@@ -633,7 +633,7 @@ class AgentLoopTest {
         // 要的结果缺了要用的功能、条目或值是做不成;只有问「有没有」的题,App 的搜索明确说没有才是答案,直接回答并引用读到的原文
         fun separates(s: String) = "feature" in s && "end_not_done" in s && "yes/no question about whether something exists" in s && "definitive" in s
         val taps = mutableListOf<Any>()
-        repeat(6) { taps += tools(call("phone_tap", """{"x":105,"y":106}""")) }
+        repeat(6) { taps += tools(call("phone_tap", """{"x":105,"y":50}""")) }
         taps += finish()
         val m = FakeModel(*taps.toTypedArray())
         loop(m, FakeScreen().apply { result = ActionResult.Ok(changed = true) }).run("t")

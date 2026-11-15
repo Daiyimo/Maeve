@@ -14,7 +14,6 @@ import com.daiyimo.maeve.core.tool.ToolContext
 import com.daiyimo.maeve.core.tool.ToolDef
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.Verb
-import com.daiyimo.maeve.core.tool.capField
 import com.daiyimo.maeve.core.tool.fail
 import com.daiyimo.maeve.core.tool.okObj
 import com.daiyimo.maeve.core.tool.str
@@ -39,7 +38,7 @@ internal object RequestConfirmation : SurfaceAware {
         "content" to str(CONTENT_NOTE),
         "amount" to str(AMOUNT_NOTE),
         "app" to str(APP_NOTE),
-    ), listOf("action", "target", "content", "amount", "app"))
+    ), listOf("action", "target", "content", "app"))
 
     /** app 参数写什么按本任务的屏说:一块屏时写那块的写法,几块屏时各写一句。 */
     override fun def(ctx: ToolContext): ToolDef {
@@ -58,7 +57,7 @@ internal object RequestConfirmation : SurfaceAware {
             ctx.refusedPay = request(kind, a, a.str("app")!!.trim())
             return fail("payment_requires_takeover", HINT_PAYMENT_TAKEOVER)
         }
-        requireSpendableAmount(a)
+        if (kind == IrrevAction.order) requireSpendableAmount(a)
         val confirm = request(kind, a, ctx.confirmTarget(a.str("app")!!.trim()))
         // 申报时读到的前台包名一起交上去,供之后核对
         val foreground = ctx.session.peek()?.packageName ?: ctx.lastSnapshot?.packageName
@@ -73,18 +72,18 @@ internal object RequestConfirmation : SurfaceAware {
     /** 只有花钱要问:写不出金额的操作不用申请,直接做。 */
     private fun requireSpendableAmount(a: Args) {
         if (a.str("amount")?.any(Char::isDigit) != true) throw ArgError("amount",
-            "required: the total the user will pay, as shown on screen. An action that spends no money needs no approval: do it directly")
+            "required for orders: the total the user will pay, as shown on screen")
     }
 
-    /** 从参数拼出申报:target/content 截到界面原样显示得下,金额可选,[app] 是这一步发生在哪。 */
+    /** 原文进入确认，不用截断后的摘要给更长的动作授权。超长明确拒绝。 */
     private fun request(kind: IrrevAction, a: Args, app: String) = ConfirmationRequest(
-        kind, capField(a.str("target", max = 10000)!!), capField(a.str("content", max = 10000)!!),
-        a.str("amount", max = 10000)?.let(::capField), app,
+        kind, a.str("target", max = CONFIRM_FIELD_MAX)!!.trim(), a.str("content", max = 4000)!!,
+        a.str("amount", max = CONFIRM_FIELD_MAX)?.trim(), app,
     )
 }
 
 private const val APP_NOTE = "Where the action happens, as on screen now"
-private const val ACTION_NOTE = "Kind of action that spends the money (order for placing an order or booking)."
-private const val TARGET_NOTE = "Who or where the money goes (shop, seller, service), as shown on screen. At most $CONFIRM_FIELD_MAX characters."
-private const val CONTENT_NOTE = "What is bought: item, spec, quantity. At most $CONFIRM_FIELD_MAX characters."
+private const val ACTION_NOTE = "Kind of external or irreversible action: send, submit, delete, order or other. Payment requires user takeover."
+private const val TARGET_NOTE = "Recipient or object affected, exactly as shown on screen. At most $CONFIRM_FIELD_MAX characters."
+private const val CONTENT_NOTE = "Exact content to send, change or delete, or the item, spec and quantity ordered. At most 4000 characters. No truncation or prefix approval."
 private const val AMOUNT_NOTE = "Amount and currency the user will pay, as shown on screen."

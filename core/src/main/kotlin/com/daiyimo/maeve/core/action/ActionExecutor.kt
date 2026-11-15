@@ -54,12 +54,14 @@ class ActionExecutor(
     val recorder: ActionRecorder,
     /** 不动屏幕的工具的守卫;没有为 null。 */
     private val offScreen: OffScreenGuard? = null,
-    approvals: ApprovalSettings = ApprovalSettings.ASK,
+    private val approvals: ApprovalSettings = ApprovalSettings.ASK,
+    private val budget: com.daiyimo.maeve.core.run.RunBudget? = null,
     provenance: RunProvenance = RunProvenance(),
     selfPackage: String? = null,
     autonomous: Boolean = false,
     /** 同一网站、App 里连着做对外动作(发送、提交)时两次之间的间隔(见 [OutwardPacing]);默认不等。 */
     private val pacing: OutwardPacing = OutwardPacing.Off,
+    private val effects: ActionEffects? = null,
 ) {
     private val decision = ConfirmDecision(tools, confirmations, approvals, recorder = recorder, provenance = provenance, selfPackage = selfPackage, autonomous = autonomous)
     private val pass = ActionPass()
@@ -75,6 +77,10 @@ class ActionExecutor(
 
     /** [reads]:页面脚本一次调用里的读单独计数的范围(来源要求隔离时);那里的动作仍按任务计。 */
     private suspend fun run(call: Part.ToolCall, origin: Origin, followUp: FollowUp, reads: GuardScope?): ActionOutcome {
+        if (!runCatching { kotlinx.serialization.json.Json.parseToJsonElement(call.argsJson) is JsonObject }.getOrDefault(false)) {
+            return ran(Step(call, JsonObject(emptyMap()), origin, emptyList(), writing = false, tools.offScreen(call.name), tools.verb(call.name), null, followUp, reads,
+                preset = ToolExecution(buildJsonObject { put("ok", false); put("error", "invalid_arguments"); put("message", "arguments: not valid JSON object"); put("recoverable", true); put("executed", false) })))
+        }
         val args = parseArgs(call.argsJson)
         // 不动屏幕的工具(沙箱一类):不进屏幕守卫,由各自的守卫另管
         val offScreen = tools.offScreen(call.name)
@@ -127,6 +133,7 @@ class ActionExecutor(
         val writing = tools.writesScreen(call.name)
         if (writing && !policy.gatedByCaller) gate()
         // 没有可用的同意就不执行,也不计入失败熔断
+        val approvalRevision = approvals.revision()
         var d = decision.judge(call.name, args, origin)
         // 不在屏上、工具声明要问的一步(会改动东西的 root 命令):调用方问得到人就当场问,同意了按这次同意再判一次;
         // 问不到人(这次运行不能问、调用方不是模型单步)就不做,照被拦下记
@@ -142,7 +149,7 @@ class ActionExecutor(
             is Decision.Required -> return blocked(call, args, origin, before, d.hit, null, followUp, d.everyWrite)
             is Decision.Mismatch -> return blocked(call, args, origin, before, d.hit, d.reason, followUp)
             is Decision.Denied -> return approvalUnavailable(call, args, origin, before, d.hit, followUp)
-            Decision.Unresolved -> return refuse("target_unresolved", origin, before)
+            Decision.Unresolved -> return refusedCall(call, args, origin, before, followUp, "target_unresolved")
             Decision.OwnApp -> return ownApp(call, args, origin, before, followUp)
             Decision.DeniedApp -> return deniedApp(call, args, origin, before, followUp)
             Decision.SecretPage -> return secretPage(call, args, origin, before, followUp)
@@ -162,12 +169,13 @@ class ActionExecutor(
         dwelt.stop?.let { stop ->
             return ran(Step(call, args, origin, before, writing = false, offScreen, verb, null, followUp, reads, preset = stop, pacedMs = paced + dwelt.waitMs))
         }
+        if (approvals.revision() != approvalRevision) return refusedCall(call, args, origin, before, followUp, "approval_revoked")
         if (writing) {
             guards.noteAction()
             decision.noteWrite(call.name)
         }
         val step = Step(call, args, origin, before, writing, offScreen, verb, (d as? Decision.Traced)?.detail, followUp, reads, note = note,
-            pacedMs = paced + dwelt.waitMs, idleScrolls = dwelt.idleScrolls, outward = site != null)
+            pacedMs = paced + dwelt.waitMs, idleScrolls = dwelt.idleScrolls, outward = site != null, approvalDigest = decision.approvalDigest)
         // 动作一旦开始就做完并记下:脚本超时、任务取消都不能把它掐在半中间、漏掉记录
         // 对外动作告诉这块屏的能力(网页的页数上限只管浏览,见 PageDwell)
         site?.let(tools::outwardStart)
@@ -198,10 +206,12 @@ class ActionExecutor(
         val idleScrolls: Int = 0,
         /** 不可逆判定认出是对外动作(发送、提交);记进这次的活动。 */
         val outward: Boolean = false,
+        val approvalDigest: String? = null,
     )
 
     private suspend fun ran(s: Step): ActionOutcome {
         val call = s.call
+        if (s.preset == null && !tools.composite(call.name)) budget?.step()
         val policy = s.origin.policy
         val n = s.origin.step
         // 页面脚本里的每个动作经这里回来,同样走完整个入口;脚本里的读只在这一次调用里计数
@@ -220,10 +230,13 @@ class ActionExecutor(
         // 改状态的动作:记下执行前账本的位置,之后(含这次结果自带的那一屏)有没有重新读过由回答前的核对来看
         val changes = tools.declaredRisk(call.name) != Risk.Read && (s.offScreen || ClassifiedRisk.changesState(s.verb))
         val mark = tools.ledgerMark()
-        val raw = (s.preset ?: offScreen?.exhausted(call.name)?.let { ToolExecution(it) } ?: execute(s, sub))
+        val raw = (s.preset ?: offScreen?.exhausted(call.name)?.let { ToolExecution(it) } ?: if (changes && !tools.composite(call.name) && effects != null) {
+            effects.execute(call, s.origin, s.approvalDigest) { execute(s, sub) }
+        } else execute(s, sub))
             .let { r -> s.note?.let { r.with(content = JsonObject(r.content + it)) } ?: r }
             .let { r -> if (s.pacedMs > 0) r.with(waitMs = r.waitMs + s.pacedMs) else r }
             .let { r -> if (s.idleScrolls > 0) r.with(record = JsonObject(r.record + ("idleScrolls" to JsonPrimitive(s.idleScrolls)))) else r }
+        if (tools.composite(call.name) && s.preset == null) effects?.checkSettled()
         // 报了失败、也没说界面变了的动作什么也没改成:回答前不用为它再读一遍
         val failed = raw.content["ok"] == JsonPrimitive(false) && raw.changed != true
         if (changes && s.preset == null && !failed) recorder.noteChange(mark)
@@ -339,6 +352,15 @@ class ActionExecutor(
 
     private fun refuse(code: String, origin: Origin, before: List<GuardVerdict>) =
         ActionOutcome.Refused(code, Refusals.content(code, origin.policy.refusals, before, null, null), before)
+
+    private fun refusedCall(call: Part.ToolCall, args: JsonObject, origin: Origin, before: List<GuardVerdict>, followUp: FollowUp, code: String): ActionOutcome {
+        val content = Refusals.content(code, origin.policy.refusals, before, null, null)
+        if (origin.policy.recordsRefusal) {
+            followUp.refused(content)
+            recorder.result(origin.step, call.name, tools.verb(call.name), content, tools.portRecord(call.name, args), null, null, 0, origin.policy.source, call.id)
+        }
+        return ActionOutcome.Refused(code, content, before)
+    }
 
     private fun approvalUnavailable(
         call: Part.ToolCall, args: JsonObject, origin: Origin, before: List<GuardVerdict>, hit: Irreversible, followUp: FollowUp,
