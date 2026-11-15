@@ -163,11 +163,67 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
 
     @Synchronized fun stop() { worker?.cancel(); worker = null; active = false; closeBackground() }
 
-    private suspend fun chat(request: Request): String {
-        if (background && !backgroundReady) throw AmooUiException("手机助手未连接，后台接入不会自动切到前台。请先连接手机助手。")
+    /**
+     * 微信侧的 /new:在 Amoo 里开一个新会话,并忘掉本机记住的会话标记——下一条消息起都进新会话。
+     * 聊天由系统 Amoo 处理,这里只负责等聊天就绪、点「新会话」并等它切换。
+     * 标记无论如何都会清掉:这次没点成,下一条消息会按新会话再试(见 [chat] 里的同款分支)。
+     */
+    private suspend fun startFreshSession(): String {
+        // 等 Amoo 聊天就绪:输入框出现了才谈得上点「新会话」(Activity 刚起来时无障碍树还没长全)
+        val readyBy = SystemClock.uptimeMillis() + 12_000
+        var before = emptyList<String>()
+        while (SystemClock.uptimeMillis() < readyBy && before.isEmpty()) {
+            withRoot { root ->
+                if (find(root, "et_input_bar") != null) before = chatTexts(root)
+            }
+            if (before.isEmpty()) delay(200)
+        }
+        if (before.isEmpty()) {
+            resetSessionMarkers()
+            return "Amoo 聊天还没就绪。会话标记已重置，下一条消息会重试开新会话；若持续失败请到 Amoo 手动新建。"
+        }
+        // 点「新会话」
+        val clickBy = SystemClock.uptimeMillis() + 6_000
+        var clicked = false
+        while (SystemClock.uptimeMillis() < clickBy && !clicked) {
+            withRoot { root ->
+                find(root, "btn_new_session")?.let { fresh ->
+                    try { clicked = fresh.performAction(AccessibilityNodeInfo.ACTION_CLICK) } finally { fresh.recycle() }
+                }
+            }
+            if (!clicked) delay(200)
+        }
+        if (!clicked) {
+            resetSessionMarkers()
+            return "没能开始新会话：Amoo 聊天里没有「新会话」按钮。请到 Amoo 手动新建一个会话，再发消息。"
+        }
+        // 等聊天换成新内容(通常直接清空)
+        val switchBy = SystemClock.uptimeMillis() + 6_000
+        var switched = false
+        while (SystemClock.uptimeMillis() < switchBy && !switched) {
+            val now = withRoot { root -> chatTexts(root) } ?: emptyList()
+            switched = now.toString() != before.toString()
+            if (!switched) delay(200)
+        }
+        resetSessionMarkers()
+        return if (switched) "已开始新的 Amoo 会话。下一条消息起都是新对话。"
+        else "已点「新会话」但聊天还没切换成功。下一条消息会重试；若仍不行，请到 Amoo 手动新建会话。"
+    }
+
+    /**
+     * 忘掉本机记住的 Amoo 会话(会话编号、上一条消息和回复)。下一条消息到来时按新会话处理:
+     * 聊天里有旧内容就点「新会话」,没有就直接用。clawbot 新绑定(重连)时也调它——
+     * 连上之后从新会话开始,不接着旧的聊。
+     */
+    fun resetSessionMarkers() {
+        prefs.edit().remove("session").remove("lastMessage").remove("lastReply").apply()
+    }
+
+    private suspend fun chat(request: Request): String {        if (background && !backgroundReady) throw AmooUiException("手机助手未连接，后台接入不会自动切到前台。请先连接手机助手。")
         if (!available) throw AmooUiException("请先开启 Maeve 无障碍服务，再通过微信与系统 Amoo 对话。")
         lastError = null
         openForRequest()
+        if (request.text.trim() == NEW_SESSION_COMMAND) return startFreshSession()
         val readyAt = SystemClock.uptimeMillis() + 12_000
         var prepared = false
         val allow = FeatureFlags.get(app).bridgeAmoo()
@@ -215,14 +271,24 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
         if (!sent) throw AmooUiException("未能发送至系统 Amoo。输入内容仍保留在 Amoo，请先确认是否已发送，避免重复。")
         prefs.edit().putString("session", request.session).putString("lastMessage", message).apply()
         val deadline = SystemClock.uptimeMillis() + if (allow) 15 * 60_000 else 120_000
+        // 流式回复:提取到的文本要连续两拍不变才算数,否则会把半截(按钮已出现、文字还在长)当成答案
+        var lastSeen: String? = null
+        var stableSince = 0L
         while (SystemClock.uptimeMillis() < deadline) {
             var response: String? = null
             withRoot { root ->
                 response = SystemAmooTranscript.reply(chatTexts(root), baseline, message, isBusy(root))
             }
-            response?.let {
-                prefs.edit().putString("lastReply", it).putString("lastReplyRequest", request.id).apply()
-                return it
+            val now = SystemClock.uptimeMillis()
+            val answer = response
+            if (answer != null && answer == lastSeen) {
+                if (now - stableSince >= REPLY_STABLE_MS) {
+                    prefs.edit().putString("lastReply", answer).putString("lastReplyRequest", request.id).apply()
+                    return answer
+                }
+            } else {
+                lastSeen = answer
+                stableSince = now
             }
             delay(150)
         }
@@ -286,8 +352,14 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
     companion object {
         const val PACKAGE = "com.stepos.ailauncher"
 
+        /** 微信侧开新 Amoo 会话的指令(clawbot 的 /new)。 */
+        private const val NEW_SESSION_COMMAND = "/new"
+
         /** am start 之后等 Amoo 在后台屏上落地这么久;任务建起来要一点时间。 */
         private const val LAND_WAIT_MS = 3_000L
+
+        /** 提取到的回复文本连续这么久不变才当成最终答案(流式输出别抓半截)。 */
+        private const val REPLY_STABLE_MS = 600L
     }
 }
 

@@ -182,6 +182,8 @@ class WechatRuntime(
             status.account()?.let { account ->
                 store.account()?.let { old -> owners.unbind(ChannelPeer(WechatChannel.ID, old.ownerId, "")) }
                 store.saveAccount(account)
+                // 连上(重连)就从新会话开始:忘掉本机记住的 Amoo 会话,下一条消息进新对话
+                systemAmoo.resetSessionMarkers()
                 store.setEnabled(true)
                 syncControl()
                 owners.bind(ChannelPeer(WechatChannel.ID, account.ownerId, ""))
