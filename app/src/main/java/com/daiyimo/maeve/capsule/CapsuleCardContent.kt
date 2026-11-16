@@ -467,8 +467,8 @@ private fun CardFrame(height: Dp, fixed: Boolean = true, content: @Composable Co
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.size(3.dp, 12.dp).background(c.accent, RoundedCornerShape(2.dp)))
-                Text("MAEVE", style = Sub.copy(fontSize = 10.sp, letterSpacing = 2.sp, fontWeight = FontWeight.Bold), color = c.accent)
-                Box(Modifier.weight(1f).height(1.dp).background(c.rule))
+                Text("MAEVE", style = Sub.copy(fontSize = 10.sp, letterSpacing = 2.4.sp, fontWeight = FontWeight.Bold), color = c.accent.copy(alpha = 0.9f))
+                Box(Modifier.weight(1f).height(1.dp).background(Brush.horizontalGradient(listOf(c.rule, c.rule.copy(alpha = 0f)))))
             }
             content()
         },

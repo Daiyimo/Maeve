@@ -60,12 +60,21 @@ object MaeveTheme {
 @Composable
 fun appearanceDark(): Boolean {
     val context = LocalContext.current
+    // Flutter 设置页写的是 flutter_appearance.mode(dark/light/system);
+    // 原生浮层跟着同一份偏好,不再各读各的(旧 FeatureFlags 只作回退)。
+    val prefs = remember(context) { context.getSharedPreferences("flutter_appearance", android.content.Context.MODE_PRIVATE) }
     val flags = remember(context) { FeatureFlags.get(context) }
     val mode by remember(flags) { flags.themeModeChanges() }.collectAsState(flags.themeMode())
-    return when (mode) {
-        ThemeMode.System -> isSystemInDarkTheme()
-        ThemeMode.Light -> false
-        ThemeMode.Dark -> true
+    val raw = prefs.getString("mode", null)
+    return when {
+        raw == "dark" -> true
+        raw == "light" -> false
+        raw == "system" -> isSystemInDarkTheme()
+        else -> when (mode) {
+            ThemeMode.System -> isSystemInDarkTheme()
+            ThemeMode.Light -> false
+            ThemeMode.Dark -> true
+        }
     }
 }
 
@@ -75,6 +84,11 @@ fun appearanceDark(): Boolean {
 @Composable
 fun appearanceAccent(): AccentSpec {
     val context = LocalContext.current
+    // Flutter 设置页的配色 id 存在 flutter_appearance.accent,和原生 store 不是同一份;
+    // 有它就以它为准(六套预设 id 两侧一致),浮层与 App 永远同一个颜色世界。
+    val prefs = remember(context) { context.getSharedPreferences("flutter_appearance", android.content.Context.MODE_PRIVATE) }
+    val flutterId = prefs.getString("accent", null)
+    if (flutterId != null) return remember(flutterId) { deriveAccent(AccentPreset.byId(flutterId)) }
     val store = remember(context) { MaeveAccentStore.get(context) }
     val accent by store.accent.collectAsState()
     return accent

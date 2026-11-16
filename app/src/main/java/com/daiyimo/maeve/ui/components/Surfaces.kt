@@ -172,7 +172,7 @@ fun Modifier.cardSurface(
  * 高度按元素尺寸的 [GlassStyle.rimFraction] 取上限,再和 14dp 取小——
  * 一枚 28dp 的药丸不该整个被高光填满,一张 200dp 的卡也不该只有一条细线。
  */
-private fun DrawScope.glassRim(style: GlassStyle, shape: Shape) {
+internal fun DrawScope.glassRim(style: GlassStyle, shape: Shape) {
     if (style.rim.alpha <= 0f) return
     val rimHeight = (size.height * style.rimFraction).coerceIn(2f, 26.dp.toPx())
     drawRect(
@@ -213,7 +213,7 @@ private fun DrawScope.glassRim(style: GlassStyle, shape: Shape) {
  * 3. 最后裁进形状,贴边画四条软带 —— 顶亮、左右更弱、底暗。
  *    带子始终在边内:宽了会把背后的颜色洗白。
  */
-private fun DrawScope.glassBevel(style: GlassStyle, shape: Shape, colors: MaeveColors) {
+internal fun DrawScope.glassBevel(style: GlassStyle, shape: Shape, colors: MaeveColors) {
     if (style.hairlineWidth <= 0.dp) return
     val path = shape.toFlatPath(size, this)
     val w = style.hairlineWidth.toPx()

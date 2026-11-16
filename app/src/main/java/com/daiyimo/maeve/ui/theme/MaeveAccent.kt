@@ -8,17 +8,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * Maeve 的六套配色。取名来自《西部世界》的意象,颜色全部落在暖侧——
- * 这套界面是纸,纸上的色不能是屏幕蓝。
+ * Maeve 的六套氛围。**种子与名字和 Flutter 侧 maeve_accent.dart 逐项一致**——
+ * Flutter 是唯一应用界面,原生浮层(悬浮胶囊、文件预览)必须和它同一个颜色世界;
+ * 上一版这里还留着旧暖色纸面时代的种子,同一个 id 两边推出两种颜色。
  *
- * | id | 名字 | 意象 |
- * |---|---|---|
- * | [Reverie] | 梅子 | 默认。Maeve 的戏服色,深紫里带一点血 |
- * | [Dolores] | 黄铜 | 首发代号。甜水镇的灯与铜件 |
- * | [Maze] | 沙原 | 迷宫。她找路的那座 |
- * | [Pearl] | 珍珠 | 冷静的旁观者 |
- * | [Sublime] | 夜靛 | 升华。甜水镇的夜 |
- * | [Graphite] | 石墨 | 近无色。摇篮的金属 |
+ * | id | 名字 |
+ * |---|---|
+ * | [Reverie] | 觉醒紫(默认) |
+ * | [Dolores] | 丝绒红 |
+ * | [Maze] | 雾松 |
+ * | [Pearl] | 冰川 |
+ * | [Sublime] | 暮光 |
+ * | [Graphite] | 月白 |
  *
  * 每套只定**种子**(浅/深各一枚)和中性色的色调,其余色位按 [AccentSpec] 的
  * 阶梯现推,推完过对比度守卫。数值是设计决策,见 docs/spec/visual-tokens.md §1–§2。
@@ -30,12 +31,12 @@ enum class AccentPreset(
     val darkSeed: Long,
     val tintChroma: Float,
 ) {
-    Reverie("reverie", "梅子", 0xFF6B3D57, 0xFFB98CA8, 1.0f),
-    Dolores("dolores", "黄铜", 0xFF7A5626, 0xFFD2AE74, 0.85f),
-    Maze("maze", "沙原", 0xFF6E5740, 0xFFC6AE90, 0.9f),
-    Pearl("pearl", "珍珠", 0xFF4E5F6B, 0xFFAFC2CE, 0.7f),
-    Sublime("sublime", "夜靛", 0xFF3B4A72, 0xFF9CAEDD, 0.9f),
-    Graphite("graphite", "石墨", 0xFF34312E, 0xFFDED8D0, 0.15f),
+    Reverie("reverie", "觉醒紫", 0xFF7651C7, 0xFFCBB7FF, 1.0f),
+    Dolores("dolores", "丝绒红", 0xFF944666, 0xFFF0B2CF, 0.95f),
+    Maze("maze", "雾松", 0xFF38634B, 0xFFB5D5A4, 0.7f),
+    Pearl("pearl", "冰川", 0xFF31667F, 0xFFA0D5DF, 0.8f),
+    Sublime("sublime", "暮光", 0xFF4A57A4, 0xFFB4BFF5, 0.9f),
+    Graphite("graphite", "月白", 0xFF514B42, 0xFFE2D9C9, 0.3f),
     ;
 
     companion object {

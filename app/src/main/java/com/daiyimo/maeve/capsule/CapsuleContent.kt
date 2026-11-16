@@ -1,7 +1,10 @@
 package com.daiyimo.maeve.capsule
 
 import com.daiyimo.maeve.ui.theme.GlassTier
+import com.daiyimo.maeve.ui.theme.GlassStyle
 import com.daiyimo.maeve.ui.components.glassFill
+import com.daiyimo.maeve.ui.components.glassRim
+import com.daiyimo.maeve.ui.components.glassBevel
 import com.daiyimo.maeve.i18n.tr
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -42,6 +45,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Outline
@@ -199,7 +203,7 @@ private fun Capsule(view: CapsuleView.Shown, end: Boolean, onTap: () -> Unit, ta
     ) {
         Box(
             Modifier.testTag(if (view.pill) "capsule" else "capsule-ball")
-                .morphGlass(morph, end, c, need, alpha)
+                .morphGlass(morph, end, c, MaeveTheme.surfaces.pill, need, alpha)
                 .clickable(onClickLabel = tapLabel, role = Role.Button, onClick = onTap)
                 .then(if (view.pill) Modifier else Modifier.semantics { contentDescription = CapsuleCopy.describe(view) })
                 .then(a11y)
@@ -236,7 +240,7 @@ private fun PillRow(view: CapsuleView.Shown, end: Boolean, need: Boolean) {
         if (!end) CapsuleLogo(view.kind)
         Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text("MAEVE", style = BarDetail.copy(fontSize = 9.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.Bold), color = c.accent)
+                Text("MAEVE", style = BarDetail.copy(fontSize = 9.sp, letterSpacing = 1.8.sp, fontWeight = FontWeight.Bold), color = c.accent.copy(alpha = 0.9f))
                 Leading(view.kind)
             }
             Text(view.text, style = CapsuleText, color = if (need) c.warn else c.ink,
@@ -304,7 +308,7 @@ private fun Ring(kind: CapsuleKind, need: Boolean, modifier: Modifier) {
         val x = size.width / 2
         val y = size.height - 3.dp.toPx()
         val width = if (kind == CapsuleKind.Running) 4.dp.toPx() + 2.dp.toPx() * kotlin.math.sin(phase * 6.283f) else 5.dp.toPx()
-        drawLine(tone.copy(alpha = strength), Offset(x - width / 2, y), Offset(x + width / 2, y), 2.dp.toPx(), StrokeCap.Round)
+        drawLine(tone.copy(alpha = strength), Offset(x - width / 2, y), Offset(x + width / 2, y), 2.5.dp.toPx(), StrokeCap.Round)
     }
 }
 
@@ -395,12 +399,14 @@ private fun Modifier.morphLayout(m: Morph, end: Boolean): Modifier = layout { me
 
 /**
  * 玻璃底(同 [glass]),只画看得见的那一段宽、贴着停靠的那一边:阴影、裁切、底色和描边都按它,宽度变时只重画图层。
+ * 材质与 App 内玻璃同一套光学语言([style]):近不透明底 + 顶边高光 + 上亮下暗内描边 + 斜带厚度,
+ * 浮层窗口拿不到背后画面做模糊,靠这几层读出「一片玻璃」而不是「一块塑料片」。
  * [alpha] 淡底和里面的图标。
  */
-private fun Modifier.morphGlass(m: Morph, end: Boolean, c: MaeveColors, need: Boolean, alpha: Float): Modifier =
+private fun Modifier.morphGlass(m: Morph, end: Boolean, c: MaeveColors, style: GlassStyle, need: Boolean, alpha: Float): Modifier =
     graphicsLayer {
         this.alpha = .92f + .08f * alpha
-        shadowElevation = 6.dp.toPx()
+        shadowElevation = 8.dp.toPx()
         ambientShadowColor = c.floatShadow.copy(alpha = 0.25f)
         spotShadowColor = c.floatShadow.copy(alpha = 0.3f)
         shape = EdgePill(m.width.value, end)
@@ -408,16 +414,26 @@ private fun Modifier.morphGlass(m: Morph, end: Boolean, c: MaeveColors, need: Bo
     }.drawWithContent {
         val pill = EdgePill(m.width.value, end)
         val o = pill.createOutline(size, layoutDirection, this)
-        drawOutline(o, c.surfaceHigh.compositeOver(c.bg))
+        // ② 底:玻璃的「实」(浮层不取样,比 App 内更实一档),上面叠一道极淡的顶亮底暗,玻璃有了体积
+        drawOutline(o, style.fallbackFill.compositeOver(c.bg))
+        drawOutline(o, Brush.verticalGradient(
+            listOf(Color.White.copy(alpha = if (c.isDark) 0.03f else 0.16f), Color.Transparent,
+                c.ink.copy(alpha = if (c.isDark) 0.08f else 0.02f)),
+            startY = 0f, endY = size.height))
+        // 贴边那道品牌色短线:胶囊的身份记号
         val visible = if (m.width.value > 0f) m.width.value.coerceAtMost(size.width) else size.width
         val right = end != (layoutDirection == LayoutDirection.Rtl)
         val edge = if (right) size.width - 3.dp.toPx() else size.width - visible + 3.dp.toPx()
         drawLine(if (need) c.warnSolid else c.accent, Offset(edge, size.height * .32f),
             Offset(edge, size.height * .68f), strokeWidth = 2.dp.toPx(), cap = StrokeCap.Round)
+        // ③④ 光学层:顶边高光 + 定向受光边 + 上亮下暗内描边 + 斜带(同 App 内玻璃)
+        glassRim(style, pill)
+        glassBevel(style, pill, c)
         drawContent()
-        val stroke = (if (need) 1.dp else 0.5.dp).toPx()
+        // ⑤ 轮廓发丝线;要你处理时整圈橙
+        val stroke = (if (need) 1.dp else style.hairlineWidth).toPx()
         drawOutline(EdgePill(m.width.value, end, inset = stroke / 2).createOutline(size, layoutDirection, this),
-            if (need) c.warnSolid.copy(alpha = 0.7f) else c.edge, style = Stroke(stroke))
+            if (need) c.warnSolid.copy(alpha = 0.7f) else style.hairline, style = Stroke(stroke))
     }
 
 /** 宽 [width](0 或超出时按整块)、贴着一边([end] 时逻辑末端)的胶囊形;[inset] 往里收(画描边用)。 */
@@ -474,11 +490,17 @@ private fun CapsuleLogo(kind: CapsuleKind = CapsuleKind.Idle) {
 }
 
 /**
- * 浮在别的 App 上的玻璃底:浮层窗口里拿不到下面 App 的画面做模糊,用接近不透明的卡片底、细描边和悬浮阴影;
- * 需要你时叠一层淡橙、描边变橙。
+ * 浮在别的 App 上的玻璃底:浮层窗口里拿不到下面 App 的画面做模糊,但 App 内玻璃的光学特征一层不少——
+ * 近不透明底 + 顶边高光 + 定向受光边 + 上亮下暗内描边 + 斜带厚度(同 [glassFill]),
+ * 胶囊/卡片/语音面板和 App 里的玻璃说同一种材质语言;需要你时描边变橙。
  */
-internal fun Modifier.glass(c: MaeveColors, shape: Shape, need: Boolean): Modifier =
-    shadow(8.dp, shape, clip = false, ambientColor = c.floatShadow.copy(alpha = 0.25f), spotColor = c.floatShadow.copy(alpha = 0.3f))
+@Composable
+internal fun Modifier.glass(c: MaeveColors, shape: Shape, need: Boolean, tier: GlassTier = GlassTier.Sheet): Modifier {
+    val style = MaeveTheme.surfaces[tier]
+    return shadow(8.dp, shape, clip = false, ambientColor = c.floatShadow.copy(alpha = 0.25f), spotColor = c.floatShadow.copy(alpha = 0.3f))
         .clip(shape)
-        .background(c.surfaceHigh.compositeOver(c.bg))
-        .border(if (need) 1.dp else .5.dp, if (need) c.warnSolid.copy(alpha = .5f) else c.edge, shape)
+        .background(style.fallbackFill.compositeOver(c.bg))
+        .drawBehind { glassRim(style, shape) }
+        .drawBehind { glassBevel(style, shape, c) }
+        .border(if (need) 1.dp else style.hairlineWidth, if (need) c.warnSolid.copy(alpha = .5f) else style.hairline, shape)
+}

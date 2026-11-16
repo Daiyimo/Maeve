@@ -63,6 +63,7 @@ import com.daiyimo.maeve.ui.screenThumbnail
 import com.daiyimo.maeve.ui.ToolLabels
 import com.daiyimo.maeve.ui.theme.MaeveTheme
 import com.daiyimo.maeve.ui.theme.animationsOff
+import com.daiyimo.maeve.ui.haptic.MaeveHaptics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -114,6 +115,8 @@ class CapsuleController(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val model = CapsuleModel(::reasonLabel)
     private val flags = FeatureFlags.get(context)
+    /** 胶囊自己的交互手感:展开/收起/换边/说话/发送,和 App 内同一台引擎、同一份开关。 */
+    private val haptics by lazy { MaeveHaptics.get(context) }
     /** 任务结束后留在后台运行的那一页(没有任务时胶囊说它,卡片里能看画面、关掉)。 */
     private val keeper get() = (context.applicationContext as MaeveApp).pageKeeper
     private val toolLabels by lazy { ToolLabels(knownTools()) }
@@ -473,12 +476,12 @@ class CapsuleController(
         cardWindow?.setFocusable(false)
     }
 
-    /** 返回键:先收起输入框,再关放大的画面,最后收起卡片。 */
+    /** 返回键:先收起输入框,再关放大的画面,最后收起卡片;每退一层给一下轻触感。 */
     private fun back() {
         when {
-            inputUi.open -> closeInput()
-            zoomed -> zoom(false)
-            expanded -> collapse()
+            inputUi.open -> { haptics.tick(); closeInput() }
+            zoomed -> { haptics.tick(); zoom(false) }
+            expanded -> { haptics.tick(); collapse() }
         }
     }
 
@@ -498,6 +501,7 @@ class CapsuleController(
         val c = card ?: return
         val kind = CapsuleCards.input(c)?.kind ?: return
         if (text.isEmpty() && shot == null) return
+        haptics.light()
         inputUi = CardInputUi()
         cardWindow?.setFocusable(false)
         if (shot != null) deliver(c, kind, shot, text) else submit(c, kind, text, CapsuleCards.conversationOf(c))
@@ -612,6 +616,7 @@ class CapsuleController(
                 return null
             }
             flash++
+            haptics.tick()
             wake()
             val area = service.overlays().area()
             val r = MainScreenCapture.build(service, shot, read, area.insetTop, area.insetBottom) { ConfirmationNotifier.appLabel(context, it) }
@@ -948,6 +953,8 @@ class CapsuleController(
             }
             val x = CapsuleDocking.dragX(dragStartX + dx.toInt(), a, w.width)
             val base = area(ime = false) ?: a
+            // 松手贴边落定的一下:拖动结束的"咔哒",和换边同一档。
+            haptics.medium()
             dock = CapsuleDocking.release(x, y, w.width, w.height, a, base)
             flags.setCapsuleDock(dock)
             snapTo(x, y, CapsuleDocking.dockedX(dock.side, a, w.width))
@@ -977,6 +984,7 @@ class CapsuleController(
     /** 读屏时代替拖动:换到另一边。 */
     private fun swapSide() {
         resetTaps()
+        haptics.medium()
         dock = dock.copy(side = if (dock.side == DockSide.Left) DockSide.Right else DockSide.Left)
         flags.setCapsuleDock(dock)
         place()
@@ -1026,6 +1034,8 @@ class CapsuleController(
         val loading = if (v.kind == CapsuleKind.Idle) scope.async { loadIdle() } else null
         when (val b = talk.begin(CapsuleVoice.title(CapsuleCards.of(model.cardRuns(), follow, idle)), byTouch)) {
             CapsuleTalk.Begin.Started -> {
+                // 按住说话起手:和 App 内 VoiceHold 同一档(medium)。
+                haptics.medium()
                 talkIdle?.cancel()
                 talkIdle = loading
                 loading?.let {
@@ -1036,10 +1046,12 @@ class CapsuleController(
                 }
             }
             CapsuleTalk.Begin.NoPermission -> {
+                haptics.reject()
                 loading?.cancel()
                 showNote(tr(R.string.capsule_voice_need_mic), CapsuleKind.Failed, opensMaeve = true, NOTE_LONG_MS)
             }
             is CapsuleTalk.Begin.Unavailable -> {
+                haptics.reject()
                 loading?.cancel()
                 showNote(tr(R.string.capsule_voice_not_ready), CapsuleKind.Failed, opensMaeve = true, NOTE_LONG_MS)
             }
@@ -1082,6 +1094,7 @@ class CapsuleController(
             return
         }
         submit(target, kind, text, CapsuleCards.conversationOf(target))
+        haptics.light()
         showNote(CapsuleVoice.sent(kind, text), CapsuleKind.Done, opensMaeve = false, NOTE_SENT_MS)
         refresh()
     }
@@ -1171,7 +1184,10 @@ class CapsuleController(
 
     /** 展开卡片:先记下此刻那一颗的方位,卡片从那边长出来。 */
     private fun open() {
-        if (!expanded) anchorY = placedY + (window?.height ?: 0) / 2
+        if (!expanded) {
+            anchorY = placedY + (window?.height ?: 0) / 2
+            haptics.light()
+        }
         expanded = true
         closing = false
     }
@@ -1192,6 +1208,7 @@ class CapsuleController(
     /** 收起卡片:输入框马上收起(焦点还给下面的 App),卡片缩回那一颗的方位后([closed])才真的收起;关了动画时直接收起。 */
     private fun collapse() {
         if (!expanded) return
+        haptics.tick()
         closeInput()
         if (closing) return
         if (animationsOff(context) || card == null) {
@@ -1218,16 +1235,17 @@ class CapsuleController(
 
     private val actions = object : CardActions {
         override fun collapse() = this@CapsuleController.collapse()
-        override fun stop(runKey: String) = TaskService.cancel(context, runKey)
+        override fun stop(runKey: String) { haptics.medium(); TaskService.cancel(context, runKey) }
         override fun takeOver(runKey: String) {
             // 和通知上的「我来处理」一样带着这次等待的编号:点在已经换掉的旧等待上不算数
+            haptics.medium()
             TaskService.takeOver(context, waitKey = runFor(runKey)?.takeover?.waitKey, runKey = runKey)
             collapse()
         }
-        override fun resume(runKey: String) = TaskService.resume(context, runKey)
-        override fun answer(runKey: String, text: String) = TaskService.answer(context, text, runKey)
-        override fun approve(runKey: String, requestKey: Int) = TaskService.approve(context, requestKey, runKey)
-        override fun decline(runKey: String, requestKey: Int) = TaskService.decline(context, requestKey, runKey)
+        override fun resume(runKey: String) { haptics.light(); TaskService.resume(context, runKey) }
+        override fun answer(runKey: String, text: String) { haptics.light(); TaskService.answer(context, text, runKey) }
+        override fun approve(runKey: String, requestKey: Int) { haptics.heavy(); TaskService.approve(context, requestKey, runKey) }
+        override fun decline(runKey: String, requestKey: Int) { haptics.tick(); TaskService.decline(context, requestKey, runKey) }
         override fun openMaeve(conversationId: String) {
             open(conversationId)
             collapse()
@@ -1259,7 +1277,7 @@ class CapsuleController(
     @Composable
     private fun CardOverlay() {
         val c = card ?: return
-        MaeveTheme(dark = false, reduceMotion = animationsOff(context)) {
+        MaeveTheme(reduceMotion = animationsOff(context)) {
             val height = if (cardHeight > 0) with(LocalDensity.current) { cardHeight.toDp() } else Dp.Unspecified
             OverlayMotion(open = !closing, origin = ::cardOrigin, onClosed = ::closed, onOpened = { cardOut = true }) {
                 CapsuleCard(c, preview, zoomed, actions, { elapsed(it) }, input = inputUi, thread = thread, height = height, onHandle = ::onHandle)
@@ -1274,7 +1292,7 @@ class CapsuleController(
         val a = windowOn?.overlays()?.area()
         val top = placedY + room()
         val bottom = placedY + (window?.height ?: 0) - room()
-        MaeveTheme(dark = false, reduceMotion = animationsOff(context)) {
+        MaeveTheme(reduceMotion = animationsOff(context)) {
             CapsuleVoicePanel(talk, top, bottom.coerceAtLeast(top), a?.insetTop ?: 0, a?.insetBottom ?: 0)
         }
     }
@@ -1288,7 +1306,7 @@ class CapsuleController(
         val v = if (n == null || shown.kind == CapsuleKind.HandedOver) shown
             else shown.copy(kind = n.kind, text = n.text, detail = null, count = 0, needCount = 0, pill = true, widthEpoch = -n.id)
         val talking = talk.active && !talk.released
-        MaeveTheme(dark = false, reduceMotion = animationsOff(context)) {
+        MaeveTheme(reduceMotion = animationsOff(context)) {
             OverlayMotion(open = true, origin = { TransformOrigin(if (dock.side == DockSide.Right) 1f else 0f, 0.5f) }, onClosed = {}) {
                 CapsuleContent(
                     v,
