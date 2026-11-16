@@ -19,6 +19,7 @@ import 'phone_readiness_page.dart';
 import 'execution_settings_page.dart';
 import 'app_access_page.dart';
 import 'run_history_page.dart';
+import 'update_page.dart';
 import 'welcome_page.dart';
 
 class SettingsHubPage extends StatelessWidget {
@@ -213,7 +214,7 @@ class SettingsHubPage extends StatelessWidget {
               icon: Icons.system_update_alt_rounded,
               title: '获取更新',
               subtitle: '查看新版本与更新说明',
-              onTap: () => openHostLink(context, 'updates', label: '更新'),
+              onTap: () => AppPage.open(context, const UpdatePage()),
             ),
           ],
         ),

@@ -14,6 +14,7 @@ import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 import 'package:maeve_flutter/ui/settings/run_history_page.dart';
 import 'package:maeve_flutter/ui/settings/about_pages.dart';
 import 'package:maeve_flutter/models/execution.dart';
+import 'package:maeve_flutter/models/task_report.dart';
 import 'package:maeve_flutter/widgets/execution_view.dart';
 
 import '../support/fake_chat_bridge.dart';
@@ -173,6 +174,23 @@ void main() {
             },
           },
           'open_url' => false,
+          // 更新页进页读一次状态:这里给「查过、已是最新」,不带新版。
+          'updateState' => {
+            'available': true,
+            'currentVersion': '0.1.0-dolores',
+            'status': 'done',
+            'manualRounds': 1,
+            'hasUpdate': false,
+            'canInstall': true,
+            'releasesUrl': 'https://example.test/updates',
+            'latest': {
+              'version': '0.1.0',
+              'name': 'Maeve 0.1.0',
+              'notes': '',
+              'canDownload': false,
+            },
+            'download': {'phase': 'idle'},
+          },
           _ => null,
         };
       });
@@ -220,6 +238,21 @@ void main() {
       await tester.pumpAndSettle();
       expect(updateTile, findsOneWidget);
       await tester.tap(updateTile);
+      await tester.pumpAndSettle();
+      // 获取更新现在是页内检查(不再只是外链):进页先读一次状态。
+      expect(calls.last.method, 'updateState');
+      expect(find.text('检查更新'), findsWidgets);
+      expect(find.text('已是最新'), findsOneWidget);
+      // 浏览器入口仍在:点它才走 open_url,打不开时给可复制链接。
+      final browser = find.text('在浏览器打开');
+      await tester.scrollUntilVisible(
+        browser,
+        180,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await Scrollable.ensureVisible(tester.element(browser), alignment: 0.4);
+      await tester.pumpAndSettle();
+      await tester.tap(browser);
       await tester.pumpAndSettle();
       expect(calls.last.method, 'open_url');
       expect(calls.last.arguments, {'url': 'https://example.test/updates'});
@@ -283,6 +316,12 @@ void main() {
           available: true,
           goal: '实际点击位置验证',
           outcome: '记录已中断',
+        )
+        ..report = const TaskReport(
+          available: true,
+          goal: '实际点击位置验证',
+          outcome: '记录已中断',
+          answer: '任务被中断，没有最终回答。',
         );
       await mount(tester, bridge);
       AppPage.open(
@@ -293,8 +332,10 @@ void main() {
       expect(find.text('已中断'), findsOneWidget);
       await tester.tap(find.text('实际点击位置验证'));
       await tester.pumpAndSettle();
+      // 跑完(含中断)的记录先进报告;过程仍可从报告页跳进去。
+      expect(bridge.reportRequests, ['record-actual']);
       expect(find.text('记录已中断'), findsOneWidget);
-      expect(bridge.detailsRequests, ['record-actual']);
+      expect(find.text('任务被中断，没有最终回答。'), findsOneWidget);
     },
   );
 
@@ -557,7 +598,7 @@ void main() {
         ],
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('完整执行记录'));
+      await tester.tap(find.text('查看过程'));
       await tester.pumpAndSettle();
       expect(find.byType(RunDetailsPage), findsOneWidget);
       expect(find.text('打开系统设置'), findsOneWidget);

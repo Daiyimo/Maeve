@@ -55,6 +55,22 @@ object AboutCopy {
     val UPDATE_LATER: String get() = tr(R.string.about_update_later)
     val NO_BROWSER: String get() = tr(R.string.about_no_browser)
 
+    // 应用内下载安装那一段(资源本来就在,之前没有界面用):Flutter 的更新页经 UpdateBridge 取。
+    val UPDATE_DOWNLOAD_IN_APP: String get() = tr(R.string.about_update_download_in_app)
+    val UPDATE_DOWNLOADING: String get() = tr(R.string.about_update_downloading)
+    val UPDATE_PAUSED: String get() = tr(R.string.about_update_paused)
+    val UPDATE_INSTALL: String get() = tr(R.string.about_update_install)
+    val UPDATE_RETRY: String get() = tr(R.string.about_update_retry)
+    val UPDATE_CANCEL: String get() = tr(R.string.about_update_cancel)
+    val UPDATE_WORKING: String get() = tr(R.string.about_update_working)
+    val UPDATE_INSTALL_HINT: String get() = tr(R.string.about_update_install_hint)
+    val UPDATE_ERROR: String get() = tr(R.string.about_update_error)
+    val UPDATE_BAD_FILE: String get() = tr(R.string.about_update_bad_file)
+    val UPDATE_NOT_NEWER: String get() = tr(R.string.about_update_not_newer)
+    val UPDATE_BAD_SIGNER: String get() = tr(R.string.about_update_bad_signer)
+
+    fun updateProgress(percent: Int): String = tr(R.string.about_update_progress, percent)
+
     fun version(versionName: String): String = tr(R.string.about_version, versionName)
 
     fun buildLabel(build: String): String = tr(R.string.about_build, build)
