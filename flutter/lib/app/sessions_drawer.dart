@@ -308,6 +308,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                             }
                           },
                           onLongPress: () => _rowMenu(controller, item),
+                          haptic: MaeveHaptic.tick,
                           scale: false,
                           child: Container(
                             key: ValueKey('conversation-row-${item.id}'),

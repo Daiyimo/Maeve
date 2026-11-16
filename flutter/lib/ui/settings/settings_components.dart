@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../design/maeve_colors.dart';
@@ -7,6 +9,7 @@ import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 
 import '../../widgets/glass_surface.dart';
+import '../common/haptics.dart';
 import '../common/pressable.dart';
 import '../common/status.dart';
 
@@ -237,6 +240,8 @@ class SettingsRow extends StatelessWidget {
       child: Pressable(
         onTap: enabled ? onTap : null,
         onLongPress: enabled ? onLongPress : null,
+        // 设置行点按的默认手感;开关行自己在 _flip 里发 medium,不走这里。
+        haptic: onTap != null ? MaeveHaptic.tick : null,
         scale: false,
         borderRadius: BorderRadius.circular(MaeveRadius.sm),
         child: Container(
@@ -395,6 +400,15 @@ class SettingsSwitchTile extends StatelessWidget {
   final bool enabled;
   final bool first;
 
+  /// 开关的"咔哒"只发一次:整行点按和直接拨开关都走这里,
+  /// 触感语义是「切换档位」(medium),不是普通按钮的 light。
+  void _flip() {
+    final change = onChanged;
+    if (!enabled || change == null) return;
+    unawaited(MaeveHaptics.play(MaeveHaptic.medium));
+    change(!value);
+  }
+
   @override
   Widget build(BuildContext context) => Semantics(
     toggled: value,
@@ -405,10 +419,10 @@ class SettingsSwitchTile extends StatelessWidget {
       icon: icon,
       tone: tone,
       enabled: enabled,
-      onTap: enabled && onChanged != null ? () => onChanged!(!value) : null,
+      onTap: enabled && onChanged != null ? _flip : null,
       trailing: Switch.adaptive(
         value: value,
-        onChanged: enabled ? onChanged : null,
+        onChanged: enabled && onChanged != null ? (_) => _flip() : null,
         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     ),
@@ -494,6 +508,7 @@ class SettingsSegmentTile extends StatelessWidget {
                       onTap: enabled && onChanged != null
                           ? () => onChanged!(i)
                           : null,
+                      haptic: MaeveHaptic.medium,
                       borderRadius: BorderRadius.circular(MaeveRadius.sm),
                       scale: false,
                       child: AnimatedContainer(
@@ -610,6 +625,7 @@ class ListPageRow extends StatelessWidget {
     final colors = MaeveTheme.of(context).colors;
     return Pressable(
       onTap: onTap,
+      haptic: MaeveHaptic.tick,
       scale: false,
       borderRadius: BorderRadius.circular(MaeveRadius.sm),
       child: Container(

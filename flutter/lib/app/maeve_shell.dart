@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/physics.dart';
 
 import 'chat_page.dart';
 import 'sessions_drawer.dart';
+import '../ui/common/haptics.dart';
 import '../design/maeve_motion.dart';
 import '../design/maeve_surfaces.dart';
 import '../design/maeve_theme.dart';
@@ -49,9 +51,14 @@ class _MaeveShellState extends State<MaeveShell>
         : AppMotion.of(context).standard,
     curve: open ? MaeveMotion.glide : MaeveMotion.glide.flipped,
   );
-  void _close() => _settle(false);
+  void _close() {
+    if (_drawer.value > 0) unawaited(MaeveHaptics.play(MaeveHaptic.tick));
+    _settle(false);
+  }
+
   void _toggle() {
     FocusManager.instance.primaryFocus?.unfocus();
+    unawaited(MaeveHaptics.play(MaeveHaptic.tick));
     if (_wide) {
       setState(() => _folded = !_folded);
     } else {
@@ -77,6 +84,10 @@ class _MaeveShellState extends State<MaeveShell>
     _dragging = false;
     final velocity = details.velocity.pixelsPerSecond.dx;
     final target = velocity.abs() > 600 ? velocity > 0 : _drawer.value > .35;
+    // 拖过阈值松手:档位落定的一下轻震,和开关同一语义。
+    if ((target ? 1 : 0) != (_dragStart > .5 ? 1 : 0)) {
+      unawaited(MaeveHaptics.play(MaeveHaptic.medium));
+    }
     if (velocity.abs() > 600 && !AppMotion.of(context).reduced) {
       _drawer.animateWith(
         SpringSimulation(
@@ -98,7 +109,11 @@ class _MaeveShellState extends State<MaeveShell>
     return PopScope(
       canPop: !_overlayOpen,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _close();
+        if (!didPop) {
+          // 系统返回收起抽屉:和点遮罩关闭同一手感。
+          unawaited(MaeveHaptics.play(MaeveHaptic.tick));
+          _settle(false);
+        }
       },
       child: Scaffold(
         backgroundColor: Colors.transparent,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../ui/settings/model_settings_page.dart';
 
 import 'package:flutter/material.dart';
@@ -333,6 +335,8 @@ class _ChatPageState extends State<ChatPage> {
     MaeveController controller,
     Message message,
   ) {
+    // 长按弹菜单前振一下,和系统长按同一语义。
+    unawaited(MaeveHaptics.play(MaeveHaptic.medium));
     final summary = message.text.length > 60
         ? '${message.text.substring(0, 60)}…'
         : message.text;

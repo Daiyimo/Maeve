@@ -186,7 +186,12 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                             call.argument<String>("accent")?.let { require(it in setOf("reverie", "dolores", "maze", "pearl", "sublime", "graphite")); edit.putString("accent", it) }
                             // 液态玻璃浓度(与 Flutter 侧 MaeveGlassDensity.id 同值)。
                             call.argument<String>("glassStyle")?.let { require(it in setOf("clear", "balanced", "dense")); edit.putString("glassStyle", it) }
-                            call.argument<Boolean>("haptics")?.let { edit.putBoolean("haptics", it) }
+                            call.argument<Boolean>("haptics")?.let {
+                                edit.putBoolean("haptics", it)
+                                // 原生引擎(胶囊按钮、长按确认、按住说话)读的是自己的偏好,
+                                // 这里同步写一份,设置里的开关对两边同时生效。
+                                com.daiyimo.maeve.ui.haptic.MaeveHaptics.setAppEnabled(app, it)
+                            }
                             check(edit.commit()) { "Unable to save appearance" }
                             snapshot()
                         }

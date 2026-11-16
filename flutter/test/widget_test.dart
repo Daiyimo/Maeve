@@ -221,7 +221,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('我收到了，接下来交给你。'), findsOneWidget);
     expect(find.text('3 步'), findsOneWidget);
-    expect(find.text('完整执行记录'), findsOneWidget);
+    expect(find.text('查看过程'), findsOneWidget);
+    // 跑完的任务才有报告可看。
+    expect(find.text('任务报告'), findsOneWidget);
     expect(
       tester
           .widgetList<MaeveMark>(find.byType(MaeveMark))

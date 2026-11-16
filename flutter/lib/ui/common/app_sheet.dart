@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import 'haptics.dart';
 
 import '../../design/maeve_motion.dart';
 import '../../design/maeve_shapes.dart';
@@ -31,7 +35,15 @@ Future<T?> showMaeveSheet<T>({
     isDismissible: dismissible,
     enableDrag: dismissible,
     transitionAnimationController: controller,
-    builder: (context) => builder(context),
+    // 收起弹层和退页同一语义:点遮罩、下滑、系统返回都该有那一下。
+    // 这三条路都不经过任何按钮,所以反馈挂在路由上(与 maevePageRoute 一致)。
+    builder: (context) => PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) unawaited(MaeveHaptics.play(MaeveHaptic.tick));
+      },
+      child: builder(context),
+    ),
   );
 }
 

@@ -148,15 +148,122 @@ void main() {
       );
 
       MaeveHaptics.resetProbe();
+      MaeveHaptics.offline = true;
       MaeveHaptics.enabled = false;
       await MaeveHaptics.play(MaeveHaptic.heavy);
       expect(calls, isEmpty);
 
       MaeveHaptics.enabled = true;
-      MaeveHaptics.resetProbe();
       await MaeveHaptics.play(MaeveHaptic.heavy);
       expect(calls, isNotEmpty);
       MaeveHaptics.enabled = true;
+    });
+
+    // 退页有三个入口:顶栏圆钮、系统返回、代码 pop。只有第一个经过按钮,
+    // 所以触感必须挂在路由上;真机上曾出现「点圆钮震、按系统返回不震」。
+    testWidgets('退页的触感由路由发:系统返回与点返回钮都恰好一下', (tester) async {
+      final calls = <MethodCall>[];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'HapticFeedback.vibrate') calls.add(call);
+        return null;
+      });
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+        MaeveHaptics.resetProbe();
+      });
+      MaeveHaptics.resetProbe();
+      MaeveHaptics.offline = true;
+      MaeveHaptics.enabled = true;
+
+      // 二级页要挂在主题 scope 下:MaterialApp 的 builder 在 Navigator 之上,
+      // 放 home 里的话推出来的路由取不到 MaeveTheme。
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: maeveTheme(brightness: Brightness.dark),
+          builder: (context, child) => MaeveThemeScope(
+            brightness: Brightness.dark,
+            accent: deriveAccent(MaeveAccentPreset.reverie),
+            child: child ?? const SizedBox.shrink(),
+          ),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => AppPage.open(
+                context,
+                AppPage.list(title: '二级页', children: const [Text('内容')]),
+              ),
+              child: const Text('进页'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('进页'));
+      await tester.pumpAndSettle();
+      calls.clear();
+
+      // 系统返回(不经任何按钮)。
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(calls.length, 1, reason: '系统返回退页应当恰好震一下');
+      expect(find.text('二级页'), findsNothing);
+
+      // 再进一次,这回点顶栏返回圆钮:不能因为按钮 + 路由各发一次而震两下。
+      await tester.tap(find.text('进页'));
+      await tester.pumpAndSettle();
+      calls.clear();
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      expect(calls.length, 1, reason: '点返回圆钮也只震一下,不叠加');
+    });
+
+    testWidgets('弹层收起也有那一下:点遮罩关闭同样震', (tester) async {
+      final calls = <MethodCall>[];
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'HapticFeedback.vibrate') calls.add(call);
+        return null;
+      });
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+        MaeveHaptics.resetProbe();
+      });
+      MaeveHaptics.resetProbe();
+      MaeveHaptics.offline = true;
+      MaeveHaptics.enabled = true;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: maeveTheme(brightness: Brightness.dark),
+          builder: (context, child) => MaeveThemeScope(
+            brightness: Brightness.dark,
+            accent: deriveAccent(MaeveAccentPreset.reverie),
+            child: child ?? const SizedBox.shrink(),
+          ),
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showMaeveSheet<void>(
+                context: context,
+                builder: (_) => const AppSheet(
+                  child: SizedBox(height: 120, child: Text('弹层内容')),
+                ),
+              ),
+              child: const Text('开弹层'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('开弹层'));
+      await tester.pumpAndSettle();
+      expect(find.text('弹层内容'), findsOneWidget);
+      calls.clear();
+
+      // 点弹层外的遮罩:不经过任何按钮。
+      await tester.tapAt(const Offset(200, 20));
+      await tester.pumpAndSettle();
+      expect(find.text('弹层内容'), findsNothing);
+      expect(calls.length, 1, reason: '点遮罩收起弹层应当震一下');
     });
   });
 

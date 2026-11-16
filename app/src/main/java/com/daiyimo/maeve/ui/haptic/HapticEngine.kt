@@ -57,6 +57,19 @@ interface HapticEngine {
     fun reject() = emit(HapticLevel.Reject)
 }
 
+/**
+ * 五级语义的名字桥:Flutter 侧经 `maeve/ui` 的 `haptic` 方法报同一个词,
+ * 两边共用这一台引擎、同一份开关,不再各震各的。
+ */
+fun hapticLevelOf(name: String?): HapticLevel? = when (name) {
+    "tick" -> HapticLevel.Tick
+    "light" -> HapticLevel.Light
+    "medium" -> HapticLevel.Medium
+    "heavy" -> HapticLevel.Heavy
+    "reject" -> HapticLevel.Reject
+    else -> null
+}
+
 /** 纯逻辑引擎:门控 + 五级映射 + 降级链。不依赖 Android 框架,可直接单测。 */
 class DefaultHapticEngine(
     private val actuator: HapticActuator,
@@ -101,7 +114,14 @@ internal fun emitLevel(a: HapticActuator, level: HapticLevel) {
     if (level != HapticLevel.Heavy) a.waveform(longArrayOf(0, 12), intArrayOf(0, 90))
 }
 
-/** API 30 用 Vibrator,31+ 用 VibratorManager;所有调用都吞掉异常,触感永远不能让 App 崩。 */
+/**
+ * API 30 用 Vibrator,31+ 用 VibratorManager;所有调用都吞掉异常,触感永远不能让 App 崩。
+ *
+ * 预定义效果的 supports 只认 YES:很多国产 ROM 对 EFFECT_TICK/CLICK 报 UNKNOWN,
+ * 按老逻辑整条降级链走完只剩 12ms 波形,手感近乎没有。现在 UNKNOWN 也照样交给系统试
+ * (系统不支持时自己会忽略),只有明确 NO 才跳过;波形在振幅不可控的设备上用
+ * DEFAULT_AMPLITUDE 发出「一下是一下」的默认力度,不再整段静默。
+ */
 class AndroidHapticActuator(context: Context) : HapticActuator {
     private val vibrator: Vibrator? = runCatching {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -117,7 +137,7 @@ class AndroidHapticActuator(context: Context) : HapticActuator {
     override fun supports(effect: Int): Boolean {
         val v = vibrator ?: return false
         return runCatching {
-            v.areEffectsSupported(effect)[0] == Vibrator.VIBRATION_EFFECT_SUPPORT_YES
+            v.areEffectsSupported(effect)[0] != Vibrator.VIBRATION_EFFECT_SUPPORT_NO
         }.getOrDefault(false)
     }
 
@@ -128,8 +148,11 @@ class AndroidHapticActuator(context: Context) : HapticActuator {
 
     override fun waveform(timings: LongArray, amplitudes: IntArray) {
         val v = vibrator ?: return
-        if (!hasAmplitude) return
-        runCatching { v.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1)) }
+        runCatching {
+            val amps = if (hasAmplitude) amplitudes
+                else IntArray(amplitudes.size) { i -> if (amplitudes[i] > 0) VibrationEffect.DEFAULT_AMPLITUDE else 0 }
+            v.vibrate(VibrationEffect.createWaveform(timings, amps, -1))
+        }
     }
 }
 

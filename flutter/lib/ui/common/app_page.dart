@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'haptics.dart';
@@ -222,6 +224,9 @@ class TopBar extends StatelessWidget {
                             ? _BarButton(
                                 icon: Icons.arrow_back_ios_new_rounded,
                                 label: '返回',
+                                // 退页那一下由 maevePageRoute 的 PopScope 发,
+                                // 这里不重复发,否则点圆钮会震两次。
+                                haptic: null,
                                 onTap:
                                     onBack ??
                                     () => Navigator.of(context).maybePop(),
@@ -319,11 +324,15 @@ class _BarButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.haptic = MaeveHaptic.tick,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+
+  /// 返回键置 null:退页的触感由路由统一发(见 [maevePageRoute])。
+  final MaeveHaptic? haptic;
 
   @override
   Widget build(BuildContext context) => SizedBox.square(
@@ -333,7 +342,7 @@ class _BarButton extends StatelessWidget {
         icon: icon,
         tooltip: label,
         compact: true,
-        haptic: MaeveHaptic.tick,
+        haptic: haptic,
         onPressed: onTap,
       ),
     ),
@@ -356,10 +365,23 @@ class _BrandDot extends StatelessWidget {
 }
 
 /// iOS 式水平推入:进场 220ms 减速,退场 220ms 加速离开。
+///
+/// **退页的触感挂在这里,不挂在返回按钮上。** 离开一页有三个入口:顶栏圆钮、
+/// 系统返回键/手势、代码 `pop()`。只有第一个会经过 `Pressable.onTap`,
+/// 把触感写在按钮上时后两条路都是静默的 —— 真机上按系统返回退页确实不震。
+/// 退页是**路由事件**,所以反馈也该由路由发:这里包一层 [PopScope],
+/// `didPop` 为真(这一页真的被弹掉了)才发一下 tick。
+/// 顶栏圆钮自己不再发,否则点一次会震两下。
 Route<T> maevePageRoute<T>(WidgetBuilder builder) => PageRouteBuilder<T>(
   transitionDuration: MaeveMotion.page,
   reverseTransitionDuration: MaeveMotion.page,
-  pageBuilder: (context, animation, secondaryAnimation) => builder(context),
+  pageBuilder: (context, animation, secondaryAnimation) => PopScope(
+    canPop: true,
+    onPopInvokedWithResult: (didPop, _) {
+      if (didPop) unawaited(MaeveHaptics.play(MaeveHaptic.tick));
+    },
+    child: builder(context),
+  ),
   transitionsBuilder: (context, animation, secondaryAnimation, child) {
     if (MediaQuery.disableAnimationsOf(context)) return child;
     final curved = CurvedAnimation(

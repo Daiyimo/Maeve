@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -906,61 +907,72 @@ class MaeveGlassDialog extends StatelessWidget {
     return Semantics(
       namesRoute: true,
       label: MaterialLocalizations.of(context).dialogLabel,
-      child: Dialog(
-        backgroundColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
-        alignment: Alignment.center,
-        constraints: const BoxConstraints(minWidth: 280, maxWidth: 560),
-        shape: const RoundedRectangleBorder(),
-        clipBehavior: Clip.none,
-        child: Material(
-          type: MaterialType.transparency,
-          child: MaeveGlassSurface(
-            tier: MaeveGlassTier.sheet,
-            shape: MaeveShapes.dialog,
-            settled: settled,
-            padding: const EdgeInsets.fromLTRB(
-              MaeveSpace.s24,
-              MaeveSpace.s20,
-              MaeveSpace.s24,
-              MaeveSpace.s12,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (title != null)
-                  DefaultTextStyle(
-                    style: text.titleLarge ?? const TextStyle(),
-                    child: title!,
-                  ),
-                if (content != null) ...[
-                  const SizedBox(height: MaeveSpace.s12),
-                  // Flexible:长内容先缩,不撑破屏幕(与 AlertDialog 同一约定)。
-                  Flexible(
-                    child: DefaultTextStyle(
-                      style: text.bodyMedium ?? const TextStyle(),
-                      // 内容里可能有 ListTile / 选择框:给它自己的 Material,
-                      // 免得墨水画在玻璃底上被盖掉(Flutter 的 DecoratedBox 断言)。
-                      child: Material(
-                        type: MaterialType.transparency,
-                        child: content!,
+      // 关掉对话框和退页同一语义:点遮罩、系统返回都不经过按钮,
+      // 反馈挂在路由上(与 maevePageRoute / showMaeveSheet 一致)。
+      child: PopScope(
+        canPop: true,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) unawaited(MaeveHaptics.play(MaeveHaptic.tick));
+        },
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 40,
+            vertical: 24,
+          ),
+          alignment: Alignment.center,
+          constraints: const BoxConstraints(minWidth: 280, maxWidth: 560),
+          shape: const RoundedRectangleBorder(),
+          clipBehavior: Clip.none,
+          child: Material(
+            type: MaterialType.transparency,
+            child: MaeveGlassSurface(
+              tier: MaeveGlassTier.sheet,
+              shape: MaeveShapes.dialog,
+              settled: settled,
+              padding: const EdgeInsets.fromLTRB(
+                MaeveSpace.s24,
+                MaeveSpace.s20,
+                MaeveSpace.s24,
+                MaeveSpace.s12,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (title != null)
+                    DefaultTextStyle(
+                      style: text.titleLarge ?? const TextStyle(),
+                      child: title!,
+                    ),
+                  if (content != null) ...[
+                    const SizedBox(height: MaeveSpace.s12),
+                    // Flexible:长内容先缩,不撑破屏幕(与 AlertDialog 同一约定)。
+                    Flexible(
+                      child: DefaultTextStyle(
+                        style: text.bodyMedium ?? const TextStyle(),
+                        // 内容里可能有 ListTile / 选择框:给它自己的 Material,
+                        // 免得墨水画在玻璃底上被盖掉(Flutter 的 DecoratedBox 断言)。
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: content!,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
+                  if (actions.isNotEmpty) ...[
+                    const SizedBox(height: MaeveSpace.s16),
+                    OverflowBar(
+                      alignment: MainAxisAlignment.end,
+                      spacing: MaeveSpace.s8,
+                      overflowAlignment: OverflowBarAlignment.end,
+                      children: actions,
+                    ),
+                  ],
                 ],
-                if (actions.isNotEmpty) ...[
-                  const SizedBox(height: MaeveSpace.s16),
-                  OverflowBar(
-                    alignment: MainAxisAlignment.end,
-                    spacing: MaeveSpace.s8,
-                    overflowAlignment: OverflowBarAlignment.end,
-                    children: actions,
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
         ),
