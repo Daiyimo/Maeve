@@ -313,7 +313,7 @@ class TopBar extends StatelessWidget {
   }
 }
 
-/// 顶栏 / 行内的小圆钮(40,可点域 44)。
+/// 顶栏 / 行内的小圆钮(40 的玻璃,48 的可点域)。
 class _BarButton extends StatelessWidget {
   const _BarButton({
     required this.icon,
@@ -326,29 +326,18 @@ class _BarButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
-    return Tooltip(
-      message: label,
-      child: Semantics(
-        button: true,
-        label: label,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          splashFactory: NoSplash.splashFactory,
-          highlightColor: Colors.transparent,
-          onTap: () {
-            MaeveHaptics.play(MaeveHaptic.tick);
-            onTap();
-          },
-          child: SizedBox.square(
-            dimension: 48,
-            child: Center(child: Icon(icon, size: 17, color: colors.ink)),
-          ),
-        ),
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 48,
+    child: Center(
+      child: MaeveGlassButton(
+        icon: icon,
+        tooltip: label,
+        compact: true,
+        haptic: MaeveHaptic.tick,
+        onPressed: onTap,
       ),
-    );
-  }
+    ),
+  );
 }
 
 /// 标题左边的小尺寸品牌标，执行态跟随真实任务状态。

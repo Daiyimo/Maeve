@@ -272,12 +272,16 @@ class MaeveThemeScope extends StatelessWidget {
     required this.brightness,
     required this.accent,
     this.blurEnabled = true,
+    this.glassDensity = MaeveGlassDensity.balanced,
     required this.child,
   });
 
   final Brightness brightness;
   final MaeveAccent accent;
   final bool blurEnabled;
+
+  /// 液态玻璃浓度(设置页"外观与手感 → 液态玻璃")。
+  final MaeveGlassDensity glassDensity;
   final Widget child;
 
   @override
@@ -289,7 +293,11 @@ class MaeveThemeScope extends StatelessWidget {
       data: MaeveThemeData(
         colors: colors,
         semantic: MaeveSemantic.of(brightness),
-        surfaces: buildSurfaces(colors, blurEnabled: blurEnabled),
+        surfaces: buildSurfaces(
+          colors,
+          blurEnabled: blurEnabled,
+          density: glassDensity,
+        ),
         motion: AppMotion(MediaQuery.disableAnimationsOf(context)),
         accent: accent,
       ),

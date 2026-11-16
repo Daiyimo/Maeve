@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/maeve_controller.dart';
 import '../common/app_page.dart';
 import '../common/selection_field.dart';
+import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 
 class ExecutionSettingsPage extends StatefulWidget {
@@ -18,7 +19,7 @@ class _ExecutionSettingsPageState extends State<ExecutionSettingsPage> {
     if (enabled && !MaeveScope.read(context).native.autonomous) {
       final accepted = await showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => MaeveGlassDialog(
           title: const Text('开启自主执行'),
           content: const Text(
             'Maeve 将连续执行可恢复的普通操作，可能修改应用中的内容。发送、提交、删除、付款仍需单次确认；远程任务不能代替你授权。你可以随时停止任务或关闭此开关。',

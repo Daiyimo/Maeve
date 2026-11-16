@@ -386,7 +386,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
-/// 顶栏上的一个动作键(48 的可点域,40 的圆)。
+/// 顶栏上的一个动作键:液态玻璃圆钮,48 的可点域,一次轻触感。
 class _BarAction extends StatelessWidget {
   const _BarAction({
     required this.icon,
@@ -399,29 +399,17 @@ class _BarAction extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
-    return Tooltip(
-      message: label,
-      child: Semantics(
-        button: true,
-        label: label,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          splashFactory: NoSplash.splashFactory,
-          highlightColor: Colors.transparent,
-          onTap: () {
-            MaeveHaptics.play(MaeveHaptic.tick);
-            onTap();
-          },
-          child: SizedBox.square(
-            dimension: 48,
-            child: Center(child: Icon(icon, size: 20, color: colors.ink)),
-          ),
-        ),
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 48,
+    child: Center(
+      child: MaeveGlassButton(
+        icon: icon,
+        tooltip: label,
+        haptic: MaeveHaptic.tick,
+        onPressed: onTap,
       ),
-    );
-  }
+    ),
+  );
 }
 
 /// Fit the idle stage to the real space between header and composer. A quiet
@@ -1003,27 +991,14 @@ class _ComposerBarState extends State<_ComposerBar> {
                     Expanded(
                       child: Align(
                         alignment: Alignment.centerLeft,
-                        child: Tooltip(
-                          message: '模型配置',
-                          child: TextButton.icon(
-                            onPressed: () => AppPage.open(
-                              context,
-                              const ModelSettingsPage(),
-                            ),
-                            icon: Icon(
-                              Icons.auto_awesome_outlined,
-                              color: colors.accent,
-                              size: 16,
-                            ),
-                            label: Text(
-                              controller.model,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: MaeveType.hint.copyWith(
-                                color: colors.ink2,
-                              ),
-                            ),
-                          ),
+                        child: MaeveGlassTextButton(
+                          label: controller.model,
+                          icon: Icons.auto_awesome_outlined,
+                          compact: true,
+                          tooltip: '模型配置',
+                          haptic: MaeveHaptic.tick,
+                          onPressed: () =>
+                              AppPage.open(context, const ModelSettingsPage()),
                         ),
                       ),
                     ),
@@ -1057,7 +1032,10 @@ class _ComposerBarState extends State<_ComposerBar> {
   }
 }
 
-/// 40 圆键:发送是强调色实心,附件是淡底;不可用时降透明度(不是变灰点不动)。
+/// 40 圆键:发送是强调色实心,停止是实色墨;不可用时降透明度(不是变灰点不动)。
+///
+/// 两颗都是液态玻璃圆钮:实色底也带一道白色受光边和顶边提亮,读作"能按的玻璃",
+/// 不是一块塑料色块。
 class _RoundKey extends StatelessWidget {
   const _RoundKey({
     super.key,
@@ -1079,37 +1057,18 @@ class _RoundKey extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = MaeveTheme.of(context).colors;
-    final background = accent
-        ? colors.accent
-        : (ink ? colors.ink : colors.fill);
-    final foreground = accent
-        ? colors.onAccent
-        : (ink ? colors.bg : colors.ink);
-    return Tooltip(
-      message: tooltip,
-      child: Semantics(
-        button: true,
+    return AnimatedOpacity(
+      duration: AppMotion.of(context).quick,
+      opacity: accent || ink || enabled ? 1 : .5,
+      child: MaeveGlassButton(
+        icon: icon,
+        tooltip: tooltip,
+        onPressed: enabled ? onTap : null,
+        prominent: accent,
         enabled: enabled,
-        label: tooltip,
-        child: Pressable(
-          onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(MaeveRadius.pill),
-          haptic: enabled ? MaeveHaptic.light : null,
-          child: AnimatedOpacity(
-            duration: AppMotion.of(context).quick,
-            opacity: accent || ink || enabled ? 1 : .5,
-            child: Container(
-              width: MaeveSize.iconButton,
-              height: MaeveSize.iconButton,
-              margin: const EdgeInsets.symmetric(vertical: 6),
-              decoration: BoxDecoration(
-                color: background,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 20, color: foreground),
-            ),
-          ),
-        ),
+        haptic: enabled ? MaeveHaptic.light : null,
+        fill: ink ? colors.ink : null,
+        foreground: ink ? colors.bg : null,
       ),
     );
   }

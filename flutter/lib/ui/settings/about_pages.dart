@@ -41,7 +41,7 @@ Future<void> openHostLink(
   if (!context.mounted) return;
   await showDialog<void>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => MaeveGlassDialog(
       title: const Text('在浏览器打开'),
       content: SelectableText(link),
       actions: [

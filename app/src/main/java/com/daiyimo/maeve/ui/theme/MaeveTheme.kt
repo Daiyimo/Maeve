@@ -101,11 +101,13 @@ fun MaeveTheme(
     accent: AccentSpec = appearanceAccent(),
     reduceMotion: Boolean = false,
     blurEnabled: Boolean = true,
+    /** 液态玻璃浓度(设置页「液态玻璃」档位;默认均衡 = 原数值)。 */
+    glassDensity: GlassDensity = GlassDensity.Balanced,
     content: @Composable () -> Unit,
 ) {
     val colors = remember(dark, accent) { if (dark) MaevePalette.dark(accent) else MaevePalette.light(accent) }
     val semantic = remember(dark) { if (dark) MaeveSemantic.dark else MaeveSemantic.light }
-    val surfaces = remember(colors, blurEnabled) { buildSurfaces(colors, blurEnabled) }
+    val surfaces = remember(colors, blurEnabled, glassDensity) { buildSurfaces(colors, blurEnabled, glassDensity) }
     val scheme = remember(colors) { scheme(colors) }
     val layoutDirection = if (LocalContext.current.resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL) {
         LayoutDirection.Rtl

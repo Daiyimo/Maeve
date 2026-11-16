@@ -83,19 +83,17 @@ class _MaeveAppState extends State<MaeveApp> with WidgetsBindingObserver {
         theme: maeveTheme(
           brightness: Brightness.light,
           accent: controller.accent,
-          blurEnabled: !controller.reduceTransparency,
         ),
         darkTheme: maeveTheme(
           brightness: Brightness.dark,
           accent: controller.accent,
-          blurEnabled: !controller.reduceTransparency,
         ),
         // 设计系统的入口放在 Theme 里面一层:这样亮度是**解析后**的
         // (跟随系统时也对),换配色当场生效。
         builder: (context, child) => MaeveThemeScope(
           brightness: Theme.of(context).brightness,
           accent: controller.accent,
-          blurEnabled: !controller.reduceTransparency,
+          glassDensity: controller.glassDensity,
           child: child ?? const SizedBox.shrink(),
         ),
         home: controller.settingsLoaded && !controller.native.welcomeSeen

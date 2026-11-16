@@ -115,7 +115,7 @@ class NativeSettings {
     this.welcomeSeen = true,
     this.accent = 'reverie',
     this.haptics = true,
-    this.reduceTransparency = false,
+    this.glassStyle = 'balanced',
     this.currentModelId,
     this.modelName,
     this.models = const [],
@@ -141,13 +141,15 @@ class NativeSettings {
   final bool haptics,
       capsuleEnabled,
       autonomous,
-      reduceTransparency,
       accessibility,
       accessibilityRunning,
       overlay,
       notifications,
       helperRunning,
       phoneSupported;
+
+  /// 液态玻璃浓度 id:clear / balanced / dense(见 MaeveGlassDensity)。
+  final String glassStyle;
   final String? currentModelId, modelName;
   final List<NativeModelConfig> models;
   final List<NativeProviderPreset> presets;
@@ -162,7 +164,7 @@ class NativeSettings {
     providerSnapshotAvailable: map['providerSnapshotAvailable'] == true,
     capsuleEnabled: map['capsuleEnabled'] as bool? ?? true,
     haptics: map['haptics'] as bool? ?? true,
-    reduceTransparency: map['reduceTransparency'] as bool? ?? false,
+    glassStyle: map['glassStyle'] as String? ?? 'balanced',
     currentModelId: map['currentModelId'] as String?,
     modelName: map['modelName'] as String?,
     models: [

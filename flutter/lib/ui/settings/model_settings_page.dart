@@ -5,6 +5,7 @@ import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
 import '../common/status.dart';
+import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 import 'add_model_page.dart';
 import 'model_usage_panel.dart';
@@ -37,7 +38,7 @@ class ModelSettingsPage extends StatelessWidget {
             onPressed: () async {
               final confirmed = await showDialog<bool>(
                 context: context,
-                builder: (context) => AlertDialog(
+                builder: (context) => MaeveGlassDialog(
                   title: const Text('恢复模型配置'),
                   content: const Text(
                     '将恢复最近一次完整保存的服务商、模型、角色与加密凭据。损坏文件会保留在本机，不会启动任务或恢复动作授权。',
@@ -104,7 +105,7 @@ class ModelSettingsPage extends StatelessWidget {
                         onPressed: () async {
                           final action = await showDialog<String>(
                             context: context,
-                            builder: (context) => AlertDialog(
+                            builder: (context) => MaeveGlassDialog(
                               title: Text('删除 ${model.model}'),
                               content: const Text(
                                 '删除模型会清理其角色引用，并保留同一服务商其他模型共用的密钥。删除整个服务商会一并删除其所有模型、登录凭据和本地密钥。正在运行的任务可能仍持有旧配置，建议先停止；本地删除不会撤销云端 Key。',

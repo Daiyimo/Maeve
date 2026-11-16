@@ -10,6 +10,7 @@ import '../models/execution.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../ui/common/app_page.dart';
+import 'glass_surface.dart';
 import 'token_usage_view.dart';
 import 'maeve_markdown.dart';
 
@@ -73,7 +74,7 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
         final choice = await showDialog<bool>(
           context: context,
           builder: (context) => StatefulBuilder(
-            builder: (context, update) => AlertDialog(
+            builder: (context, update) => MaeveGlassDialog(
               title: const Text('核对操作结果'),
               content: SingleChildScrollView(
                 child: Column(

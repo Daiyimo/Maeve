@@ -535,7 +535,7 @@ void main() {
     expect(after, deriveAccent(MaeveAccentPreset.dolores).lightSeed);
   });
 
-  testWidgets('减少透明效果:整棵树不再建 BackdropFilter', (tester) async {
+  testWidgets('液态玻璃:设置页换浓度,玻璃仍然取样', (tester) async {
     await pumpApp(tester);
     expect(find.byType(BackdropFilter), findsWidgets);
 
@@ -543,20 +543,24 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.settings_outlined));
     await tester.pumpAndSettle();
-    // 开关就在设置页行内(与触感反馈同一形态),不再跳子页面。
+    // 液态玻璃是分段行(清透 / 均衡 / 浓郁),就在"外观与手感"里,不跳子页面。
     await scrollTo(
       tester,
-      find.text('减少透明效果'),
+      find.text('液态玻璃'),
       page: find.byType(SettingsHubPage),
     );
-    await tester.tap(find.text('减少透明效果'));
+    // 旧的"减少透明效果"模块已经移除:不再有那个开关。
+    expect(find.text('减少透明效果'), findsNothing);
+    expect(find.text('浓郁'), findsOneWidget);
+    await tester.tap(find.text('清透'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(BackdropFilter), findsNothing);
+    // 换浓度只改材质,不关模糊:顶栏与输入条仍然取样。
+    expect(find.byType(BackdropFilter), findsWidgets);
 
     await tester.tap(find.bySemanticsLabel('返回'));
     await tester.pumpAndSettle();
-    expect(find.byType(BackdropFilter), findsNothing);
+    expect(find.byType(BackdropFilter), findsNWidgets(2));
     expect(find.text('下一幕，\n由你决定。'), findsOneWidget);
   });
 

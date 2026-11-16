@@ -180,7 +180,9 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                             val edit = prefs.edit()
                             call.argument<String>("mode")?.let { require(it in setOf("dark", "light", "system")); edit.putString("mode", it) }
                             call.argument<String>("accent")?.let { require(it in setOf("reverie", "dolores", "maze", "pearl", "sublime", "graphite")); edit.putString("accent", it) }
-                            for (key in listOf("haptics", "reduceTransparency")) call.argument<Boolean>(key)?.let { edit.putBoolean(key, it) }
+                            // 液态玻璃浓度(与 Flutter 侧 MaeveGlassDensity.id 同值)。
+                            call.argument<String>("glassStyle")?.let { require(it in setOf("clear", "balanced", "dense")); edit.putString("glassStyle", it) }
+                            call.argument<Boolean>("haptics")?.let { edit.putBoolean("haptics", it) }
                             check(edit.commit()) { "Unable to save appearance" }
                             snapshot()
                         }
@@ -225,7 +227,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
             "operatingPace" to FeatureFlags.get(app).operatingPace().name.lowercase(java.util.Locale.ROOT),
             "taskStepLimit" to FeatureFlags.get(app).taskStepLimit(),
             "capsuleEnabled" to (FeatureFlags.get(app).capsuleMode() != CapsuleMode.Off),
-            "haptics" to prefs.getBoolean("haptics", true), "reduceTransparency" to prefs.getBoolean("reduceTransparency", false),
+            "haptics" to prefs.getBoolean("haptics", true), "glassStyle" to prefs.getString("glassStyle", "balanced"),
             "currentModelId" to current?.let { FlutterModelSettings.id(it.providerId, it.model) }, "modelName" to current?.model,
             "providerState" to app.providers.loadState.value.name.lowercase(java.util.Locale.ROOT),
             "providerSnapshotAvailable" to app.providers.snapshotAvailable,

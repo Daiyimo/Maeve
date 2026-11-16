@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../app/maeve_controller.dart';
+import '../../design/maeve_surfaces.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
@@ -97,12 +98,14 @@ class SettingsHubPage extends StatelessWidget {
               value: controller.accentPreset.label,
               onTap: () => AppPage.open(context, const AppearancePage()),
             ),
-            SettingsSwitchTile(
-              icon: Icons.blur_on_outlined,
-              title: '减少透明效果',
-              subtitle: '使用更实的表面，降低背景采样开销',
-              value: controller.reduceTransparency,
-              onChanged: (_) => controller.toggleReduceTransparency(),
+            SettingsSegmentTile(
+              icon: Icons.water_drop_outlined,
+              title: '液态玻璃',
+              subtitle: '选择玻璃的浓度：清透更轻，浓郁更实',
+              options: const ['清透', '均衡', '浓郁'],
+              value: controller.glassDensity.index,
+              onChanged: (index) =>
+                  controller.setGlassDensity(MaeveGlassDensity.values[index]),
             ),
             SettingsSwitchTile(
               icon: Icons.vibration_rounded,
@@ -112,7 +115,9 @@ class SettingsHubPage extends StatelessWidget {
             ),
           ],
         ),
-        const FooterNote(text: '界面始终遵循系统的“移除动画”和高对比度设置。减少透明后，层次、边光与文字对比度仍然保留。'),
+        const FooterNote(
+          text: '界面始终遵循系统的“移除动画”和高对比度设置。切换浓度会改变填充、模糊与边光，文字对比度始终保留。',
+        ),
         SettingsSection(
           title: '关于',
           rows: [

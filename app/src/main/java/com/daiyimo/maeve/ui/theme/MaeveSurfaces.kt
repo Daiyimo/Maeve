@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.Dp
@@ -59,9 +60,24 @@ import com.daiyimo.maeve.ui.components.rememberGlassBackdrop
  */
 enum class GlassTier { Chrome, Sheet, Card, Pill }
 
+/**
+ * 液态玻璃的**浓度**(glasswork 的 `--density` / `--m-k`:tint 的厚薄)。
+ *
+ * 与 Flutter 侧 `MaeveGlassDensity` 同 id 同语义:清透更轻、浓郁更实。
+ */
+enum class GlassDensity(val id: String, val label: String, val value: Float) {
+    Clear("clear", "清透", 0f),
+    Balanced("balanced", "均衡", 0.5f),
+    Dense("dense", "浓郁", 1f);
+
+    companion object {
+        fun byId(id: String?): GlassDensity = entries.firstOrNull { it.id == id } ?: Balanced
+    }
+}
+
 /** 一种表面材质的全部参数。 */
 @Immutable
-class GlassStyle(
+data class GlassStyle(
     val fill: Color,
     /** 关模糊时的填充:必须接近不透明,否则文字会飘在背后的内容上。 */
     val fallbackFill: Color,
@@ -82,6 +98,21 @@ class GlassStyle(
      * 顶边高光不该出现在一枚 28dp 的药丸上——那样整个药丸都被高光填满了。
      */
     val rimFraction: Float = 0.30f,
+    // ---------- 液态玻璃:光从哪来、边有多厚(与 Flutter 侧同字段) ----------
+    /** 采样后的亮度增益:浅色 >1(背后的画面被提亮),深色 <1(烟色玻璃)。 */
+    val brightness: Float = 1f,
+    /** 采样后的对比度增益。 */
+    val contrast: Float = 1f,
+    /** 定向受光边:左上接住光、右下渐隐。 */
+    val catchLight: Color = Color.Transparent,
+    /** 顶边内斜带。 */
+    val bevelTop: Color = Color.Transparent,
+    /** 左右内斜带(比顶带弱)。 */
+    val bevelSide: Color = Color.Transparent,
+    /** 底边内斜带(背光面的一道暗)。 */
+    val bevelBase: Color = Color.Transparent,
+    /** 斜带宽度。带子始终贴在边内几像素——太宽会把背后的颜色洗白。 */
+    val band: Dp = 6.dp,
 ) {
     val blurs: Boolean get() = blurSigma > 0f
 }
@@ -93,6 +124,8 @@ class MaeveSurfaces(
     val sheet: GlassStyle,
     val card: GlassStyle,
     val pill: GlassStyle,
+    /** 当前浓度(设置页「液态玻璃」档位;与 Flutter 侧 MaeveGlassDensity 同 id)。 */
+    val density: GlassDensity = GlassDensity.Balanced,
 ) {
     operator fun get(tier: GlassTier): GlassStyle = when (tier) {
         GlassTier.Chrome -> chrome
@@ -102,60 +135,136 @@ class MaeveSurfaces(
     }
 }
 
-/** 由 [MaeveColors] 和模糊开关出四档表面。 */
-fun buildSurfaces(c: MaeveColors, blurEnabled: Boolean): MaeveSurfaces {
+/** 浓度 → (填充, 模糊, 饱和度, 边光) 四项倍率。均衡档恒为 1 —— 默认数值不变。 */
+private fun GlassDensity.scale(): FloatArray = when (this) {
+    GlassDensity.Clear -> floatArrayOf(0.45f, 0.70f, 0.90f, 0.60f)
+    GlassDensity.Balanced -> floatArrayOf(1f, 1f, 1f, 1f)
+    GlassDensity.Dense -> floatArrayOf(1.45f, 1.35f, 1.10f, 1.40f)
+}
+
+/**
+ * 由 [MaeveColors]、模糊开关与**浓度**出四档表面。均衡档数值与 Flutter 侧
+ * buildSurfaces 逐项一致。
+ *
+ * [density] 同时缩放四件东西:填充的厚薄、模糊的 σ、饱和度增益、边光与斜带的
+ * 亮度(见 [GlassDensity.scale])。均衡档 = 1,所以默认外观不变。
+ */
+fun buildSurfaces(
+    c: MaeveColors,
+    blurEnabled: Boolean,
+    density: GlassDensity = GlassDensity.Balanced,
+): MaeveSurfaces {
     val canBlur = blurEnabled && GlassBlurSupported
+    val k = density.scale()
+    val tintK = k[0]
+    val blurK = k[1]
+    val satK = k[2]
+    val lightK = k[3]
+
+    /**
+     * 填充按浓度调厚薄(仍然半透明 —— 不透明就永远成不了玻璃)。
+     *
+     * **浓郁不是"更白的白"**:浅色画布本身就是奶白,白玻璃再浓也只是一片更白的白,
+     * 三档因此看不出区别(真机量过:像素只差 8/765)。glasswork 的厚玻璃是**烟色**
+     * 的,所以浓郁档掺一点墨色 —— 读作"更厚的一块有色玻璃"。深色画布上玻璃本就是
+     * 中间调,直接提高不透明度就够。
+     */
+    fun fill(base: Color): Color {
+        val scaled = base.copy(alpha = (base.alpha * tintK).coerceIn(0f, 0.92f))
+        if (density != GlassDensity.Dense || c.isDark) return scaled
+        return c.ink.copy(alpha = 0.12f).compositeOver(scaled)
+    }
+
+    /** 边光 / 斜带按浓度调亮度。 */
+    fun light(base: Color, alpha: Float): Color =
+        base.copy(alpha = (alpha * lightK).coerceIn(0f, 1f))
+
+    // 液态玻璃的「光」:浅色玻璃把背后的画面提亮(光透过净玻璃),深色玻璃压暗
+    // (烟色玻璃)。受光边在左上,右下渐隐;斜带贴在边内几像素,读出玻璃的厚度。
+    // 高光一律纯白:暖色高光会让玻璃发黄,读作「旧」(与 MaeveColors 同约定)。
+    val white = Color.White
+    val brightness = if (c.isDark) 0.92f else 1.06f
+    val catchLight = light(white, if (c.isDark) 0.34f else 0.80f)
+    val bevelTop = light(white, if (c.isDark) 0.16f else 0.42f)
+    val bevelSide = light(white, if (c.isDark) 0.07f else 0.20f)
+    val bevelBase = light(c.ink, if (c.isDark) 0.10f else 0.05f)
+
     return MaeveSurfaces(
+        density = density,
         // —— 顶栏 / 输入栏:一直压在滚动内容上,模糊要强,投影要明显 ——
         chrome = GlassStyle(
-            fill = c.glass,
+            fill = fill(c.glass),
             fallbackFill = c.surface.copy(alpha = 0.97f),
             hairline = c.glassEdge,
-            rim = c.glassRim,
-            blurSigma = if (canBlur) 24f else 0f,
-            saturation = 1.40f,
+            rim = light(c.glassRim, c.glassRim.alpha),
+            blurSigma = if (canBlur) 24f * blurK else 0f,
+            saturation = 1.40f * satK,
             outerShadow = c.floatShadow.copy(alpha = 0.13f),
             elevation = 14.dp,
             rimFraction = 0.42f,
+            brightness = brightness,
+            catchLight = catchLight,
+            bevelTop = bevelTop,
+            bevelSide = bevelSide,
+            bevelBase = bevelBase,
+            band = 6.dp,
         ),
         // —— 弹层 / 侧栏:盖住大面积内容,要更实、更糊,投影最重 ——
         sheet = GlassStyle(
-            fill = if (c.isDark) c.glassSheetDark else c.glassSheet,
+            fill = fill(if (c.isDark) c.glassSheetDark else c.glassSheet),
             fallbackFill = if (c.isDark) c.surfaceHigh else c.surface,
             hairline = c.glassEdge,
-            rim = c.glassRim,
-            blurSigma = if (canBlur) 30f else 0f,
-            saturation = 1.55f,
+            rim = light(c.glassRim, c.glassRim.alpha * 0.70f),
+            blurSigma = if (canBlur) 30f * blurK else 0f,
+            saturation = 1.55f * satK,
             outerShadow = c.floatShadow.copy(alpha = 0.19f),
             elevation = 22.dp,
             rimFraction = 0.16f,
+            brightness = brightness,
+            catchLight = catchLight,
+            bevelTop = bevelTop,
+            bevelSide = bevelSide,
+            bevelBase = bevelBase,
+            band = 7.dp,
         ),
         // —— 平放的大件:设置卡、任务卡、步骤框 ——
         // blurSigma 恒为 0:卡片长在被录制的内容里,取样会变成「玻璃里套玻璃」的
         // 无限反射(见文件头的说明)。层级靠填充白度、内描边和一道浅投影承担。
         card = GlassStyle(
-            fill = c.glassCard,
+            fill = fill(c.glassCard),
             fallbackFill = c.surface,
             hairline = c.glassEdge,
-            rim = c.glassRim,
+            rim = light(c.glassRim, c.glassRim.alpha * 0.38f),
             blurSigma = 0f,
             saturation = 1f,
             // 平放的卡也要一道投影:玻璃浮在背景上,哪怕只浮 2dp
             outerShadow = c.floatShadow.copy(alpha = 0.10f),
             elevation = 4.dp,
             rimFraction = 0.34f,
+            brightness = brightness,
+            catchLight = catchLight,
+            bevelTop = bevelTop,
+            bevelSide = bevelSide,
+            bevelBase = bevelBase,
+            band = 5.dp,
         ),
         // —— 小件:胶囊、芯片、状态标。不取样:两三个字糊成一团反而读不了 ——
         pill = GlassStyle(
-            fill = c.glassPill,
+            fill = fill(c.glassPill),
             fallbackFill = c.fill,
             hairline = c.glassEdge,
-            rim = c.glassRim,
+            rim = light(c.glassRim, c.glassRim.alpha * 0.45f),
             blurSigma = 0f,
             saturation = 1f,
             outerShadow = Color.Transparent,
             elevation = 0.dp,
             rimFraction = 0.5f,
+            brightness = brightness,
+            catchLight = catchLight,
+            bevelTop = bevelTop,
+            bevelSide = bevelSide,
+            bevelBase = bevelBase,
+            band = 5.dp,
         ),
     )
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -6,9 +7,10 @@ import '../design/maeve_shapes.dart';
 import '../design/maeve_surfaces.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
+import '../ui/common/haptics.dart';
 
 export '../design/maeve_surfaces.dart'
-    show MaeveGlassStyle, MaeveGlassTier, MaeveSurfaces;
+    show MaeveGlassDensity, MaeveGlassStyle, MaeveGlassTier, MaeveSurfaces;
 
 /// 玻璃表面:**模糊背后的内容 → 半透明填充 → 发丝描边 + 顶边高光 → 外投影**。
 ///
@@ -25,8 +27,10 @@ export '../design/maeve_surfaces.dart'
 /// - 只有 [MaeveGlassTier.chrome] / [MaeveGlassTier.sheet] 默认真模糊;
 ///   同屏真模糊的元素控制在 3 个以内,顶栏多件共用一个 [BackdropGroup]。
 /// - 有界模糊 `ImageFilterConfig.blur(bounded: true)`:采样不越出形状边界。
-/// - 降级:主题里 `blurEnabled == false`(设置"减少透明效果")或系统高对比度时,
-///   不创建 [BackdropFilter],改用近乎不透明的 `fallbackFill`。
+/// - 降级:系统高对比度(或主题 `blurEnabled == false`)时不创建 [BackdropFilter],
+///   改用近乎不透明的 `fallbackFill`。
+/// - 浓度(清透 / 均衡 / 浓郁)来自主题的 [MaeveSurfaces.density],由设置页
+///   "液态玻璃"档位驱动,见 [MaeveGlassDensity]。
 /// - 按压缩放做在内容上,不做在整个玻璃上:缩放一个会模糊的面板会每帧重采样背景。
 ///
 /// ## 为什么阴影要单独画
@@ -130,17 +134,16 @@ class MaeveGlassSurface extends StatelessWidget {
       );
     }
 
+    // 层次(从下到上):填充 → 斜带 → 内部提亮 → 内容 → 边。
+    // 斜带垫在内容底下(CSS 里 inset box-shadow 的位置),边画在内容之上。
     content = CustomPaint(
-      foregroundPainter: !framed
-          ? null
-          : _GlassEdgePainter(
+      painter: framed
+          ? _GlassBevelPainter(
+              style: s,
               shape: shape,
-              hairline: s.hairline,
-              hairlineWidth: s.hairlineWidth,
-              rim: s.rim,
-              rimFraction: s.rimFraction,
               textDirection: textDirection,
-            ),
+            )
+          : null,
       child: DecoratedBox(
         decoration: ShapeDecoration(shape: shape, color: fill),
         child: _Sheen(
@@ -151,9 +154,24 @@ class MaeveGlassSurface extends StatelessWidget {
         ),
       ),
     );
+    content = CustomPaint(
+      foregroundPainter: !framed
+          ? null
+          : _GlassEdgePainter(
+              style: s,
+              shape: shape,
+              textDirection: textDirection,
+            ),
+      child: content,
+    );
 
     if (useBlur) {
-      final config = _filterFor(s.blurs ? s.blurSigma : 14, s.saturation);
+      final config = _filterFor(
+        s.blurs ? s.blurSigma : 14,
+        s.saturation,
+        s.brightness,
+        s.contrast,
+      );
       final sampling = settled != 0;
       content = grouped
           ? BackdropFilter.grouped(
@@ -199,15 +217,28 @@ class MaeveGlassSurface extends StatelessWidget {
     return child;
   }
 
-  static ImageFilterConfig _filterFor(double sigma, double saturation) {
+  /// glasswork 的 `backdrop-filter`:模糊之后依次做
+  /// saturate → contrast → brightness(顺序与 CSS 一致,合进一个矩阵)。
+  ///
+  /// 浅色玻璃 brightness > 1:背后的画面被提亮,像光透过净玻璃;
+  /// 深色 < 1:背后的画面被压暗,像烟色玻璃 —— 而不是糊成一片灰。
+  static ImageFilterConfig _filterFor(
+    double sigma,
+    double saturation,
+    double brightness,
+    double contrast,
+  ) {
     final blur = ImageFilterConfig.blur(
       sigmaX: sigma,
       sigmaY: sigma,
       bounded: true,
     );
-    if (saturation == 1) return blur;
+    final plain = saturation == 1 && brightness == 1 && contrast == 1;
+    if (plain) return blur;
     return ImageFilterConfig.compose(
-      outer: ImageFilterConfig(ColorFilter.matrix(_saturate(saturation))),
+      outer: ImageFilterConfig(
+        ColorFilter.matrix(_tone(saturation, contrast, brightness)),
+      ),
       inner: blur,
     );
   }
@@ -223,6 +254,75 @@ class MaeveGlassSurface extends StatelessWidget {
       r, g, b + s, 0, 0, //
       0, 0, 0, 1, 0, //
     ];
+  }
+
+  /// 把 saturate / contrast / brightness 三个滤镜按 CSS 的顺序合成一个 4×5 矩阵。
+  ///
+  /// 三个都是通道上的仿射变换(y = A·x + a),按 (A2,a2)∘(A1,a1) =
+  /// (A2·A1, A2·a1 + a2) 复合;alpha 行恒为 [0,0,0,1,0]。
+  static List<double> _tone(double s, double c, double b) {
+    final sat = _asAffine(_saturate(s));
+    final con = _asAffine(<double>[
+      c, 0, 0, 0, .5 * (1 - c), //
+      0, c, 0, 0, .5 * (1 - c), //
+      0, 0, c, 0, .5 * (1 - c), //
+      0, 0, 0, 1, 0,
+    ]);
+    final bri = _asAffine(<double>[
+      b, 0, 0, 0, 0, //
+      0, b, 0, 0, 0, //
+      0, 0, b, 0, 0, //
+      0, 0, 0, 1, 0,
+    ]);
+    // brightness ∘ contrast ∘ saturate(CSS 的应用顺序)
+    final (m, o) = _compose(_compose(bri, con), sat);
+    // ColorFilter.matrix 要 20 个值:每行 4 个矩阵元素 + 1 个偏移。
+    return <double>[
+      for (var row = 0; row < 4; row++) ...[
+        m[row][0],
+        m[row][1],
+        m[row][2],
+        m[row][3],
+        o[row],
+      ],
+    ];
+  }
+
+  /// 4×5 行主序 → (4×4 矩阵, 4 偏移)。
+  static (List<List<double>>, List<double>) _asAffine(List<double> m) {
+    final a = <List<double>>[];
+    final o = <double>[];
+    for (var row = 0; row < 4; row++) {
+      a.add(m.sublist(row * 5, row * 5 + 4));
+      o.add(m[row * 5 + 4]);
+    }
+    return (a, o);
+  }
+
+  /// (A2,a2)∘(A1,a1) = (A2·A1, A2·a1 + a2)。
+  static (List<List<double>>, List<double>) _compose(
+    (List<List<double>>, List<double>) second,
+    (List<List<double>>, List<double>) first,
+  ) {
+    final (a2, o2) = second;
+    final (a1, o1) = first;
+    final a = List.generate(4, (_) => List<double>.filled(4, 0));
+    final o = List<double>.filled(4, 0);
+    for (var i = 0; i < 4; i++) {
+      for (var j = 0; j < 4; j++) {
+        var sum = 0.0;
+        for (var k = 0; k < 4; k++) {
+          sum += a2[i][k] * a1[k][j];
+        }
+        a[i][j] = sum;
+      }
+      var sum = 0.0;
+      for (var k = 0; k < 4; k++) {
+        sum += a2[i][k] * o1[k];
+      }
+      o[i] = sum + o2[i];
+    }
+    return (a, o);
   }
 }
 
@@ -259,43 +359,75 @@ class _Sheen extends StatelessWidget {
   }
 }
 
-/// 发丝描边 + 顶边高光。描边画在形状内侧,裁剪时不会被切掉一半。
+/// 液态玻璃的边:四条声明里的 `box-shadow` 那一半。
+///
+/// glasswork 的一片玻璃,光是这样落在边上的(从外到内):
+///
+/// 1. **均匀发丝线** —— 玻璃唯一"硬"的轮廓(那条 even line);
+/// 2. **定向受光边** —— 光在**左上**被接住,右下渐隐(不是一整圈一样亮);
+/// 3. **顶边高光** —— 光从上方打来,沿受光面往里渐隐;
+/// 4. **斜面带** —— 贴在边内几像素的四条软带:顶亮、左右更弱、底暗,
+///    读出玻璃的"厚度"。带子始终在边内 —— 宽了会把背后的颜色洗白。
 class _GlassEdgePainter extends CustomPainter {
   _GlassEdgePainter({
+    required this.style,
     required this.shape,
-    required this.hairline,
-    required this.hairlineWidth,
-    required this.rim,
-    required this.rimFraction,
     required this.textDirection,
+    this.rimFraction,
   });
 
+  final MaeveGlassStyle style;
   final ShapeBorder shape;
-  final Color hairline;
-  final double hairlineWidth;
-  final Color rim;
-  final double rimFraction;
   final TextDirection? textDirection;
+
+  /// 覆盖层级的顶边高光比例(圆钮用 .5:28dp 的药丸不该整块都是高光)。
+  final double? rimFraction;
+
+  double get _rimFraction => (rimFraction ?? style.rimFraction).clamp(.05, 1.0);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final rect = Offset.zero & size;
-    final width = math.max(hairlineWidth, .5);
+    final width = math.max(style.hairlineWidth, .5);
     final path = shape.getOuterPath(
       rect.deflate(width / 2),
       textDirection: textDirection,
     );
-    if (hairline.a > 0) {
+
+    // ① 均匀发丝线:轮廓。太淡整块玻璃没有边界,读作一片发白的水渍。
+    if (style.hairline.a > 0) {
       canvas.drawPath(
         path,
         Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = width
-          ..color = hairline,
+          ..color = style.hairline,
       );
     }
-    if (rim.a > 0) {
+
+    // ② 定向受光边:左上接住光,右下渐隐 —— 玻璃因此有了光向。
+    if (style.catchLight.a > 0) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(width, .8)
+          ..shader = LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              style.catchLight,
+              style.catchLight.withValues(alpha: style.catchLight.a * .55),
+              style.catchLight.withValues(alpha: 0),
+            ],
+            stops: const [0, .45, 1],
+          ).createShader(rect),
+      );
+    }
+
+    // ③ 顶边高光:受光面,往里渐隐。
+    if (style.rim.a > 0) {
       canvas.drawPath(
         path,
         Paint()
@@ -304,8 +436,8 @@ class _GlassEdgePainter extends CustomPainter {
           ..shader = LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [rim, rim.withValues(alpha: 0)],
-            stops: [0, rimFraction.clamp(.05, 1.0)],
+            colors: [style.rim, style.rim.withValues(alpha: 0)],
+            stops: [0, _rimFraction],
           ).createShader(rect),
       );
     }
@@ -313,12 +445,97 @@ class _GlassEdgePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GlassEdgePainter old) =>
+      old.style != style ||
       old.shape != shape ||
-      old.hairline != hairline ||
-      old.hairlineWidth != hairlineWidth ||
-      old.rim != rim ||
-      old.rimFraction != rimFraction;
+      old.rimFraction != rimFraction ||
+      old.textDirection != textDirection;
 }
+
+/// 斜带 painter:玻璃的"厚度",画在**填充之上、内容之下**
+/// (CSS 里 inset box-shadow 的位置)。
+///
+/// 四条软带贴在边内几像素:顶亮、左右更弱、底暗。裁进形状画,不出边。
+class _GlassBevelPainter extends CustomPainter {
+  const _GlassBevelPainter({
+    required this.style,
+    required this.shape,
+    this.textDirection,
+  });
+
+  final MaeveGlassStyle style;
+  final ShapeBorder shape;
+  final TextDirection? textDirection;
+
+  bool get _hasBevel =>
+      style.bevelTop.a > 0 || style.bevelSide.a > 0 || style.bevelBase.a > 0;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final band = style.band;
+    if (!_hasBevel || band <= 0 || size.height <= band || size.width <= band) {
+      return;
+    }
+    final rect = Offset.zero & size;
+    canvas.save();
+    canvas.clipPath(shape.getOuterPath(rect, textDirection: textDirection));
+    void bandRect(Rect area, Gradient gradient) {
+      if (area.width <= 0 || area.height <= 0) return;
+      canvas.drawRect(area, Paint()..shader = gradient.createShader(area));
+    }
+
+    if (style.bevelTop.a > 0) {
+      bandRect(
+        Rect.fromLTWH(0, 0, size.width, band * 1.2),
+        LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [style.bevelTop, style.bevelTop.withValues(alpha: 0)],
+        ),
+      );
+    }
+    if (style.bevelSide.a > 0) {
+      bandRect(
+        Rect.fromLTWH(0, 0, band, size.height),
+        LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [style.bevelSide, style.bevelSide.withValues(alpha: 0)],
+        ),
+      );
+      // 右侧弱一档:光主要来自左上。
+      bandRect(
+        Rect.fromLTWH(size.width - band, 0, band, size.height),
+        LinearGradient(
+          begin: Alignment.centerRight,
+          end: Alignment.centerLeft,
+          colors: [
+            style.bevelSide.withValues(alpha: style.bevelSide.a * .55),
+            style.bevelSide.withValues(alpha: 0),
+          ],
+        ),
+      );
+    }
+    if (style.bevelBase.a > 0) {
+      bandRect(
+        Rect.fromLTWH(0, size.height - band, size.width, band),
+        LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [style.bevelBase, style.bevelBase.withValues(alpha: 0)],
+        ),
+      );
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_GlassBevelPainter old) =>
+      old.style != style ||
+      old.shape != shape ||
+      old.textDirection != textDirection;
+}
+
+/// 只在形状外部画的投影。
 
 /// 只在形状外部画的投影。
 class _GlassShadowPainter extends CustomPainter {
@@ -380,10 +597,11 @@ class _GlassShadowPainter extends CustomPainter {
   }
 }
 
-/// 玻璃圆钮:顶栏动作键、输入条的两颗圆键。
+/// 玻璃圆钮:顶栏动作键、输入条的两颗圆键、抽屉的关闭键。
 ///
-/// 圆钮浮在静态背景上,按约定不取样,只拿玻璃的填充、发丝描边与顶边高光;
-/// [prominent] 用实色强调色(发送键)。
+/// 圆钮浮在静态背景上,按约定不取样,只拿玻璃的填充、受光边、斜带与顶边高光;
+/// [prominent] 用实色强调色(发送键)——仍然带一道白色受光边,读作"能按的玻璃",
+/// 不是一块塑料色块。[fill] / [foreground] 可覆盖底色与图形色(停止键用实色墨)。
 class MaeveGlassButton extends StatelessWidget {
   const MaeveGlassButton({
     super.key,
@@ -393,6 +611,9 @@ class MaeveGlassButton extends StatelessWidget {
     this.prominent = false,
     this.compact = false,
     this.enabled = true,
+    this.fill,
+    this.foreground,
+    this.haptic,
   });
 
   final IconData icon;
@@ -402,6 +623,23 @@ class MaeveGlassButton extends StatelessWidget {
   final bool compact;
   final bool enabled;
 
+  /// 覆盖填充(prominent 的强调色、停止键的实色墨)。
+  final Color? fill;
+
+  /// 覆盖图形色。
+  final Color? foreground;
+
+  /// 点按时给的触感;null = 不震。
+  final MaeveHaptic? haptic;
+
+  /// 实色底上的受光边:白斜带 + 一道暗轮廓,让色块也读出玻璃的光向。
+  static MaeveGlassStyle _solidEdge(MaeveGlassStyle base) => base.copyWith(
+    catchLight: const Color(0xFFFFFFFF).withValues(alpha: .55),
+    bevelTop: const Color(0xFFFFFFFF).withValues(alpha: .20),
+    bevelSide: const Color(0xFFFFFFFF).withValues(alpha: .09),
+    bevelBase: const Color(0xFF000000).withValues(alpha: .08),
+  );
+
   @override
   Widget build(BuildContext context) {
     final theme = MaeveTheme.of(context);
@@ -410,27 +648,28 @@ class MaeveGlassButton extends StatelessWidget {
     final dimension = compact ? 36.0 : MaeveSize.iconButton;
     const shape = CircleBorder();
     final active = enabled && onPressed != null;
-    final fill = prominent ? colors.accent : chrome.fill;
-    final foreground = prominent
-        ? colors.onAccent
-        : (active ? colors.ink : colors.ink3);
+    final solid = prominent || fill != null;
+    final edge = solid ? _solidEdge(chrome) : chrome;
+    final buttonFill = fill ?? (prominent ? colors.accent : chrome.fill);
+    final foreground =
+        this.foreground ??
+        (prominent ? colors.onAccent : (active ? colors.ink : colors.ink3));
 
+    final textDirection = Directionality.maybeOf(context);
     Widget button = CustomPaint(
-      foregroundPainter: prominent
-          ? null
-          : _GlassEdgePainter(
-              shape: shape,
-              hairline: chrome.hairline,
-              hairlineWidth: chrome.hairlineWidth,
-              rim: chrome.rim,
-              rimFraction: .5,
-              textDirection: Directionality.maybeOf(context),
-            ),
+      painter: _GlassBevelPainter(
+        style: edge,
+        shape: shape,
+        textDirection: textDirection,
+      ),
       child: DecoratedBox(
-        decoration: ShapeDecoration(shape: shape, color: fill),
+        decoration: ShapeDecoration(shape: shape, color: buttonFill),
         child: _Sheen(
           shape: shape,
-          sheen: prominent ? Colors.transparent : chrome.sheen,
+          // 实色底也给一道提亮:色块因此是"被照到的玻璃",不是一块塑料。
+          sheen: solid
+              ? const Color(0xFFFFFFFF).withValues(alpha: .12)
+              : chrome.sheen,
           stop: .5,
           child: SizedBox.square(
             dimension: dimension,
@@ -441,7 +680,16 @@ class MaeveGlassButton extends StatelessWidget {
         ),
       ),
     );
-    if (!prominent && chrome.shadows.isNotEmpty) {
+    button = CustomPaint(
+      foregroundPainter: _GlassEdgePainter(
+        style: edge,
+        shape: shape,
+        rimFraction: .5,
+        textDirection: textDirection,
+      ),
+      child: button,
+    );
+    if (chrome.shadows.isNotEmpty) {
       button = CustomPaint(
         painter: _GlassShadowPainter(
           shape: shape,
@@ -464,9 +712,229 @@ class MaeveGlassButton extends StatelessWidget {
             customBorder: shape,
             splashFactory: NoSplash.splashFactory,
             highlightColor: Colors.transparent,
-            onTap: active ? onPressed : null,
+            onTap: active
+                ? () {
+                    final feedback = haptic;
+                    if (feedback != null) {
+                      unawaited(MaeveHaptics.play(feedback));
+                    }
+                    onPressed!();
+                  }
+                : null,
             child: button,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 液态玻璃文字钮:抽屉的"新对话 / 删除选中对话"、输入条里的"模型配置"。
+///
+/// 默认是 pill 档玻璃(不取样:按钮长在已经取样或实心的面板上,再取样就是
+/// 玻璃套玻璃);[prominent] 用强调色实底 + 白色受光边,读作主操作。
+/// 形状默认按钮档(14 连续曲率);[compact] 用胶囊(标签、chip)。
+class MaeveGlassTextButton extends StatelessWidget {
+  const MaeveGlassTextButton({
+    super.key,
+    required this.label,
+    this.icon,
+    required this.onPressed,
+    this.prominent = false,
+    this.compact = false,
+    this.enabled = true,
+    this.shape,
+    this.semanticLabel,
+    this.fill,
+    this.tooltip,
+    this.haptic,
+  });
+
+  final String label;
+  final IconData? icon;
+  final VoidCallback? onPressed;
+  final bool prominent;
+  final bool compact;
+  final bool enabled;
+  final ShapeBorder? shape;
+  final String? semanticLabel;
+  final Color? fill;
+
+  /// 悬浮提示(输入条里的"模型配置"用)。
+  final String? tooltip;
+
+  /// 点按时给的触感;null = 不震。
+  final MaeveHaptic? haptic;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = MaeveTheme.of(context);
+    final colors = theme.colors;
+    final pill = theme.surfaces.pill;
+    final resolved = shape ?? (compact ? MaeveShapes.pill : MaeveShapes.button);
+    final active = enabled && onPressed != null;
+    final solid = prominent || fill != null;
+    final edge = solid ? MaeveGlassButton._solidEdge(pill) : pill;
+    final buttonFill = fill ?? (prominent ? colors.accent : pill.fill);
+    final foreground = prominent
+        ? colors.onAccent
+        : (active ? colors.ink : colors.ink3);
+
+    final textDirection = Directionality.maybeOf(context);
+    Widget button = CustomPaint(
+      painter: _GlassBevelPainter(
+        style: edge,
+        shape: resolved,
+        textDirection: textDirection,
+      ),
+      child: DecoratedBox(
+        decoration: ShapeDecoration(shape: resolved, color: buttonFill),
+        child: _Sheen(
+          shape: resolved,
+          sheen: solid
+              ? const Color(0xFFFFFFFF).withValues(alpha: .12)
+              : pill.sheen,
+          stop: .5,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? MaeveSpace.s12 : MaeveSpace.s16,
+              vertical: compact ? MaeveSpace.s6 : MaeveSpace.s10,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: compact ? 15 : 17, color: foreground),
+                  const SizedBox(width: MaeveSpace.s6),
+                ],
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: MaeveType.bodyStrong.copyWith(
+                    fontSize: compact ? 12.5 : 14.5,
+                    color: foreground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    button = CustomPaint(
+      foregroundPainter: _GlassEdgePainter(
+        style: edge,
+        shape: resolved,
+        textDirection: textDirection,
+      ),
+      child: button,
+    );
+
+    Widget result = Semantics(
+      button: true,
+      enabled: active,
+      label: semanticLabel ?? label,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          customBorder: resolved,
+          splashFactory: NoSplash.splashFactory,
+          highlightColor: Colors.transparent,
+          onTap: active
+              ? () {
+                  final feedback = haptic;
+                  if (feedback != null) {
+                    unawaited(MaeveHaptics.play(feedback));
+                  }
+                  onPressed!();
+                }
+              : null,
+          child: button,
+        ),
+      ),
+    );
+    final tip = tooltip;
+    if (tip != null && tip.isNotEmpty) {
+      result = Tooltip(message: tip, child: result);
+    }
+    return result;
+  }
+}
+
+/// 液态玻璃对话框:确认类"小菜单"(删除确认、开启自主执行、解绑微信…)。
+///
+/// 和 [AlertDialog] 同一套签名(title / content / actions),换掉它之后:
+/// 表面是 sheet 档玻璃(弹层停稳后才开始取样,所以升起途中不闪),
+/// 形状是 [MaeveShapes.dialog]。actions 里的按钮沿用主题的
+/// TextButton / FilledButton —— 按钮归按钮,玻璃归玻璃。
+class MaeveGlassDialog extends StatelessWidget {
+  const MaeveGlassDialog({
+    super.key,
+    this.title,
+    this.content,
+    this.actions = const [],
+  });
+
+  final Widget? title;
+  final Widget? content;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final animation = ModalRoute.of(context)?.animation;
+    // 弹层一起床就容易闪:scheduled 采样要等它停稳(与 AppSheet 同一约定)。
+    final settled = animation == null
+        ? 1.0
+        : Curves.easeOut.transform(((animation.value - .55) / .45).clamp(0, 1));
+    return Material(
+      type: MaterialType.transparency,
+      child: MaeveGlassSurface(
+        tier: MaeveGlassTier.sheet,
+        shape: MaeveShapes.dialog,
+        settled: settled,
+        padding: const EdgeInsets.fromLTRB(
+          MaeveSpace.s24,
+          MaeveSpace.s20,
+          MaeveSpace.s24,
+          MaeveSpace.s12,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (title != null)
+              DefaultTextStyle(
+                style: text.titleLarge ?? const TextStyle(),
+                child: title!,
+              ),
+            if (content != null) ...[
+              const SizedBox(height: MaeveSpace.s12),
+              // Flexible:长内容先缩,不撑破屏幕(与 AlertDialog 同一约定)。
+              Flexible(
+                child: DefaultTextStyle(
+                  style: text.bodyMedium ?? const TextStyle(),
+                  // 内容里可能有 ListTile / 选择框:给它自己的 Material,
+                  // 免得墨水画在玻璃底上被盖掉(Flutter 的 DecoratedBox 断言)。
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: content!,
+                  ),
+                ),
+              ),
+            ],
+            if (actions.isNotEmpty) ...[
+              const SizedBox(height: MaeveSpace.s16),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                spacing: MaeveSpace.s8,
+                overflowAlignment: OverflowBarAlignment.end,
+                children: actions,
+              ),
+            ],
+          ],
         ),
       ),
     );

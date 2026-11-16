@@ -224,10 +224,11 @@ class MaeveColors {
       scrim: const Color(0xFF2A211A).withValues(alpha: .32),
       // 浅色下极光必须非常淡:奶色纸上只要有一点带色光的雾,整屏立刻读作"粉紫"
       // 而不是"暖纸"。层次交给白卡片和那道暖阴影,极光只负责让纸不要死平。
-      glowPrimary: accent.lightGlow.withValues(alpha: .09),
-      glowSecondary: accent.hazeLight.withValues(alpha: .04),
-      glowTertiary: const Color(0xFF7E9BC0).withValues(alpha: .012),
-      bloom: _light.withValues(alpha: .08),
+      // 但也不能没有:玻璃要有东西可折射,三档浓度才读得出来(清透档尤其靠它)。
+      glowPrimary: accent.lightGlow.withValues(alpha: .12),
+      glowSecondary: accent.hazeLight.withValues(alpha: .06),
+      glowTertiary: const Color(0xFF7E9BC0).withValues(alpha: .02),
+      bloom: _light.withValues(alpha: .10),
       vignette: neutral(.760, .0140).withValues(alpha: .025),
       grid: ink.withValues(alpha: .055),
     );

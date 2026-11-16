@@ -7,6 +7,7 @@ import 'package:maeve_flutter/app/maeve_controller.dart';
 import 'package:maeve_flutter/bridge/maeve_bridge.dart';
 import 'package:maeve_flutter/bridge/maeve_settings_bridge.dart';
 import 'package:maeve_flutter/design/maeve_accent.dart';
+import 'package:maeve_flutter/design/maeve_surfaces.dart';
 import 'package:maeve_flutter/ui/common/app_page.dart';
 import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
@@ -573,7 +574,7 @@ void main() {
     final controller = await mount(tester, settings);
     controller.setAccent(MaeveAccentPreset.dolores);
     controller.setMode(ThemeMode.light);
-    controller.toggleReduceTransparency();
+    controller.setGlassDensity(MaeveGlassDensity.dense);
     await tester.pumpAndSettle();
     final fresh = MaeveController(
       settingsBridge: settings,
@@ -583,6 +584,6 @@ void main() {
     await fresh.refreshSettings();
     expect(fresh.accentPreset, MaeveAccentPreset.dolores);
     expect(fresh.mode, ThemeMode.light);
-    expect(fresh.reduceTransparency, isTrue);
+    expect(fresh.glassDensity, MaeveGlassDensity.dense);
   });
 }

@@ -7,6 +7,7 @@ import '../../app/maeve_controller.dart';
 import '../../bridge/maeve_settings_bridge.dart';
 import '../common/app_page.dart';
 import '../common/selection_field.dart';
+import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 
 class AmooWechatPage extends StatefulWidget {
@@ -89,7 +90,7 @@ class _AmooWechatPageState extends State<AmooWechatPage>
   Future<void> _unbind() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => MaeveGlassDialog(
         title: const Text('解绑微信？'),
         content: const Text('停止接收微信消息并清除本机绑定。之后可以重新扫码连接。'),
         actions: [

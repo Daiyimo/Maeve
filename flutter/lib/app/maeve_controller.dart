@@ -7,6 +7,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 
 import '../design/maeve_accent.dart';
+import '../design/maeve_surfaces.dart';
 
 import '../bridge/maeve_chat_bridge.dart';
 import '../models/conversation.dart';
@@ -82,7 +83,7 @@ class MaeveController extends ChangeNotifier {
       accentPreset = MaeveAccentPreset.byId(next.accent);
       haptics = next.haptics;
       MaeveHaptics.enabled = haptics;
-      reduceTransparency = next.reduceTransparency;
+      glassDensity = MaeveGlassDensity.byId(next.glassStyle);
     }
     model = next.modelName ?? '选择模型';
     notifyListeners();
@@ -149,7 +150,9 @@ class MaeveController extends ChangeNotifier {
 
   /// 当前配色推导完的色位(页面取色都走主题,不直接用这个)。
   MaeveAccent get accent => deriveAccent(accentPreset);
-  bool reduceTransparency = false;
+
+  /// 液态玻璃浓度(设置页"外观与手感 → 液态玻璃")。
+  MaeveGlassDensity glassDensity = MaeveGlassDensity.balanced;
   bool haptics = true;
 
   // —— 会话(桥接真实数据)——
@@ -749,9 +752,11 @@ class MaeveController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleReduceTransparency() {
-    reduceTransparency = !reduceTransparency;
-    unawaited(_saveAppearance({'reduceTransparency': reduceTransparency}));
+  /// 换液态玻璃的浓度:当场换,不重建界面(表面由 MaeveThemeScope 现算)。
+  void setGlassDensity(MaeveGlassDensity next) {
+    if (glassDensity == next) return;
+    glassDensity = next;
+    unawaited(_saveAppearance({'glassStyle': next.id}));
     notifyListeners();
   }
 

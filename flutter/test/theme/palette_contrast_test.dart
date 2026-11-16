@@ -101,6 +101,26 @@ void main() {
       }
     });
 
+    test('$name:三档浓度的玻璃上字都可读', () {
+      // 清透更薄、浓郁是烟色厚玻璃 —— 每一档叠在画布上,正文都要过 4.5。
+      for (final density in MaeveGlassDensity.values) {
+        final surfaces = buildSurfaces(c, density: density);
+        for (final style in [
+          surfaces.chrome,
+          surfaces.sheet,
+          surfaces.card,
+          surfaces.pill,
+        ]) {
+          final glass = Color.alphaBlend(style.fill, c.bg);
+          expect(
+            MaeveOklch.contrast(c.ink, glass),
+            greaterThanOrEqualTo(4.5),
+            reason: '$name ${density.id}',
+          );
+        }
+      }
+    });
+
     test('$name:种子守卫真的守住了(浅色种子配白字 ≥4.5)', () {
       final accent = deriveAccent(preset);
       expect(

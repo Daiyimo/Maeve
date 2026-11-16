@@ -6,6 +6,7 @@ import 'package:maeve_flutter/design/maeve_colors.dart';
 import 'package:maeve_flutter/design/maeve_shapes.dart';
 import 'package:maeve_flutter/design/maeve_surfaces.dart';
 import 'package:maeve_flutter/design/maeve_theme.dart';
+import 'package:maeve_flutter/ui/common/haptics.dart';
 import 'package:maeve_flutter/widgets/glass_surface.dart';
 
 /// 玻璃链路的验收:哪一档模糊、降级怎么走、会动的玻璃什么时候停止采样。
@@ -51,7 +52,7 @@ void main() {
     expect(find.byType(BackdropFilter), findsOneWidget);
   });
 
-  testWidgets('减少透明效果:一个 BackdropFilter 都不建', (tester) async {
+  testWidgets('关模糊(降级路径):一个 BackdropFilter 都不建', (tester) async {
     await tester.pumpWidget(
       host(
         const MaeveGlassSurface(tier: MaeveGlassTier.chrome, child: Text('x')),
@@ -60,6 +61,53 @@ void main() {
     );
     expect(find.byType(BackdropFilter), findsNothing);
     expect(find.text('x'), findsOneWidget);
+  });
+
+  testWidgets('液态玻璃浓度从主题流到表面', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: maeveTheme(brightness: Brightness.dark),
+        home: MaeveThemeScope(
+          brightness: Brightness.dark,
+          accent: deriveAccent(MaeveAccentPreset.reverie),
+          glassDensity: MaeveGlassDensity.dense,
+          child: Builder(
+            builder: (context) {
+              final surfaces = MaeveTheme.of(context).surfaces;
+              expect(surfaces.density, MaeveGlassDensity.dense);
+              // 浓郁档:填充更厚、模糊更强,但每一档都仍然半透明。
+              expect(surfaces.chrome.fill.a, greaterThan(.5));
+              expect(surfaces.chrome.fill.a, lessThan(1));
+              expect(surfaces.chrome.blurSigma, greaterThan(24));
+              return const SizedBox();
+            },
+          ),
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('液态玻璃圆钮:prominent 也带受光边与触感', (tester) async {
+    var taps = 0;
+    await tester.pumpWidget(
+      host(
+        MaeveGlassButton(
+          icon: Icons.arrow_upward_rounded,
+          tooltip: '发送消息',
+          prominent: true,
+          haptic: MaeveHaptic.light,
+          onPressed: () => taps++,
+        ),
+      ),
+    );
+    expect(find.byTooltip('发送消息'), findsOneWidget);
+    // 实色底仍然画边(受光边 + 斜带 + 顶边提亮):CustomPaint 的前景 painter。
+    final paints = tester.widgetList<CustomPaint>(find.byType(CustomPaint));
+    expect(paints.where((p) => p.foregroundPainter != null), isNotEmpty);
+    await tester.tap(find.byTooltip('发送消息'));
+    await tester.pumpAndSettle();
+    expect(taps, 1);
   });
 
   testWidgets('系统高对比度也退化成不透明填充', (tester) async {

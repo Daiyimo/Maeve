@@ -4,9 +4,11 @@ import 'maeve_controller.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../models/conversation.dart';
+import '../widgets/glass_surface.dart';
 import '../widgets/maeve_mark.dart';
 import '../ui/common/app_page.dart';
 import '../ui/common/app_sheet.dart';
+import '../ui/common/haptics.dart';
 import '../ui/common/pressable.dart';
 import '../ui/settings/settings_components.dart';
 import '../ui/settings/settings_hub.dart';
@@ -52,7 +54,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
         : '将${consequences.join('，')}，并删除$subject及其工作区附件。全局执行统计保留。';
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => MaeveGlassDialog(
         title: Text(ids.length == 1 ? '删除这段对话？' : '删除选中的 ${ids.length} 段对话？'),
         content: Text(detail),
         actions: [
@@ -164,15 +166,17 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                       ),
                     ),
                   ),
-                  IconButton(
+                  MaeveGlassButton(
+                    icon: Icons.close_rounded,
                     tooltip: _selecting ? '取消多选' : '关闭对话列表',
+                    compact: true,
+                    haptic: MaeveHaptic.tick,
                     onPressed: _selecting
                         ? () => setState(() {
                             _selecting = false;
                             _selected.clear();
                           })
                         : widget.onClose,
-                    icon: Icon(Icons.close_rounded, size: 20, color: c.ink2),
                   ),
                 ],
               ),
@@ -180,22 +184,35 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: _selecting
-                  ? FilledButton.icon(
-                      onPressed: _selected.isEmpty
-                          ? null
-                          : () =>
-                                _confirmDelete(controller, _selected.toList()),
-                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                      label: const Text('删除选中对话'),
+                  ? SizedBox(
+                      width: double.infinity,
+                      child: MaeveGlassTextButton(
+                        label: '删除选中对话',
+                        icon: Icons.delete_outline_rounded,
+                        prominent: true,
+                        enabled: _selected.isNotEmpty,
+                        haptic: MaeveHaptic.light,
+                        onPressed: _selected.isEmpty
+                            ? null
+                            : () => _confirmDelete(
+                                controller,
+                                _selected.toList(),
+                              ),
+                      ),
                     )
-                  : FilledButton.icon(
-                      onPressed: () {
-                        controller.create();
-                        widget.onClose();
-                      },
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('新对话'),
-                      key: const ValueKey('new-conversation'),
+                  : SizedBox(
+                      width: double.infinity,
+                      child: MaeveGlassTextButton(
+                        label: '新对话',
+                        icon: Icons.add_rounded,
+                        prominent: true,
+                        haptic: MaeveHaptic.light,
+                        key: const ValueKey('new-conversation'),
+                        onPressed: () {
+                          controller.create();
+                          widget.onClose();
+                        },
+                      ),
                     ),
             ),
             Padding(
@@ -233,12 +250,14 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
               child: Row(
                 children: [
                   for (final item in [(0, '全部'), (1, '置顶')]) ...[
-                    ChoiceChip(
-                      label: Text(item.$2),
-                      selected: controller.listFilter == item.$1,
-                      onSelected: (_) => controller.setFilter(item.$1),
+                    MaeveGlassTextButton(
+                      label: item.$2,
+                      compact: true,
+                      prominent: controller.listFilter == item.$1,
+                      haptic: MaeveHaptic.tick,
+                      onPressed: () => controller.setFilter(item.$1),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: MaeveSpace.s8),
                   ],
                 ],
               ),
@@ -343,13 +362,14 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: TextButton.icon(
+              child: MaeveGlassTextButton(
+                label: '设置',
+                icon: Icons.settings_outlined,
+                haptic: MaeveHaptic.tick,
                 onPressed: () {
                   widget.onClose();
                   AppPage.open(context, const SettingsHubPage());
                 },
-                icon: const Icon(Icons.settings_outlined, size: 18),
-                label: const Text('设置'),
               ),
             ),
           ],

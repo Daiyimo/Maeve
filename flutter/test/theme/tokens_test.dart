@@ -252,6 +252,51 @@ void main() {
       expect(s.chrome.fill.a, lessThan(1));
       expect(s.sheet.fill.a, lessThan(1));
     });
+
+    test('液态玻璃三档浓度:清透更薄、浓郁更实,均衡是基准', () {
+      final c = MaeveColors.dark(deriveAccent(MaeveAccentPreset.reverie));
+      final clear = buildSurfaces(c, density: MaeveGlassDensity.clear);
+      final balanced = buildSurfaces(c);
+      final dense = buildSurfaces(c, density: MaeveGlassDensity.dense);
+      expect(balanced.density, MaeveGlassDensity.balanced);
+      expect(clear.chrome.fill.a, lessThan(balanced.chrome.fill.a));
+      expect(dense.chrome.fill.a, greaterThan(balanced.chrome.fill.a));
+      expect(clear.chrome.blurSigma, lessThan(balanced.chrome.blurSigma));
+      expect(dense.chrome.blurSigma, greaterThan(balanced.chrome.blurSigma));
+      expect(clear.chrome.saturation, lessThan(balanced.chrome.saturation));
+      expect(dense.chrome.saturation, greaterThan(balanced.chrome.saturation));
+      // 每一档都仍然半透明:不透明就永远成不了玻璃。
+      for (final s in [clear, balanced, dense]) {
+        for (final style in [s.chrome, s.sheet, s.card, s.pill]) {
+          expect(style.fill.a, inExclusiveRange(0, 1));
+        }
+      }
+    });
+
+    test('液态玻璃的光:浅色提亮、深色压暗,受光边与斜带都在', () {
+      final light = buildSurfaces(
+        MaeveColors.light(deriveAccent(MaeveAccentPreset.reverie)),
+      );
+      final dark = buildSurfaces(
+        MaeveColors.dark(deriveAccent(MaeveAccentPreset.reverie)),
+      );
+      expect(light.chrome.brightness, greaterThan(1));
+      expect(dark.chrome.brightness, lessThan(1));
+      for (final s in [light, dark]) {
+        for (final style in [s.chrome, s.sheet, s.card, s.pill]) {
+          expect(style.catchLight.a, greaterThan(0));
+          expect(style.bevelTop.a, greaterThan(0));
+          expect(style.bevelSide.a, greaterThan(0));
+          expect(style.bevelBase.a, greaterThan(0));
+          expect(style.band, greaterThan(0));
+        }
+      }
+      // 光来自左上:受光边比顶边高光强,顶边斜带比侧边强。
+      expect(light.chrome.catchLight.a, greaterThan(light.chrome.rim.a));
+      expect(light.chrome.bevelTop.a, greaterThan(light.chrome.bevelSide.a));
+      // 深色的边光比浅色弱:强了会变成一圈白描边。
+      expect(dark.chrome.catchLight.a, lessThan(light.chrome.catchLight.a));
+    });
   });
 
   group('主题装配', () {

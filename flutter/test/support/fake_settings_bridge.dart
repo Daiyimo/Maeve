@@ -39,7 +39,7 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
         'capsuleEnabled': true,
         'accent': 'reverie',
         'haptics': true,
-        'reduceTransparency': false,
+        'glassStyle': 'balanced',
         'currentModelId': configured ? 'cfg-1' : null,
         'modelName': configured ? 'test-model' : null,
         'models': configured

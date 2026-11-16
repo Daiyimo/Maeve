@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -141,7 +142,7 @@ fun Modifier.cardSurface(
     if (!sampling || bd == null) {
         return shadowed
             .background(style.fallbackFill, shape)
-            .drawBehind { glassRim(style) }
+            .drawBehind { glassRim(style, shape) }
             .drawBehind { glassBevel(style, shape, colors) }
             .then(hairline)
     }
@@ -159,7 +160,7 @@ fun Modifier.cardSurface(
         // ② 半透明填充
         .background(style.fill, shape)
         // ③ 内高光(顶边)
-        .drawBehind { glassRim(style) }
+        .drawBehind { glassRim(style, shape) }
         // ④ 内描边:上亮下暗,给玻璃一圈厚度
         .drawBehind { glassBevel(style, shape, colors) }
         .then(hairline)
@@ -171,7 +172,7 @@ fun Modifier.cardSurface(
  * 高度按元素尺寸的 [GlassStyle.rimFraction] 取上限,再和 14dp 取小——
  * 一枚 28dp 的药丸不该整个被高光填满,一张 200dp 的卡也不该只有一条细线。
  */
-private fun DrawScope.glassRim(style: GlassStyle) {
+private fun DrawScope.glassRim(style: GlassStyle, shape: Shape) {
     if (style.rim.alpha <= 0f) return
     val rimHeight = (size.height * style.rimFraction).coerceIn(2f, 26.dp.toPx())
     drawRect(
@@ -182,14 +183,35 @@ private fun DrawScope.glassRim(style: GlassStyle) {
         ),
         size = Size(size.width, rimHeight),
     )
+    // 定向受光边:光在左上被接住,右下渐隐 —— 玻璃因此有了光向
+    // (glasswork 的 rim light:亮的一角接光,对角渐隐)。
+    // 画在**边**上(描边),不是铺满整面:铺满会把背后的颜色洗白。
+    if (style.catchLight.alpha > 0f) {
+        drawPath(
+            shape.toFlatPath(size, this),
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    style.catchLight,
+                    style.catchLight.copy(alpha = style.catchLight.alpha * 0.55f),
+                    Color.Transparent,
+                ),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height),
+            ),
+            style = Stroke(style.hairlineWidth.toPx().coerceAtLeast(1.5f)),
+        )
+    }
 }
 
 /**
- * 内描边:一圈「上亮下暗」的极细渐变边,模拟玻璃的侧面。
+ * 内描边 + 斜带:一圈「上亮下暗」的极细渐变边,再往里几像素四条软带,
+ * 模拟玻璃的侧面与厚度(glasswork 的 bevel bands)。
  *
- * 做法:先整圈画一条偏暗的边(玻璃侧面),再用竖向渐变画一遍
- * (上半段亮、下半段透明,受光面)。
- * 这样即使填充很透,元素也能靠这一圈立住轮廓,不需要粗描边。
+ * 做法:
+ * 1. 先整圈画一条偏暗的边(玻璃侧面,负责轮廓);
+ * 2. 再用竖向渐变画一遍(上半段亮、下半段透明,受光面);
+ * 3. 最后裁进形状,贴边画四条软带 —— 顶亮、左右更弱、底暗。
+ *    带子始终在边内:宽了会把背后的颜色洗白。
  */
 private fun DrawScope.glassBevel(style: GlassStyle, shape: Shape, colors: MaeveColors) {
     if (style.hairlineWidth <= 0.dp) return
@@ -210,6 +232,56 @@ private fun DrawScope.glassBevel(style: GlassStyle, shape: Shape, colors: MaeveC
         ),
         style = Stroke(w),
     )
+    // 斜带:裁进形状画,不出边
+    val band = style.band.toPx()
+    val hasBevel = style.bevelTop.alpha > 0f || style.bevelSide.alpha > 0f || style.bevelBase.alpha > 0f
+    if (!hasBevel || band <= 0f || size.height <= band || size.width <= band) return
+    clipPath(path) {
+        if (style.bevelTop.alpha > 0f) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(style.bevelTop, Color.Transparent),
+                    startY = 0f,
+                    endY = band * 1.2f,
+                ),
+                size = Size(size.width, band * 1.2f),
+            )
+        }
+        if (style.bevelSide.alpha > 0f) {
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(style.bevelSide, Color.Transparent),
+                    startX = 0f,
+                    endX = band,
+                ),
+                size = Size(band, size.height),
+            )
+            // 右侧弱一档:光主要来自左上
+            drawRect(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        style.bevelSide.copy(alpha = style.bevelSide.alpha * 0.55f),
+                        Color.Transparent,
+                    ),
+                    startX = size.width,
+                    endX = size.width - band,
+                ),
+                topLeft = Offset(size.width - band, 0f),
+                size = Size(band, size.height),
+            )
+        }
+        if (style.bevelBase.alpha > 0f) {
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(style.bevelBase, Color.Transparent),
+                    startY = size.height,
+                    endY = size.height - band,
+                ),
+                topLeft = Offset(0f, size.height - band),
+                size = Size(size.width, band),
+            )
+        }
+    }
 }
 
 /**
@@ -253,7 +325,7 @@ fun Modifier.glassFill(
     return this
         .clip(shape)
         .background(style.fill, shape)
-        .drawBehind { glassRim(style) }
+        .drawBehind { glassRim(style, shape) }
         .drawBehind { glassBevel(style, shape, colors) }
 }
 
@@ -428,7 +500,7 @@ private fun rememberGlassSlot(backdrop: GlassBackdrop, style: GlassStyle): Glass
     remember(style, density) {
         // blurSigma 记的是 dp,这里折成 px 存进槽位
         slot.sigma = style.blurSigma * density.density
-        slot.filter = if (style.saturation == 1f) null else saturationFilter(style.saturation)
+        slot.filter = toneFilter(style.saturation, style.brightness, style.contrast)
     }
     DisposableEffect(backdrop, slot) {
         backdrop.add(slot)
@@ -599,7 +671,7 @@ fun GlassBar(
         Row(
             Modifier.fillMaxWidth()
                 .background(if (sampling) style.fill else style.fallbackFill)
-                .drawBehind { glassRim(style) }
+                .drawBehind { glassRim(style, shape) }
                 .drawBehind { glassBevel(style, shape, c) }
                 .heightIn(min = MaeveSize.Composer).padding(6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -610,26 +682,74 @@ fun GlassBar(
 }
 
 /**
- * 饱和度增益的滤镜:背后的颜色透过玻璃更艳(iOS 的「透色」)。
+ * 液态玻璃的采样滤镜:saturate → contrast → brightness(glasswork 的
+ * `backdrop-filter` 后三段;按 CSS 的应用顺序依次复合)。
  *
- * 高斯模糊和饱和度都是线性变换,两者可交换,所以糊完之后再做也一样。
- * 矩阵取自 Android `ColorMatrix.setSaturation` 的标准实现(Rec.709 亮度权重)。
+ * - 浅色玻璃 brightness > 1:背后的画面被提亮,像光透过净玻璃;
+ * - 深色 < 1:背后的画面被压暗,像烟色玻璃 —— 而不是糊成一片灰。
+ *
+ * 高斯模糊和这三个都是线性变换,与模糊可交换,所以糊完之后再做也一样。
+ * 饱和度矩阵取自 Android `ColorMatrix.setSaturation` 的标准实现(Rec.709 亮度权重)。
  */
-private fun saturationFilter(saturation: Float): ColorFilter? {
-    if (saturation <= 0f) return null
+private fun toneFilter(saturation: Float, brightness: Float, contrast: Float): ColorFilter? {
+    if (saturation == 1f && brightness == 1f && contrast == 1f) return null
+    // 三个滤镜都是通道上的仿射变换,按 CSS 的顺序 saturate → contrast → brightness
+    // 手工复合(Compose 的 ColorMatrix 没有 postConcat,自己乘)。
+    val m = compose3(brightnessMatrix(brightness), contrastMatrix(contrast), saturateMatrix(saturation))
+    return ColorFilter.colorMatrix(ColorMatrix(m))
+}
+
+/** 饱和度矩阵(Rec.709 亮度权重;Android ColorMatrix.setSaturation 的标准实现)。 */
+private fun saturateMatrix(saturation: Float): FloatArray {
     val inv = 1f - saturation
     val r = 0.213f * inv
     val g = 0.715f * inv
     val b = 0.072f * inv
-    val m = ColorMatrix()
-    m[0, 0] = r + saturation
-    m[0, 1] = g
-    m[0, 2] = b
-    m[1, 0] = r
-    m[1, 1] = g + saturation
-    m[1, 2] = b
-    m[2, 0] = r
-    m[2, 1] = g
-    m[2, 2] = b + saturation
-    return ColorFilter.colorMatrix(m)
+    return floatArrayOf(
+        r + saturation, g, b, 0f, 0f,
+        r, g + saturation, b, 0f, 0f,
+        r, g, b + saturation, 0f, 0f,
+        0f, 0f, 0f, 1f, 0f,
+    )
+}
+
+/** 对比度矩阵:out = (in - 0.5) * c + 0.5。 */
+private fun contrastMatrix(c: Float): FloatArray {
+    val shift = 0.5f * (1f - c)
+    return floatArrayOf(
+        c, 0f, 0f, 0f, shift,
+        0f, c, 0f, 0f, shift,
+        0f, 0f, c, 0f, shift,
+        0f, 0f, 0f, 1f, 0f,
+    )
+}
+
+/** 亮度矩阵:out = in * b。 */
+private fun brightnessMatrix(b: Float): FloatArray = floatArrayOf(
+    b, 0f, 0f, 0f, 0f,
+    0f, b, 0f, 0f, 0f,
+    0f, 0f, b, 0f, 0f,
+    0f, 0f, 0f, 1f, 0f,
+)
+
+/**
+ * 4×5 行主序仿射矩阵的复合:(A2,a2)∘(A1,a1) = (A2·A1, A2·a1 + a2)。
+ * 依次复合三个滤镜(先 saturate,再 contrast,最后 brightness)。
+ */
+private fun compose3(first: FloatArray, second: FloatArray, third: FloatArray): FloatArray =
+    compose(compose(third, second), first)
+
+private fun compose(second: FloatArray, first: FloatArray): FloatArray {
+    val out = FloatArray(20)
+    for (i in 0 until 4) {
+        for (j in 0 until 4) {
+            var sum = 0f
+            for (k in 0 until 4) sum += second[i * 5 + k] * first[k * 5 + j]
+            out[i * 5 + j] = sum
+        }
+        var sum = 0f
+        for (k in 0 until 4) sum += second[i * 5 + k] * first[k * 5 + 4]
+        out[i * 5 + 4] = sum + second[i * 5 + 4]
+    }
+    return out
 }
