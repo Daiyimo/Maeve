@@ -12,6 +12,7 @@ import 'package:maeve_flutter/ui/common/app_page.dart';
 import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/about_pages.dart';
 import 'package:maeve_flutter/ui/settings/welcome_page.dart';
+import 'package:maeve_flutter/widgets/glass_surface.dart';
 import 'package:maeve_flutter/ui/settings/settings_components.dart';
 import 'package:maeve_flutter/models/token_usage.dart';
 
@@ -114,7 +115,7 @@ void main() {
       await mount(tester, settings);
       await open(tester, const AddModelPage());
       final fetch = find.byKey(const ValueKey('fetch-models'));
-      expect(tester.widget<OutlinedButton>(fetch).onPressed, isNull);
+      expect(tester.widget<MaeveGlassTextButton>(fetch).onPressed, isNull);
       await enter(tester, 'model-api-key', 'fixture-key');
       await tester.ensureVisible(fetch);
       await tester.tap(fetch);

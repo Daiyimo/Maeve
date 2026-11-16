@@ -15,6 +15,7 @@ import com.daiyimo.maeve.cap.phone.a11y.ScreenAccessibility
 import com.daiyimo.maeve.settings.FeatureFlags
 import com.daiyimo.maeve.capsule.CapsuleMode
 import com.daiyimo.maeve.settings.ProviderConfig
+import com.daiyimo.maeve.ui.theme.resolveGlassStyle
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -177,7 +178,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                             snapshot()
                         }
                         "setAppearance" -> {
-                            val edit = prefs.edit()
+                            val edit = prefs.edit().remove("reduceTransparency")
                             call.argument<String>("mode")?.let { require(it in setOf("dark", "light", "system")); edit.putString("mode", it) }
                             call.argument<String>("accent")?.let { require(it in setOf("reverie", "dolores", "maze", "pearl", "sublime", "graphite")); edit.putString("accent", it) }
                             // 液态玻璃浓度(与 Flutter 侧 MaeveGlassDensity.id 同值)。
@@ -227,7 +228,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
             "operatingPace" to FeatureFlags.get(app).operatingPace().name.lowercase(java.util.Locale.ROOT),
             "taskStepLimit" to FeatureFlags.get(app).taskStepLimit(),
             "capsuleEnabled" to (FeatureFlags.get(app).capsuleMode() != CapsuleMode.Off),
-            "haptics" to prefs.getBoolean("haptics", true), "glassStyle" to prefs.getString("glassStyle", "balanced"),
+            "haptics" to prefs.getBoolean("haptics", true), "glassStyle" to resolveGlassStyle(prefs),
             "currentModelId" to current?.let { FlutterModelSettings.id(it.providerId, it.model) }, "modelName" to current?.model,
             "providerState" to app.providers.loadState.value.name.lowercase(java.util.Locale.ROOT),
             "providerSnapshotAvailable" to app.providers.snapshotAvailable,

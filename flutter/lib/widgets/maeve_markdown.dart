@@ -4,6 +4,8 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../bridge/maeve_bridge.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
+import '../ui/common/haptics.dart';
+import 'glass_surface.dart';
 
 /// Answer typography shared by the conversation and recorded model replies.
 class MaeveMarkdown extends StatelessWidget {
@@ -49,10 +51,12 @@ class MaeveMarkdown extends StatelessWidget {
         onTapLink: (_, href, _) => _open(context, href),
         imageBuilder: (uri, title, alt) => Align(
           alignment: Alignment.centerLeft,
-          child: TextButton.icon(
+          child: MaeveGlassTextButton(
+            label: alt?.isNotEmpty == true ? alt! : '查看图片',
+            icon: Icons.image_outlined,
+            compact: true,
+            haptic: MaeveHaptic.tick,
             onPressed: () => _open(context, uri.toString()),
-            icon: const Icon(Icons.image_outlined, size: 18),
-            label: Text(alt?.isNotEmpty == true ? alt! : '查看图片'),
           ),
         ),
         styleSheet: MarkdownStyleSheet(

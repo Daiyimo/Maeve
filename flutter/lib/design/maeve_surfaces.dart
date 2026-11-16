@@ -13,27 +13,26 @@ enum MaeveGlassTier { chrome, sheet, card, pill }
 /// 液态玻璃的**浓度**(glasswork 的 `--density` / `--m-k`: tint 的厚薄)。
 ///
 /// 同一个材质,三档厚薄:
-/// - [clear] 清透:填充更少、模糊更弱、边光更柔 —— 只剩"模糊 + 边 + 影"的净玻璃;
+/// - [clear] 清透:填充更少、模糊更弱、边光更柔;浅色下掺 5% 墨色,读作
+///   "极淡烟色的薄玻璃"——奶白画布上白对白,纯降透明度肉眼不可辨;
 /// - [balanced] 均衡:默认,设计契约的基准数值;
-/// - [dense] 浓郁:填充更厚、模糊更强、边光更亮 —— 更接近一块有色的厚玻璃。
+/// - [dense] 浓郁:填充更厚、模糊更强、边光更亮,浅色下掺 12% 墨色——
+///   一块有色的厚玻璃。
 ///
 /// 文字对比度不随浓度掉:每一档的填充都仍然半透明,墨色叠上去依旧过 4.5
 /// (见 `test/theme/palette_contrast_test.dart`)。
 enum MaeveGlassDensity {
-  clear('clear', '清透', 0.0),
-  balanced('balanced', '均衡', 0.5),
-  dense('dense', '浓郁', 1.0);
+  clear('clear', '清透'),
+  balanced('balanced', '均衡'),
+  dense('dense', '浓郁');
 
-  const MaeveGlassDensity(this.id, this.label, this.value);
+  const MaeveGlassDensity(this.id, this.label);
 
   /// 持久化与桥接用的 id(原生 prefs 同值)。
   final String id;
 
   /// 设置页里的中文档位名。
   final String label;
-
-  /// 浓度原值(0 薄 → 1 厚)。
-  final double value;
 
   static MaeveGlassDensity byId(String? id) => values.firstWhere(
     (d) => d.id == id,
@@ -181,6 +180,61 @@ class MaeveGlassStyle {
     bevelBase: bevelBase ?? this.bevelBase,
     band: band ?? this.band,
   );
+
+  /// 值相等:painter 的 shouldRepaint 靠它判断要不要重绘。主题每次重建都出
+  /// 新实例,没有值相等就退化成"每次必重绘"(Compose 侧 GlassStyle 是 data class)。
+  @override
+  bool operator ==(Object other) =>
+      other is MaeveGlassStyle &&
+      other.fill == fill &&
+      other.fallbackFill == fallbackFill &&
+      other.hairline == hairline &&
+      other.hairlineWidth == hairlineWidth &&
+      other.rim == rim &&
+      other.rimFraction == rimFraction &&
+      other.sheen == sheen &&
+      other.sheenStop == sheenStop &&
+      other.blurSigma == blurSigma &&
+      other.saturation == saturation &&
+      other.brightness == brightness &&
+      other.contrast == contrast &&
+      other.catchLight == catchLight &&
+      other.bevelTop == bevelTop &&
+      other.bevelSide == bevelSide &&
+      other.bevelBase == bevelBase &&
+      other.band == band &&
+      _sameShadows(other.shadows, shadows);
+
+  static bool _sameShadows(List<BoxShadow> a, List<BoxShadow> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    fill,
+    fallbackFill,
+    hairline,
+    hairlineWidth,
+    rim,
+    rimFraction,
+    sheen,
+    sheenStop,
+    blurSigma,
+    saturation,
+    brightness,
+    contrast,
+    catchLight,
+    bevelTop,
+    bevelSide,
+    bevelBase,
+    band,
+    Object.hashAll(shadows),
+  );
 }
 
 /// 四档表面。
@@ -239,14 +293,25 @@ MaeveSurfaces buildSurfaces(
 
   /// 填充按浓度调厚薄(仍然半透明 —— 不透明就永远成不了玻璃)。
   ///
-  /// **浓郁不是"更白的白"**:浅色画布本身就是奶白,白玻璃再浓也只是一片更白的白,
-  /// 三档因此看不出区别(真机量过:像素只差 8/765)。glasswork 的厚玻璃是**烟色**
-  /// 的(深色材质 #1e1e22),所以浓郁档掺一点墨色 —— 读作"更厚的一块有色玻璃",
-  /// 而不是"更亮的一片白"。深色画布上玻璃本就是中间调,直接提高不透明度就够。
+  /// **浅色下浓淡都不是"更白的白"**:画布本身就是奶白,纯缩放透明度肉眼不可辨
+  /// (真机量过:清透↔均衡只差 0~6/765)。glasswork 的厚玻璃是**烟色**的
+  /// (深色材质 #1e1e22),所以浅色下浓郁掺 12% 墨色、清透掺 5% 墨色——
+  /// 三档读作"薄烟 → 白洗 → 厚烟",厚薄单调可辨。深色画布上玻璃本就是中间调,
+  /// 直接缩放不透明度即可,不掺墨。
   Color fill(Color base) {
     final scaled = base.withValues(alpha: (base.a * tintK).clamp(0, .92));
-    if (density != MaeveGlassDensity.dense || dark) return scaled;
-    return Color.alphaBlend(colors.ink.withValues(alpha: .12), scaled);
+    if (dark) return scaled;
+    return switch (density) {
+      MaeveGlassDensity.clear => Color.alphaBlend(
+        colors.ink.withValues(alpha: .05),
+        scaled,
+      ),
+      MaeveGlassDensity.dense => Color.alphaBlend(
+        colors.ink.withValues(alpha: .12),
+        scaled,
+      ),
+      MaeveGlassDensity.balanced => scaled,
+    };
   }
 
   /// 边光 / 斜带按浓度调亮度。

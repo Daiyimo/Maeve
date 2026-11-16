@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import '../../app/maeve_controller.dart';
 import '../../bridge/maeve_settings_bridge.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
+import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 import 'amoo_wechat_page.dart';
 
@@ -95,10 +97,13 @@ class _AmooPageState extends State<AmooPage> with WidgetsBindingObserver {
       title: 'Amoo',
       subtitle: '把手机操作交给 Maeve',
       actions: [
-        IconButton(
+        MaeveGlassButton(
+          icon: Icons.refresh_rounded,
           tooltip: '刷新 Amoo 状态',
+          compact: true,
+          enabled: !_loading,
+          haptic: MaeveHaptic.tick,
           onPressed: _loading ? null : () => _update('snapshot'),
-          icon: const Icon(Icons.refresh_rounded, size: 20),
         ),
       ],
       children: [

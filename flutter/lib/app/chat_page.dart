@@ -859,9 +859,11 @@ class _ComposerDock extends StatelessWidget {
                           style: MaeveType.hint.copyWith(color: colors.bad),
                         ),
                       ),
-                      TextButton(
+                      MaeveGlassTextButton(
+                        label: '重试保存',
+                        compact: true,
+                        haptic: MaeveHaptic.tick,
                         onPressed: controller.retryDraftStorage,
-                        child: const Text('重试保存'),
                       ),
                     ],
                   ),
@@ -874,11 +876,14 @@ class _ComposerDock extends StatelessWidget {
                           style: MaeveType.hint.copyWith(color: colors.bad),
                         ),
                       ),
-                      TextButton(
+                      MaeveGlassTextButton(
+                        label: controller.reconnecting ? '连接中…' : '重新连接',
+                        compact: true,
+                        enabled: !controller.reconnecting,
+                        haptic: MaeveHaptic.tick,
                         onPressed: controller.reconnecting
                             ? null
                             : controller.reconnect,
-                        child: Text(controller.reconnecting ? '连接中…' : '重新连接'),
                       ),
                     ],
                   ),

@@ -10,6 +10,7 @@ import '../models/execution.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../ui/common/app_page.dart';
+import '../ui/common/haptics.dart';
 import 'glass_surface.dart';
 import 'token_usage_view.dart';
 import 'maeve_markdown.dart';
@@ -139,7 +140,11 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
     final rows = message.executionSteps;
     final recordButton = message.runId == null
         ? null
-        : TextButton.icon(
+        : MaeveGlassTextButton(
+            label: '完整执行记录',
+            icon: Icons.receipt_long_outlined,
+            compact: true,
+            haptic: MaeveHaptic.tick,
             onPressed: () => AppPage.open(
               context,
               RunDetailsPage(
@@ -148,8 +153,6 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
                 follow: message.active,
               ),
             ),
-            icon: const Icon(Icons.receipt_long_outlined, size: 15),
-            label: const Text('完整执行记录'),
           );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -238,20 +241,25 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
             controller.supportsEffectReceipts)
           Align(
             alignment: Alignment.centerLeft,
-            child: TextButton.icon(
+            child: MaeveGlassTextButton(
+              label: '核对操作结果',
+              icon: Icons.fact_check_outlined,
+              compact: true,
+              enabled: !_acting,
+              haptic: MaeveHaptic.tick,
               onPressed: _acting ? null : _reviewEffects,
-              icon: const Icon(Icons.fact_check_outlined, size: 16),
-              label: const Text('核对操作结果'),
             ),
           ),
         if (widget.isLatest && message.active) ...[
           Wrap(
             spacing: 8,
             children: [
-              TextButton.icon(
+              MaeveGlassTextButton(
+                label: controller.cancelRequested ? '正在停止…' : '停止任务',
+                icon: Icons.stop_circle_outlined,
+                enabled: !controller.cancelRequested,
+                haptic: MaeveHaptic.light,
                 onPressed: controller.cancelRequested ? null : controller.stop,
-                icon: const Icon(Icons.stop_circle_outlined, size: 16),
-                label: Text(controller.cancelRequested ? '正在停止…' : '停止任务'),
               ),
               ?recordButton,
             ],
@@ -272,28 +280,41 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
             children: [
               if (message.status == 'needs_confirmation' &&
                   message.confirmationKey != null) ...[
-                FilledButton(
+                MaeveGlassTextButton(
+                  label: '同意这一次',
+                  prominent: true,
+                  enabled: !_acting,
+                  haptic: MaeveHaptic.light,
                   onPressed: _acting ? null : () => _act('approve'),
-                  child: const Text('同意这一次'),
                 ),
-                TextButton(
+                MaeveGlassTextButton(
+                  label: '拒绝',
+                  enabled: !_acting,
+                  haptic: MaeveHaptic.tick,
                   onPressed: _acting ? null : () => _act('decline'),
-                  child: const Text('拒绝'),
                 ),
               ],
               if (message.status == 'paused' && message.resumable)
-                FilledButton(
+                MaeveGlassTextButton(
+                  label: '继续任务',
+                  prominent: true,
+                  enabled: !_acting,
+                  haptic: MaeveHaptic.light,
                   onPressed: _acting ? null : () => _act('resume'),
-                  child: const Text('继续任务'),
                 ),
               if (message.status == 'needs_takeover') ...[
-                FilledButton(
+                MaeveGlassTextButton(
+                  label: '接管操作',
+                  prominent: true,
+                  enabled: !_acting,
+                  haptic: MaeveHaptic.light,
                   onPressed: _acting ? null : () => _act('takeOver'),
-                  child: const Text('接管操作'),
                 ),
-                TextButton(
+                MaeveGlassTextButton(
+                  label: '交回 Maeve',
+                  enabled: !_acting,
+                  haptic: MaeveHaptic.tick,
                   onPressed: _acting ? null : () => _act('handBack'),
-                  child: const Text('交回 Maeve'),
                 ),
               ],
             ],
@@ -382,9 +403,12 @@ class _LiveExecutionFeedState extends State<LiveExecutionFeed> {
                     style: MaeveType.caption.copyWith(color: c.ink2),
                   ),
                 ),
-                TextButton(
+                MaeveGlassTextButton(
+                  label: _following ? '正在跟随最新' : '回到最新',
+                  compact: true,
+                  enabled: !_following,
+                  haptic: MaeveHaptic.tick,
                   onPressed: _following ? null : () => _scroll.jumpTo(0),
-                  child: Text(_following ? '正在跟随最新' : '回到最新'),
                 ),
               ],
             ),
@@ -773,10 +797,12 @@ class _RunDetailsPageState extends State<RunDetailsPage> {
       title: '执行记录',
       subtitle: record?.running == true ? '任务进行中，记录持续更新' : '来自本机实际运行记录',
       actions: [
-        IconButton(
+        MaeveGlassButton(
+          icon: Icons.refresh_rounded,
           tooltip: '刷新执行记录',
+          compact: true,
+          haptic: MaeveHaptic.tick,
           onPressed: _load,
-          icon: const Icon(Icons.refresh_rounded),
         ),
       ],
       children: [

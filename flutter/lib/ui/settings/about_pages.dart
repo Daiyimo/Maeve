@@ -9,6 +9,7 @@ import '../../design/maeve_type.dart';
 import '../../widgets/maeve_mark.dart';
 import '../../widgets/glass_surface.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
 
 /// 打开宿主 status 中 links[key] 指向的页面;未接桥、链接缺失或无法直接打开时,
 /// 给出可复制链接的备用入口。关于页与设置-关于的「获取更新」共用。
@@ -127,10 +128,11 @@ class _AboutPageState extends State<AboutPage> {
           style: MaeveType.caption.copyWith(color: colors.ink2),
         ),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
+        MaeveGlassTextButton(
+          label: '问题反馈',
+          icon: Icons.feedback_outlined,
+          haptic: MaeveHaptic.tick,
           onPressed: () => openHostLink(context, 'feedback', label: '反馈'),
-          icon: const Icon(Icons.feedback_outlined),
-          label: const Text('问题反馈'),
         ),
         const SizedBox(height: 12),
         MaeveGlassSurface(

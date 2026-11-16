@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import 'app_sheet.dart';
+import 'haptics.dart';
+import '../../widgets/glass_surface.dart';
 
 /// 所有表单选择使用同一张可搜索的选择面板，长名称无需挤进浮动菜单。
 class MaeveSelectField<T> extends StatelessWidget {
@@ -151,10 +153,12 @@ class _SelectionPanelState<T> extends State<_SelectionPanel<T>> {
               SheetTitleBar(
                 title: widget.title,
                 actions: [
-                  IconButton(
+                  MaeveGlassButton(
+                    icon: Icons.close_rounded,
                     tooltip: '关闭选择',
+                    compact: true,
+                    haptic: MaeveHaptic.tick,
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded),
                   ),
                 ],
               ),

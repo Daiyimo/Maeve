@@ -6,6 +6,7 @@ import '../../widgets/token_usage_view.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import '../../widgets/glass_surface.dart';
+import '../common/haptics.dart';
 
 class ModelUsagePanel extends StatefulWidget {
   const ModelUsagePanel({super.key});
@@ -69,10 +70,13 @@ class _ModelUsagePanelState extends State<ModelUsagePanel>
                   style: MaeveType.bodyStrong.copyWith(color: c.ink),
                 ),
               ),
-              IconButton(
+              MaeveGlassButton(
+                icon: Icons.refresh_rounded,
                 tooltip: '刷新 Token 用量',
+                compact: true,
+                enabled: !_loading,
+                haptic: MaeveHaptic.tick,
                 onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh_rounded, size: 20),
               ),
             ],
           ),

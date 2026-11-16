@@ -4,6 +4,8 @@ import '../../bridge/maeve_chat_bridge.dart';
 import '../../app/maeve_controller.dart';
 import '../../widgets/execution_view.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
+import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 
 class RunHistoryPage extends StatefulWidget {
@@ -55,10 +57,12 @@ class _RunHistoryPageState extends State<RunHistoryPage> {
     title: '执行记录',
     subtitle: '最近保存在本机的真实任务',
     actions: [
-      IconButton(
+      MaeveGlassButton(
+        icon: Icons.refresh_rounded,
         tooltip: '刷新执行记录列表',
+        compact: true,
+        haptic: MaeveHaptic.tick,
         onPressed: _load,
-        icon: const Icon(Icons.refresh_rounded),
       ),
     ],
     children: [

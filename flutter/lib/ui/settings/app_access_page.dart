@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../common/app_page.dart';
+import '../common/haptics.dart';
+import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 
 class AppAccessPage extends StatefulWidget {
@@ -111,9 +113,12 @@ class _AppAccessPageState extends State<AppAccessPage> {
                   ),
                   onChanged: (value) => setState(() => _query = value),
                 ),
-                TextButton(
+                MaeveGlassTextButton(
+                  label: '重新读取',
+                  compact: true,
+                  enabled: !_busy,
+                  haptic: MaeveHaptic.tick,
                   onPressed: _busy ? null : () => _load(action: 'reload'),
-                  child: const Text('重新读取'),
                 ),
               ],
             );

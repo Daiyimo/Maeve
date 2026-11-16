@@ -65,14 +65,27 @@ enum class GlassTier { Chrome, Sheet, Card, Pill }
  *
  * 与 Flutter 侧 `MaeveGlassDensity` 同 id 同语义:清透更轻、浓郁更实。
  */
-enum class GlassDensity(val id: String, val label: String, val value: Float) {
-    Clear("clear", "清透", 0f),
-    Balanced("balanced", "均衡", 0.5f),
-    Dense("dense", "浓郁", 1f);
+enum class GlassDensity(val id: String, val label: String) {
+    Clear("clear", "清透"),
+    Balanced("balanced", "均衡"),
+    Dense("dense", "浓郁");
 
     companion object {
         fun byId(id: String?): GlassDensity = entries.firstOrNull { it.id == id } ?: Balanced
     }
+}
+
+/**
+ * 读「液态玻璃」档位,顺带迁移旧设置:曾经开过「减少透明效果」的用户落到
+ * 清透档(最接近旧的少透明偏好),旧键就此清除。与 Flutter 侧 MaeveGlassDensity.id 同值。
+ */
+fun resolveGlassStyle(prefs: android.content.SharedPreferences): String {
+    val current = prefs.getString("glassStyle", null)
+    val hasLegacy = prefs.contains("reduceTransparency")
+    if (current != null && !hasLegacy) return current
+    val resolved = current ?: if (prefs.getBoolean("reduceTransparency", false)) "clear" else "balanced"
+    prefs.edit().putString("glassStyle", resolved).remove("reduceTransparency").commit()
+    return resolved
 }
 
 /** 一种表面材质的全部参数。 */
@@ -164,15 +177,19 @@ fun buildSurfaces(
     /**
      * 填充按浓度调厚薄(仍然半透明 —— 不透明就永远成不了玻璃)。
      *
-     * **浓郁不是"更白的白"**:浅色画布本身就是奶白,白玻璃再浓也只是一片更白的白,
-     * 三档因此看不出区别(真机量过:像素只差 8/765)。glasswork 的厚玻璃是**烟色**
-     * 的,所以浓郁档掺一点墨色 —— 读作"更厚的一块有色玻璃"。深色画布上玻璃本就是
-     * 中间调,直接提高不透明度就够。
+     * **浅色下浓淡都不是"更白的白"**:画布本身就是奶白,纯缩放透明度肉眼不可辨
+     * (真机量过:清透↔均衡只差 0~6/765)。glasswork 的厚玻璃是**烟色**的,所以
+     * 浅色下浓郁掺 12% 墨色、清透掺 5% 墨色 —— 三档读作"薄烟 → 白洗 → 厚烟"。
+     * 深色画布上玻璃本就是中间调,直接缩放不透明度即可,不掺墨。与 Flutter 同数值。
      */
     fun fill(base: Color): Color {
         val scaled = base.copy(alpha = (base.alpha * tintK).coerceIn(0f, 0.92f))
-        if (density != GlassDensity.Dense || c.isDark) return scaled
-        return c.ink.copy(alpha = 0.12f).compositeOver(scaled)
+        if (c.isDark) return scaled
+        return when (density) {
+            GlassDensity.Clear -> c.ink.copy(alpha = 0.05f).compositeOver(scaled)
+            GlassDensity.Dense -> c.ink.copy(alpha = 0.12f).compositeOver(scaled)
+            GlassDensity.Balanced -> scaled
+        }
     }
 
     /** 边光 / 斜带按浓度调亮度。 */
@@ -196,12 +213,12 @@ fun buildSurfaces(
             fill = fill(c.glass),
             fallbackFill = c.surface.copy(alpha = 0.97f),
             hairline = c.glassEdge,
-            rim = light(c.glassRim, c.glassRim.alpha),
+            rim = light(c.glassRim, c.glassRim.alpha * (if (c.isDark) 0.65f else 1f)),
             blurSigma = if (canBlur) 24f * blurK else 0f,
             saturation = 1.40f * satK,
             outerShadow = c.floatShadow.copy(alpha = 0.13f),
             elevation = 14.dp,
-            rimFraction = 0.42f,
+            rimFraction = 0.46f,
             brightness = brightness,
             catchLight = catchLight,
             bevelTop = bevelTop,
@@ -219,7 +236,7 @@ fun buildSurfaces(
             saturation = 1.55f * satK,
             outerShadow = c.floatShadow.copy(alpha = 0.19f),
             elevation = 22.dp,
-            rimFraction = 0.16f,
+            rimFraction = 0.18f,
             brightness = brightness,
             catchLight = catchLight,
             bevelTop = bevelTop,
@@ -240,7 +257,7 @@ fun buildSurfaces(
             // 平放的卡也要一道投影:玻璃浮在背景上,哪怕只浮 2dp
             outerShadow = c.floatShadow.copy(alpha = 0.10f),
             elevation = 4.dp,
-            rimFraction = 0.34f,
+            rimFraction = 0.40f,
             brightness = brightness,
             catchLight = catchLight,
             bevelTop = bevelTop,

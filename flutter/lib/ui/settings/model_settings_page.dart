@@ -4,6 +4,7 @@ import '../../app/maeve_controller.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
 import '../common/status.dart';
 import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
@@ -32,9 +33,10 @@ class ModelSettingsPage extends StatelessWidget {
               'corrupt',
               'unavailable',
             ].contains(controller.native.providerState))
-          OutlinedButton.icon(
-            icon: const Icon(Icons.restore),
-            label: const Text('恢复最近完整模型配置'),
+          MaeveGlassTextButton(
+            icon: Icons.restore,
+            label: '恢复最近完整模型配置',
+            haptic: MaeveHaptic.tick,
             onPressed: () async {
               final confirmed = await showDialog<bool>(
                 context: context,
@@ -93,15 +95,19 @@ class ModelSettingsPage extends StatelessWidget {
                     children: [
                       if (controller.native.currentModelId == model.id)
                         Icon(Icons.check_rounded, color: c.accent, size: 20),
-                      IconButton(
+                      MaeveGlassButton(
+                        icon: Icons.tune_rounded,
                         tooltip: '编辑模型 ${model.model}',
-                        icon: const Icon(Icons.tune_rounded, size: 20),
+                        compact: true,
+                        haptic: MaeveHaptic.tick,
                         onPressed: () =>
                             AppPage.open(context, AddModelPage(config: model)),
                       ),
-                      IconButton(
+                      MaeveGlassButton(
+                        icon: Icons.delete_outline,
                         tooltip: '删除模型 ${model.model}',
-                        icon: const Icon(Icons.delete_outline, size: 20),
+                        compact: true,
+                        haptic: MaeveHaptic.tick,
                         onPressed: () async {
                           final action = await showDialog<String>(
                             context: context,
@@ -160,10 +166,12 @@ class ModelSettingsPage extends StatelessWidget {
             ],
           ),
         const SizedBox(height: 24),
-        FilledButton.icon(
+        MaeveGlassTextButton(
+          label: '添加模型接入',
+          icon: Icons.add_rounded,
+          prominent: true,
+          haptic: MaeveHaptic.light,
           onPressed: () => AppPage.open(context, const AddModelPage()),
-          icon: const Icon(Icons.add_rounded, size: 18),
-          label: const Text('添加模型接入'),
         ),
         const SizedBox(height: 14),
         Text(

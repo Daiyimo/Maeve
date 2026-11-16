@@ -6,7 +6,9 @@ import '../../bridge/maeve_settings_bridge.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
 import '../common/selection_field.dart';
+import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 
 class AddModelPage extends StatefulWidget {
@@ -306,10 +308,13 @@ class _AddModelPageState extends State<AddModelPage> {
               if (!_custom)
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
+                  child: MaeveGlassTextButton(
+                    label: '自定义接入',
+                    icon: Icons.edit_rounded,
+                    compact: true,
+                    enabled: !_saving,
+                    haptic: MaeveHaptic.tick,
                     onPressed: _saving ? null : () => _selectPreset('自定义'),
-                    icon: const Icon(Icons.edit_rounded, size: 18),
-                    label: const Text('自定义接入'),
                   ),
                 ),
               if (_custom) ...[
@@ -440,13 +445,15 @@ class _AddModelPageState extends State<AddModelPage> {
                     : '请填写 API Key',
               ),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
+              MaeveGlassTextButton(
                 key: const ValueKey('fetch-models'),
+                label: _fetching ? '正在获取…' : '获取模型',
+                icon: Icons.sync_rounded,
+                enabled: !_saving && !_fetching && _canFetch,
+                haptic: MaeveHaptic.tick,
                 onPressed: !_saving && !_fetching && _canFetch
                     ? _fetchModels
                     : null,
-                icon: const Icon(Icons.sync_rounded, size: 18),
-                label: Text(_fetching ? '正在获取…' : '获取模型'),
               ),
               if (_catalogNote != null)
                 Padding(
@@ -556,9 +563,12 @@ class _AddModelPageState extends State<AddModelPage> {
                 Text(_error!, style: MaeveType.caption.copyWith(color: c.bad)),
                 const SizedBox(height: 16),
               ],
-              FilledButton(
+              MaeveGlassTextButton(
+                label: _saving ? '正在保存…' : '保存并使用',
+                prominent: true,
+                enabled: !_saving,
+                haptic: MaeveHaptic.light,
                 onPressed: _saving ? null : _save,
-                child: Text(_saving ? '正在保存…' : '保存并使用'),
               ),
               const SizedBox(height: 16),
               Text(

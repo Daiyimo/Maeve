@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import '../design/maeve_surfaces.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../ui/common/haptics.dart';
+import '../ui/common/pressable.dart';
 
 export '../design/maeve_surfaces.dart'
     show MaeveGlassDensity, MaeveGlassStyle, MaeveGlassTier, MaeveSurfaces;
@@ -536,8 +536,6 @@ class _GlassBevelPainter extends CustomPainter {
 }
 
 /// 只在形状外部画的投影。
-
-/// 只在形状外部画的投影。
 class _GlassShadowPainter extends CustomPainter {
   _GlassShadowPainter({
     required this.shape,
@@ -597,11 +595,13 @@ class _GlassShadowPainter extends CustomPainter {
   }
 }
 
-/// 玻璃圆钮:顶栏动作键、输入条的两颗圆键、抽屉的关闭键。
+/// 玻璃圆钮:顶栏动作键、输入条的两颗圆键、抽屉的关闭键、页面顶栏的刷新键。
 ///
 /// 圆钮浮在静态背景上,按约定不取样,只拿玻璃的填充、受光边、斜带与顶边高光;
 /// [prominent] 用实色强调色(发送键)——仍然带一道白色受光边,读作"能按的玻璃",
 /// 不是一块塑料色块。[fill] / [foreground] 可覆盖底色与图形色(停止键用实色墨)。
+/// 视觉 36/40,可点域恒 48(顶栏动作的触控契约);按压反馈走 Pressable:
+/// 内容缩 0.97 + 触点径向流光 + 一次触感。圆钮不取样,缩放不会引发重采样。
 class MaeveGlassButton extends StatelessWidget {
   const MaeveGlassButton({
     super.key,
@@ -700,28 +700,20 @@ class MaeveGlassButton extends StatelessWidget {
       );
     }
 
+    // 48 的可点域包着 36/40 的玻璃:触控契约不随视觉尺寸缩水。
     return Tooltip(
       message: tooltip,
       child: Semantics(
         button: true,
         enabled: active,
         label: tooltip,
-        child: Material(
-          type: MaterialType.transparency,
-          child: InkWell(
-            customBorder: shape,
-            splashFactory: NoSplash.splashFactory,
-            highlightColor: Colors.transparent,
-            onTap: active
-                ? () {
-                    final feedback = haptic;
-                    if (feedback != null) {
-                      unawaited(MaeveHaptics.play(feedback));
-                    }
-                    onPressed!();
-                  }
-                : null,
-            child: button,
+        child: MergeSemantics(
+          child: Pressable(
+            borderRadius: BorderRadius.circular(MaeveRadius.pill),
+            enabled: active,
+            haptic: haptic,
+            onTap: active ? onPressed : null,
+            child: SizedBox.square(dimension: 48, child: Center(child: button)),
           ),
         ),
       ),
@@ -729,11 +721,14 @@ class MaeveGlassButton extends StatelessWidget {
   }
 }
 
-/// 液态玻璃文字钮:抽屉的"新对话 / 删除选中对话"、输入条里的"模型配置"。
+/// 液态玻璃文字钮:抽屉的"新对话 / 删除选中对话"、输入条里的"模型配置"、
+/// 执行面板与设置页的动作按钮。
 ///
 /// 默认是 pill 档玻璃(不取样:按钮长在已经取样或实心的面板上,再取样就是
 /// 玻璃套玻璃);[prominent] 用强调色实底 + 白色受光边,读作主操作。
 /// 形状默认按钮档(14 连续曲率);[compact] 用胶囊(标签、chip)。
+/// [selected] 给 chip 用:勾选标记 + 语义选中态——色彩不是状态唯一线索。
+/// 按压反馈与圆钮同一套:Pressable 内容缩放 + 触点径向流光 + 一次触感。
 class MaeveGlassTextButton extends StatelessWidget {
   const MaeveGlassTextButton({
     super.key,
@@ -743,9 +738,11 @@ class MaeveGlassTextButton extends StatelessWidget {
     this.prominent = false,
     this.compact = false,
     this.enabled = true,
+    this.selected = false,
     this.shape,
     this.semanticLabel,
     this.fill,
+    this.foreground,
     this.tooltip,
     this.haptic,
   });
@@ -756,9 +753,16 @@ class MaeveGlassTextButton extends StatelessWidget {
   final bool prominent;
   final bool compact;
   final bool enabled;
+
+  /// chip 的选中态:勾选标记 + Semantics.selected(色彩不是唯一线索)。
+  final bool selected;
+
   final ShapeBorder? shape;
   final String? semanticLabel;
   final Color? fill;
+
+  /// 覆盖文字/图形色(自定义深底时用)。
+  final Color? foreground;
 
   /// 悬浮提示(输入条里的"模型配置"用)。
   final String? tooltip;
@@ -776,11 +780,20 @@ class MaeveGlassTextButton extends StatelessWidget {
     final solid = prominent || fill != null;
     final edge = solid ? MaeveGlassButton._solidEdge(pill) : pill;
     final buttonFill = fill ?? (prominent ? colors.accent : pill.fill);
-    final foreground = prominent
-        ? colors.onAccent
-        : (active ? colors.ink : colors.ink3);
+    final foreground =
+        this.foreground ??
+        (prominent ? colors.onAccent : (active ? colors.ink : colors.ink3));
+    // 触控高度:主操作对齐 FilledButton(52),普通动作对齐 TextButton(44),
+    // chip/行内小钮 40(与 ChoiceChip 同族,不小于旧 chip 的触控)。
+    final minHeight = compact
+        ? 40.0
+        : (prominent ? MaeveSize.button : MaeveSize.touch);
+    final rippleRadius = compact || resolved is StadiumBorder
+        ? MaeveRadius.pill
+        : MaeveRadius.md;
 
     final textDirection = Directionality.maybeOf(context);
+    final leading = selected ? Icons.check_rounded : icon;
     Widget button = CustomPaint(
       painter: _GlassBevelPainter(
         style: edge,
@@ -795,29 +808,32 @@ class MaeveGlassTextButton extends StatelessWidget {
               ? const Color(0xFFFFFFFF).withValues(alpha: .12)
               : pill.sheen,
           stop: .5,
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: compact ? MaeveSpace.s12 : MaeveSpace.s16,
-              vertical: compact ? MaeveSpace.s6 : MaeveSpace.s10,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: compact ? 15 : 17, color: foreground),
-                  const SizedBox(width: MaeveSpace.s6),
-                ],
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: MaeveType.bodyStrong.copyWith(
-                    fontSize: compact ? 12.5 : 14.5,
-                    color: foreground,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: minHeight),
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? MaeveSpace.s12 : MaeveSpace.s16,
+                vertical: compact ? MaeveSpace.s6 : MaeveSpace.s10,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  if (leading != null) ...[
+                    Icon(leading, size: compact ? 15 : 17, color: foreground),
+                    const SizedBox(width: MaeveSpace.s6),
+                  ],
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MaeveType.bodyStrong.copyWith(
+                      fontSize: compact ? 12.5 : 14.5,
+                      color: foreground,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -835,22 +851,14 @@ class MaeveGlassTextButton extends StatelessWidget {
     Widget result = Semantics(
       button: true,
       enabled: active,
+      selected: selected,
       label: semanticLabel ?? label,
-      child: Material(
-        type: MaterialType.transparency,
-        child: InkWell(
-          customBorder: resolved,
-          splashFactory: NoSplash.splashFactory,
-          highlightColor: Colors.transparent,
-          onTap: active
-              ? () {
-                  final feedback = haptic;
-                  if (feedback != null) {
-                    unawaited(MaeveHaptics.play(feedback));
-                  }
-                  onPressed!();
-                }
-              : null,
+      child: MergeSemantics(
+        child: Pressable(
+          borderRadius: BorderRadius.circular(rippleRadius),
+          enabled: active,
+          haptic: haptic,
+          onTap: active ? onPressed : null,
           child: button,
         ),
       ),
@@ -869,6 +877,12 @@ class MaeveGlassTextButton extends StatelessWidget {
 /// 表面是 sheet 档玻璃(弹层停稳后才开始取样,所以升起途中不闪),
 /// 形状是 [MaeveShapes.dialog]。actions 里的按钮沿用主题的
 /// TextButton / FilledButton —— 按钮归按钮,玻璃归玻璃。
+///
+/// 外层 [Dialog] 的参数全部显式给出:Flutter 3.47 的 showDialog 会把
+/// DialogTheme 改成"铺满窗口、左上对齐、零 inset"(_FullWindowDialogWrapper),
+/// 不显式压过去,玻璃就会铺满整屏、内容贴顶,遮罩点按关闭也失效。
+/// 背景必须透明:玻璃自己画填充,Dialog 的 Material 卡若垫一层不透明色,
+/// 采样采到的就是实色底,透不出背后的画面。
 class MaeveGlassDialog extends StatelessWidget {
   const MaeveGlassDialog({
     super.key,
@@ -889,52 +903,66 @@ class MaeveGlassDialog extends StatelessWidget {
     final settled = animation == null
         ? 1.0
         : Curves.easeOut.transform(((animation.value - .55) / .45).clamp(0, 1));
-    return Material(
-      type: MaterialType.transparency,
-      child: MaeveGlassSurface(
-        tier: MaeveGlassTier.sheet,
-        shape: MaeveShapes.dialog,
-        settled: settled,
-        padding: const EdgeInsets.fromLTRB(
-          MaeveSpace.s24,
-          MaeveSpace.s20,
-          MaeveSpace.s24,
-          MaeveSpace.s12,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (title != null)
-              DefaultTextStyle(
-                style: text.titleLarge ?? const TextStyle(),
-                child: title!,
-              ),
-            if (content != null) ...[
-              const SizedBox(height: MaeveSpace.s12),
-              // Flexible:长内容先缩,不撑破屏幕(与 AlertDialog 同一约定)。
-              Flexible(
-                child: DefaultTextStyle(
-                  style: text.bodyMedium ?? const TextStyle(),
-                  // 内容里可能有 ListTile / 选择框:给它自己的 Material,
-                  // 免得墨水画在玻璃底上被盖掉(Flutter 的 DecoratedBox 断言)。
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: content!,
+    return Semantics(
+      namesRoute: true,
+      label: MaterialLocalizations.of(context).dialogLabel,
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
+        alignment: Alignment.center,
+        constraints: const BoxConstraints(minWidth: 280, maxWidth: 560),
+        shape: const RoundedRectangleBorder(),
+        clipBehavior: Clip.none,
+        child: Material(
+          type: MaterialType.transparency,
+          child: MaeveGlassSurface(
+            tier: MaeveGlassTier.sheet,
+            shape: MaeveShapes.dialog,
+            settled: settled,
+            padding: const EdgeInsets.fromLTRB(
+              MaeveSpace.s24,
+              MaeveSpace.s20,
+              MaeveSpace.s24,
+              MaeveSpace.s12,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (title != null)
+                  DefaultTextStyle(
+                    style: text.titleLarge ?? const TextStyle(),
+                    child: title!,
                   ),
-                ),
-              ),
-            ],
-            if (actions.isNotEmpty) ...[
-              const SizedBox(height: MaeveSpace.s16),
-              OverflowBar(
-                alignment: MainAxisAlignment.end,
-                spacing: MaeveSpace.s8,
-                overflowAlignment: OverflowBarAlignment.end,
-                children: actions,
-              ),
-            ],
-          ],
+                if (content != null) ...[
+                  const SizedBox(height: MaeveSpace.s12),
+                  // Flexible:长内容先缩,不撑破屏幕(与 AlertDialog 同一约定)。
+                  Flexible(
+                    child: DefaultTextStyle(
+                      style: text.bodyMedium ?? const TextStyle(),
+                      // 内容里可能有 ListTile / 选择框:给它自己的 Material,
+                      // 免得墨水画在玻璃底上被盖掉(Flutter 的 DecoratedBox 断言)。
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: content!,
+                      ),
+                    ),
+                  ),
+                ],
+                if (actions.isNotEmpty) ...[
+                  const SizedBox(height: MaeveSpace.s16),
+                  OverflowBar(
+                    alignment: MainAxisAlignment.end,
+                    spacing: MaeveSpace.s8,
+                    overflowAlignment: OverflowBarAlignment.end,
+                    children: actions,
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../app/maeve_controller.dart';
-import '../../design/maeve_surfaces.dart';
+import '../../widgets/glass_surface.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
 import 'settings_components.dart';
 import 'appearance_page.dart';
 import 'model_settings_page.dart';
@@ -32,9 +33,11 @@ class SettingsHubPage extends StatelessWidget {
             text: controller.settingsError!,
             icon: Icons.info_outline,
           ),
-          TextButton(
+          MaeveGlassTextButton(
+            label: '重新读取设备设置',
+            compact: true,
+            haptic: MaeveHaptic.tick,
             onPressed: controller.refreshSettings,
-            child: const Text('重新读取设备设置'),
           ),
         ],
         SettingsSection(
@@ -102,8 +105,9 @@ class SettingsHubPage extends StatelessWidget {
               icon: Icons.water_drop_outlined,
               title: '液态玻璃',
               subtitle: '选择玻璃的浓度：清透更轻，浓郁更实',
-              options: const ['清透', '均衡', '浓郁'],
-              value: controller.glassDensity.index,
+              // 选项与档位同源:枚举顺序改了也不会静默错位。
+              options: [for (final d in MaeveGlassDensity.values) d.label],
+              value: MaeveGlassDensity.values.indexOf(controller.glassDensity),
               onChanged: (index) =>
                   controller.setGlassDensity(MaeveGlassDensity.values[index]),
             ),

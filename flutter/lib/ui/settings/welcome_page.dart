@@ -6,6 +6,7 @@ import '../../design/maeve_type.dart';
 import '../../widgets/maeve_mark.dart';
 import '../../widgets/glass_surface.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
 import 'model_settings_page.dart';
 import 'system_access_page.dart';
 
@@ -41,18 +42,20 @@ class _WelcomePageState extends State<WelcomePage> {
                 style: MaeveType.body.copyWith(color: c.ink2, height: 1.7),
               ),
               const SizedBox(height: 24),
-              OutlinedButton.icon(
+              MaeveGlassTextButton(
+                label: '配置模型',
+                icon: Icons.auto_awesome_outlined,
+                haptic: MaeveHaptic.tick,
                 onPressed: () =>
                     AppPage.open(context, const ModelSettingsPage()),
-                icon: const Icon(Icons.auto_awesome_outlined),
-                label: const Text('配置模型'),
               ),
               const SizedBox(height: 10),
-              OutlinedButton.icon(
+              MaeveGlassTextButton(
+                label: '连接手机助手',
+                icon: Icons.phone_android_rounded,
+                haptic: MaeveHaptic.tick,
                 onPressed: () =>
                     AppPage.open(context, const SystemAccessPage()),
-                icon: const Icon(Icons.phone_android_rounded),
-                label: const Text('连接手机助手'),
               ),
             ],
           ),
@@ -68,7 +71,11 @@ class _WelcomePageState extends State<WelcomePage> {
         if (_error != null)
           Text(_error!, style: MaeveType.caption.copyWith(color: c.bad)),
         if (widget.firstRun)
-          FilledButton(
+          MaeveGlassTextButton(
+            label: _saving ? '正在准备…' : '开始使用',
+            prominent: true,
+            enabled: !_saving,
+            haptic: MaeveHaptic.light,
             onPressed: _saving
                 ? null
                 : () async {
@@ -84,7 +91,6 @@ class _WelcomePageState extends State<WelcomePage> {
                       if (mounted) setState(() => _saving = false);
                     }
                   },
-            child: Text(_saving ? '正在准备…' : '开始使用'),
           ),
         const SizedBox(height: 24),
       ],

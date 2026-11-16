@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../app/maeve_controller.dart';
 import '../../bridge/maeve_settings_bridge.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
 import '../common/selection_field.dart';
 import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
@@ -127,10 +128,13 @@ class _AmooWechatPageState extends State<AmooWechatPage>
       title: '微信连接',
       subtitle: '在微信里和 Amoo 对话',
       actions: [
-        IconButton(
+        MaeveGlassButton(
+          icon: Icons.refresh_rounded,
           tooltip: '刷新微信状态',
+          compact: true,
+          enabled: !_busy,
+          haptic: MaeveHaptic.tick,
           onPressed: _busy ? null : () => _update('snapshot'),
-          icon: const Icon(Icons.refresh_rounded),
         ),
       ],
       children: [

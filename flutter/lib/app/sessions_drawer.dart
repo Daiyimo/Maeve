@@ -254,6 +254,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                       label: item.$2,
                       compact: true,
                       prominent: controller.listFilter == item.$1,
+                      selected: controller.listFilter == item.$1,
                       haptic: MaeveHaptic.tick,
                       onPressed: () => controller.setFilter(item.$1),
                     ),

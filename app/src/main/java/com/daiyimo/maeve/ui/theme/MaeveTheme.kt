@@ -80,6 +80,20 @@ fun appearanceAccent(): AccentSpec {
     return accent
 }
 
+/**
+ * 当前液态玻璃浓度(设置页「外观与手感 → 液态玻璃」)。平台组件(悬浮胶囊、
+ * 文件预览)与 Flutter 读同一份 prefs,档位一致。每次重组现读:胶囊有秒级
+ * 计时重组,设置切换后最迟下一秒跟上。
+ */
+@Composable
+fun appearanceGlassDensity(): GlassDensity {
+    val context = LocalContext.current
+    return GlassDensity.byId(
+        context.getSharedPreferences("flutter_appearance", android.content.Context.MODE_PRIVATE)
+            .getString("glassStyle", null)
+    )
+}
+
 /** 状态栏、导航栏的图标深浅跟界面一致。 */
 fun ComponentActivity.systemBarsFor(dark: Boolean) {
     val transparent = android.graphics.Color.TRANSPARENT
@@ -101,8 +115,8 @@ fun MaeveTheme(
     accent: AccentSpec = appearanceAccent(),
     reduceMotion: Boolean = false,
     blurEnabled: Boolean = true,
-    /** 液态玻璃浓度(设置页「液态玻璃」档位;默认均衡 = 原数值)。 */
-    glassDensity: GlassDensity = GlassDensity.Balanced,
+    /** 液态玻璃浓度:默认读设置(与 Flutter 同一份 prefs),平台组件自动跟上。 */
+    glassDensity: GlassDensity = appearanceGlassDensity(),
     content: @Composable () -> Unit,
 ) {
     val colors = remember(dark, accent) { if (dark) MaevePalette.dark(accent) else MaevePalette.light(accent) }

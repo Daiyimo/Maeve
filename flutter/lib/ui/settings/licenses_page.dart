@@ -6,7 +6,9 @@ import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
 import '../../design/maeve_motifs.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
 import '../common/status.dart';
+import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 
 /// Read the same packaged notices used by Android; no parallel disclosure list.
@@ -61,11 +63,14 @@ class _LicensesPageState extends State<LicensesPage> {
               icon: Icons.description_outlined,
               title: '许可说明暂时未能读取',
               body: '说明随安装包保存在本机，请重试。',
-              action: FilledButton(
+              action: MaeveGlassTextButton(
+                label: '重试',
+                compact: true,
+                prominent: true,
+                haptic: MaeveHaptic.light,
                 onPressed: () => setState(() {
                   _data = _load();
                 }),
-                child: const Text('重试'),
               ),
             )
           else if (data == null)

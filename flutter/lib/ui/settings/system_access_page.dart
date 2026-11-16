@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../app/maeve_controller.dart';
 import '../common/app_page.dart';
+import '../common/haptics.dart';
+import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 import 'execution_settings_page.dart';
 import 'capsule_toggle.dart';
@@ -53,10 +55,12 @@ class _SystemAccessPageState extends State<SystemAccessPage>
       title: '系统授权',
       subtitle: '权限由 Android 管理，状态以设备为准',
       actions: [
-        IconButton(
+        MaeveGlassButton(
+          icon: Icons.refresh_rounded,
           tooltip: '刷新设备状态',
+          compact: true,
+          haptic: MaeveHaptic.tick,
           onPressed: controller.refreshSettings,
-          icon: const Icon(Icons.refresh_rounded, size: 20),
         ),
       ],
       children: [
