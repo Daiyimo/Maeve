@@ -250,6 +250,13 @@ class RunTimelineViewModel(
         private val NOT_OK = Regex(""""ok"\s*:\s*false""")
         private val ERROR = Regex(""""error"\s*:\s*"([a-z_]+)"""")
 
+        /** 一次调用失败时的说明;没失败为 null。回放和时间线共用同一套错误说法。 */
+        internal fun failureLabel(json: String): String? {
+            if (!NOT_OK.containsMatchIn(json)) return null
+            return ERROR.find(json)?.groupValues?.get(1)?.let { ERROR_LABELS[it] }?.let { tr(R.string.result_error_detail, it) }
+                ?: tr(R.string.result_error)
+        }
+
         private fun resultLabel(json: String, changed: Boolean?): String = when {
             NOT_OK.containsMatchIn(json) -> ERROR.find(json)?.groupValues?.get(1)?.let { ERROR_LABELS[it] }?.let { tr(R.string.result_error_detail, it) } ?: tr(R.string.result_error)
             changed == true -> tr(R.string.result_effective)

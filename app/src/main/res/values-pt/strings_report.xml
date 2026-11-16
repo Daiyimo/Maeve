@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="report_title">Relatório da tarefa</string>
+    <string name="report_entry_hint">Resultado · resposta completa · telas principais</string>
+    <string name="report_no_answer">Esta execução não salvou uma resposta final.</string>
+    <string name="report_screens">Páginas principais</string>
+    <string name="report_view_step">Etapa %1$d · abrir na reprodução</string>
+    <string name="report_local_note">Os registros ficam neste dispositivo. As telas podem conter conteúdo da página e seguem a regra de manter as últimas 30 tarefas.</string>
+    <string name="report_answer">Resposta</string>
+    <string name="report_criteria">Critérios de sucesso</string>
+    <string name="playback_title">Reprodução das ações</string>
+    <string name="playback_empty">Esta execução não registrou telas.</string>
+    <string name="playback_legacy">Registros antigos têm apenas telas, sem evidência do ponto de toque.</string>
+    <string name="playback_marks">As marcas roxas são a posição de entrada realmente enviada.</string>
+    <string name="playback_progress">Posição da reprodução</string>
+    <string name="playback_pause">Pausar</string>
+    <string name="playback_play">Reproduzir</string>
+    <string name="playback_previous">Anterior</string>
+    <string name="playback_next">Próxima</string>
+    <string name="playback_image">Tela registrada</string>
+    <string name="playback_missing">A tela não foi salva ou já foi removida</string>
+    <string name="playback_before">Antes da ação</string>
+    <string name="playback_result">Depois da ação</string>
+    <string name="playback_speed">Velocidade</string>
+    <string name="playback_fullscreen">Tela cheia</string>
+    <string name="report_export">Exportar</string>
+    <string name="report_export_hint">Você escolhe onde salvar; não é preciso permissão de armazenamento.</string>
+    <string name="report_saved">Relatório salvo</string>
+    <string name="report_save_failed">Não foi possível salvar. Verifique o registro e o local escolhido e tente novamente.</string>
+    <string name="report_cancelled">Exportação cancelada</string>
+    <string name="report_close">Fechar</string>
+    <string name="report_final_page">Página ao final</string>
+    <string name="playback_stage_start">Início da tarefa</string>
+    <string name="playback_stage_input">Digitação e busca</string>
+    <string name="playback_skipped">Foram ignoradas %1$d telas indisponíveis.</string>
+    <string name="playback_no_mark">Esta ação não salvou a posição do toque.</string>
+    <string name="playback_error_unknown">Erro: motivo não registrado.</string>
+</resources>

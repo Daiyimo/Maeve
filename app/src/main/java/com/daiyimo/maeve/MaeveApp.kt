@@ -406,6 +406,12 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
         scope.launch { runCatching { WebFiles.clearStale(this@MaeveApp, SandboxDirs(this@MaeveApp).gate) } }
         // 更新已经装上后,关于页下好的安装包
         scope.launch(Dispatchers.IO) { runCatching { com.daiyimo.maeve.about.ApkUpdater(this@MaeveApp).dropInstalled() } }
+        // 触感开关以设置页(flutter_appearance)为准:启动时对一次原生引擎的偏好,
+        // 修掉历史版本里两份开关不同步的问题;之后 setAppearance 会双写。
+        runCatching {
+            val on = getSharedPreferences("flutter_appearance", android.content.Context.MODE_PRIVATE).getBoolean("haptics", true)
+            com.daiyimo.maeve.ui.haptic.MaeveHaptics.setAppEnabled(this, on)
+        }
         // 运行环境没准备好(首次启动、Maeve 升级后)就在后台准备,不联网、对用户不可见
         RuntimePreparer.ensure(this)
         // 沙箱就绪(启动时已就绪,或刚装好)就把技能目录核对一次:App 更新带来的脚本马上能用

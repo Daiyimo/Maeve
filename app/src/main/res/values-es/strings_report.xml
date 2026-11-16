@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="report_title">Informe de la tarea</string>
+    <string name="report_entry_hint">Resultado · respuesta completa · pantallas clave</string>
+    <string name="report_no_answer">Esta ejecución no guardó una respuesta final.</string>
+    <string name="report_screens">Páginas clave</string>
+    <string name="report_view_step">Paso %1$d · abrir en la reproducción</string>
+    <string name="report_local_note">Los registros se guardan en este dispositivo. Las pantallas pueden contener contenido de la página y siguen la regla de conservar las últimas 30 tareas.</string>
+    <string name="report_answer">Respuesta</string>
+    <string name="report_criteria">Criterios de éxito</string>
+    <string name="playback_title">Reproducción de acciones</string>
+    <string name="playback_empty">Esta ejecución no registró pantallas.</string>
+    <string name="playback_legacy">Los registros antiguos solo tienen pantallas, sin evidencia del punto de toque.</string>
+    <string name="playback_marks">Las marcas moradas son la posición de entrada enviada realmente.</string>
+    <string name="playback_progress">Posición de reproducción</string>
+    <string name="playback_pause">Pausar</string>
+    <string name="playback_play">Reproducir</string>
+    <string name="playback_previous">Anterior</string>
+    <string name="playback_next">Siguiente</string>
+    <string name="playback_image">Pantalla registrada</string>
+    <string name="playback_missing">La pantalla no se guardó o ya se eliminó</string>
+    <string name="playback_before">Antes de la acción</string>
+    <string name="playback_result">Después de la acción</string>
+    <string name="playback_speed">Velocidad</string>
+    <string name="playback_fullscreen">Pantalla completa</string>
+    <string name="report_export">Exportar</string>
+    <string name="report_export_hint">Tú eliges dónde guardar; no hace falta permiso de almacenamiento.</string>
+    <string name="report_saved">Informe guardado</string>
+    <string name="report_save_failed">No se pudo guardar. Comprueba el registro y la ubicación elegida e inténtalo de nuevo.</string>
+    <string name="report_cancelled">Exportación cancelada</string>
+    <string name="report_close">Cerrar</string>
+    <string name="report_final_page">Página al finalizar</string>
+    <string name="playback_stage_start">Inicio de la tarea</string>
+    <string name="playback_stage_input">Escritura y búsqueda</string>
+    <string name="playback_skipped">Se omitieron %1$d pantallas no disponibles.</string>
+    <string name="playback_no_mark">Esta acción no guardó la posición del toque.</string>
+    <string name="playback_error_unknown">Error: motivo no registrado.</string>
+</resources>

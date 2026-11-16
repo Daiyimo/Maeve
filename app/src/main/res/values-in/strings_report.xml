@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="report_title">Laporan tugas</string>
+    <string name="report_entry_hint">Hasil · jawaban lengkap · layar utama</string>
+    <string name="report_no_answer">Pelaksanaan ini tidak menyimpan jawaban akhir.</string>
+    <string name="report_screens">Halaman utama</string>
+    <string name="report_view_step">Langkah %1$d · buka di pemutaran</string>
+    <string name="report_local_note">Catatan disimpan di perangkat ini. Layar mungkin memuat konten halaman dan mengikuti aturan penyimpanan 30 tugas terakhir.</string>
+    <string name="report_answer">Jawaban</string>
+    <string name="report_criteria">Kriteria berhasil</string>
+    <string name="playback_title">Pemutaran tindakan</string>
+    <string name="playback_empty">Pelaksanaan ini tidak merekam layar.</string>
+    <string name="playback_legacy">Catatan lama hanya punya layar, tanpa bukti titik sentuh.</string>
+    <string name="playback_marks">Tanda ungu adalah posisi input yang benar-benar dikirim.</string>
+    <string name="playback_progress">Posisi pemutaran</string>
+    <string name="playback_pause">Jeda</string>
+    <string name="playback_play">Putar</string>
+    <string name="playback_previous">Sebelumnya</string>
+    <string name="playback_next">Berikutnya</string>
+    <string name="playback_image">Layar yang direkam</string>
+    <string name="playback_missing">Layar tidak disimpan atau sudah dibersihkan</string>
+    <string name="playback_before">Sebelum tindakan</string>
+    <string name="playback_result">Setelah tindakan</string>
+    <string name="playback_speed">Kecepatan</string>
+    <string name="playback_fullscreen">Layar penuh</string>
+    <string name="report_export">Ekspor</string>
+    <string name="report_export_hint">Anda memilih lokasi penyimpanan; tidak perlu izin penyimpanan.</string>
+    <string name="report_saved">Laporan tersimpan</string>
+    <string name="report_save_failed">Tidak dapat menyimpan. Periksa catatan dan lokasi yang dipilih, lalu coba lagi.</string>
+    <string name="report_cancelled">Ekspor dibatalkan</string>
+    <string name="report_close">Tutup</string>
+    <string name="report_final_page">Halaman saat selesai</string>
+    <string name="playback_stage_start">Mulai tugas</string>
+    <string name="playback_stage_input">Mengetik dan mencari</string>
+    <string name="playback_skipped">Melewati %1$d layar yang tidak tersedia.</string>
+    <string name="playback_no_mark">Tindakan ini tidak menyimpan posisi sentuh.</string>
+    <string name="playback_error_unknown">Kesalahan: alasan tidak dicatat.</string>
+</resources>

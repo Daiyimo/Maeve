@@ -14,6 +14,7 @@ import '../ui/common/haptics.dart';
 import 'glass_surface.dart';
 import 'token_usage_view.dart';
 import 'maeve_markdown.dart';
+import 'task_report_view.dart';
 
 class ExecutionPanel extends StatefulWidget {
   const ExecutionPanel({
@@ -141,7 +142,7 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
     final recordButton = message.runId == null
         ? null
         : MaeveGlassTextButton(
-            label: '完整执行记录',
+            label: '查看过程',
             icon: Icons.receipt_long_outlined,
             compact: true,
             haptic: MaeveHaptic.tick,
@@ -154,13 +155,32 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
               ),
             ),
           );
+    // 任务跑完才有报告可看:结局、完整回答、关键画面与导出。
+    final reportButton = message.runId == null || message.active
+        ? null
+        : MaeveGlassTextButton(
+            label: '任务报告',
+            icon: Icons.assignment_outlined,
+            compact: true,
+            haptic: MaeveHaptic.tick,
+            onPressed: () => AppPage.open(
+              context,
+              TaskReportPage(
+                bridge: controller.chatBridge,
+                runId: message.runId!,
+              ),
+            ),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         InkWell(
           onTap: rows.isEmpty
               ? null
-              : () => setState(() => _expanded = !expanded),
+              : () {
+                  unawaited(MaeveHaptics.play(MaeveHaptic.tick));
+                  setState(() => _expanded = !expanded);
+                },
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -262,6 +282,7 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
                 onPressed: controller.cancelRequested ? null : controller.stop,
               ),
               ?recordButton,
+              ?reportButton,
             ],
           ),
           if (message.detail != null &&
@@ -323,7 +344,14 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
         if (_error != null)
           Text(_error!, style: MaeveType.caption.copyWith(color: colors.bad)),
         if (recordButton != null && !(widget.isLatest && message.active))
-          Align(alignment: Alignment.centerLeft, child: recordButton),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [recordButton, ?reportButton],
+            ),
+          ),
         const SizedBox(height: 6),
       ],
     );
@@ -825,6 +853,20 @@ class _RunDetailsPageState extends State<RunDetailsPage> {
               if (record.duration != null) record.duration!,
             ].where((s) => s.isNotEmpty).join(' · '),
             style: MaeveType.caption.copyWith(color: c.ink2),
+          ),
+          const SizedBox(height: MaeveSpace.s12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: MaeveGlassTextButton(
+              label: '任务报告',
+              icon: Icons.assignment_outlined,
+              compact: true,
+              haptic: MaeveHaptic.tick,
+              onPressed: () => AppPage.open(
+                context,
+                TaskReportPage(bridge: widget.bridge, runId: widget.runId),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
           if (record.steps.isEmpty) const Text('尚无已记录步骤'),

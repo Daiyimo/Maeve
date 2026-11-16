@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="report_title">Task report</string>
+    <string name="report_entry_hint">Outcome · full answer · key screens</string>
+    <string name="report_no_answer">This run did not save a final answer.</string>
+    <string name="report_screens">Key pages</string>
+    <string name="report_view_step">Step %1$d · open in replay</string>
+    <string name="report_local_note">Records stay on this device. Screens may contain page content and follow the same 30-run retention rule.</string>
+    <string name="report_answer">Answer</string>
+    <string name="report_criteria">Success criteria</string>
+    <string name="playback_title">Action replay</string>
+    <string name="playback_empty">This run recorded no screens.</string>
+    <string name="playback_legacy">Older records keep screens only, without touch evidence.</string>
+    <string name="playback_marks">Purple marks show the input actually dispatched.</string>
+    <string name="playback_progress">Replay position</string>
+    <string name="playback_pause">Pause</string>
+    <string name="playback_play">Play</string>
+    <string name="playback_previous">Previous</string>
+    <string name="playback_next">Next</string>
+    <string name="playback_image">Recorded screen</string>
+    <string name="playback_missing">Screen was not saved or has been cleared</string>
+    <string name="playback_before">Before the action</string>
+    <string name="playback_result">After the action</string>
+    <string name="playback_speed">Speed</string>
+    <string name="playback_fullscreen">Fullscreen</string>
+    <string name="report_export">Export</string>
+    <string name="report_export_hint">Pick where to save. No storage permission is needed.</string>
+    <string name="report_saved">Report saved</string>
+    <string name="report_save_failed">Could not save. Check the record and the chosen location, then try again.</string>
+    <string name="report_cancelled">Export cancelled</string>
+    <string name="report_close">Close</string>
+    <string name="report_final_page">Page at the end</string>
+    <string name="playback_stage_start">Task start</string>
+    <string name="playback_stage_input">Typing and searching</string>
+    <string name="playback_skipped">Skipped %1$d unavailable screens.</string>
+    <string name="playback_no_mark">This action saved no touch position.</string>
+    <string name="playback_error_unknown">Error: reason not recorded.</string>
+</resources>

@@ -48,4 +48,35 @@ internal object FlutterTaskDetails {
         )
         else -> mapOf("available" to false, "running" to false, "steps" to emptyList<Any>())
     }
+
+    /** 任务报告:结局 + 回答正文 + 关键页 + 可播放的画面序列。落点是执行入口报出的真实像素。 */
+    fun report(report: TaskReport?): Map<String, Any?> {
+        if (report == null) return mapOf("available" to false)
+        return mapOf(
+            "available" to true,
+            "running" to report.header.running,
+            "goal" to report.header.goal,
+            "outcome" to report.header.outcome,
+            "verdict" to report.header.verdict,
+            "duration" to report.header.duration,
+            "criteria" to report.header.criteria,
+            "answer" to report.answer,
+            "missingFrames" to report.missingFrames,
+            "pages" to report.pages.map { mapOf("title" to it.title, "stepIndex" to it.stepIndex, "screenshotId" to it.screenshotId) },
+            "stages" to report.stages.map { mapOf("title" to it.title, "stepIndex" to it.stepIndex, "screenshotId" to it.screenshotId) },
+            "frames" to report.frames.map { f -> mapOf(
+                "stepIndex" to f.stepIndex, "screenshotId" to f.frame.screenshotId,
+                "after" to f.frame.after, "durationMs" to TaskReportViewModel.frameDuration(f),
+                "step" to report.playback[f.stepIndex].step,
+                "title" to report.playback[f.stepIndex].tool,
+                "failure" to report.playback[f.stepIndex].failure,
+                "pointer" to f.frame.pointer?.let { pointer(it) },
+            ) },
+        )
+    }
+
+    private fun pointer(p: com.daiyimo.maeve.core.record.RunEvent.Pointer): Map<String, Any?> = mapOf(
+        "x" to p.x, "y" to p.y, "width" to p.width, "height" to p.height,
+        "bounds" to p.bounds, "method" to p.method, "clicks" to p.clicks, "screenshotId" to p.screenshotId,
+    )
 }

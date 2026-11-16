@@ -259,6 +259,15 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                 } catch (e: CancellationException) { throw e }
                 catch (_: Exception) { result.error("record_unavailable", "未能读取执行记录，请重试", null) }
             }
+            "runReport" -> engineScope().launch {
+                val id = call.argument<String>("runId") ?: return@launch result.error("bad_args", "A run id is required", null)
+                try {
+                    result.success(withContext(Dispatchers.IO) {
+                        FlutterTaskDetails.report(TaskReportViewModel(RunStore(app), id).load())
+                    })
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { result.error("record_unavailable", "未能读取执行记录，请重试", null) }
+            }
             "runs" -> engineScope().launch {
                 try {
                     result.success(withContext(Dispatchers.IO) {

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="report_title">任務報告</string>
+    <string name="report_entry_hint">任務結果 · 完整回答 · 關鍵畫面</string>
+    <string name="report_no_answer">這次任務沒有儲存最終回答。</string>
+    <string name="report_screens">關鍵頁面</string>
+    <string name="report_view_step">第 %1$d 步 · 在回放裡檢視</string>
+    <string name="report_local_note">記錄儲存在本機，畫面可能包含頁面內容；沿用最近 30 次任務的保留規則。</string>
+    <string name="report_answer">回答</string>
+    <string name="report_criteria">做成的標準</string>
+    <string name="playback_title">操作回放</string>
+    <string name="playback_empty">這次任務沒有記錄畫面。</string>
+    <string name="playback_legacy">舊記錄只有畫面，沒有落點證據。</string>
+    <string name="playback_marks">紫色標記是實際派發的輸入位置。</string>
+    <string name="playback_progress">回放進度</string>
+    <string name="playback_pause">暫停</string>
+    <string name="playback_play">播放</string>
+    <string name="playback_previous">上一幀</string>
+    <string name="playback_next">下一幀</string>
+    <string name="playback_image">記錄裡的畫面</string>
+    <string name="playback_missing">畫面沒儲存或已被清理</string>
+    <string name="playback_before">操作前</string>
+    <string name="playback_result">操作後</string>
+    <string name="playback_speed">倍速</string>
+    <string name="playback_fullscreen">全螢幕</string>
+    <string name="report_export">匯出</string>
+    <string name="report_export_hint">你自己挑儲存位置，不需要儲存權限。</string>
+    <string name="report_saved">報告已儲存</string>
+    <string name="report_save_failed">沒能儲存，請檢查記錄是否還在、所選位置能否寫入後重試。</string>
+    <string name="report_cancelled">已取消匯出</string>
+    <string name="report_close">關閉</string>
+    <string name="report_final_page">結束時頁面</string>
+    <string name="playback_stage_start">開始任務</string>
+    <string name="playback_stage_input">輸入與尋找</string>
+    <string name="playback_skipped">已跳過 %1$d 張不可用畫面。</string>
+    <string name="playback_no_mark">這次操作沒有儲存落點。</string>
+    <string name="playback_error_unknown">出錯：未記錄具體原因。</string>
+</resources>

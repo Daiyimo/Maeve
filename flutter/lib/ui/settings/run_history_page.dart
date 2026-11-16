@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../bridge/maeve_chat_bridge.dart';
 import '../../app/maeve_controller.dart';
 import '../../widgets/execution_view.dart';
+import '../../widgets/task_report_view.dart';
 import '../common/app_page.dart';
 import '../common/haptics.dart';
 import '../../widgets/glass_surface.dart';
@@ -91,13 +92,19 @@ class _RunHistoryPageState extends State<RunHistoryPage> {
                     'interrupted' => '已中断',
                     _ => '状态未知',
                   },
+                  // 还在跑的看过程,跑完的直接看报告(报告里也能跳过程)。
                   onTap: () => AppPage.open(
                     context,
-                    RunDetailsPage(
-                      bridge: _bridge,
-                      runId: row['id'] as String,
-                      follow: row['status'] == 'running',
-                    ),
+                    row['status'] == 'running'
+                        ? RunDetailsPage(
+                            bridge: _bridge,
+                            runId: row['id'] as String,
+                            follow: true,
+                          )
+                        : TaskReportPage(
+                            bridge: _bridge,
+                            runId: row['id'] as String,
+                          ),
                   ),
                 ),
           ],

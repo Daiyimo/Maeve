@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="report_title">Отчёт о задаче</string>
+    <string name="report_entry_hint">Итог · полный ответ · ключевые экраны</string>
+    <string name="report_no_answer">В этом запуске итоговый ответ не сохранён.</string>
+    <string name="report_screens">Ключевые страницы</string>
+    <string name="report_view_step">Шаг %1$d · открыть в воспроизведении</string>
+    <string name="report_local_note">Записи хранятся на этом устройстве. Экраны могут содержать содержимое страницы и подчиняются правилу хранения последних 30 задач.</string>
+    <string name="report_answer">Ответ</string>
+    <string name="report_criteria">Критерии успеха</string>
+    <string name="playback_title">Воспроизведение действий</string>
+    <string name="playback_empty">В этом запуске экраны не записаны.</string>
+    <string name="playback_legacy">В старых записях есть только экраны, без свидетельств точки касания.</string>
+    <string name="playback_marks">Фиолетовые метки — реально отправленная позиция ввода.</string>
+    <string name="playback_progress">Позиция воспроизведения</string>
+    <string name="playback_pause">Пауза</string>
+    <string name="playback_play">Воспроизвести</string>
+    <string name="playback_previous">Назад</string>
+    <string name="playback_next">Далее</string>
+    <string name="playback_image">Записанный экран</string>
+    <string name="playback_missing">Экран не сохранён или уже удалён</string>
+    <string name="playback_before">До действия</string>
+    <string name="playback_result">После действия</string>
+    <string name="playback_speed">Скорость</string>
+    <string name="playback_fullscreen">На весь экран</string>
+    <string name="report_export">Экспорт</string>
+    <string name="report_export_hint">Вы сами выбираете место сохранения; разрешение на хранилище не нужно.</string>
+    <string name="report_saved">Отчёт сохранён</string>
+    <string name="report_save_failed">Не удалось сохранить. Проверьте запись и выбранное место и повторите попытку.</string>
+    <string name="report_cancelled">Экспорт отменён</string>
+    <string name="report_close">Закрыть</string>
+    <string name="report_final_page">Страница в конце</string>
+    <string name="playback_stage_start">Начало задачи</string>
+    <string name="playback_stage_input">Ввод и поиск</string>
+    <string name="playback_skipped">Пропущено недоступных экранов: %1$d.</string>
+    <string name="playback_no_mark">Это действие не сохранило точку касания.</string>
+    <string name="playback_error_unknown">Ошибка: причина не записана.</string>
+</resources>

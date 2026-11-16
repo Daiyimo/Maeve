@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:maeve_flutter/models/execution.dart';
+import 'package:maeve_flutter/models/task_report.dart';
 
 import 'package:maeve_flutter/bridge/maeve_chat_bridge.dart';
 
@@ -29,6 +30,25 @@ class FakeChatBridge extends MaeveChatBridge {
   Future<RunDetails> runDetails(String runId) async {
     detailsRequests.add(runId);
     return record;
+  }
+
+  TaskReport report = const TaskReport();
+  final reportRequests = <String>[];
+  final exportRequests = <String>[];
+
+  /// 导出的返回状态;测失败/取消时改它。
+  String exportState = 'saved';
+
+  @override
+  Future<TaskReport> runReport(String runId) async {
+    reportRequests.add(runId);
+    return report;
+  }
+
+  @override
+  Future<String> exportRunReport(String runId, ReportFormat format) async {
+    exportRequests.add('$runId:${format.wire}');
+    return exportState;
   }
 
   @override

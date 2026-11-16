@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="report_title">タスクレポート</string>
+    <string name="report_entry_hint">結果 · 回答全文 · 主な画面</string>
+    <string name="report_no_answer">この実行では最終回答が保存されていません。</string>
+    <string name="report_screens">主なページ</string>
+    <string name="report_view_step">ステップ %1$d · リプレイで開く</string>
+    <string name="report_local_note">記録はこの端末に保存されます。画面にはページ内容が含まれる場合があり、直近 30 件の保持ルールに従います。</string>
+    <string name="report_answer">回答</string>
+    <string name="report_criteria">達成の条件</string>
+    <string name="playback_title">操作リプレイ</string>
+    <string name="playback_empty">この実行では画面が記録されていません。</string>
+    <string name="playback_legacy">古い記録には画面しかなく、タップ位置の証拠はありません。</string>
+    <string name="playback_marks">紫のマークは実際に送られた入力位置です。</string>
+    <string name="playback_progress">再生位置</string>
+    <string name="playback_pause">一時停止</string>
+    <string name="playback_play">再生</string>
+    <string name="playback_previous">前へ</string>
+    <string name="playback_next">次へ</string>
+    <string name="playback_image">記録された画面</string>
+    <string name="playback_missing">画面は保存されていないか、削除されました</string>
+    <string name="playback_before">操作前</string>
+    <string name="playback_result">操作後</string>
+    <string name="playback_speed">速度</string>
+    <string name="playback_fullscreen">全画面</string>
+    <string name="report_export">書き出す</string>
+    <string name="report_export_hint">保存先は自分で選べます。ストレージ権限は不要です。</string>
+    <string name="report_saved">レポートを保存しました</string>
+    <string name="report_save_failed">保存できませんでした。記録と保存先を確認して再試行してください。</string>
+    <string name="report_cancelled">書き出しを中止しました</string>
+    <string name="report_close">閉じる</string>
+    <string name="report_final_page">終了時のページ</string>
+    <string name="playback_stage_start">タスク開始</string>
+    <string name="playback_stage_input">入力と検索</string>
+    <string name="playback_skipped">利用できない画面 %1$d 枚をスキップしました。</string>
+    <string name="playback_no_mark">この操作ではタップ位置が保存されていません。</string>
+    <string name="playback_error_unknown">エラー: 理由は記録されていません。</string>
+</resources>

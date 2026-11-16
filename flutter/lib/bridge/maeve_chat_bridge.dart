@@ -5,6 +5,7 @@ import 'maeve_bridge.dart';
 import 'dart:typed_data';
 
 import '../models/execution.dart';
+import '../models/task_report.dart';
 
 /// 对话桥的接口。壳只认这个接口;真机上由 [HostChatBridge] 走方法通道接宿主,
 /// 测试里换 [FakeChatBridge] 之类的实现,界面代码一行不动。
@@ -72,6 +73,12 @@ abstract class MaeveChatBridge {
   Future<Map<String, dynamic>> deleteImpact(String id) async => {};
   Future<Uint8List?> preview(String conversationId);
   Future<RunDetails> runDetails(String runId);
+
+  /// 任务报告:结局、完整回答、关键页与可播放的画面序列。
+  Future<TaskReport> runReport(String runId);
+
+  /// 导出报告到用户自选位置(系统文件选择器)。返回 saved / failed / cancelled。
+  Future<String> exportRunReport(String runId, ReportFormat format);
   Future<List<Map<String, dynamic>>> runs();
   Future<Uint8List?> runScreen(String runId, int screenId);
   Future<bool> taskAction(String conversationId, String action, {int? key});
@@ -156,6 +163,21 @@ class HostChatBridge extends MaeveChatBridge {
         }) ??
         const {},
   );
+  @override
+  Future<TaskReport> runReport(String runId) async => TaskReport.fromMap(
+    await MaeveBridge.chatMethods.invokeMapMethod('runReport', {
+          'runId': runId,
+        }) ??
+        const {},
+  );
+  @override
+  Future<String> exportRunReport(String runId, ReportFormat format) async {
+    final reply = await MaeveBridge.methods.invokeMapMethod('exportRunReport', {
+      'runId': runId,
+      'format': format.wire,
+    });
+    return reply?['state'] as String? ?? 'failed';
+  }
   @override
   Future<Uint8List?> runScreen(String runId, int screenId) =>
       MaeveBridge.chatMethods.invokeMethod<Uint8List>('runScreen', {

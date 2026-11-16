@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="report_title">تقرير المهمة</string>
+    <string name="report_entry_hint">النتيجة · الإجابة الكاملة · الشاشات الرئيسية</string>
+    <string name="report_no_answer">لم يحفظ هذا التشغيل إجابة نهائية.</string>
+    <string name="report_screens">الصفحات الرئيسية</string>
+    <string name="report_view_step">الخطوة %1$d · افتح في الإعادة</string>
+    <string name="report_local_note">تُحفظ السجلات على هذا الجهاز. قد تتضمن الشاشات محتوى الصفحة، وتخضع لقاعدة الاحتفاظ بآخر 30 مهمة.</string>
+    <string name="report_answer">الإجابة</string>
+    <string name="report_criteria">معايير النجاح</string>
+    <string name="playback_title">إعادة الإجراءات</string>
+    <string name="playback_empty">لم يسجل هذا التشغيل أي شاشة.</string>
+    <string name="playback_legacy">السجلات القديمة تحتوي على شاشات فقط، دون دليل على موضع اللمس.</string>
+    <string name="playback_marks">العلامات البنفسجية هي موضع الإدخال الذي أُرسل فعلاً.</string>
+    <string name="playback_progress">موضع الإعادة</string>
+    <string name="playback_pause">إيقاف مؤقت</string>
+    <string name="playback_play">تشغيل</string>
+    <string name="playback_previous">السابق</string>
+    <string name="playback_next">التالي</string>
+    <string name="playback_image">الشاشة المسجلة</string>
+    <string name="playback_missing">لم تُحفظ الشاشة أو تم حذفها</string>
+    <string name="playback_before">قبل الإجراء</string>
+    <string name="playback_result">بعد الإجراء</string>
+    <string name="playback_speed">السرعة</string>
+    <string name="playback_fullscreen">ملء الشاشة</string>
+    <string name="report_export">تصدير</string>
+    <string name="report_export_hint">أنت تختار مكان الحفظ، ولا حاجة إلى إذن التخزين.</string>
+    <string name="report_saved">تم حفظ التقرير</string>
+    <string name="report_save_failed">تعذر الحفظ. تحقق من السجل ومكان الحفظ ثم أعد المحاولة.</string>
+    <string name="report_cancelled">أُلغي التصدير</string>
+    <string name="report_close">إغلاق</string>
+    <string name="report_final_page">الصفحة عند الانتهاء</string>
+    <string name="playback_stage_start">بداية المهمة</string>
+    <string name="playback_stage_input">الكتابة والبحث</string>
+    <string name="playback_skipped">تم تخطي %1$d شاشة غير متاحة.</string>
+    <string name="playback_no_mark">لم يحفظ هذا الإجراء موضع اللمس.</string>
+    <string name="playback_error_unknown">خطأ: لم يُسجل السبب.</string>
+</resources>
