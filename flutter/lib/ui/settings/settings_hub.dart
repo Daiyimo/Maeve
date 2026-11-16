@@ -4,8 +4,10 @@ import '../../app/maeve_controller.dart';
 import '../../widgets/glass_surface.dart';
 import '../../design/maeve_theme.dart';
 import '../../design/maeve_type.dart';
+import '../../design/maeve_shapes.dart';
 import '../common/app_page.dart';
 import '../common/haptics.dart';
+import '../common/pressable.dart';
 import 'settings_components.dart';
 import 'appearance_page.dart';
 import 'model_settings_page.dart';
@@ -13,6 +15,7 @@ import 'system_access_page.dart';
 import 'amoo_page.dart';
 import 'about_pages.dart';
 import 'palette_strip.dart';
+import 'phone_readiness_page.dart';
 import 'execution_settings_page.dart';
 import 'app_access_page.dart';
 import 'run_history_page.dart';
@@ -22,8 +25,20 @@ class SettingsHubPage extends StatelessWidget {
   const SettingsHubPage({super.key});
   @override
   Widget build(BuildContext context) {
-    final controller = MaeveScope.of(context),
-        c = MaeveTheme.of(context).colors;
+    final controller = MaeveScope.of(context);
+    final theme = MaeveTheme.of(context);
+    final c = theme.colors;
+    final readiness = PhoneReadiness.of(controller);
+    final statusTone = !readiness.loaded || readiness.error != null
+        ? Tone.neutral
+        : readiness.ready
+        ? Tone.ok
+        : Tone.warn;
+    final statusTint = statusTone == Tone.ok
+        ? theme.semantic.ok
+        : statusTone == Tone.warn
+        ? theme.semantic.warn
+        : c.accent;
     return AppPage.list(
       title: '设置',
       subtitle: '让 Maeve 适合你的日常',
@@ -40,9 +55,67 @@ class SettingsHubPage extends StatelessWidget {
             onPressed: controller.refreshSettings,
           ),
         ],
+        // 手机操作状态检测放在最上面:新装设备权限未授权时,这里是第一眼的提示。
+        // 染色玻璃卡:语义色洗层让白色受光边与斜带在奶白画布上"显形"——
+        // 白对白的卡档视觉上近乎隐形(见 visual-tokens 液态玻璃条款)。
+        Padding(
+          padding: const EdgeInsets.only(top: MaeveSpace.s4),
+          child: Pressable(
+            onTap: () => AppPage.open(context, const PhoneReadinessPage()),
+            borderRadius: BorderRadius.circular(MaeveRadius.lg),
+            haptic: MaeveHaptic.tick,
+            semanticLabel: '手机操作状态检测',
+            child: MaeveGlassSurface(
+              tier: MaeveGlassTier.card,
+              tint: statusTint,
+              tintAlpha: .12,
+              padding: const EdgeInsets.all(MaeveSpace.s16),
+              child: Row(
+                children: [
+                  // 图标随今日色彩(中性=强调色);状态交给染色洗层与值文字。
+                  IconTile(icon: Icons.health_and_safety_outlined),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '手机操作状态检测',
+                          style: MaeveType.body.copyWith(color: c.ink),
+                        ),
+                        Text(
+                          !readiness.loaded
+                              ? '正在读取设备状态'
+                              : readiness.ready
+                              ? '权限与助手连接都已就绪'
+                              : '无障碍、悬浮窗、通知与助手连接，点击逐项补齐',
+                          style: MaeveType.caption.copyWith(color: c.ink3),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: MaeveSpace.s8),
+                  RowValue(
+                    text: !readiness.loaded
+                        ? '读取中'
+                        : readiness.error != null
+                        ? '暂不可读'
+                        : readiness.ready
+                        ? '已就绪'
+                        : '${readiness.pending} 项待完成',
+                    color: statusTone == Tone.neutral
+                        ? null
+                        : toneColors(context, statusTone).$2,
+                  ),
+                  const SizedBox(width: MaeveSpace.s8),
+                  const RowChevron(),
+                ],
+              ),
+            ),
+          ),
+        ),
         SettingsSection(
           title: '执行与设备',
-          topSpacing: 12,
           rows: [
             SettingsTile(
               icon: Icons.receipt_long_outlined,

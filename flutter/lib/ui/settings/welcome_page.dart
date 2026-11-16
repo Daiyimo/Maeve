@@ -8,7 +8,7 @@ import '../../widgets/glass_surface.dart';
 import '../common/app_page.dart';
 import '../common/haptics.dart';
 import 'model_settings_page.dart';
-import 'system_access_page.dart';
+import 'phone_readiness_page.dart';
 
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key, this.firstRun = false});
@@ -55,7 +55,7 @@ class _WelcomePageState extends State<WelcomePage> {
                 icon: Icons.phone_android_rounded,
                 haptic: MaeveHaptic.tick,
                 onPressed: () =>
-                    AppPage.open(context, const SystemAccessPage()),
+                    AppPage.open(context, const PhoneReadinessPage()),
               ),
             ],
           ),

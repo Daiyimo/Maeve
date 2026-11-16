@@ -94,6 +94,9 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                     DeveloperSettings.wirelessDebuggingPage()
                 }
                 "app" -> listOf(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${app.packageName}")))
+                "developer" -> DeveloperSettings.developerOptionsPage()
+                "about" -> DeveloperSettings.aboutPhone()
+                "wifi" -> DeveloperSettings.wifiPage()
                 else -> return result.error("bad_args", "Unknown system settings target", null)
             }
             for (intent in intents) {
@@ -239,6 +242,12 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
             "notifications" to app.getSystemService(NotificationManager::class.java).areNotificationsEnabled(),
             "helperRunning" to (app.phone.shellControl.status.value is BuiltinShellStatus.Running),
             "phoneSupported" to (android.os.Build.VERSION.SDK_INT >= 31),
+            // 手机操作状态检测:引导页要看的系统开关与配对事实(读法与原生引导同一套)。
+            "helperPaired" to app.phone.shellControl.paired,
+            "developerOptions" to DeveloperSettings.developerOptions(app.contentResolver),
+            "wirelessDebugging" to DeveloperSettings.wirelessDebugging(app.contentResolver),
+            "wirelessDebuggingMissing" to DeveloperSettings.wirelessDebuggingMissing(app.contentResolver),
+            "developerOptionsPageMissing" to DeveloperSettings.developerOptionsPageMissing(app.packageManager),
         )
     }
 

@@ -7,6 +7,7 @@ import 'package:maeve_flutter/app/maeve_app.dart';
 import 'package:maeve_flutter/app/maeve_controller.dart';
 import 'package:maeve_flutter/bridge/maeve_bridge.dart';
 import 'package:maeve_flutter/ui/common/app_page.dart';
+import 'package:maeve_flutter/widgets/glass_surface.dart';
 
 import '../support/fake_chat_bridge.dart';
 import '../support/fake_settings_bridge.dart';
@@ -82,6 +83,15 @@ void main() {
         // Route + glass entrance are finite; live indicators may keep ticking.
         await tester.pump(const Duration(milliseconds: 600));
         expect(tester.takeException(), isNull, reason: '${page.key} at top');
+        // 液态玻璃条款:每个页面都必须有玻璃表面(visual-tokens)。
+        expect(
+          find.descendant(
+            of: find.byType(page.value.runtimeType),
+            matching: find.byType(MaeveGlassSurface),
+          ),
+          findsWidgets,
+          reason: '${page.key} 必须使用液态玻璃表面',
+        );
         final scrollables = find.descendant(
           of: find.byType(page.value.runtimeType),
           matching: find.byType(Scrollable),

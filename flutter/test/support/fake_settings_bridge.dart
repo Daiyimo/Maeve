@@ -59,6 +59,11 @@ class FakeSettingsBridge extends MaeveSettingsBridge {
         'notifications': true,
         'helperRunning': false,
         'phoneSupported': true,
+        'helperPaired': true,
+        'developerOptions': true,
+        'wirelessDebugging': true,
+        'wirelessDebuggingMissing': false,
+        'developerOptionsPageMissing': false,
         'presets': [
           {
             'id': 'DeepSeek',

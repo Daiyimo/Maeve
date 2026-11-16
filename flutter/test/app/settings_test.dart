@@ -7,13 +7,14 @@ import 'package:maeve_flutter/app/maeve_controller.dart';
 import 'package:maeve_flutter/bridge/maeve_bridge.dart';
 import 'package:maeve_flutter/bridge/maeve_settings_bridge.dart';
 import 'package:maeve_flutter/design/maeve_accent.dart';
-import 'package:maeve_flutter/design/maeve_surfaces.dart';
 import 'package:maeve_flutter/ui/common/app_page.dart';
 import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/system_access_page.dart';
+import 'package:maeve_flutter/ui/settings/phone_readiness_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_wechat_page.dart';
+import 'package:maeve_flutter/widgets/glass_surface.dart';
 
 import '../support/fake_chat_bridge.dart';
 import '../support/fake_settings_bridge.dart';
@@ -56,7 +57,8 @@ void main() {
     await mount(tester, FakeSettingsBridge());
     await open(tester, const SettingsHubPage());
     final headerBottom = tester.getBottomLeft(find.byType(TopBar)).dy;
-    final groupTop = tester.getTopLeft(find.text('执行与设备')).dy;
+    // 顶部现在是染色玻璃状态卡:标题距顶栏 = 12 外距 + 16 卡内距。
+    final groupTop = tester.getTopLeft(find.text('手机操作状态检测')).dy;
     expect(groupTop - headerBottom, inInclusiveRange(12, 28));
   });
 
@@ -586,4 +588,122 @@ void main() {
     expect(fresh.mode, ThemeMode.light);
     expect(fresh.glassDensity, MaeveGlassDensity.dense);
   });
+
+  testWidgets(
+    'Phone readiness: fresh install shows pending count on top and guides each permission',
+    (tester) async {
+      final settings = FakeSettingsBridge()
+        ..values['accessibility'] = false
+        ..values['accessibilityRunning'] = false
+        ..values['overlay'] = false
+        ..values['notifications'] = false
+        ..values['helperRunning'] = false
+        ..values['helperPaired'] = false
+        ..values['developerOptions'] = false
+        ..values['wirelessDebugging'] = false;
+      await mount(tester, settings);
+      await open(tester, const SettingsHubPage());
+      // 设置页最上面就是状态行:新装设备一眼看到待办数。
+      expect(find.text('手机操作状态检测'), findsOneWidget);
+      expect(find.text('6 项待完成'), findsOneWidget);
+      // 状态卡 = 染色玻璃(语义色洗层),不是平面面板(visual-tokens 液态玻璃条款)。
+      expect(
+        tester
+            .widgetList<MaeveGlassSurface>(find.byType(MaeveGlassSurface))
+            .where((g) => g.tint != null),
+        isNotEmpty,
+        reason: 'hub status card must be tinted glass',
+      );
+      await tester.tap(find.text('手机操作状态检测'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widgetList<MaeveGlassSurface>(
+              find.descendant(
+                of: find.byType(PhoneReadinessPage),
+                matching: find.byType(MaeveGlassSurface),
+              ),
+            )
+            .where((g) => g.tint != null),
+        isNotEmpty,
+        reason: 'guide hero must be tinted glass',
+      );
+      // 引导页:下一步按钮指向第一个未完成项,每项讲用途、给去处。
+      expect(find.text('去完成：无障碍服务'), findsOneWidget);
+      expect(find.text('读取界面并执行操作'), findsOneWidget);
+      expect(find.text('显示任务进度与确认卡'), findsOneWidget);
+      await tester.tap(find.text('去完成：无障碍服务'));
+      await tester.pumpAndSettle();
+      expect(settings.targets, ['accessibility']);
+      await tester.ensureVisible(find.text('开发者选项'));
+      await tester.tap(find.text('开发者选项'));
+      await tester.pumpAndSettle();
+      expect(settings.targets, ['accessibility', 'developer']);
+      // 通知未允许时,无线调试先引导去补通知(配对码依赖通知)。
+      await tester.ensureVisible(find.text('无线调试'));
+      await tester.tap(find.text('无线调试'));
+      await tester.pumpAndSettle();
+      expect(settings.targets, ['accessibility', 'developer', 'notifications']);
+    },
+  );
+
+  testWidgets('Phone readiness: everything granted shows ready, no next step', (
+    tester,
+  ) async {
+    final settings = FakeSettingsBridge()
+      ..values['overlay'] = true
+      ..values['helperRunning'] = true;
+    await mount(tester, settings);
+    await open(tester, const SettingsHubPage());
+    expect(find.text('已就绪'), findsOneWidget);
+    await tester.tap(find.text('手机操作状态检测'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('手机操作已就绪'), findsOneWidget);
+    expect(find.textContaining('去完成'), findsNothing);
+  });
+
+  testWidgets(
+    'Phone readiness: paired helper waits, unsupported devices get the Android 12 note',
+    (tester) async {
+      final settings = FakeSettingsBridge();
+      final controller = await mount(tester, settings);
+      await open(tester, const PhoneReadinessPage());
+      // 已配对未连接:助手项是"等待连接",不是待办跳转。
+      expect(find.text('等待连接'), findsOneWidget);
+      settings.values['phoneSupported'] = false;
+      await controller.refreshSettings();
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Android 12'), findsWidgets);
+      expect(find.text('开发者选项'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Phone readiness: missing wireless debugging falls back to the USB note',
+    (tester) async {
+      final settings = FakeSettingsBridge()
+        ..values['wirelessDebugging'] = false
+        ..values['wirelessDebuggingMissing'] = true
+        ..values['helperPaired'] = false
+        ..values['helperRunning'] = false;
+      final controller = await mount(tester, settings);
+      await open(tester, const PhoneReadinessPage());
+      expect(find.text('系统未提供'), findsOneWidget);
+      // USB 兜底说明在连接组之后:懒列表里先滚到可见再断言。
+      await tester.scrollUntilVisible(
+        find.textContaining('可用电脑经 USB 启动手机助手'),
+        200,
+        scrollable: find
+            .descendant(
+              of: find.byType(PhoneReadinessPage),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(find.textContaining('可用电脑经 USB 启动手机助手'), findsWidgets);
+      await controller.refreshSettings();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
 }

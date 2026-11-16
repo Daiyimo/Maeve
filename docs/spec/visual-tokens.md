@@ -30,6 +30,8 @@
 
 液态玻璃参考 glasswork 的四条声明（background / backdrop-filter / box-shadow / color）：采样滤镜按 CSS 顺序合成 saturate → contrast → brightness（浅色提亮 1.06、深色压暗 0.92）；边光分均匀发丝线、左上接光右下渐隐的定向受光边、顶边高光与贴边斜带（顶亮、左右弱、底暗），斜带画在填充之上、内容之下。「外观与手感 → 液态玻璃」提供清透 / 均衡 / 浓郁三档浓度，缩放填充、模糊、饱和度与边光；浅色下清透掺 5% 墨色、浓郁掺 12% 墨色，读作薄烟与厚烟（奶白画布上纯缩放透明度不可辨），深色直接缩放不透明度。均衡档是契约基准数值。玻璃按钮与菜单（顶栏圆钮、输入条键、抽屉按钮与筛选 chip、执行面板动作、设置页动作、确认对话框）统一走 `MaeveGlassButton` / `MaeveGlassTextButton` / `MaeveGlassDialog`；按压反馈走 `Pressable`（内容缩放 + 触点径向流光 + 触感），圆钮可点域恒 48dp，chip 选中态有勾选标记与语义选中。确认对话框显式居中、限宽 560，压过 Flutter 3.47 showDialog 的全窗口默认；悬浮胶囊与文件预览读同一份浓度偏好。
 
+**新增任何页面与组件都必须走液态玻璃设计系统**：表面用 `MaeveGlassSurface`（或 `SettingsSection` 等玻璃组件），按钮用 `MaeveGlassButton` / `MaeveGlassTextButton`，弹层用 `MaeveGlassDialog` / `AppSheet`；不得引入平面 Material 默认表面。状态与提示类卡片用语义色 tint 洗层（`tint` / `tintAlpha`），让受光边与斜带在奶白画布上依然可见——白对白的卡档视觉上近乎隐形。布局审计对每个页面断言玻璃表面存在。
+
 系统高对比度时不创建 `BackdropFilter`，使用合成后的不透明填充；减少动效时不缩放、入场立即完成。旧「减少透明效果」开关已移除，曾开启的用户迁移到清透档。这里是 Flutter 绘制的玻璃视觉，不依赖原生 iOS 材质或系统折射 API。
 
 ## 布局与字阶

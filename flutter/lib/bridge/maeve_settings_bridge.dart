@@ -132,6 +132,11 @@ class NativeSettings {
     this.notifications = false,
     this.helperRunning = false,
     this.phoneSupported = false,
+    this.helperPaired = false,
+    this.developerOptions = false,
+    this.wirelessDebugging = false,
+    this.wirelessDebuggingMissing = false,
+    this.developerOptionsPageMissing = false,
   });
   final String mode, accent, operatingPace;
   final String providerState;
@@ -146,7 +151,12 @@ class NativeSettings {
       overlay,
       notifications,
       helperRunning,
-      phoneSupported;
+      phoneSupported,
+      helperPaired,
+      developerOptions,
+      wirelessDebugging,
+      wirelessDebuggingMissing,
+      developerOptionsPageMissing;
 
   /// 液态玻璃浓度 id:clear / balanced / dense(见 MaeveGlassDensity)。
   final String glassStyle;
@@ -181,6 +191,11 @@ class NativeSettings {
     notifications: map['notifications'] == true,
     helperRunning: map['helperRunning'] == true,
     phoneSupported: map['phoneSupported'] == true,
+    helperPaired: map['helperPaired'] == true,
+    developerOptions: map['developerOptions'] == true,
+    wirelessDebugging: map['wirelessDebugging'] == true,
+    wirelessDebuggingMissing: map['wirelessDebuggingMissing'] == true,
+    developerOptionsPageMissing: map['developerOptionsPageMissing'] == true,
   );
 }
 
