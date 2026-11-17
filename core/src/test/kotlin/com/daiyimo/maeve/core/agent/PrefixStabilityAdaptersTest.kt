@@ -114,7 +114,9 @@ class PrefixStabilityAdaptersTest {
             AnthropicModel(url, "k", "m", Capabilities(true, vision, contextTokens, true), OkHttpClient(), reasoningEffort = "medium")
         override val keys = setOf("system", "tools", "messages")
         override val replay = "SIG"
-        override val compactions = listOf(12, 21, 30)
+        // 和 Gemini 同一组触发点:提示词按现在这版(system 比上一版短 178 字节)算,
+        // 第二次压缩落在第 22 步而不是 21,30 步之内不再有第三次。提示词长短一改就要重算(见 gemini 的说明)。
+        override val compactions = listOf(12, 22)
         override fun zone0(body: JsonObject) = strip(body["system"]!!).toString() + strip(body["tools"]!!)
         override fun messages(body: JsonObject) = body["messages"]!!.jsonArray.map { strip(it).toString() }
         override fun tools(body: JsonObject) = body["tools"]!!.jsonArray.map { strip(it).toString() to it.jsonObject.str("name")!! }
