@@ -41,6 +41,32 @@ enum UpdatePhase { idle, downloading, paused, ready, failed }
 /// 手动检查这一轮的结果。自动检查不改它(失败时不打扰用户)。
 enum UpdateCheck { idle, checking, done, failed }
 
+/// 手动检查没查到的原因。与原生 CheckProblem 一一对应:
+/// noRelease 是网络通、GitHub 上却没有已发布的版本;unreachable 才是没连上。
+enum UpdateProblem { none, noRelease, unreachable }
+
+/// GitHub 加速的方式。与原生 GitHubDnsMode 同 id 同语义。
+enum GitHubAccelMode { system, aliDoh, tencentDoh, customIp }
+
+/// 「GitHub 加速」此刻的设置(获取更新页里配)。
+class GitHubAccel {
+  const GitHubAccel({this.mode = GitHubAccelMode.system, this.ip = ''});
+
+  final GitHubAccelMode mode;
+
+  /// 自定义 IP;只有 customIp 用得上。
+  final String ip;
+
+  factory GitHubAccel.fromMap(Map map) => GitHubAccel(
+    mode: AppUpdate.enumOf(
+      GitHubAccelMode.values,
+      map['mode'],
+      GitHubAccelMode.system,
+    ),
+    ip: map['ip'] as String? ?? '',
+  );
+}
+
 class AppUpdate {
   const AppUpdate({
     this.available = false,
@@ -56,6 +82,8 @@ class AppUpdate {
     this.percent,
     this.canInstall = false,
     this.releasesUrl = '',
+    this.problem = UpdateProblem.none,
+    this.accel = const GitHubAccel(),
   });
 
   /// 查到过任何一个发布(不代表有新版)。
@@ -73,6 +101,12 @@ class AppUpdate {
 
   /// 系统「安装未知应用」授权。没授权时安装按钮先带用户去开。
   final bool canInstall;
+
+  /// 手动检查失败的原因;没失败是 UpdateProblem.none。
+  final UpdateProblem problem;
+
+  /// 「GitHub 加速」的设置(这一页里改)。
+  final GitHubAccel accel;
 
   bool get checking => check == UpdateCheck.checking;
   bool get downloading =>
@@ -107,9 +141,17 @@ class AppUpdate {
       percent: (d['percent'] as num?)?.toInt(),
       canInstall: map['canInstall'] == true,
       releasesUrl: map['releasesUrl'] as String? ?? '',
+      problem: _enum(UpdateProblem.values, map['problem'], UpdateProblem.none),
+      accel: map['accel'] is Map
+          ? GitHubAccel.fromMap(map['accel'] as Map)
+          : const GitHubAccel(),
     );
   }
 
   static T _enum<T extends Enum>(List<T> values, Object? name, T fallback) =>
       values.firstWhere((v) => v.name == name, orElse: () => fallback);
+
+  /// 给别处(测试、假桥)也用的枚举查找。
+  static T enumOf<T extends Enum>(List<T> values, Object? name, T fallback) =>
+      _enum(values, name, fallback);
 }

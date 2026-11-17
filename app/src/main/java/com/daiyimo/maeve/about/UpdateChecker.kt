@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.about
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,6 +20,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import com.daiyimo.maeve.core.net.NetProxy
+import okhttp3.Dns
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -28,17 +30,41 @@ import java.util.concurrent.TimeUnit
 enum class CheckStatus { Idle, Checking, Done, Failed }
 
 /**
+ * 手动检查没查到版本的原因。**「没有已发布的版本」和「没连上」是两回事**:
+ * 前者说明网络是通的、GitHub 上也问到了,只是这个仓库还没有发布过——
+ * 以前这两种情况都报「连不上 GitHub」,用户会跑去调网络,白费功夫。
+ */
+enum class CheckProblem {
+    /** 仓库可达,但上面没有已发布的版本(接口 404)。 */
+    NoRelease,
+
+    /** 这次没问到:超时、限流、读不懂。 */
+    Unreachable,
+}
+
+/**
  * 检查更新的状态。[latest] 是最近一次查到的版本(更新记录用),[update] 是比当前新的那个(有它才有红点)。
  * [manualRounds] 每完成一次手动检查加一,页面据此给出「已是最新」「连不上」之类的提示。
+ * [problem] 是手动检查失败时的原因(见 [CheckProblem]);查到过就清掉。
  */
 data class UpdateState(
     val latest: ReleaseInfo? = null,
     val update: ReleaseInfo? = null,
     val status: CheckStatus = CheckStatus.Idle,
     val manualRounds: Int = 0,
+    val problem: CheckProblem? = null,
 ) {
     val hasUpdate: Boolean get() = update != null
 }
+
+/** 查一次的结果:查到了、没查到(附原因)。 */
+sealed interface Fetch {
+    class Found(val release: ReleaseInfo) : Fetch
+    class None(val problem: CheckProblem) : Fetch
+}
+
+/** 仓库可达但没有已发布的版本(接口 404)。 */
+private class NoRelease : Exception("no published release")
 
 /**
  * 每次打开 App 都自动查一次,只挡住连着来的:离上次自动检查不到 [MIN_GAP_MS](来回切几下、旋转屏幕)不再查。
@@ -58,7 +84,9 @@ object UpdateSchedule {
 class UpdateChecker(
     private val file: File,
     private val currentVersion: String,
-    private val client: OkHttpClient = defaultClient(),
+    /** GitHub 域名怎么解析(设置 › 获取更新 › GitHub 加速);默认跟随系统。 */
+    private val dns: Dns = Dns.SYSTEM,
+    private val client: OkHttpClient = defaultClient(dns),
     private val releaseApi: String = MaeveLinks.LATEST_RELEASE_API,
     private val now: () -> Long = System::currentTimeMillis,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
@@ -101,18 +129,30 @@ class UpdateChecker(
     suspend fun check(manual: Boolean) {
         mutex.withLock {
             loadLocked()
-            if (manual) _state.update { it.copy(status = CheckStatus.Checking) }
-            val found = withContext(Dispatchers.IO) { fetchLatest() }
-            if (found != null) {
-                _state.update { it.withLatest(found) }
+            if (manual) _state.update { it.copy(status = CheckStatus.Checking, problem = null) }
+            val result = withContext(Dispatchers.IO) { fetch() }
+            if (result is Fetch.Found) _state.update { it.withLatest(result.release) }
+            if (manual) _state.update {
+                it.copy(
+                    status = if (result is Fetch.Found) CheckStatus.Done else CheckStatus.Failed,
+                    problem = (result as? Fetch.None)?.problem,
+                    manualRounds = it.manualRounds + 1,
+                )
             }
-            if (manual) _state.update { it.copy(status = if (found != null) CheckStatus.Done else CheckStatus.Failed, manualRounds = it.manualRounds + 1) }
             save()
         }
     }
 
-    /** GitHub 上最新的发布;没查到为空。 */
-    internal fun fetchLatest(): ReleaseInfo? = runCatching { Releases.fromGitHub(get(releaseApi), deviceAbis) }.getOrNull()
+    /** 查一次 GitHub:查到发布,或没查到的原因(仓库可达但没有发布 / 没连上)。 */
+    internal fun fetch(): Fetch = try {
+        Fetch.Found(Releases.fromGitHub(get(releaseApi), deviceAbis))
+    } catch (e: NoRelease) {
+        Fetch.None(CheckProblem.NoRelease)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Fetch.None(CheckProblem.Unreachable)
+    }
 
     private fun get(url: String): String {
         val req = Request.Builder().url(url)
@@ -121,7 +161,9 @@ class UpdateChecker(
             .header("X-GitHub-Api-Version", "2022-11-28")
             .build()
         client.newCall(req).execute().use { resp ->
-            if (!resp.isSuccessful) error("HTTP ${resp.code}")
+            // 404:仓库问得到、只是没有已发布的版本——和连不上分开说(见 CheckProblem)
+            if (resp.code == 404) throw NoRelease()
+            if (!resp.isSuccessful) error("HTTP " + resp.code)
             return resp.body?.string() ?: error("empty body")
         }
     }
@@ -156,9 +198,10 @@ class UpdateChecker(
 
     companion object {
         /** 有的网络连 GitHub 时快时慢:超时放短,失败就换备用来源。走设置 › 网络代理。 */
-        fun defaultClient(): OkHttpClient = NetProxy.shared.client(OkHttpClient.Builder()
+        fun defaultClient(dns: Dns = Dns.SYSTEM): OkHttpClient = NetProxy.shared.client(OkHttpClient.Builder()
             .connectTimeout(5, TimeUnit.SECONDS)
             .readTimeout(8, TimeUnit.SECONDS)
-            .callTimeout(10, TimeUnit.SECONDS))
+            .callTimeout(10, TimeUnit.SECONDS)
+            .dns(dns))
     }
 }

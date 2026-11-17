@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import '../models/app_update.dart';
+import '../models/app_update.dart' show AppUpdate, GitHubAccelMode;
 import 'maeve_bridge.dart';
 
 /// 「获取更新」的桥接口。真机走 [HostUpdateBridge](宿主 MaeveUiPlugin),
@@ -20,8 +20,11 @@ abstract class MaeveUpdateBridge {
   /// 取消并删掉已下的包。
   Future<AppUpdate> cancel();
 
-  /// 交给系统安装器。返回 `installing` / `permission`(先去开未知来源授权)。
+  /// 交给系统安装器。返回 installing / permission(先去开未知来源授权)。
   Future<String> install();
+
+  /// 改「GitHub 加速」:检查更新问 GitHub 时域名怎么解析;返回改后的状态。
+  Future<AppUpdate> setAccel(GitHubAccelMode mode, {String ip = ''});
 
   /// 状态变化(检查结果、下载进度)。没接桥时是空流,页面照样能手动刷新。
   Stream<AppUpdate> get changes => const Stream.empty();
@@ -56,6 +59,13 @@ class HostUpdateBridge extends MaeveUpdateBridge {
         .invokeMapMethod<Object?, Object?>('installUpdate');
     return reply?['state'] as String? ?? 'installing';
   }
+
+  @override
+  Future<AppUpdate> setAccel(GitHubAccelMode mode, {String ip = ''}) async =>
+      _parse(await MaeveBridge.methods.invokeMapMethod<Object?, Object?>(
+        'setGitHubAccel',
+        {'mode': mode.name, 'ip': ip},
+      ));
 
   /// 宿主状态流里 kind=update 的那部分;宿主状态(kind=status)不是更新,过滤掉。
   @override

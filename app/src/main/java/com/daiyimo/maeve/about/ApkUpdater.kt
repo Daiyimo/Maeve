@@ -150,12 +150,14 @@ class ApkUpdater(private val context: Context, private val net: NetProxy = NetPr
         return info.signingCertificateHistory.orEmpty().map { ApkIntegrity.sha256(it.toByteArray()) }.toSet()
     }
 
-    private companion object {
-        /** 经代理在进程里下的那一份,进程里只有一个。 */
-        val proxied by lazy {
-            ProxiedApkDownload(NetProxy.shared.client(OkHttpClient.Builder().readTimeout(60, TimeUnit.SECONDS)))
-        }
+    /** 经代理在进程里下的那一份,进程里只有一个;GitHub 域名按「GitHub 加速」的设置解析。 */
+    private val proxied by lazy {
+        ProxiedApkDownload(NetProxy.shared.client(OkHttpClient.Builder()
+            .readTimeout(60, TimeUnit.SECONDS)
+            .dns(com.daiyimo.maeve.settings.GitHubAccelStore(context).dns())))
+    }
 
+    private companion object {
         @Suppress("DEPRECATION")
         const val SIGNING_FLAGS = PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
     }

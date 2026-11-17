@@ -111,11 +111,17 @@ class _UpdatePageState extends State<UpdatePage> {
     setState(() {
       _state = next;
       _loaded = true;
-      _notice = next.hasUpdate
-          ? '发现新版本 ${next.update!.version}'
-          : next.check == UpdateCheck.failed
-          ? '暂时连不上 GitHub，稍后再试。'
-          : '已是最新版本。';
+      _notice = switch (next.problem) {
+        // 网络是通的、GitHub 上也问到了,只是没有已发布的版本:别说成"连不上"
+        UpdateProblem.noRelease => 'GitHub 上还没有已发布的版本。',
+        UpdateProblem.unreachable => '暂时连不上 GitHub，稍后再试。',
+        // 失败但宿主没说原因(旧桥、异常路径):照旧说连不上,别冒充"已是最新"
+        UpdateProblem.none when next.check == UpdateCheck.failed =>
+          '暂时连不上 GitHub，稍后再试。',
+        UpdateProblem.none => next.hasUpdate
+            ? '发现新版本 ${next.update!.version}'
+            : '已是最新版本。',
+      };
     });
     unawaited(
       MaeveHaptics.play(
@@ -199,6 +205,8 @@ class _UpdatePageState extends State<UpdatePage> {
           ),
         ],
         const SizedBox(height: MaeveSpace.s24),
+        _AccelSection(state: _state, bridge: _bridge, onChanged: _load),
+        const SizedBox(height: MaeveSpace.s24),
         SettingsSection(
           title: '其他入口',
           rows: [
@@ -232,6 +240,9 @@ class _VersionCard extends StatelessWidget {
     final (label, tone) = switch (state.check) {
       UpdateCheck.checking => ('正在检查', MaeveTone.running),
       _ when state.hasUpdate => ('有新版本', MaeveTone.ready),
+      // 没查到也分两种:仓库上没有发布,和这次没连上——说法不一样,用户才知道该干嘛
+      UpdateCheck.failed when state.problem == UpdateProblem.noRelease =>
+        ('尚未发布', MaeveTone.idle),
       UpdateCheck.failed => ('连不上 GitHub', MaeveTone.warning),
       UpdateCheck.done => ('已是最新', MaeveTone.ready),
       _ => (loaded ? '尚未检查' : '读取中', MaeveTone.idle),
@@ -433,6 +444,107 @@ class _DownloadBar extends StatelessWidget {
           style: MaeveType.monoSmall.copyWith(color: c.ink3),
         ),
       ],
+    );
+  }
+}
+/// 「GitHub 加速」:连不上 GitHub 时,换个域名解析方式再试。
+///
+/// 只影响检查更新与下载安装问 GitHub 的那几个域名;别处(调模型、列模型)照旧走系统 DNS。
+/// 自定义 IP 是 hosts 式的定点:从测 IP 的网站拿一个顺的填上;填域名等于没绕开 DNS,不收。
+class _AccelSection extends StatefulWidget {
+  const _AccelSection({
+    required this.state,
+    required this.bridge,
+    required this.onChanged,
+  });
+
+  final AppUpdate state;
+  final MaeveUpdateBridge bridge;
+  final Future<void> Function() onChanged;
+
+  @override
+  State<_AccelSection> createState() => _AccelSectionState();
+}
+
+class _AccelSectionState extends State<_AccelSection> {
+  late final TextEditingController _ip =
+      TextEditingController(text: widget.state.accel.ip);
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _ip.dispose();
+    super.dispose();
+  }
+
+  static const _labels = <String>[
+    '跟随系统',
+    '阿里 DoH',
+    '腾讯 DoH',
+    '自定义 IP',
+  ];
+
+  Future<void> _pick(GitHubAccelMode mode) async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.bridge.setAccel(mode, ip: _ip.text.trim());
+      await widget.onChanged();
+    } on PlatformException catch (e) {
+      if (mounted) setState(() => _error = e.message ?? '保存失败，请重试');
+    } catch (_) {
+      if (mounted) setState(() => _error = '保存失败，请重试');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = MaeveTheme.of(context).colors;
+    final accel = widget.state.accel;
+    return SettingsSection(
+      title: 'GitHub 加速',
+      rows: [
+        SettingsSegmentTile(
+          icon: Icons.speed_rounded,
+          title: '域名解析',
+          subtitle: '连不上 GitHub 时换一种;两处 DoH 都在国内',
+          options: _labels,
+          value: GitHubAccelMode.values.indexOf(accel.mode),
+          enabled: !_busy,
+          onChanged: (i) => _pick(GitHubAccelMode.values[i]),
+        ),
+        if (accel.mode == GitHubAccelMode.customIp)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: TextField(
+              key: const ValueKey('github-accel-ip'),
+              controller: _ip,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: '例如 20.205.243.166',
+                labelText: 'GitHub IP',
+                filled: true,
+                fillColor: c.fill,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onSubmitted: (_) => _pick(GitHubAccelMode.customIp),
+            ),
+          ),
+      ],
+      footnote: _error ??
+          '只影响检查更新与下载安装;别处(调模型、列模型)照旧走系统 DNS。',
     );
   }
 }

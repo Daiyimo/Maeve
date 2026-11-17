@@ -2,6 +2,7 @@ package com.daiyimo.maeve.ui
 
 import com.daiyimo.maeve.about.ApkDownloadState
 import com.daiyimo.maeve.about.ApkRejected
+import com.daiyimo.maeve.about.CheckProblem
 import com.daiyimo.maeve.about.CheckStatus
 import com.daiyimo.maeve.about.DownloadPhase
 import com.daiyimo.maeve.about.MaeveLinks
@@ -59,6 +60,26 @@ class UpdateBridgeTest {
         assertNull(map["update"])
         assertEquals("idle", map["status"])
         assertEquals(0, map["manualRounds"])
+        assertNull(map["problem"])
+    }
+
+    /**
+     * 「没有已发布的版本」和「没连上」必须分开:前者网络是通的,用户不该跑去调网络
+     * (发布第一个版本之前,检查更新一直是这样)。
+     */
+    @Test fun noReleaseAndUnreachableAreDistinct() {
+        val none = UpdateBridge.snapshot(
+            UpdateState(status = CheckStatus.Failed, problem = CheckProblem.NoRelease),
+            ApkDownloadState(), "0.1.0", canInstall = true,
+        )
+        // 线上名字和 Flutter 侧 UpdateProblem 的枚举名逐一对应(大小写也算):
+        // 写成下划线就会静默落成默认值,页面上「没有发布」和「连不上」就看出来了
+        assertEquals("noRelease", none["problem"])
+        val lost = UpdateBridge.snapshot(
+            UpdateState(status = CheckStatus.Failed, problem = CheckProblem.Unreachable),
+            ApkDownloadState(), "0.1.0", canInstall = true,
+        )
+        assertEquals("unreachable", lost["problem"])
     }
 
     /** 缺摘要或缺字节数就不给应用内下载:校验做不了,只能去发布页。 */

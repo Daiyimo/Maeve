@@ -86,6 +86,21 @@ class UpdateCheckerTest {
         assertNull(c.state.value.update)
     }
 
+    /**
+     * 仓库可达但没有已发布的版本(接口 404):这是"还没有发布",不是"连不上"——
+     * 发布第一个版本之前检查更新一直是这样,说成连不上会把人误导去调网络。
+     */
+    @Test
+    fun noPublishedReleaseIsNotAConnectionFailure() = runTest {
+        github = MockResponse().setResponseCode(404).setBody("""{"message":"Not Found"}""")
+        val c = checker()
+        c.check(manual = true)
+        assertEquals(listOf("/api"), hits)
+        assertEquals(CheckStatus.Failed, c.state.value.status)
+        assertEquals(CheckProblem.NoRelease, c.state.value.problem)
+        assertNull(c.state.value.update)
+    }
+
     @Test
     fun manualFailureIsReported() = runTest {
         val c = checker()

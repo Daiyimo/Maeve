@@ -7,7 +7,8 @@ import 'package:maeve_flutter/app/maeve_app.dart';
 import 'package:maeve_flutter/app/maeve_controller.dart';
 import 'package:maeve_flutter/bridge/maeve_bridge.dart';
 import 'package:maeve_flutter/bridge/maeve_update_bridge.dart';
-import 'package:maeve_flutter/models/app_update.dart';
+import 'package:maeve_flutter/models/app_update.dart'
+    show AppUpdate, GitHubAccelMode;
 import 'package:maeve_flutter/ui/common/app_page.dart';
 import 'package:maeve_flutter/ui/settings/update_page.dart';
 import 'package:maeve_flutter/widgets/glass_surface.dart';
@@ -69,6 +70,16 @@ class FakeUpdateBridge extends MaeveUpdateBridge {
       throw error;
     }
     return installResult;
+  }
+
+  /// 记下每次设的模式与 IP(页面设完会再读一次状态,返回值只作传递)。
+  final accelCalls = <(GitHubAccelMode, String)>[];
+
+  @override
+  Future<AppUpdate> setAccel(GitHubAccelMode mode, {String ip = ''}) async {
+    calls.add('setAccel');
+    accelCalls.add((mode, ip));
+    return _state;
   }
 
   Future<void> dispose() => _changes.close();
@@ -210,6 +221,66 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('暂时连不上 GitHub，稍后再试。'), findsOneWidget);
     expect(find.text('连不上 GitHub'), findsOneWidget);
+  });
+
+  /// 「仓库上没有发布」和「连不上」是两回事:说法、图标语气都不一样。 */
+  testWidgets('没有已发布的版本不说成连不上', (tester) async {
+    final bridge = await mount(
+      tester,
+      FakeUpdateBridge(
+        initial: AppUpdate.fromMap({
+          'available': false,
+          'currentVersion': '0.1.0',
+          'status': 'failed',
+          'problem': 'noRelease',
+          'manualRounds': 1,
+        }),
+      ),
+    );
+    expect(find.text('尚未发布'), findsOneWidget);
+    expect(find.text('连不上 GitHub'), findsNothing);
+    bridge.emit(AppUpdate.fromMap({
+      'available': false,
+      'currentVersion': '0.1.0',
+      'status': 'failed',
+      'problem': 'noRelease',
+      'manualRounds': 2,
+    }));
+    await tester.tap(find.text('检查更新').last);
+    await tester.pumpAndSettle();
+    expect(find.text('GitHub 上还没有已发布的版本。'), findsOneWidget);
+    expect(find.text('暂时连不上 GitHub，稍后再试。'), findsNothing);
+  });
+
+  testWidgets('GitHub 加速:四种解析方式,选了哪一种如实显示', (tester) async {
+    final bridge = await mount(
+      tester,
+      FakeUpdateBridge(
+        initial: AppUpdate.fromMap({
+          'available': false,
+          'currentVersion': '0.1.0',
+          'status': 'idle',
+          'accel': {'mode': 'aliDoh', 'ip': ''},
+        }),
+      ),
+    );
+    expect(find.text('GitHub 加速'), findsOneWidget);
+    // 四种方式都在;当前是阿里 DoH
+    for (final label in ['跟随系统', '阿里 DoH', '腾讯 DoH', '自定义 IP']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    await tester.tap(find.text('自定义 IP'));
+    await tester.pumpAndSettle();
+    expect(bridge.accelCalls, [(GitHubAccelMode.customIp, '')]);
+    // 自定义 IP 选中后才出现 IP 输入框
+    bridge.emit(AppUpdate.fromMap({
+      'available': false,
+      'currentVersion': '0.1.0',
+      'status': 'idle',
+      'accel': {'mode': 'customIp', 'ip': ''},
+    }));
+    await tester.pumpAndSettle();
+    expect(find.text('例如 20.205.243.166'), findsOneWidget);
   });
 
   testWidgets('下载中按钮不可点、显示进度，且能删除下载', (tester) async {

@@ -2,6 +2,7 @@ package com.daiyimo.maeve.ui
 
 import com.daiyimo.maeve.about.ApkDownloadState
 import com.daiyimo.maeve.about.ApkRejected
+import com.daiyimo.maeve.about.CheckProblem
 import com.daiyimo.maeve.about.DownloadPhase
 import com.daiyimo.maeve.about.MaeveLinks
 import com.daiyimo.maeve.about.ReleaseInfo
@@ -19,12 +20,20 @@ import com.daiyimo.maeve.about.UpdateState
  */
 internal object UpdateBridge {
     /** 一次「获取更新」页面要的全部状态。[available] 为 false 表示还没查到任何发布。 */
-    fun snapshot(state: UpdateState, download: ApkDownloadState, currentVersion: String, canInstall: Boolean): Map<String, Any?> = mapOf(
+    fun snapshot(state: UpdateState, download: ApkDownloadState, currentVersion: String, canInstall: Boolean,
+                 accel: Map<String, Any?> = emptyMap()): Map<String, Any?> = mapOf(
         "available" to (state.latest != null),
         "currentVersion" to currentVersion,
         "status" to state.status.name.lowercase(java.util.Locale.ROOT),
         "manualRounds" to state.manualRounds,
         "hasUpdate" to state.hasUpdate,
+        // 手动检查没查到时的原因:noRelease(仓库可达但没有发布)/ unreachable(没连上);null 表示没失败。
+        // 名字和 Flutter 侧 UpdateProblem 的枚举名逐一对应(大小写也算),别改成下划线写法。
+        "problem" to when (state.problem) {
+            CheckProblem.NoRelease -> "noRelease"
+            CheckProblem.Unreachable -> "unreachable"
+            null -> null
+        },
         "latest" to state.latest?.let(::release),
         "update" to state.update?.let(::release),
         "download" to mapOf(
@@ -36,6 +45,8 @@ internal object UpdateBridge {
         // 系统「安装未知应用」授权;没授权时安装按钮先带用户去开。
         "canInstall" to canInstall,
         "releasesUrl" to MaeveLinks.RELEASES,
+        // GitHub 加速(见 com.daiyimo.maeve.settings.GitHubAccelStore)
+        "accel" to accel,
     )
 
     fun release(r: ReleaseInfo): Map<String, Any?> = mapOf(

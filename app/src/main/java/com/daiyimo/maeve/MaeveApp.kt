@@ -265,6 +265,7 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
     /** 检查更新:查到的新版本跟进程走,侧栏、设置首页、关于页的红点看同一份。 */
     val updates: com.daiyimo.maeve.about.UpdateChecker by lazy {
         com.daiyimo.maeve.about.UpdateChecker(java.io.File(filesDir, "update-v1.json"), BuildConfig.VERSION_NAME,
+            dns = com.daiyimo.maeve.settings.GitHubAccelStore(this).dns(),
             deviceAbis = android.os.Build.SUPPORTED_ABIS.toList())
     }
 

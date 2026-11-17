@@ -149,6 +149,33 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
                     result.error("update_failed", AboutCopy.UPDATE_ERROR, null)
                 }
             }
+            // 「GitHub 加速」:检查更新与下载安装问 GitHub 时域名怎么解析(见 GitHubAccelStore)。
+            "githubAccel" -> result.success(accelMap())
+            "setGitHubAccel" -> scope.launch {
+                try {
+                    val mode = call.argument<String>("mode")
+                    val parsed = com.daiyimo.maeve.core.net.GitHubDnsMode.entries
+                        .firstOrNull { it.name.equals(mode, ignoreCase = true) }
+                    if (parsed == null) {
+                        result.error("bad_args", "Unknown GitHub acceleration mode", null)
+                        return@launch
+                    }
+                    val ip = call.argument<String>("ip").orEmpty().trim()
+                    // 自定义 IP 只收字面 IP:填域名等于又绕回 DNS,不如不填
+                    if (parsed == com.daiyimo.maeve.core.net.GitHubDnsMode.CustomIp &&
+                        com.daiyimo.maeve.core.net.GitHubDns.literalIp(ip) == null
+                    ) {
+                        result.error("bad_ip", "自定义 IP 需要一个 IP 地址", null)
+                        return@launch
+                    }
+                    com.daiyimo.maeve.settings.GitHubAccelStore(context).set(parsed, ip)
+                    result.success(updateSnapshot())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    result.error("settings_failed", "无法保存 GitHub 加速设置", null)
+                }
+            }
             "cancelUpdate" -> scope.launch {
                 try {
                     withContext(Dispatchers.IO) { updater.cancel() }
@@ -333,7 +360,15 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
         return UpdateBridge.snapshot(
             state, download, BuildConfig.VERSION_NAME,
             activity?.activity?.packageManager?.canRequestPackageInstalls() ?: false,
+            accelMap(),
         )
+    }
+
+    /** 「GitHub 加速」此刻的设置(见 [com.daiyimo.maeve.settings.GitHubAccelStore])。 */
+    private fun accelMap(): Map<String, Any?> {
+        val store = com.daiyimo.maeve.settings.GitHubAccelStore(context)
+        // 模式和 Flutter 侧 GitHubAccelMode 的枚举名逐一对应(aliDoh、customIp…),大小写也算
+        return mapOf("mode" to store.mode().name.replaceFirstChar { it.lowercaseChar() }, "ip" to store.customIp())
     }
 
     /** 回前台刷一次状态(版本、构建、系统版本这类打开期间不会变,但设置里可能改过显示)。 */
