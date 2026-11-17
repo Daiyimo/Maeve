@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -9,6 +11,33 @@ val gitHash: String = runCatching {
     providers.exec { commandLine("git", "rev-parse", "--short=7", "HEAD") }.standardOutput.asText.get().trim()
 }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "dev"
 
+// 发布签名:密钥不进仓库。按「local.properties → 环境变量」的顺序取,两处都没有就退回调试签名,
+// 让 CI 和干净 clone 照样能编出可安装的包;正式分发必须提供密钥,否则装上去的包换不了签名、
+// 后续版本无法覆盖升级(检查更新里的签名校验也会拒绝)。属性名见 local.properties.example。
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.isFile) f.inputStream().use { load(it) }
+}
+fun signingValue(prop: String, env: String): String? =
+    (localProps.getProperty(prop) ?: System.getenv(env))?.takeIf { it.isNotBlank() }
+
+val releaseStorePath = signingValue("maeve.release.storeFile", "MAEVE_RELEASE_STORE_FILE")
+val releaseStoreFile = releaseStorePath?.let { file(it) }?.takeIf { it.isFile }
+val releaseStorePassword = signingValue("maeve.release.storePassword", "MAEVE_RELEASE_STORE_PASSWORD")
+val releaseKeyAlias = signingValue("maeve.release.keyAlias", "MAEVE_RELEASE_KEY_ALIAS")
+val releaseKeyPassword = signingValue("maeve.release.keyPassword", "MAEVE_RELEASE_KEY_PASSWORD")
+val hasReleaseKey = releaseStoreFile != null && releaseStorePassword != null &&
+    releaseKeyAlias != null && releaseKeyPassword != null
+if (!hasReleaseKey) {
+    // 只在真要出 release 包时提醒,免得编调试包也刷一行。
+    if (gradle.startParameter.taskNames.any { Regex("(?i)release").containsMatchIn(it) }) {
+        logger.warn(
+            "[maeve] 没有发布密钥,release 包改用调试签名,只能本机验证、不能对外分发。" +
+                "配置方式见 local.properties.example。"
+        )
+    }
+}
+
 android {
     namespace = "com.daiyimo.maeve"
     compileSdk = 36
@@ -18,7 +47,10 @@ android {
         minSdk = 30
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0-dolores"
+        // 只写「主.次.修订」,不带代号后缀:发布 tag 是 v0.1.0,而 AppVersion 把带后缀的当预发布版、
+        // 判正式版更新 —— 写成 0.1.0-dolores 的话,装了 0.1.0 的人会被提示「升级到 0.1.0」,
+        // 点安装又因 versionCode 相同被系统拒绝。代号(dolores)写在发布说明里。
+        versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GIT_HASH", "\"$gitHash\"")
         // 关于页版本号后的 Beta 标记;出正式版时改成 false
@@ -52,7 +84,24 @@ android {
     // 评测任务集(仓库根目录 eval/tasks)打进测试包的 assets,真机评测跑器从那里读题
     sourceSets.getByName("androidTest").assets.srcDir(rootProject.file("eval/tasks"))
 
+    signingConfigs {
+        if (hasReleaseKey) create("release") {
+            storeFile = releaseStoreFile
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+            // 三种都开着,AGP 会按 minSdk 挑够用的:minSdk 30 时只写 v3(安卓 11 起都认),
+            // 以后 minSdk 降下去会自动补上 v1/v2。v3 带签名历史,换密钥时能平滑升级。
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
     buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+        }
         // 真机验收时并排安装,保留发行版和用户数据;默认构建标识不变。
         if (providers.gradleProperty("devInstall").isPresent) getByName("debug") {
             applicationIdSuffix = ".dev"

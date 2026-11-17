@@ -1,0 +1,26 @@
+# 复制成 local.properties 再填。local.properties 已被 .gitignore 忽略,不会进仓库。
+# 这个文件只放本机才有的东西:SDK 路径、发布密钥。
+
+# Android SDK 路径。Android Studio 打开工程时会自动写,命令行构建才需要手填。
+# sdk.dir=C\:\\Users\\<你>\\AppData\\Local\\Android\\Sdk
+
+# ---- 发布签名(只出正式包时需要)----
+# 不配这四项也能编 release,但会退回调试签名:只能本机装、不能对外分发,
+# 而且以后换了签名的包无法覆盖升级(「检查更新」的签名校验会直接拒绝)。
+# 密钥务必放在仓库外并自行备份 —— 丢了就再也发不出能覆盖升级的版本。
+#
+# 生成一把新密钥(有效期 30 年,PKCS12):
+#   keytool -genkeypair -v -keystore maeve-release.keystore -alias maeve \
+#     -keyalg RSA -keysize 4096 -validity 10950 -storetype PKCS12 \
+#     -dname "CN=Maeve, OU=Daiyimo, O=Daiyimo, C=CN"
+#
+# 路径写绝对路径,用正斜杠或双反斜杠(单反斜杠会被 Properties 当转义吃掉)。
+# 也可以改用环境变量:MAEVE_RELEASE_STORE_FILE / MAEVE_RELEASE_STORE_PASSWORD /
+# MAEVE_RELEASE_KEY_ALIAS / MAEVE_RELEASE_KEY_PASSWORD(CI 里用 secrets 注入)。
+# maeve.release.storeFile=E:/keys/maeve-release.keystore
+# maeve.release.storePassword=<口令>
+# maeve.release.keyAlias=maeve
+# maeve.release.keyPassword=<口令>
+#
+# 查证书指纹(发布说明里要写,用户可据此核对包是不是官方签的):
+#   keytool -list -v -keystore maeve-release.keystore -alias maeve

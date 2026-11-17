@@ -14,6 +14,10 @@ local.properties
 dist/
 .omc/
 
+# 构建好的发布包:体积大(全架构包超过 GitHub 单文件 100MB 上限),不进 git 历史。
+# 正式分发挂到 GitHub Releases,发布说明与校验和(releases/*.md、SHA256SUMS.txt)照常入库。
+releases/*.apk
+
 # 给 AI 编程助手的本地规则,只留在本机
 CLAUDE.md
 
