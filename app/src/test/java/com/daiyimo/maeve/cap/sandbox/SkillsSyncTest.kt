@@ -8,12 +8,17 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 class SkillsSyncTest {
     @get:Rule val texts = ChineseTexts()
+
+    // 依赖 POSIX 权限视图与符号链接,只在 Linux 宿主上成立,Windows 开发机整类跳过
+    @Before fun linuxOnly() = PlatformAssumes.assumeLinux()
 
     private val tmp: File = Files.createTempDirectory("skills-sync").toFile()
     private val dirs = SandboxDirs(File(tmp, "files/sandbox"), File(tmp, "cache"), File(tmp, "lib"), JVM_GATE, SandboxTree())

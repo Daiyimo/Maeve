@@ -144,11 +144,20 @@ class AmooBridge(private val app: MaeveApp) {
         Log.i(TAG, "request $id -> task $taskId (${goal.length} chars)")
         writeResult(root, id, taskId, "running", null, null)
         val deadline = android.os.SystemClock.elapsedRealtime() + WAIT_MS
+        var lastHeartbeat = android.os.SystemClock.elapsedRealtime()
         while (android.os.SystemClock.elapsedRealtime() < deadline) {
             delay(POLL_MS)
             val state = runCatching { tasks.get(taskId)?.state }.getOrNull() ?: continue
             val status = RemoteStatus.of(state)
-            if (!RemoteStatus.finished(status)) continue
+            if (!RemoteStatus.finished(status)) {
+                // 心跳:每 1.5s 刷新一次 updated_at,amoo 侧据此区分「在推进」和「已卡死」(SPEC §13.8/ADR-05)
+                val now = android.os.SystemClock.elapsedRealtime()
+                if (now - lastHeartbeat >= HEARTBEAT_MS) {
+                    lastHeartbeat = now
+                    writeResult(root, id, taskId, "running", null, null)
+                }
+                continue
+            }
             val answer = (state as? TaskState.Succeeded)?.answer
             val reason = (state as? TaskState.Failed)?.reason
             writeResult(root, id, taskId, status, answer, reason)
@@ -196,14 +205,15 @@ class AmooBridge(private val app: MaeveApp) {
         const val IN = "in"
         const val OUT = "out"
         const val POLL_MS = 200L
+        const val HEARTBEAT_MS = 1500L
         const val WAIT_MS = 15 * 60_000L
         const val MAX_IN_FLIGHT = 4
         val ID = Regex("[A-Za-z0-9_-]{1,64}")
     }
 }
 
-/** 写回给 amoo 的结果。字段名叫 status/answer,和 Maeve 的 /api/v1 任务接口一致,便于它复用同一套理解。 */
-internal fun amooResultJson(id: String, taskId: String?, status: String, answer: String?, note: String?): String =
+/** 写回给 amoo 的结果。字段名叫 status/answer,和 Maeve 的 /api/v1 任务接口一致,便于它复用同一套理解。updated_at 是心跳时间戳,amoo 据此区分「在推进」和「已卡死」。 */
+internal fun amooResultJson(id: String, taskId: String?, status: String, answer: String?, note: String?, updatedAt: Long = System.currentTimeMillis()): String =
     buildString {
         append('{')
         append("\"id\":").append(quote(id))
@@ -211,6 +221,7 @@ internal fun amooResultJson(id: String, taskId: String?, status: String, answer:
         append(",\"status\":").append(quote(status))
         append(",\"answer\":").append(answer?.let(::quote) ?: "null")
         append(",\"note\":").append(note?.let(::quote) ?: "null")
+        append(",\"updated_at\":").append(updatedAt)
         append('}')
     }
 

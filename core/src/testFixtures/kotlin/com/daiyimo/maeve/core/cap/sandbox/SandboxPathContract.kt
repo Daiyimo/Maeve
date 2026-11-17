@@ -6,10 +6,12 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import com.daiyimo.maeve.core.workspace.SandboxPaths
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 /**
  * 每个 [SandboxPort] 实现都要满足的路径规则:越界、符号链接逃逸、技能目录只读、完整输出落盘不出工作区。
@@ -24,6 +26,10 @@ abstract class SandboxPathContract {
     private val sb by lazy { sandbox() }
     private fun wsRoot(): File = sb.hostPath(workspace, SandboxPaths.WORKSPACE, forWrite = true)!!.also { it.mkdirs() }
     private fun freshOutside(): File = File(outsideDir(), "case-${System.nanoTime()}").apply { mkdirs() }
+
+    // 整类门禁:路径契约依赖 POSIX 语义(canonicalPath、File.separator、符号链接),Windows 开发机上会假红,
+    // 只在 Linux 宿主(含 CI ubuntu-24.04)上执行。子类(FakeSandbox 等)继承此门禁。
+    @Before fun skipOnNonLinuxHost() = PlatformAssumes.assumeLinux()
 
     @Test fun relativeAndAbsoluteNameTheSameFile() {
         val a = sb.hostPath(workspace, "d/a.txt", forWrite = true)
@@ -46,6 +52,7 @@ abstract class SandboxPathContract {
     }
 
     @Test fun symlinkOutOfWorkspaceRejected() {
+        PlatformAssumes.assumeLinux() // 符号链接只在 Linux 宿主上建得了
         val out = freshOutside()
         File(out, "secret").writeText("key")
         val root = wsRoot()
@@ -62,6 +69,7 @@ abstract class SandboxPathContract {
     }
 
     @Test fun saveOutputStaysInWorkspace() {
+        PlatformAssumes.assumeLinux() // 把 .maeve 换成符号链接只在 Linux 宿主上成立
         val path = sb.saveOutput(workspace, "完整输出")
         assertTrue(path, path.startsWith("/workspace/.maeve/out-"))
         assertEquals("完整输出", sb.hostPath(workspace, path, forWrite = false)!!.readText())

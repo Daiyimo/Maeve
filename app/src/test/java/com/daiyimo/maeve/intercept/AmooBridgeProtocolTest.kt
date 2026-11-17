@@ -33,17 +33,17 @@ class AmooBridgeProtocolTest {
     }
 
     @Test fun writesResultWithEscapes() {
-        val json = amooResultJson("id-1", "task-1", "done", "他说:\"好\"\n完成", null)
+        val json = amooResultJson("id-1", "task-1", "done", "他说:\"好\"\n完成", null, updatedAt = 1234567890L)
         assertEquals(
-            """{"id":"id-1","task_id":"task-1","status":"done","answer":"他说:\"好\"\n完成","note":null}""",
+            """{"id":"id-1","task_id":"task-1","status":"done","answer":"他说:\"好\"\n完成","note":null,"updated_at":1234567890}""",
             json
         )
         assertEquals("task-1", jsonString(json, "task_id"))
     }
 
     @Test fun writesNullsWhenMissing() {
-        val json = amooResultJson("id-2", null, "failed", null, "refused")
-        assertEquals("""{"id":"id-2","task_id":null,"status":"failed","answer":null,"note":"refused"}""", json)
+        val json = amooResultJson("id-2", null, "failed", null, "refused", updatedAt = 987654321L)
+        assertEquals("""{"id":"id-2","task_id":null,"status":"failed","answer":null,"note":"refused","updated_at":987654321}""", json)
         assertTrue(jsonString(json, "goal") == null)
     }
 }

@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 5f31dddc9fe2 -->
+<!-- translated-from: README.md @ 5d55a0bf63d8 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · 日本語 · [한국어](README.ko.md) · [Español](README.es.md)
@@ -104,8 +104,8 @@ AAR がないと Android ホストはコンパイルできません。Flutter �
 経緯は [ATTRIBUTION.md](../../ATTRIBUTION.md) を参照してください。
 
 M2 の視覚システム全体、接続ハブと bridge v3（M3）、リリース強化（M4）は未完了です。
-Flutter シェルはワークベンチで、返信はローカルの遅延デモ、会話とメモリはプロセスメモリだけ、
-Android ホストはブリッジハンドラーをまだ登録していません。
+Flutter シェルはもはやワークベンチではなく、Flutter から直接起動し、チャットブリッジは実際の Android 会話状態・送信・キャンセル・エントリを使い、
+Android ホストは MethodChannel/EventChannel ハンドラーを登録しています。
 [FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md) に原型の制限がすべて並んでいます。
 ここにはリリース済みのバイナリはありません。
 

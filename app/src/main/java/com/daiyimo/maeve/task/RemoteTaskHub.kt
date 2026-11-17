@@ -84,8 +84,8 @@ class RemoteTaskHub(
     override fun answer(id: String, text: String): Boolean {
         val run = live(id) ?: return false
         if (run.state.value !is TaskState.WaitingInput) return false
-        run.answer(text) {}
-        return true
+        // 用 answer 的返回值:没进入 send 路径(状态刚变)就如实返回 false,不再无条件报已接受
+        return run.answer(text) {}
     }
 
     override fun cancel(id: String): Boolean {
@@ -114,8 +114,10 @@ class RemoteTaskHub(
         if (task.state != null) return task
         val run = live(task.id)
         if (run == null && clock() - task.createdAtMs > LOST_MS) {
+            // live(id)==null 即等价于从未开跑:已认领但没开起来的任务同样要落终态,
+            // 不能带 onlyUnclaimed,否则对已认领行更新失败,任务永久卡在 starting。
             val end = TaskState.Failed("The task never started on the phone.", FailKind.Environment)
-            if (receipts.finish(task.id, end, emptyList(), onlyUnclaimed = true)) return task.copy(state = end)
+            if (receipts.finish(task.id, end, emptyList())) return task.copy(state = end)
         }
         val state = run?.state?.value
         // The loop can emit a provisional end while cleanup still adjusts the result.

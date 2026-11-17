@@ -17,6 +17,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.security.MessageDigest
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 /** 仓库里的自带运行环境与生成的常量、软件包清单、构建脚本彼此一致,并且真能解开。单元测试的工作目录是 app/。 */
 class BundledRuntimeTest {
@@ -45,6 +46,7 @@ class BundledRuntimeTest {
 
     @Test
     fun bundledRuntimeInstalls() = runBlocking {
+        PlatformAssumes.assumeLinux() // RootfsInstaller 装包要 POSIX 权限视图
         val tmp = Files.createTempDirectory("bundled-runtime").toFile()
         val dirs = SandboxDirs(File(tmp, "files/sandbox"), File(tmp, "cache/proot-tmp"), File(tmp, "lib"), JVM_GATE, SandboxTree())
         val state = SandboxState(dirs, File(tmp, "files/sandbox-settings.json")) { listOf("arm64-v8a") }

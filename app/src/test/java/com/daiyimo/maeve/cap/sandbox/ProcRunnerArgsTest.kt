@@ -7,6 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.util.TimeZone
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 class ProcRunnerArgsTest {
     private val dirs = SandboxDirs(File("/data/m/files/sandbox"), File("/data/m/cache/proot-tmp"), File("/data/app/lib/arm64"), JVM_GATE, SandboxTree())
@@ -15,6 +16,7 @@ class ProcRunnerArgsTest {
     private fun List<String>.hasPair(a: String, b: String) = indices.any { it + 1 < size && this[it] == a && this[it + 1] == b }
 
     @Test fun argvOrderAndBinds() {
+        PlatformAssumes.assumeLinux() // argv 用 File 拼路径,Windows 分隔符是反斜杠
         val argv = ProcRunner.argv(dirs, ws, "sub/dir", 60, network = false, standIns = listOf("stat"),
             command = listOf("/bin/sh", "-lc", "echo hi"), devices = listOf("-b", "/dev/null"))
         assertEquals("/data/app/lib/arm64/libmaeverun.so", argv[0])
@@ -39,6 +41,7 @@ class ProcRunnerArgsTest {
     }
 
     @Test fun envIsMinimal() {
+        PlatformAssumes.assumeLinux() // PROOT_LOADER 等路径用 File 拼,Windows 分隔符是反斜杠
         val env = ProcRunner.env(dirs, null, null, "conv1")
         assertEquals(setOf("PROOT_LOADER", "PROOT_TMP_DIR", "HOME", "PATH", "LANG", "TMPDIR", "TZ", "MAEVE_CONVERSATION"), env.keys)
         assertEquals("/data/app/lib/arm64/libproot_loader.so", env["PROOT_LOADER"])

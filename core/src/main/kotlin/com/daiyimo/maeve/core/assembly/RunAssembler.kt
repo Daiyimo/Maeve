@@ -33,8 +33,12 @@ internal class RunAssembler(private val providers: List<CapabilityProvider>) {
             .filterNot { spec.provenance.origin == RunOrigin.Child && it.verb in setOf(Verb.SpawnAgent, Verb.MemorySave, Verb.ProfileEdit, Verb.ScheduleTask, Verb.SkillSave,
                 Verb.AskUser, Verb.RequestConfirmation, Verb.HandToUser) }
             .filter { !readOnly || it.risk == Risk.Read }
+        // 非界面来源(电脑/渠道/定时)拿不到 shell 命令:信箱或网页里的字符串不能直接变成 sh -c
+        val remote = spec.provenance.origin != RunOrigin.Ui
+        val shellVerbs = setOf(Verb.PhoneCommand, Verb.RootCommand)
         val capabilityTools = capabilities.flatMap { it.tools() }.filter { !readOnly || it.risk == Risk.Read ||
             it.capability == "web" && it.verb == Verb.Navigate }
+            .filter { !remote || it.verb !in shellVerbs }
         return ToolDispatcher(capabilities, general + capabilityTools,
             listOf(CoreSections) + capabilities, config, { ctx -> Interfaces.attach(ctx, capabilities.mapNotNull { it.surface }, stableRefs) },
             formerPrefix, renamed, retired, moved)

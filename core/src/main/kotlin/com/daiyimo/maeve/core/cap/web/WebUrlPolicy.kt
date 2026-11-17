@@ -30,7 +30,11 @@ object WebUrlPolicy {
         val scheme = scheme(u) ?: return "the URL must start with http:// or https://"
         if (external(u) != null) return "this is a link that opens an app, so it is not opened in the browser; when the task needs that app, open it on the phone"
         if (scheme != "http" && scheme != "https") return "only http/https URLs can be opened, not $scheme:"
-        if (host(u) == null) return "the URL has no domain"
+        val h = host(u) ?: return "the URL has no domain"
+        // 主文档导航也拦内网/回环:否则攻击者页面把 location 跳到 192.168.x.x 就能把 LAN 拓扑读进任务答案(SSRF)。
+        // 与下载侧 [DownloadAddressPolicy.blockedHost] 同一条规则;字面内网 IP 与 localhost 类后缀在此拦,
+        // 普通域名解析到内网的由 WebView 自身解析,这里只挡字面地址。
+        if (DownloadAddressPolicy.blockedHost(h)) return "the URL points to a local or private network address"
         return null
     }
 

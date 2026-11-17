@@ -405,7 +405,7 @@ stateDiagram-v2
 ### 6.9 amoo 隐藏核心的具体规则
 
 - 目录：`/sdcard/Android/media/<applicationId>/amoo/{in,out}`（`<applicationId>` 跟随包名自动变化，源码里 `$pkg` 与 `${applicationId}` 已是运行时/占位，不要写死）。
-- 默认：`bridge_amoo = true` 且**不出现在任何设置页**；诊断页只读展示「最近一次收/发时间、在途数」。
+- 默认：`bridge_amoo = false`（安全默认，开箱不轮询信箱）。设置页提供开关供诊断/高级用户显式开启（`FlutterWechatSettings`），开启后诊断页只读展示「最近一次收/发时间、在途数」。（v0.3 原写「默认 true 且不出现设置页」，与 `FeatureFlags.bridgeAmoo` 默认 false 及设置页开关脱节，此处对齐代码。）
 - 认领（**v0.3 按 `AmooBridge.kt:105-132` 逐行订正**）：`in/<id>.json` → `renameTo(.claimed)` → 解析 → `RemoteTaskService.start(goal, null, requestId)`；**`requestId` 由 Maeve 侧 `UUID.randomUUID()` 生成，不是文件桥的 `id`**（v0.1 此处误写成传 `id`）。产品 `v0.1.0` 起改为 `id` 的稳定 UUIDv5 映射以获得幂等能力，见 §13.8。写回 `out/<id>.json` 用临时文件 + 原子 rename。
 - 并发：`MAX_IN_FLIGHT` 上限保持；两条路线同时在途时按 `request_id` 在 receipts 排队，不并发抢后台屏。
 - 安全：**信箱是明文的，等价于把「动手机」的能力交给任何能写该目录的应用**。产品 `v0.1.0` 至少补：请求体大小上限、`goal` 长度上限、来源目录权限检查、异常请求隔离（单个坏 JSON 不影响轮询）。更严格的签名校验列入后续版本。

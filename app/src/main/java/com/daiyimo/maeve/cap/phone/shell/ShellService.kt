@@ -204,7 +204,9 @@ class ShellService(
     private fun syncDisplayOrientations() {
         val ours = synchronized(displays) { displays.toMap() }
         if (ours.isEmpty()) return
-        val top = allTasks().groupBy { TASK_INFO.getField("displayId").getInt(it) }
+        // getField 外提(同文件 337/361/966 的先例),不在 groupBy lambda 内逐元素反射查找
+        val displayIdField = TASK_INFO.getField("displayId")
+        val top = allTasks().groupBy { displayIdField.getInt(it) }
         for ((id, vd) in ours) runCatching {
             val task = top[id]?.firstOrNull() ?: return@runCatching
             val taskId = TASK_INFO.getField("taskId").getInt(task)
@@ -485,8 +487,9 @@ class ShellService(
             result >= 0
         } catch (t: Throwable) {
             Log.w(TAG, "startActivityAsUser unavailable, falling back to am start", t)
+            // action 可能为 null(无 component 也无 action 的 intent):不再 !! 抛 NPE,缺 action 时只回退到 -d/-p
             val target = intent.component?.let { listOf("-n", it.flattenToShortString()) }
-                ?: (listOf("-a", intent.action!!) + listOfNotNull(uri?.let { "-d" }, uri) + listOfNotNull(packageName?.let { "-p" }, packageName) +
+                ?: (listOfNotNull(intent.action?.let { "-a" }, intent.action) + listOfNotNull(uri?.let { "-d" }, uri) + listOfNotNull(packageName?.let { "-p" }, packageName) +
                     (if (action == null) listOf("-c", Intent.CATEGORY_BROWSABLE) else emptyList()))
             exec("am", "start", "--display", "$displayId", *target.toTypedArray()) == 0
         }
@@ -582,7 +585,8 @@ class ShellService(
      */
     private fun startOwnPage(displayId: Int, intent: Intent): Int {
         val component = intent.component ?: return START_INVALID_LINK
-        val mine = runCatching { context.packageManager.getPackagesForUid(allowedUid)?.toList() }.getOrNull().orEmpty()
+        // 复用 ownPackages(同文件已有 by lazy 先例),不再每次 startOwnPage 做一次 getPackagesForUid IPC
+        val mine = ownPackages
         // 只有 Maeve 调得到这个服务;包名再核一次(查不到 Maeve 的包名时只认类名)
         if (component.className != SystemIntents.OWN_PAGE_CLASS || (mine.isNotEmpty() && component.packageName !in mine)) return START_INVALID_LINK
         // 每次都从头开一页:旧的那一页连同它的任务清掉,新的一定在 Maeve 屏的最上面

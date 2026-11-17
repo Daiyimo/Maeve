@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 5f31dddc9fe2 -->
+<!-- translated-from: README.md @ 5d55a0bf63d8 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · Español
@@ -107,9 +107,8 @@ Apache-2.0, el paquete es `com.daiyimo.maeve` y la capa de cumplimiento y atribu
 La genealogía está en [ATTRIBUTION.md](../../ATTRIBUTION.md).
 
 El sistema visual completo de M2, el centro de conexiones y bridge v3 (M3) y el endurecimiento
-para la release (M4) aún no están terminados. El shell Flutter es un banco de trabajo: las
-respuestas son demos locales con retardo, las conversaciones y la memoria solo viven en la
-memoria del proceso y el host de Android todavía no registra los manejadores del puente.
+para la release (M4) aún no están terminados. El shell Flutter ya no es un banco de trabajo: arranca directamente en Flutter, el puente de chat usa el estado real de conversación de Android, envíos, cancelaciones y entradas,
+y el host de Android registra los manejadores de MethodChannel/EventChannel.
 [FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md) enumera cada límite del prototipo; aquí no hay
 ningún binario publicado.
 

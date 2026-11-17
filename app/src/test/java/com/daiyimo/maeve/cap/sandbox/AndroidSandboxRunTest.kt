@@ -12,6 +12,7 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
 class AndroidSandboxRunTest {
@@ -41,6 +42,7 @@ class AndroidSandboxRunTest {
     }
 
     @Test fun existingSandboxGetsUpdatedClientScript() = runBlocking {
+        PlatformAssumes.assumeLinux()
         val dirs = SandboxDirs(File(tmp, "client/files/sandbox"), File(tmp, "client/cache"), File(tmp, "client/lib"), JVM_GATE, SandboxTree())
         val client = File(dirs.rootfs, "usr/local/bin/maeve")
         client.parentFile!!.mkdirs()
@@ -93,6 +95,7 @@ class AndroidSandboxRunTest {
     }
 
     @Test fun shareGoesToExporterWithItsOwnWorkspace() = runBlocking {
+        PlatformAssumes.assumeLinux()
         val dirs = SandboxDirs(File(tmp, "s2/files/sandbox"), File(tmp, "s2/cache"), File(tmp, "s2/lib"), JVM_GATE, SandboxTree())
         val calls = mutableListOf<Pair<String, String>>()
         var fail: Exception? = null
@@ -119,6 +122,7 @@ class AndroidSandboxRunTest {
 
     // 网页上传与沙箱同一套路径规则:只认本对话工作区里的普通文件
     @Test fun uploadCheckUsesWorkspaceRules() {
+        PlatformAssumes.assumeLinux()
         val ok = sb.hostPath("c1", "in/a.pdf", forWrite = true)!!.apply { parentFile?.mkdirs(); writeText("a") }
         assertEquals(com.daiyimo.maeve.core.workspace.WorkspacePathCheck.Ok, sb.uploadCheck("c1", "/workspace/in/a.pdf"))
         assertEquals(com.daiyimo.maeve.core.workspace.WorkspacePathCheck.NotFound, sb.uploadCheck("c1", "/workspace/in/none.pdf"))

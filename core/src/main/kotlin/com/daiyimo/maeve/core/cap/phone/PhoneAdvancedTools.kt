@@ -26,6 +26,10 @@ import com.daiyimo.maeve.core.uistate.action
 import com.daiyimo.maeve.core.uistate.lastOrSnapshot
 import com.daiyimo.maeve.core.uistate.screen
 import com.daiyimo.maeve.core.uistate.session
+import com.daiyimo.maeve.core.action.ActionRisk
+import com.daiyimo.maeve.core.action.Risk as ApprovalRisk
+import com.daiyimo.maeve.core.gate.ConfirmationRequest
+import com.daiyimo.maeve.core.risk.IrrevAction
 
 /** 按界面实际内容推进，直到找到目标或内容停止变化。 */
 internal object PhoneFind : PhoneTool {
@@ -307,6 +311,9 @@ internal object PhoneGesture : PhoneTool {
     }
 }
 
+/** shell 命令申报的「在哪里」:确认卡片据此显示成系统命令,而不是某个 App。 */
+private const val PHONE_CONFIRM_APP = "phone"
+
 /** Android shell 身份命令；与沙箱进程的命令入口分开。 */
 internal object PhoneCommand : PhoneTool {
     /** 连着失败这么多次就提醒别再换着写法试。 */
@@ -318,6 +325,38 @@ internal object PhoneCommand : PhoneTool {
     override val def = ToolDef("phone_system_command", Prompts.tool("phone_system_command"), mapOf(
         "command" to str("Android shell command. MAEVE_DISPLAY_ID is the current task's virtual display ID."),
     ), listOf("command"))
+
+    /**
+     * 只读的命令不用问;其余(含看不清的)是不在屏上、改了收不回的一步,申报就是这条命令本身。
+     * fail-closed:默认按不可逆问,只有首词落在只读白名单、且不含任何会改状态/提权/重定向的 token 才放行只读。
+     * 不依赖 root 能力的分类(能力之间不互相引用),只读判断在本能力内自足。
+     */
+    override fun approvalRisk(args: JsonObject): ApprovalRisk {
+        val command = (args["command"] as? JsonPrimitive)?.contentOrNull?.trim().orEmpty()
+        return if (command.isNotEmpty() && isReadOnlyShellCommand(command)) ApprovalRisk(ActionRisk.Read)
+        else ApprovalRisk(ActionRisk.Irreversible, ask = ask(command))
+    }
+
+    /** 给用户看的申报:就是这条命令。 */
+    private fun ask(command: String) = ConfirmationRequest(IrrevAction.other, "", command, null, PHONE_CONFIRM_APP)
+
+    /**
+     * 只读 shell 命令的保守判断:首词必须在白名单里,且整条命令不含提权/改状态/重定向/管道到解释器的 token。
+     * 任何不确定都按不可逆(返回 false)处理——宁可多问一次,不可漏放一条改状态的命令。
+     */
+    private fun isReadOnlyShellCommand(command: String): Boolean {
+        val compact = command.replace(Regex("\\s+"), " ").trim()
+        if (compact.isEmpty()) return false
+        // 重定向、管道、命令串联、子 shell:任一出现都可能把只读命令变成写操作或提权
+        if (">" in compact || "|" in compact || ";" in compact || "`" in compact || "$(" in compact || "&&" in compact || "||" in compact) return false
+        // 提权与改状态的子命令:出现即不可读
+        val tokens = compact.split(' ')
+        if (tokens.any { it == "su" || it == "pm" || it == "cmd" || it == "app_process" || it == "am" || it == "input" || it == "wm" }) return false
+        if (tokens.any { it.startsWith("settings") && (tokens.getOrNull(tokens.indexOf(it) + 1) in setOf("put", "delete", "add")) }) return false
+        // 首词白名单:这些命令本身不改变系统状态
+        val first = tokens.first()
+        return first in setOf("ls", "cat", "head", "tail", "wc", "echo", "pidof", "dumpsys", "getprop", "date", "uptime", "df", "du", "ps", "whoami", "id", "which", "type", "env", "printenv", "content")
+    }
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
         val command = a.str("command", max = 4_000)!!

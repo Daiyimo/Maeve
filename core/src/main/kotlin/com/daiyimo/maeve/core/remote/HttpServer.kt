@@ -44,6 +44,10 @@ class HttpProtocolException(val status: Int, message: String) : IOException(mess
  * 只为电脑连接用的极简 HTTP/1.1 服务:一个端口、每个连接一个线程、连接数有上限,请求头和正文都有大小上限。
  * 只认 Content-Length 和 chunked 两种正文;不做 TLS(只在局域网和私有网络里用,靠访问令牌把关)。
  * [accept] 按两端地址决定收不收这个连接(不收就当场关掉,不回任何字节)。
+ *
+ * 风险(P1):全程明文 HTTP,Bearer 令牌与请求体同网段可被嗅探后完整接管(含 shell 命令)。
+ * relay 出路是 TLS-only,局域网这条不是。缓解:令牌 32 字节 SecureRandom + 失败冷却 + 私有地址过滤;
+ * 文档已明示「只在可信局域网/私有网络里用」。彻底修复需首次 pairing 走 TLS 或短期令牌,留待后续。
  */
 class MiniHttpServer(
     private val bind: InetSocketAddress,

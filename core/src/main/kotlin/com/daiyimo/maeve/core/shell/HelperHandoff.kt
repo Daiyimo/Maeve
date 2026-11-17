@@ -282,8 +282,10 @@ class HandoffNonces(
         /**
          * 「用电脑启动」口令的时效：脚本写好后用户可能过一阵才插线跑命令（或重启后再跑一次）。
          * Maeve 每次打开、看不到助手、打开引导页时都会重写脚本，用了一半就换新。
+         * 24h 太长:脚本里的明文 nonce 在 TTL 内始终有效,可读该文件者能让助手以 shell 身份起来并交接 Binder。
+         * 缩到 6h:覆盖正常插线跑命令与重启后重跑的场景,同时把窗口压到可接受范围。
          */
-        const val USB_TTL_MS = 24 * 60 * 60_000L
+        const val USB_TTL_MS = 6 * 60 * 60_000L
 
         private val rng = SecureRandom()
         fun randomNonce(): String = ByteArray(32).also(rng::nextBytes).joinToString("") { "%02x".format(it) }

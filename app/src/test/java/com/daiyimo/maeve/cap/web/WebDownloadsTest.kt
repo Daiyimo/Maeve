@@ -25,9 +25,13 @@ import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import com.daiyimo.maeve.core.workspace.SandboxTree
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 class WebDownloadsTest {
     @get:Rule val tmp = TemporaryFolder()
+
+    // 工作区路径按 /workspace 正斜杠归一化,Windows 宿主分隔符不同会误判 unsafe_path,整类只在 Linux 宿主跑
+    @Before fun linuxOnly() = PlatformAssumes.assumeLinux()
     private val server = MockWebServer()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var ws: File

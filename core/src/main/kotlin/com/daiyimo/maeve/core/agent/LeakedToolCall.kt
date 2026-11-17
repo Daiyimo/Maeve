@@ -28,5 +28,7 @@ internal object LeakedToolCall {
             .minByOrNull { it.second }?.first
     }
 
-    private fun wholeWord(name: String) = Regex("(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])")
+    // 工具名固定(60-120 个),按名缓存整词正则,避免每步对全部工具名各编译一个 Regex。
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, Regex>()
+    private fun wholeWord(name: String) = cache.getOrPut(name) { Regex("(?<![A-Za-z0-9_])" + Regex.escape(name) + "(?![A-Za-z0-9_])") }
 }

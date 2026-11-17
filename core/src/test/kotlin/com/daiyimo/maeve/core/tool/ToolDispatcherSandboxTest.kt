@@ -27,6 +27,7 @@ import java.io.File
 import com.daiyimo.maeve.core.cap.sandbox.SandboxTools
 import com.daiyimo.maeve.core.cap.sandbox.SearchLimits
 import com.daiyimo.maeve.core.assembly.toolDispatcher
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 private var seq = 0
 private fun call(name: String, args: JsonObject) = Part.ToolCall("c${++seq}", name, args.toString())
@@ -182,6 +183,7 @@ class ToolDispatcherSandboxTest {
     }
 
     @Test fun writeOutsideWorkspaceRejected() = runTest {
+        PlatformAssumes.assumeLinux()
         val d = dispatcher()
         fun write(p: String) = call("write_file", buildJsonObject { put("path", p); put("content", "x") })
         for (p in listOf("/etc/passwd", "../x", "/opt/maeve/skills/app/a/SKILL.md")) {
@@ -241,6 +243,7 @@ class ToolDispatcherSandboxTest {
     }
 
     @Test fun binaryReadIsNotText() = runTest {
+        PlatformAssumes.assumeLinux()
         File(ws, "data.bin").writeBytes(byteArrayOf(0x50, 0x4b, 0x03, 0x04, 0, 0, -1, -2, 7))
         File(ws, "latin1.txt").writeBytes(byteArrayOf(0x63, 0x61, 0x66, 0xe9.toByte(), 0x0a))
         val png = byteArrayOf(-119, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0)
@@ -261,6 +264,7 @@ class ToolDispatcherSandboxTest {
     }
 
     @Test fun readFileUsesByteOffsetAndLimit() = runTest {
+        PlatformAssumes.assumeLinux()
         File(ws, "t.txt").writeText("你好世界abc")
         val d = dispatcher()
         // 第 4 个字节落在「好」中间:跳过残字节,截断处的半个字留给下一次
@@ -271,6 +275,7 @@ class ToolDispatcherSandboxTest {
     }
 
     @Test fun outputNotSavedThroughSymlinkedMaeveDir() = runTest {
+        PlatformAssumes.assumeLinux()
         val outside = File(sb.root, "outside-maeve").apply { mkdirs() }
         java.nio.file.Files.createSymbolicLink(File(ws, ".maeve").toPath(), outside.toPath())
         sb.next = { CommandResult(0, false, false, 50, "x".repeat(20_000), 0, false) }
@@ -282,6 +287,7 @@ class ToolDispatcherSandboxTest {
     }
 
     @Test fun specialFilesAreNotAFile() = runTest {
+        PlatformAssumes.assumeLinux()
         val fifo = File(ws, "pipe")
         assertEquals(0, ProcessBuilder("mkfifo", fifo.path).start().waitFor())
         val d = dispatcher()
@@ -306,6 +312,7 @@ class ToolDispatcherSandboxTest {
     }
 
     @Test fun searchStopsOnSlowRegexAndLimits() = runTest {
+        PlatformAssumes.assumeLinux()
         // 嵌套的懒惰重复:回溯量随长度多项式爆炸(JDK 对 (a+)+ 一类已有优化,用这种)
         File(ws, "evil.txt").writeText((1..60).joinToString(","))
         val tools = SandboxTools(sb, { "conv1" }, false, SearchLimits(timeMs = 200))
@@ -353,6 +360,7 @@ class ToolDispatcherSandboxTest {
 
     /** 沙箱工具产出的事实(命令输出、读到的文件、写入与导出的路径)进核查证据;命令进动作清单。 */
     @Test fun sandboxFactsFeedTheVerifierEvidence() = runTest {
+        PlatformAssumes.assumeLinux()
         val d = dispatcher()
         sb.next = { CommandResult(0, false, false, 10, "1287 data.csv\n", 0, false) }
         d.execute(call("run_command", buildJsonObject { put("command", "wc -l data.csv") }))
@@ -378,6 +386,7 @@ class ToolDispatcherSandboxTest {
 
     /** 工具往工作区写(write_file、存完整输出)要拿和沙箱同一把树锁:重置/安装(exclusive)进行中不能交错。 */
     @Test fun workspaceWritesWaitForTheSandboxTreeLock() = kotlinx.coroutines.runBlocking {
+        PlatformAssumes.assumeLinux()
         sb.next = { CommandResult(0, false, false, 50, "A".repeat(30_000), 0, false) }
         val calls = listOf(
             call("write_file", buildJsonObject { put("path", "locked.txt"); put("content", "x") }),

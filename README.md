@@ -121,10 +121,11 @@ compliance/attribution layer is in place. Maeve is a derivative work of Mika
 [ATTRIBUTION.md](ATTRIBUTION.md).
 
 The full M2 visual system, the connection hub and bridge v3 (M3), and release hardening
-(M4) are not finished yet. The Flutter shell is a workbench: chat replies are local demo
-replies, conversations and memories live in process memory, and the Android host does not
-register the bridge handlers yet. [FLUTTER_MIGRATION.md](FLUTTER_MIGRATION.md) lists every
-prototype limit; nothing here is a released binary.
+(M4) are not finished yet. The Flutter shell is no longer a workbench: it starts directly in
+Flutter, the chat bridge uses real Android conversation state, sends, cancellation and
+entries, and the Android host registers the MethodChannel/EventChannel handlers.
+[FLUTTER_MIGRATION.md](FLUTTER_MIGRATION.md) records the migration and its validation;
+nothing here is a released binary.
 
 | Where | What |
 |---|---|

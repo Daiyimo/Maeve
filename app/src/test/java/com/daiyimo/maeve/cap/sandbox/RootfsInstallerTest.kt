@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Before
 import org.junit.Test
 import org.tukaani.xz.LZMA2Options
 import org.tukaani.xz.XZOutputStream
@@ -22,6 +23,7 @@ import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 /** 自带的运行环境换成用宿主 tar 现做、再用 xz 压的小包;不联网。 */
 class RootfsInstallerTest {
@@ -30,8 +32,12 @@ class RootfsInstallerTest {
     private val tmp: File = Files.createTempDirectory("rootfs-installer").toFile()
     private val dirs = SandboxDirs(File(tmp, "files/sandbox"), File(tmp, "cache/proot-tmp"), File(tmp, "lib"), JVM_GATE, SandboxTree())
     private val state = SandboxState(dirs, File(tmp, "files/sandbox-settings.json")) { listOf("arm64-v8a") }
-    private val v1: ByteArray = makeBundle("one")
+    // lazy:Windows 上 @Before 先跳过,makeBundle(调宿主 tar/POSIX)就不会在构造期跑
+    private val v1: ByteArray by lazy { makeBundle("one") }
     private var opens = 0
+
+    // 依赖宿主 tar、POSIX 权限与符号链接,只在 Linux 宿主上成立,Windows 开发机整类跳过
+    @Before fun linuxOnly() = PlatformAssumes.assumeLinux()
 
     private fun bundle(bytes: ByteArray = v1, version: String = "v1", sha: String = sha256(bytes), open: (() -> InputStream)? = null) =
         RuntimeBundle(version, sha, 64L shl 20, 1000, open ?: { opens++; ByteArrayInputStream(bytes) })

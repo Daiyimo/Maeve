@@ -403,7 +403,11 @@ class AgentLoop(
         var note = ""
         // 除用户原话以外的上下文都经它生成:统一外壳、统一预算
         ctx = ContextBuilder(zone = zone)
-        val installed = try { installedApps() } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() }
+        // installedApps 失败不再静默降级为空列表(那会直接削弱知识匹配与渠道判断),记一条 State 让运行记录可见
+        val installed = try { installedApps() } catch (e: CancellationException) { throw e } catch (e: Exception) {
+            emit(RunEvent.State(now(), "installed_apps_unavailable", RunEvent.clip(Redactor.text(e.message ?: e::class.simpleName ?: "unknown"))))
+            emptyList()
+        }
         val labels = installed.toMap()
         val matched = knowledge?.matchTask(task, Int.MAX_VALUE, installed).orEmpty()
         val index = if (skills != null && recommendSkills) GuideRecommender.index(skills, task) else null
@@ -570,11 +574,13 @@ class AgentLoop(
                 }
                 continue
             }
-            emptyNudged = false
-            leakNudged = false
             acted = true
             // 回答之后又做了别的:那个回答算有了下文
             answered = null
+            // 工具调用之后:模型重新观察了屏幕,空回复/漏工具调用的提醒重新给机会(既有契约,
+            // 见 toolTurnResetsEmptyNudge)。maxSteps 仍是上界,不会无限循环。
+            emptyNudged = false
+            leakNudged = false
 
             val first = calls.first()
             trace?.toolStarted(step, first.name, first.id, now())
@@ -965,7 +971,7 @@ class AgentLoop(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                return StopRules.stepLimit(maxSteps)
+                return StopRules.modelFailed(e)
             }
             val text = reply.parts.filterIsInstance<Part.Text>().joinToString("") { it.text }.trim()
             history += Message(Role.Assistant, reply.parts, Author.Maeve)

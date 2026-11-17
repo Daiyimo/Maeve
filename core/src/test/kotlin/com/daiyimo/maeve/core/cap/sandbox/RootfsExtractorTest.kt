@@ -9,9 +9,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -21,6 +23,8 @@ import java.nio.file.attribute.PosixFilePermission
 
 class RootfsExtractorTest {
     @get:Rule val tmp = TemporaryFolder()
+
+    @Before fun linuxOnly() = PlatformAssumes.assumeLinux()
 
     private sealed interface E { val name: String }
     private data class Dir(override val name: String, val mode: Int = 0x1ed /* 0755 */) : E

@@ -271,9 +271,10 @@ class TaskRun(
     @Volatile var job: Job? = null
         internal set(v) {
             field = v
-            if (cancelRequested) v?.cancel()
+            // 不再在这里 cancel:取消落在「出队已登记、协程未执行」窗口时,直接 cancel 会让协程体从不执行,
+            // execute 的 finally 与 onRunEnded 都不跑,run 永久卡 running。改为协程入口检查 cancelRequested 照常收尾。
         }
-    @Volatile private var cancelRequested = false
+    @Volatile internal var cancelRequested = false
     /** 用户点了停止:还没交给模型的插话一起作废,不当成下一件事。 */
     @Volatile private var stopPressed = false
     @Volatile private var loop: AgentLoop? = null
@@ -308,9 +309,8 @@ class TaskRun(
             t != null -> scope.launch { t.cancel() }
             running != null -> inbox.cancel()
             else -> {
-                // 刚从队里放出来、协程还没挂上时点的取消:挂上时立即取消
+                // 刚从队里放出来、协程还没挂上时点的取消:协程入口检查这个标志并照常收尾
                 cancelRequested = true
-                job?.cancel()
             }
         }
     }
@@ -341,13 +341,17 @@ class TaskRun(
         }
     }
 
-    /** 回答提问;已经不在等(超时后才答、已答过)时调 [tooLate] 告诉用户这条回答没用上。 */
-    fun answer(text: String, tooLate: () -> Unit) {
-        if (loop == null) return
-        if (_state.value is TaskState.WaitingInput) scope.launch {
-            if (inbox.send(RunInput.Answer(text)) != InputReceipt.Accepted) tooLate()
+    /** 回答提问;已经不在等(超时后才答、已答过)时调 [tooLate] 告诉用户这条回答没用上。返回是否进入了 send 路径。 */
+    fun answer(text: String, tooLate: () -> Unit): Boolean {
+        if (loop == null) return false
+        if (_state.value is TaskState.WaitingInput) {
+            scope.launch {
+                if (inbox.send(RunInput.Answer(text)) != InputReceipt.Accepted) tooLate()
+            }
+            return true
         }
-        else tooLate()
+        tooLate()
+        return false
     }
 
     /** 渠道已经核对过提问编号；仍由同一个收件箱回答，避免绕过运行生命周期。 */

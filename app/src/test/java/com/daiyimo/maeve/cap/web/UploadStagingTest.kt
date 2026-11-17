@@ -4,14 +4,19 @@ import com.daiyimo.maeve.cap.sandbox.JVM_GATE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.nio.file.Files
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 class UploadStagingTest {
     @get:Rule val tmp = TemporaryFolder()
+
+    // 工作区路径按 /workspace 正斜杠归一化,Windows 宿主分隔符不同会误判 unsafe_path,整类只在 Linux 宿主跑
+    @Before fun linuxOnly() = PlatformAssumes.assumeLinux()
 
     private fun setup(): Triple<File, File, UploadStaging> {
         val ws = tmp.newFolder("ws")

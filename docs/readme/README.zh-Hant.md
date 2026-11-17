@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 5f31dddc9fe2 -->
+<!-- translated-from: README.md @ 5d55a0bf63d8 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · 繁體中文 · [日本語](README.ja.md) · [한국어](README.ko.md) · [Español](README.es.md)
@@ -99,9 +99,9 @@ AAR 不存在時 Android 宿主編不過：Flutter 模組建置會在 `flutter/`
 來龍去脈見 [ATTRIBUTION.md](../../ATTRIBUTION.md)。
 
 完整的 M2 視覺系統、連線中樞與 bridge v3（M3）、發佈加固（M4）都還沒完成。
-Flutter 外殼目前是工作台：回覆是本地延時示範，對話和記憶只存在程序記憶體裡，
-Android 宿主也還沒有註冊對應的橋接處理器。[FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md)
-列了每一條原型限制；這裡沒有任何已發佈的二進位。
+Flutter 外殼已不再是工作台：它直接以 Flutter 啟動，聊天橋使用真實的安卓會話狀態、傳送、取消與條目，
+Android 宿主也註冊了 MethodChannel/EventChannel 處理器。[FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md)
+記錄了遷移過程與驗證；這裡沒有任何已發佈的二進位。
 
 | 位置 | 內容 |
 |---|---|

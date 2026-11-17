@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 5f31dddc9fe2 -->
+<!-- translated-from: README.md @ 5d55a0bf63d8 -->
 # Maeve
 
 [English](../../README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-Hant.md) · [日本語](README.ja.md) · 한국어 · [Español](README.es.md)
@@ -102,8 +102,8 @@ AAR이 없으면 Android 호스트는 컴파일되지 않습니다. Flutter 모�
 `com.daiyimo.maeve`이며, 준수와 표시 계층은 갖춰져 있습니다. Maeve는 Mika(Apache-2.0)의 파생 저작물이며, 업스트림 표시는 [NOTICE](../../NOTICE)와 [ATTRIBUTION.md](../../ATTRIBUTION.md)에 유지됩니다.
 
 M2 전체 비주얼 시스템, 연결 허브와 bridge v3(M3), 릴리스 강화(M4)는 아직 끝나지 않았습니다.
-Flutter 셸은 워크벤치입니다. 답장은 로컬 지연 데모이고, 대화와 메모리는 프로세스 메모리에만 있으며,
-Android 호스트는 아직 브리지 핸들러를 등록하지 않습니다.
+Flutter 셸은 더 이상 워크벤치가 아닙니다. Flutter에서 직접 시작하고, 채팅 브리지는 실제 Android 대화 상태·전송·취소·항목을 사용하며,
+Android 호스트는 MethodChannel/EventChannel 핸들러를 등록합니다.
 [FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md)에 원형의 한계가 모두 적혀 있습니다.
 여기에는 배포된 바이너리가 없습니다.
 

@@ -46,15 +46,17 @@ class SandboxPhoneCommandTest {
         val sub = SubActions { call -> calls += call.name; ToolExecution(buildJsonObject { put("ok", true) }) }
         runner.runCommand(Args(RunCommand.def, buildJsonObject { put("command", "maeve phone find '{}'") }), "task", "parent", sub, knownTools())
         val phone = sandbox.phoneHandler!!
-        val opened = listOf("find", "extract", "dialog", "wait", "event", "gesture", "system_command", "query", "tap", "type", "key", "launch", "dump")
+        // system_command 是 Write 级 shell 命令,沙箱→手机桥不放行(P1 安全:token 经环境变量交给沙箱内任意进程,
+        // PRoot 隔离被单向击穿,不能让沙箱脚本直接变成 sh -c),所以它和 screenshot 一样在桥外。
+        val opened = listOf("find", "extract", "dialog", "wait", "event", "gesture", "query", "tap", "type", "key", "launch", "dump")
         for (op in opened) assertEquals(op, "true", phone.call(op, JsonObject(emptyMap()))["ok"]!!.jsonPrimitive.content)
         assertEquals(
-            listOf("phone_find", "phone_extract", "phone_dialog", "phone_wait", "phone_event", "phone_gesture", "phone_system_command",
+            listOf("phone_find", "phone_extract", "phone_dialog", "phone_wait", "phone_event", "phone_gesture",
                 "phone_query", "phone_tap", "phone_type_text", "phone_press_key", "phone_launch_app", "phone_list_elements"),
             calls,
         )
         calls.clear()
-        for (op in listOf("screenshot", "describe", "find_visually", "web_tap", "run_command", "finish")) {
+        for (op in listOf("screenshot", "describe", "find_visually", "web_tap", "run_command", "finish", "system_command")) {
             assertEquals(op, "unknown_phone_command", phone.call(op, JsonObject(emptyMap()))["error"]!!.jsonPrimitive.content)
         }
         assertEquals(emptyList<String>(), calls)

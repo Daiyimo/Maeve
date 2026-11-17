@@ -29,6 +29,7 @@ import com.daiyimo.maeve.core.tool.ArgError
 import com.daiyimo.maeve.core.tool.Args
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.ToolIndex
+import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.tool.OutputClip
 import com.daiyimo.maeve.core.workspace.GatedFile
 import com.daiyimo.maeve.core.workspace.SandboxError
@@ -38,6 +39,9 @@ import com.daiyimo.maeve.core.workspace.SandboxPaths
 
 private const val MB = 1L shl 20
 private const val GB = 1L shl 30
+
+/** 沙箱→手机桥不放行的 verb:shell 命令等高危工具,沙箱脚本拿到 token 也不能直接变成 sh -c。 */
+private val BRIDGE_BLOCKED_VERBS = setOf(Verb.PhoneCommand, Verb.RootCommand)
 internal const val DEFAULT_TIMEOUT_SEC = 60
 internal const val MAX_READ_BYTES = 262_144
 /** 运行环境没准备好时,工具最多等这么久(首次启动解包约一两分钟)。 */
@@ -194,7 +198,11 @@ internal class SandboxTools(
                 "dump" -> "phone_list_elements"
                 else -> "phone_${requested.removePrefix("phone_")}"
             }
-            if (tools?.get(tool)?.sandboxCallable != true) buildJsonObject { put("ok", false); put("error", "unknown_phone_command") }
+            // 桥只校验 uid + 一次性 token,而 token 经环境变量交给沙箱内任意进程:PRoot/断网隔离被单向击穿。
+            // 所以桥白名单不能只按 sandboxCallable——那是 Write 级全开。shell 命令这类高危工具一律不开放,
+            // 沙箱脚本拿到 token 也不能直接变成 sh -c。
+            val info = tools?.get(tool)
+            if (info?.sandboxCallable != true || info.verb in BRIDGE_BLOCKED_VERBS) buildJsonObject { put("ok", false); put("error", "unknown_phone_command") }
             else runner.run(Part.ToolCall("$callId.phone${sequence.incrementAndGet()}", tool, args.toString())).content
         }
     }

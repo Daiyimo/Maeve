@@ -41,7 +41,7 @@ class ActionEffectStore(private val directory: File, private val clock: () -> Lo
             check(journal.receipts.map { it.effectId }.distinct().size == journal.receipts.size)
             check(journal.receipts.all {
                 it.startedSequence in 1..journal.sequence && it.runId.length in 1..160 && it.action.length in 1..160 &&
-                    it.parametersDigest.matches(Regex("[a-f0-9]{64}")) &&
+                    it.parametersDigest.matches(DIGEST) &&
                     if (it.state == State.Started) it.settledSequence == null && it.settledAt == null
                     else it.settledSequence != null && it.settledSequence > it.startedSequence && it.settledSequence <= journal.sequence && it.settledAt != null
             })
@@ -93,6 +93,7 @@ class ActionEffectStore(private val directory: File, private val clock: () -> Lo
     companion object {
         const val MAX_RECEIPTS = 4096
         const val MAX_BYTES = 4 * 1024 * 1024
+        private val DIGEST = Regex("[a-f0-9]{64}")
         internal fun digest(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
         private fun canonical(value: JsonElement): JsonElement = when (value) {
             is JsonObject -> JsonObject(value.toSortedMap().mapValues { canonical(it.value) })
@@ -114,7 +115,7 @@ class ActionEffects(
     suspend fun checkSettled() {
         val unknown = try { withContext(Dispatchers.IO) { store.receipts(scope).any { it.state in setOf(ActionEffectStore.State.Started, ActionEffectStore.State.Unknown) } } }
         catch (e: CancellationException) { throw e }
-        catch (_: Exception) { throw Blocked("effect_receipts_unavailable") }
+        catch (e: Exception) { throw Blocked("effect_receipts_unavailable").apply { initCause(e) } }
         if (unknown) throw Blocked("effect_unknown")
     }
 
@@ -123,13 +124,13 @@ class ActionEffects(
         val receipt = try {
             withContext(Dispatchers.IO) { store.begin(scope, runId, invocation, call, executionSession, approvalDigest) }
         } catch (e: Blocked) { throw e } catch (e: CancellationException) { throw e }
-        catch (_: Exception) { throw Blocked("effect_receipts_unavailable") }
+        catch (e: Exception) { throw Blocked("effect_receipts_unavailable").apply { initCause(e) } }
         val result = try { action() } catch (failure: Throwable) {
             withContext(NonCancellable + Dispatchers.IO) {
                 runCatching { store.settle(scope, receipt, ActionEffectStore.State.Unknown, null, "interrupted") }
             }
             if (failure is CancellationException) throw failure
-            throw Blocked("effect_unknown")
+            throw Blocked("effect_unknown").apply { initCause(failure) }
         }
         val state = when {
             result.content["executed"] == JsonPrimitive(false) -> ActionEffectStore.State.NotApplied

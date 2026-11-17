@@ -33,7 +33,7 @@ fun AgentLoop.start(scope: CoroutineScope, spec: RunSpec): RunHandle {
     val phase = MutableStateFlow<RunPhase>(RunPhase.Queued)
     val done = CompletableDeferred<TaskState>()
     val handle = RunHandle(spec, inbox, events, phase, done)
-    scope.launch {
+    val job = scope.launch {
         phase.value = RunPhase.Preparing
         val watch: Job = launch {
             state.collect { current ->
@@ -64,6 +64,14 @@ fun AgentLoop.start(scope: CoroutineScope, spec: RunSpec): RunHandle {
         } finally {
             watch.cancel()
             if (phase.value != RunPhase.Interrupted) phase.value = RunPhase.Ended
+        }
+    }
+    // scope 在协程被调度前取消时,上面的 try/catch 不会执行,done 既没 complete 也没 completeExceptionally,
+    // await() 会永久悬挂。用 invokeOnCompletion 兜底:协程以任何方式结束而 done 仍空,就补一个终态。
+    job.invokeOnCompletion { cause ->
+        if (!done.isCompleted) {
+            done.completeExceptionally(cause ?: CancellationException("run scope cancelled before start"))
+            if (phase.value != RunPhase.Interrupted) phase.value = RunPhase.Interrupted
         }
     }
     return handle

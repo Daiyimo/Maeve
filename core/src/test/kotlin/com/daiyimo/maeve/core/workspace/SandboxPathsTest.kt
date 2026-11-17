@@ -33,6 +33,7 @@ class SandboxPathsTest {
     }
 
     @Test fun symlinkEscapeRejected() {
+        PlatformAssumes.assumeLinux() // 符号链接只在 Linux 宿主上建得了
         val tmp = Files.createTempDirectory("paths").toFile()
         val root = File(tmp, "ws").apply { mkdirs() }
         val outside = File(tmp, "outside").apply { mkdirs() }

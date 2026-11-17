@@ -51,6 +51,11 @@ internal class ModelCaller(
     /** 本任务的系统提示词:开工时按发给模型的同一份工具列表拼([SystemPrompt.assemble]),任务内不变。 */
     var systemPrompt: String = ""
 
+    /** specs 的 token 估算缓存:按内容指纹,工具组不变时复用。systemPrompt 不缓存——它可能被直接赋值(不经 reset),
+     * 缓存会过期;百 KB 文本的 O(n) 字符计数每步重算开销可接受,真正慢的是 specs 的 60-120 次估算。 */
+    private var specsEstimateKey: String? = null
+    private var specsEstimateValue: Int = 0
+
     /** 最近一次调用在成功那次请求之前花掉的时间(失败的请求、退避)。 */
     var lastRetryWaitMs = 0L
         private set
@@ -63,8 +68,21 @@ internal class ModelCaller(
     /** 每个模型最近一次请求的固定开销估算;回复进历史时和用量一起记进锚点。 */
     private val lastOverhead = java.util.IdentityHashMap<ChatModel, Int>()
 
+    /** 固定开销估算:systemPrompt 每步重算(可能被直接赋值,缓存会过期),specs 按内容指纹缓存(60-120 个工具的真开销)。 */
+    private fun cachedOverhead(specs: List<ToolSpec>): Int {
+        val sp = TokenEstimate.of(systemPrompt)
+        val key = specs.joinToString("|") { it.name + it.description.length + it.parametersJsonSchema.length }
+        val specsPart = if (key == specsEstimateKey) specsEstimateValue
+        else specs.sumOf { TokenEstimate.of(it.name + it.description + it.parametersJsonSchema) }.also {
+            specsEstimateKey = key; specsEstimateValue = it
+        }
+        return sp + specsPart
+    }
+
     fun reset(prompt: String) {
         systemPrompt = prompt
+        specsEstimateKey = null
+        specsEstimateValue = 0
         compactions.clear()
         taskRetryWaitMs = 0
         compressors.values.forEach { it.forget() }
@@ -168,7 +186,7 @@ internal class ModelCaller(
         var emptyWaitMs = 0L
         lastRetryWaitMs = 0
         val began = now()
-        val overhead = TokenEstimate.of(systemPrompt) + specs.sumOf { TokenEstimate.of(it.name + it.description + it.parametersJsonSchema) }
+        val overhead = cachedOverhead(specs)
         val contextTokens = using.capabilities.contextTokens
         val compressor = compressorFor(using)
         var compaction = compactions[using] ?: CompactionState()

@@ -49,7 +49,8 @@ internal class UserExchange(
     @Volatile var activeAsk: Delivery.Ask? = null
         private set
     @Volatile private var takeoverReply: CompletableDeferred<HandBack>? = null
-    @Volatile private var inputReply: CompletableDeferred<String>? = null
+    // 类型是 String? 而非 String:cancelInput 用 complete(null) 作废提问(运行继续),awaitAnswer 拿到 null 走 no_answer
+    @Volatile private var inputReply: CompletableDeferred<String?>? = null
     @Volatile private var confirmationReply: CompletableDeferred<ConfirmChoice>? = null
     /** 回答换成给模型的样子(带着用户屏幕时换成说明,见 [UserScreenTurns.asText]);默认原样。 */
     var answerText: suspend (String) -> String = { it }
@@ -88,7 +89,10 @@ internal class UserExchange(
         val ask = activeAsk
         if (ask?.askId != askId || ask.kind != Delivery.Ask.Kind.Input) return false
         val pending = inputReply ?: return false
-        pending.cancel()
+        // 用 complete(null) 而非 cancel():cancel 会让 CancellationException 沿 awaitAnswer→input 传播,
+        // 把整个运行协程取消掉,运行记录记成「任务异常中断」且绕过 closeUnlessSteered 语义。
+        // complete(null) 只让这次提问作废(awaitAnswer 返回 null、input 返回 no_answer),运行照常继续。
+        pending.complete(null)
         return true
     }
 
@@ -106,7 +110,7 @@ internal class UserExchange(
     /** 等用户回答追问,最多 [inputTimeoutMs];超时返回 null。用户的回答可能是验证码一类,不记。 */
     suspend fun awaitAnswer(prompt: String, options: List<String>?): String? {
         if (provenance.attendance == Attendance.Unattended) return null
-        val pending = CompletableDeferred<String>().also { inputReply = it }
+        val pending = CompletableDeferred<String?>().also { inputReply = it }
         val ask = ask(Delivery.Ask.Kind.Input, prompt)
         activeAsk = ask
         setState(TaskState.WaitingInput(prompt, options))

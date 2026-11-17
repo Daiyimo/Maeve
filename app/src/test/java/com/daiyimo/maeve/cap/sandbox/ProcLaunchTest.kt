@@ -9,12 +9,17 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import java.io.File
+import com.daiyimo.maeve.core.workspace.PlatformAssumes
 
 /** 起进程、收输出、兜底时限:用宿主的 /bin/sh 跑(不经启动器与 PRoot)。 */
 class ProcLaunchTest {
     private val env = mapOf("PATH" to "/usr/bin:/bin")
+
+    // 依赖宿主的 /bin/sh,只在 Linux 宿主(CI 的 ubuntu-24.04)上成立,Windows 开发机整类跳过
+    @Before fun linuxOnly() = PlatformAssumes.assumeLinux()
 
     @Test fun exitCodeAndMergedOutput() = runBlocking {
         val o = AndroidSandbox.launch(listOf("/bin/sh", "-c", "echo out; echo err >&2; exit 3"), env, 10_000)

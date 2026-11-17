@@ -375,7 +375,11 @@ class TaskService : Service() {
     private fun launch(run: TaskRun, store: ConversationStore) {
         run.job = scope.launch {
             center.markRunning(run)
-            val result = try {
+            val result = if (run.cancelRequested) {
+                // 取消落在「出队已登记、协程未执行」窗口:execute 没跑、没建资源,直接按取消收尾,
+                // 让 run 正常移出 running(否则 execute 的 finally 与 onRunEnded 都不跑,run 永久卡死)
+                TaskState.Cancelled
+            } else try {
                 run.execute(runCatching { store.turns(run.conversationId) }.getOrDefault(emptyList()).map(::withKeptState))
             } catch (e: CancellationException) {
                 TaskState.Cancelled
@@ -477,6 +481,9 @@ class TaskService : Service() {
 
     /** 任务收尾之后:都结束了就退出前台;还有别的任务就把前台交给它们,并放出排队的任务。 */
     private fun onRunEnded(run: TaskRun, store: ConversationStore) {
+        // 收尾路径里有文件 IO(经 begin → newConversation)等可能抛异常的操作;
+        // run 已在 center.onEnded 前结束,这里兜底记日志,不让异常把服务收尾流程打断。
+        try {
         val wasShown = taskState.shownRun === run
         val started = center.onEnded(run)
         // 收尾时替接班的拿着的屏幕锁交给第一个放出来的;没有放出来的(排着的被取消、同一对话还有任务在跑)就放开
@@ -525,6 +532,10 @@ class TaskService : Service() {
         center.queued().forEachIndexed { i, q -> q.queue(i + 1) }
         center.running().forEach(::refreshNotifications)
         ready.forEach { (threadId, message) -> begin(message, threadId) }
+        } catch (e: Exception) {
+            // 收尾里的文件 IO 等抛异常时记日志,不让它打断服务收尾(run 已移出 running)
+            Log.w(TAG, "onRunEnded failed for ${run.key}", e)
+        }
     }
 
     /** 排队中的任务被取消(已移出队伍):没开跑,直接记为已取消。 */
