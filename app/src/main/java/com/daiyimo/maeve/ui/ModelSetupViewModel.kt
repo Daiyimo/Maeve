@@ -249,8 +249,22 @@ data class ModelSetupUi(
     /** 选好了主模型就能「下一步」。 */
     val canNext: Boolean get() = roles.main != null
 
-    /** 这个用途实际用的配置(「用主模型」时是主模型的)。 */
-    fun configFor(role: ModelRole): ProviderConfig? = roles.resolve(role)?.let { id -> configs.firstOrNull { it.id == id } }
+    /** 这个用途实际用的配置(「用主模型」时是主模型的;看图「不用」而主模型能看图时也由主模型兼任)。 */
+    fun configFor(role: ModelRole): ProviderConfig? =
+        roles.resolve(role)?.let { id -> configs.firstOrNull { it.id == id } }
+            ?: (role == ModelRole.Vision && !roles.visionOffChosen).takeIf { it }?.let { visionFallback() }
+
+    /**
+     * 看图用途存的是「不用」、而主模型能看图时的兼任(与 [ProviderStore.configFor] 同规则):
+     * 界面据此显示实效——用途卡写「用主模型」,服务商页的「在用」里也有看图。
+     */
+    private fun visionFallback(): ProviderConfig? {
+        val cfg = roles.main?.let { id -> configs.firstOrNull { it.id == id } } ?: return null
+        val p = providers.firstOrNull { it.id == cfg.providerId } ?: return cfg.takeIf { it.capabilities.vision }
+        val known = ModelOptions.ofProvider(p, configs).firstOrNull { it.id == cfg.model }?.capabilities?.vision
+            ?: cfg.capabilities.vision
+        return cfg.takeIf { ModelOptions.seesImages(known, p.visionOverrides[cfg.model], usedForVision = false) }
+    }
 
     fun providerOf(cfg: ProviderConfig): Provider? = providers.firstOrNull { it.id == cfg.providerId }
 

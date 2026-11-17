@@ -60,6 +60,49 @@ class ProviderStoreTest {
 
     // ---------- 用途的选择 ----------
 
+    /**
+     * 看图用途没选过、主模型却能看图:看图由主模型兼任。
+     * 这正是三角洲小程序任务连败的根因——视觉角色默认「不用」把 find_visually、describe
+     * 和点击前的落点核查一起关掉了,模型只能凭坐标瞎点。
+     */
+    @Test fun visionFallsBackToTheMainModelWhenTheMainModelCanSeeImages() {
+        val s = store()
+        val p = connected(s)
+        val sees = Capabilities(toolCalls = true, vision = true, contextTokens = 64_000, reasoning = false)
+        s.use(ModelRole.Main, p.id, "m1", sees)
+        assertEquals("m1", s.configFor(ModelRole.Vision)!!.model)
+        assertTrue(s.configFor(ModelRole.Vision)!!.capabilities.vision)
+        assertTrue(s.modelFor(ModelRole.Vision)!!.capabilities.vision)
+        // 存着的选择仍是「不用」:兼任是解算时的规则,不是改掉用户的选择
+        assertEquals(RoleChoice.Off, s.roles.value.vision)
+        assertFalse(s.roles.value.visionOffChosen)
+    }
+
+    /** 主模型不能看图时什么都不兼任:视觉工具照旧不提供。 */
+    @Test fun visionDoesNotFallBackWhenTheMainModelCannotSeeImages() {
+        val s = store()
+        val p = connected(s)
+        s.use(ModelRole.Main, p.id, "m1", none)
+        assertNull(s.configFor(ModelRole.Vision))
+        assertNull(s.modelFor(ModelRole.Vision))
+    }
+
+    /** 显式选过「不用」才算数:重新打开 App 也仍是「不用」,不替用户打开。 */
+    @Test fun explicitVisionOffSurvivesReloadAndStopsTheFallback() {
+        val s = store()
+        val p = connected(s)
+        s.use(ModelRole.Main, p.id, "m1", none.copy(vision = true))
+        assertTrue(s.choose(ModelRole.Vision, RoleChoice.Off))
+        assertTrue(s.roles.value.visionOffChosen)
+        assertNull(s.configFor(ModelRole.Vision))
+        val reloaded = store()
+        assertTrue(reloaded.roles.value.visionOffChosen)
+        assertNull(reloaded.configFor(ModelRole.Vision))
+        // 显式选「用主模型」时按用户说的来
+        assertTrue(reloaded.choose(ModelRole.Vision, RoleChoice.SameAsMain))
+        assertEquals("m1", reloaded.configFor(ModelRole.Vision)!!.model)
+    }
+
     @Test fun modelContextSurvivesPruningAndIsSharedOnlyWithinTheSameProviderAndModel() {
         val s = store()
         val first = connected(s)
@@ -160,12 +203,13 @@ class ProviderStoreTest {
     }
 
     @Test
-    fun lightSameAsMainResolvesToMainAndVisionStaysOffEvenIfMainCanSee() {
+    fun lightSameAsMainResolvesToMainAndVisionFallsBackToAMainModelThatSees() {
         val s = store()
         s.saveAsMain(cfg("a", vision = true), "sk-a")
         assertEquals("a", s.configFor(ModelRole.Light)?.id)
-        // 不再有「主模型能看图就兼任看图」的隐含规则
-        assertNull(s.configFor(ModelRole.Vision))
+        // 看图没选过、主模型却能看图:由主模型兼任(旧版迁移时的默认;显式选「不用」才关掉)
+        assertEquals("a", s.configFor(ModelRole.Vision)?.id)
+        assertTrue("兼任时看图这一路照发截图", s.configFor(ModelRole.Vision)!!.capabilities.vision)
         val m = s.modelFor(ModelRole.Main)
         assertEquals("套上计量后能力照旧", cfg("a", vision = true).capabilities, m?.capabilities)
         assertEquals("a" to "sk-a", built.single().first.id to built.single().second)

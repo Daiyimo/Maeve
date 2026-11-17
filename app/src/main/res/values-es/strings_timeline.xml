@@ -28,6 +28,7 @@
     <string name="err_ref_expired">La pantalla cambió; hay que volver a mirarla</string>
     <string name="err_no_app">Aún no hay ninguna app abierta</string>
     <string name="err_invalid_args">Argumentos no válidos</string>
+    <string name="err_action_failed">Nada cambió después de la acción</string>
     <string name="err_op_failed">La acción falló</string>
     <string name="err_unknown_tool">No existe esa herramienta</string>
     <string name="err_protected">La pantalla está protegida y no se puede ver</string>

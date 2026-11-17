@@ -28,6 +28,7 @@
     <string name="err_ref_expired">Экран изменился; нужно посмотреть заново</string>
     <string name="err_no_app">Ни одно приложение ещё не открыто</string>
     <string name="err_invalid_args">Неверные аргументы</string>
+    <string name="err_action_failed">После действия ничего не изменилось</string>
     <string name="err_op_failed">Действие не удалось</string>
     <string name="err_unknown_tool">Такого инструмента нет</string>
     <string name="err_protected">Экран защищён, и его не видно</string>

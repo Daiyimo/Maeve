@@ -28,6 +28,7 @@
     <string name="err_ref_expired">介面已經變了,要重新看螢幕</string>
     <string name="err_no_app">還沒開啟 App</string>
     <string name="err_invalid_args">參數不對</string>
+    <string name="err_action_failed">點了但畫面沒有變化</string>
     <string name="err_op_failed">操作沒成功</string>
     <string name="err_unknown_tool">沒有這個工具</string>
     <string name="err_protected">畫面受保護,看不到</string>

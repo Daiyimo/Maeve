@@ -189,6 +189,12 @@ data class RoleChoices(
     val light: RoleChoice = RoleChoice.SameAsMain,
     /** 按用途保存,同一个模型可在不同用途选不同档位;「用主模型」连同它的档位一起跟随。 */
     val reasoningEfforts: Map<ModelRole, String> = emptyMap(),
+    /**
+     * 用户在图用途上**显式说过「不用」**(选了具体模型又删掉的不算,见 [keepOnly])。
+     * 没有这个标记时的「不用」只是默认值:主模型能看图就由它兼任(见 [ProviderStore.configFor]);
+     * 显式说过才算数——之后主模型换回能看图的,也不再自动替用户打开。
+     */
+    val visionOffChosen: Boolean = false,
 ) {
     /** 这个用途的选择;主模型没选时为 null。 */
     operator fun get(role: ModelRole): RoleChoice? = when (role) {
@@ -216,7 +222,7 @@ data class RoleChoices(
     /** 改一个用途;这个用途不接受的选择(主模型只能是具体模型,轻量不能不用)返回 null。 */
     fun with(role: ModelRole, choice: RoleChoice): RoleChoices? = (when (role) {
         ModelRole.Main -> (choice as? RoleChoice.Model)?.let { copy(main = it.configId) }
-        ModelRole.Vision -> copy(vision = choice)
+        ModelRole.Vision -> copy(vision = choice, visionOffChosen = choice == RoleChoice.Off)
         ModelRole.Light -> if (choice == RoleChoice.Off) null else copy(light = choice)
     })?.let { next ->
         if (get(role) == choice) next else next.copy(reasoningEfforts = reasoningEfforts - role)
@@ -236,6 +242,8 @@ data class RoleChoices(
             vision = if (vision.gone()) RoleChoice.Off else vision,
             light = if (light.gone()) RoleChoice.SameAsMain else light,
             reasoningEfforts = reasoningEfforts.filterKeys { role -> (get(role) as? RoleChoice.Model)?.configId in valid },
+            // 显式选的看图模型被删掉时,「说过不用」也不再作数:退回可自动兼任的默认
+            visionOffChosen = visionOffChosen && !vision.gone(),
         )
     }
 }
@@ -630,7 +638,7 @@ class ProviderStore(
     fun setVisionGroundingVerified(verified: Boolean) {
         return mutate {
             requireWritable()
-            val id = _roles.value.resolve(ModelRole.Vision) ?: return
+            val id = visionConfigId() ?: return
             _configs.value = _configs.value.map { c ->
                 if (c.id == id) c.copy(capabilities = c.capabilities.copy(groundingVerified = verified)) else c
         }
@@ -647,7 +655,9 @@ class ProviderStore(
     @Synchronized fun configFor(role: ModelRole): ProviderConfig? {
         if (_loadState.value !in setOf(LoadState.Missing, LoadState.Valid)) return null
         val choices = _roles.value
-        val cfg = choices.resolve(role)?.let { id -> _configs.value.firstOrNull { it.id == id } } ?: return null
+        val cfg = choices.resolve(role)?.let { id -> _configs.value.firstOrNull { it.id == id } }
+            ?: fallbackFor(role, choices)
+            ?: return null
         val p = provider(cfg.providerId)
         val knownVision = p?.let { ModelOptions.ofProvider(it, _configs.value).firstOrNull { o -> o.id == cfg.model }?.capabilities?.vision }
             ?: cfg.capabilities.vision
@@ -655,6 +665,33 @@ class ProviderStore(
             p?.visionOverrides?.get(cfg.model), usedForVision = choices.resolve(ModelRole.Vision) == cfg.id)
         return if (sees == cfg.capabilities.vision) cfg else cfg.copy(capabilities = cfg.capabilities.copy(vision = sees))
     }
+
+    /** 别的用途没有兼任;只有看图有(见 [visionFallback])。 */
+    private fun fallbackFor(role: ModelRole, choices: RoleChoices): ProviderConfig? =
+        if (role == ModelRole.Vision && !choices.visionOffChosen) visionFallback() else null
+
+    /**
+     * 看图用途设为「不用」时的兼任:主模型能看图(用户明说过不能才算不能),就由主模型干看图的活。
+     *
+     * 为什么需要它:旧版迁移时这就是默认(见 [migrateRoles]),但新格式把「不用」明存进 uses 字段之后,
+     * 这条默认就再也不生效了——主模型明明是视觉模型,phone_find_visually / phone_describe 却报
+     * 「没有这个工具」,点击前的落点核查也整个关掉,模型只能凭坐标瞎点(三角洲小程序任务就是这么连败的)。
+     * 存着的选择不动:用户之后显式选了具体模型或「用主模型」,照他的来;主模型换了不能看图的,自动失效。
+     */
+    private fun visionFallback(): ProviderConfig? {
+        val main = _roles.value[ModelRole.Main] as? RoleChoice.Model ?: return null
+        val cfg = _configs.value.firstOrNull { it.id == main.configId } ?: return null
+        val p = provider(cfg.providerId)
+        val knownVision = p?.let { ModelOptions.ofProvider(it, _configs.value).firstOrNull { o -> o.id == cfg.model }?.capabilities?.vision }
+            ?: cfg.capabilities.vision
+        val sees = ModelOptions.seesImages(knownVision, p?.visionOverrides?.get(cfg.model), usedForVision = false)
+        return cfg.takeIf { sees }
+    }
+
+    /** 看图用途实际用的配置 id:显式选的,或「不用」时由主模型兼任的那个;两者都没有为 null。 */
+    private fun visionConfigId(): String? =
+        _roles.value.resolve(ModelRole.Vision)
+            ?: if (_roles.value.visionOffChosen) null else visionFallback()?.id
 
     /** 主模型在它那家还没测试通过时给出那一家(见 [Provider.untested]);任务因模型失败时据此提示去「重新测试」。 */
     fun untestedMainProvider(): Provider? {
@@ -1167,6 +1204,12 @@ class ProviderStore(
         }
         var r = RoleChoices()
         ModelRole.entries.forEach { role -> choice(role)?.let { c -> r.with(role, c)?.let { r = it } } }
+        // 「不用」只有显式选过才作数(见 RoleChoices.visionOffChosen):with() 一律按 Off 记,
+        // 这里按文件里有没有 chosen 改回来——没写的就是默认值,主模型能看图时仍由它兼任。
+        val visionOffChosen = runCatching {
+            o[ModelRole.Vision.name]?.jsonObject?.get("chosen")?.jsonPrimitive?.boolean == true
+        }.getOrDefault(false)
+        r = r.copy(visionOffChosen = visionOffChosen)
         return r.copy(reasoningEfforts = ModelRole.entries.mapNotNull { role ->
             val effort = runCatching { o[role.name]?.jsonObject?.get("reasoningEffort")?.jsonPrimitive?.content }.getOrNull()
             if (r[role] is RoleChoice.Model && !effort.isNullOrBlank()) role to effort else null
@@ -1251,7 +1294,11 @@ class ProviderStore(
                             _roles.value.reasoningEfforts[role]?.let { put("reasoningEffort", it) }
                         }
                         RoleChoice.SameAsMain -> putJsonObject(role.name) { put("use", USE_MAIN) }
-                        RoleChoice.Off -> putJsonObject(role.name) { put("use", USE_NONE) }
+                        RoleChoice.Off -> putJsonObject(role.name) {
+                            put("use", USE_NONE)
+                            // 「不用」是默认值,只有用户显式选过才记:没记的,主模型能看图时由它兼任
+                            if (role == ModelRole.Vision && _roles.value.visionOffChosen) put("chosen", true)
+                        }
                         null -> Unit
                     }
                 }

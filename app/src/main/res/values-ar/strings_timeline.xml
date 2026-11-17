@@ -28,6 +28,7 @@
     <string name="err_ref_expired">تغيّرت الشاشة؛ يلزم فحصها مجددًا</string>
     <string name="err_no_app">لم يُفتح أي تطبيق بعد</string>
     <string name="err_invalid_args">وسائط غير صالحة</string>
+    <string name="err_action_failed">لم يتغيّر شيء بعد الإجراء</string>
     <string name="err_op_failed">تعذّر تنفيذ الإجراء</string>
     <string name="err_unknown_tool">الأداة غير موجودة</string>
     <string name="err_protected">الشاشة محمية ولا يمكن الاطلاع عليها</string>

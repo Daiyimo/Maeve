@@ -43,4 +43,16 @@ class ModelsCopyTest {
         assertEquals(listOf(RoleChoice.SameAsMain, RoleChoice.Off), fixedChoices(ModelRole.Vision))
         assertEquals(listOf(RoleChoice.SameAsMain), fixedChoices(ModelRole.Light))
     }
+
+    /** 看图存的是「不用」、主模型却能看图:用途卡照实写「用主模型」,不让用户以为看不了图。 */
+    @Test fun visionCardShowsTheMainModelWhileItCoversVision() {
+        val seesMain = main.copy(capabilities = caps.copy(vision = true))
+        val u = ui(RoleChoices(main = "c1", vision = RoleChoice.Off), configs = listOf(seesMain, vl))
+        val line = ModelsCopy.roleLine(u, ModelRole.Vision)
+        assertEquals(ModelsCopy.SAME_AS_MAIN, line.title)
+        assertEquals(seesMain.model, line.subtitle)
+        // 主模型不能看图时仍是「不用」
+        val blind = ui(RoleChoices(main = "c1", vision = RoleChoice.Off))
+        assertEquals(ModelsCopy.OFF, ModelsCopy.roleLine(blind, ModelRole.Vision).title)
+    }
 }

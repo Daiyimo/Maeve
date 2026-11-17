@@ -29,6 +29,7 @@
     <string name="err_no_app">No app open yet</string>
     <string name="err_invalid_args">Invalid arguments</string>
     <string name="err_op_failed">Action failed</string>
+    <string name="err_action_failed">Nothing changed after the action</string>
     <string name="err_unknown_tool">No such tool</string>
     <string name="err_protected">Screen is protected and can’t be seen</string>
     <string name="err_confirm_required">Needs your OK first</string>

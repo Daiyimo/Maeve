@@ -28,6 +28,7 @@
     <string name="err_ref_expired">画面が変わりました。見直しが必要です</string>
     <string name="err_no_app">まだアプリが開いていません</string>
     <string name="err_invalid_args">引数が無効です</string>
+    <string name="err_action_failed">操作後に画面が変化しませんでした</string>
     <string name="err_op_failed">操作に失敗しました</string>
     <string name="err_unknown_tool">そのようなツールはありません</string>
     <string name="err_protected">画面が保護されていて見えません</string>

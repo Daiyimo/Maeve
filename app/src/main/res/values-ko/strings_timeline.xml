@@ -28,6 +28,7 @@
     <string name="err_ref_expired">화면이 바뀌어서 다시 봐야 해요</string>
     <string name="err_no_app">아직 열린 앱이 없어요</string>
     <string name="err_invalid_args">잘못된 인수</string>
+    <string name="err_action_failed">동작 후 화면이 바뀌지 않았습니다</string>
     <string name="err_op_failed">동작 실패</string>
     <string name="err_unknown_tool">그런 도구가 없어요</string>
     <string name="err_protected">보호된 화면이라 볼 수 없어요</string>

@@ -28,6 +28,7 @@
     <string name="err_ref_expired">Layar berubah; perlu dilihat ulang</string>
     <string name="err_no_app">Belum ada aplikasi yang terbuka</string>
     <string name="err_invalid_args">Argumen tidak valid</string>
+    <string name="err_action_failed">Tidak ada perubahan setelah tindakan</string>
     <string name="err_op_failed">Tindakan gagal</string>
     <string name="err_unknown_tool">Alat tidak ada</string>
     <string name="err_protected">Layar dilindungi dan tidak bisa dilihat</string>

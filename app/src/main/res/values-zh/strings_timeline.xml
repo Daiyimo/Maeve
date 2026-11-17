@@ -29,6 +29,7 @@
     <string name="err_no_app">还没打开 App</string>
     <string name="err_invalid_args">参数不对</string>
     <string name="err_op_failed">操作没成功</string>
+    <string name="err_action_failed">点了但界面没有变化</string>
     <string name="err_unknown_tool">没有这个工具</string>
     <string name="err_protected">画面受保护,看不到</string>
     <string name="err_confirm_required">要先征得你同意</string>

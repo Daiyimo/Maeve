@@ -310,7 +310,9 @@ object ModelsCopy {
         return when (val choice = ui.roles[role]) {
             null -> RoleLine(UNSET, if (ui.providers.isEmpty()) MAIN_ADD_FIRST else MAIN_PICK, unset = true)
             RoleChoice.SameAsMain -> RoleLine(SAME_AS_MAIN, main?.model ?: MAIN_NOT_PICKED)
-            RoleChoice.Off -> RoleLine(OFF, OFF_NOTE)
+            // 看图存的是「不用」、主模型却能看图:实效就是主模型兼任,卡上照实写,别让用户以为看不了图
+            RoleChoice.Off -> if (role == ModelRole.Vision && ui.configFor(ModelRole.Vision) != null)
+                RoleLine(SAME_AS_MAIN, main?.model ?: MAIN_NOT_PICKED) else RoleLine(OFF, OFF_NOTE)
             is RoleChoice.Model -> ui.configs.firstOrNull { it.id == choice.configId }?.let(::modelLine)
                 ?: RoleLine(UNSET, MAIN_PICK, unset = true)
         }

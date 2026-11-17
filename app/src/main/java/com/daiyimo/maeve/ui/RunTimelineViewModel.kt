@@ -316,6 +316,7 @@ class RunTimelineViewModel(
             "no_app_open" to tr(R.string.err_no_app),
             "invalid_arguments" to tr(R.string.err_invalid_args),
             "operation_failed" to tr(R.string.err_op_failed),
+            "action_failed" to tr(R.string.err_action_failed),
             "unknown_tool" to tr(R.string.err_unknown_tool),
             "protected_content" to tr(R.string.err_protected),
             "confirmation_required" to tr(R.string.err_confirm_required),
