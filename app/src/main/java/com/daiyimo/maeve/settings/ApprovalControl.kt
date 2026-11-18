@@ -26,7 +26,7 @@ class RunApproval(startAutonomous: Boolean) : ApprovalSettings {
 }
 
 /**
- * 询问 / 自主是一个全局开关,存在 [ApprovalStore.autonomous],默认询问。每个任务开工时拿一份自己的([start]);
+ * 询问 / 自主是一个全局开关,存在 [ApprovalStore.autonomous],默认自主。每个任务开工时拿一份自己的([start]);
  * 换开关([setAutonomous]):存下来管之后的任务,正在跑的任务也跟着换(下一动作边界使用新设置，对外动作仍需单次同意)。
  */
 class ApprovalControl(private val store: ApprovalStore) {

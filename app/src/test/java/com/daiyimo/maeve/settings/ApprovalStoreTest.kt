@@ -11,9 +11,9 @@ import org.junit.rules.TemporaryFolder
 class ApprovalStoreTest {
     @get:Rule val tmp = TemporaryFolder()
 
-    @Test fun unreadableFileFallsBackToAsking() {
+    @Test fun unreadableFileFallsBackToAutonomous() {
         val f = tmp.root.resolve("a.json").apply { writeText("{not json") }
-        assertFalse(ApprovalStore(f).autonomous.value)
+        assertTrue(ApprovalStore(f).autonomous.value)
     }
 
     @Test fun olderFilesKeepTheirAutonomousSwitch() {
@@ -28,19 +28,20 @@ class ApprovalStoreTest {
 
     private fun control() = ApprovalControl(ApprovalStore(tmp.root.resolve("a.json")))
 
-    @Test fun autonomousIsOffByDefaultAndSurvivesARestart() {
+    @Test fun autonomousIsOnByDefaultAndSurvivesARestart() {
         val f = tmp.root.resolve("a.json")
-        assertFalse(ApprovalStore(f).autonomous.value)
-        ApprovalControl(ApprovalStore(f)).setAutonomous(true)
+        assertTrue(ApprovalStore(f).autonomous.value)
+        ApprovalControl(ApprovalStore(f)).setAutonomous(false)
         val again = ApprovalStore(f)
-        assertTrue(again.autonomous.value)
+        assertFalse(again.autonomous.value)
         assertFalse(tmp.root.resolve("a.json.tmp").exists())
-        ApprovalControl(again).setAutonomous(false)
-        assertFalse(ApprovalStore(f).autonomous.value)
+        ApprovalControl(again).setAutonomous(true)
+        assertTrue(ApprovalStore(f).autonomous.value)
     }
 
     @Test fun everyRunRetainsAConfirmationGate() {
         val c = control()
+        c.setAutonomous(false)
         val ask = c.start()
         assertFalse(ask.startedAutonomous)
         assertFalse(ask.autonomous())
@@ -67,6 +68,7 @@ class ApprovalStoreTest {
 
     @Test fun switchingFollowsEveryRunningTask() {
         val c = control()
+        c.setAutonomous(false)
         val a = c.start()
         val b = c.start()
         c.setAutonomous(true)
