@@ -217,7 +217,7 @@ derived_loc   = 当前行数 - 相对基线新增行数
 | `core/src/main/resources` | 175 | 3,295 | 3,233 | 98% | `prompts/`（120 个）、`knowledge/`（46 个）、`skills/`（9 个）。**这是 agent 的"大脑内容"，改它直接改行为**，必须与对应能力同批重写 |
 | `eval/tasks` | 129 | 3,184 | 3,078 | 97% | 任务 JSON（`read` 43 / `web` 22 / `skills` 20 / `write` 11 / `memory` 10 / `irreversible` 9 / `impossible` 8 / `barrier` 5）。是行为规格，**保留并扩充**，不必重打 |
 | `app/src/main/assets` | 5 | 1,912 | 1,892 | 99% | 见下方拆分 |
-| `docs` | 67 | 10,647 | 4,848 | 46% | `docs/dev`（21）与 `docs/media`（20）是主要残留；`docs/spec`、`docs/adr`、`docs/readme` 已是自有内容 |
+| `docs` | 67 | 10,647 | 4,848 | 46% | `docs/dev`（21）与 `docs/media`（20）是主要残留；`docs/spec`、`docs/adr` 已是自有内容；README 译文已合并为根目录中英双语 |
 | `app/src/main/cpp/maeverun/maeverun.c` | 1 | 734 | 716 | 98% | C 沙箱启动器（seccomp / rlimit），由上游启动器源码纯改名而来 |
 | `app/src/main/aidl/.../IMaeveShell.aidl` | 1 | 23 | 23 | 100% | `IMaeveShell.aidl` 纯改名而来 |
 | 根目录散落文件 | 33 | 3,857 | 2,345 | 61% | `SPEC.md`（867 衍生行）最大，其余是 `gradlew`、`LICENSE`、`SECURITY.md`、构建脚本等；`LICENSE` 是 Apache-2.0 全文，**必须保留** |

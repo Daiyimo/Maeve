@@ -8,11 +8,11 @@ import java.io.File
 import java.security.MessageDigest
 
 /**
- * docs/readme/ 下的几份译文跟得上仓库首页的英文 README.md:
- *  - 每份译文开头有 `<!-- translated-from: README.md @ <指纹> -->`,指纹是翻译时 README.md 的 [fingerprint];
- *    README.md 改了而译文没跟着改,这里失败并列出哪几份过期了;
+ * 英文译文 README.en.md 跟得上仓库首页的简体中文 README.md:
+ *  - 译文开头有 `<!-- translated-from: README.md @ <指纹> -->`,指纹是翻译时 README.md 的 [fingerprint];
+ *    README.md 改了而译文没跟着改,这里失败;
  *  - 译文和 README.md 的 `## ` 小节一样多,用到的本地图片一样(各自按所在目录解析成仓库里的路径再比);网上的徽章图各语言自己写,不比。
- * 生成段落只在 README.md 和简体中文 [ReadmeSections.README_ZH] 里,由 [ReadmeSectionsTest] 守着;其他译文不能有。
+ * 生成段落在 README.md(中文)和 [ReadmeSections.README_EN](英文)里,由 [ReadmeSectionsTest] 守着。
  */
 class ReadmeTranslationsTest {
     private val root = File("..").canonicalFile
@@ -45,8 +45,8 @@ class ReadmeTranslationsTest {
     }
 
     @Test fun translationsHaveNoGeneratedBlocks() {
-        val bad = (TRANSLATIONS - ReadmeSections.README_ZH).filter { "<!-- generated:" in File(root, it).readText() }
-        assertTrue("生成段落只放在 README.md、${ReadmeSections.README_ZH},其他译文里换成指向它们的一句话:$bad", bad.isEmpty())
+        val bad = (TRANSLATIONS - ReadmeSections.README_EN).filter { "<!-- generated:" in File(root, it).readText() }
+        assertTrue("生成段落只放在 README.md、${ReadmeSections.README_EN},其他译文里换成指向它们的一句话:$bad", bad.isEmpty())
     }
 
     @Test fun fingerprintIgnoresGeneratedBlocksAndLineEndings() {
@@ -58,9 +58,8 @@ class ReadmeTranslationsTest {
     }
 
     companion object {
-        /** 译文都在 docs/ 下,core/build.gradle.kts 里测试的 docsDir 输入已经盖住;放到别处要另加输入。 */
-        val TRANSLATIONS = listOf(ReadmeSections.README_ZH) +
-            listOf("zh-Hant", "ja", "ko", "es").map { "docs/readme/README.$it.md" }
+        /** 英文译文在仓库根目录,core/build.gradle.kts 里测试的 docsFiles 输入已经盖住。 */
+        val TRANSLATIONS = listOf(ReadmeSections.README_EN)
         private val MARKER = Regex("""<!-- translated-from: README\.md @ ([0-9a-f]+) -->""")
         private val GENERATED = Regex("""<!-- generated:([\w-]+):start -->.*?<!-- generated:\1:end -->""", RegexOption.DOT_MATCHES_ALL)
 
