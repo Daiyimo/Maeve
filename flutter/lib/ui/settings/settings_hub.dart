@@ -35,11 +35,9 @@ class SettingsHubPage extends StatelessWidget {
         : readiness.ready
         ? Tone.ok
         : Tone.warn;
-    final statusTint = statusTone == Tone.ok
-        ? theme.semantic.ok
-        : statusTone == Tone.warn
-        ? theme.semantic.warn
-        : c.accent;
+    // 入口卡统一用强调色紫洗层(与详情页头卡一致):语义色(琥珀/绿)在奶白玻璃上
+    // 读作"黄块/绿块",不贴 Maeve 气质;状态由右侧值文字与图标表达。
+    final statusTint = c.accent;
     return AppPage.list(
       title: '设置',
       subtitle: '让 Maeve 适合你的日常',
@@ -69,7 +67,7 @@ class SettingsHubPage extends StatelessWidget {
             child: MaeveGlassSurface(
               tier: MaeveGlassTier.card,
               tint: statusTint,
-              tintAlpha: .12,
+              tintAlpha: .16,
               padding: const EdgeInsets.all(MaeveSpace.s16),
               child: Row(
                 children: [
@@ -202,7 +200,6 @@ class SettingsHubPage extends StatelessWidget {
             SettingsTile(
               icon: Icons.info_outline_rounded,
               title: '关于 Maeve',
-              subtitle: '名字与版本',
               onTap: () => AppPage.open(context, const AboutPage()),
             ),
             SettingsTile(
@@ -213,7 +210,6 @@ class SettingsHubPage extends StatelessWidget {
             SettingsTile(
               icon: Icons.system_update_alt_rounded,
               title: '获取更新',
-              subtitle: '查看新版本与更新说明',
               onTap: () => AppPage.open(context, const UpdatePage()),
             ),
           ],

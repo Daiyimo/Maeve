@@ -240,16 +240,6 @@ class _PhoneReadinessPageState extends State<PhoneReadinessPage>
     final c = theme.colors;
     final readiness = PhoneReadiness.of(controller);
     final next = readiness.next;
-    final heroTone = !readiness.loaded || readiness.error != null
-        ? Tone.neutral
-        : readiness.ready
-        ? Tone.ok
-        : Tone.warn;
-    final heroTint = heroTone == Tone.ok
-        ? theme.semantic.ok
-        : heroTone == Tone.warn
-        ? theme.semantic.warn
-        : c.accent;
     final developer = readiness.connection.isNotEmpty
         ? readiness.connection[0]
         : null;
@@ -272,12 +262,12 @@ class _PhoneReadinessPageState extends State<PhoneReadinessPage>
         const SizedBox(height: 20),
         if (readiness.error != null)
           SettingsNotice(text: readiness.error!, icon: Icons.info_outline),
-        // 染色玻璃头卡:状态一眼可见 + 下一步主按钮。语义色洗层让受光边与
-        // 斜带在浅色画布上显形(visual-tokens 液态玻璃条款)。
+        // 紫色玻璃头卡:用强调色洗一层,读作"紫色块",跟下面中性分组卡拉开层次。
+        // 语义色(琥珀/绿)在奶白玻璃上读作"黄块"难看,统一用强调色更贴气质。
         MaeveGlassSurface(
           tier: MaeveGlassTier.card,
-          tint: heroTint,
-          tintAlpha: .12,
+          tint: c.accent,
+          tintAlpha: .16,
           padding: const EdgeInsets.all(MaeveSpace.s20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
