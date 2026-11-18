@@ -60,8 +60,8 @@ class FeatureFlags(private val prefs: SharedPreferences) {
         prefs.edit().putBoolean(MUTE_TARGET, on).commit()
     }
 
-    /** 在 App 里操作的节奏:快、标准(默认)、像人(见 [OperatingPace])。 */
-    fun operatingPace(): OperatingPace = OperatingPace.parse(prefs.getString(OPERATING_PACE, null)) ?: OperatingPace.DEFAULT
+    /** 在 App 里操作的节奏:快(默认)、标准、像人(见 [OperatingPace])。 */
+    fun operatingPace(): OperatingPace = OperatingPace.parse(prefs.getString(OPERATING_PACE, null)) ?: OperatingPace.FAST
 
     fun setOperatingPace(pace: OperatingPace) {
         prefs.edit().putString(OPERATING_PACE, pace.name).commit()

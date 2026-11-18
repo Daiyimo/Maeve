@@ -14,7 +14,7 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
 /**
- * 询问 / 自主(新任务开工时取它),存成一个小 JSON 文件;读不懂按询问。
+ * 询问 / 自主(新任务开工时取它),存成一个小 JSON 文件;读不懂按自主(默认)。
  * 先写临时文件再改名,写一半断电不会留下坏文件。
  */
 class ApprovalStore(private val file: File) {
@@ -22,7 +22,7 @@ class ApprovalStore(private val file: File) {
 
     init {
         val o = runCatching { Json.parseToJsonElement(file.readText()) as? JsonObject }.getOrNull()
-        _autonomous = MutableStateFlow((o?.get("autonomous") as? JsonPrimitive)?.booleanOrNull ?: false)
+        _autonomous = MutableStateFlow((o?.get("autonomous") as? JsonPrimitive)?.booleanOrNull ?: true)
     }
 
     /** 自主模式:普通可恢复操作连续执行，对外动作仍需单次同意，付款交还用户。换它请走 [ApprovalControl.setAutonomous],正在跑的任务才会跟着换。 */
