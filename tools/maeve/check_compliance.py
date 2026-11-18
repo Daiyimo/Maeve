@@ -87,7 +87,11 @@ check(gradle.count('"com.daiyimo.maeve"') >= 2,
       "namespace / applicationId is not com.daiyimo.maeve")
 check('rootProject.name = "Maeve"' in read("settings.gradle.kts"),
       "settings.gradle.kts rootProject.name is not Maeve")
-check('versionName = "0.1.0-dolores"' in gradle, "release codename missing from versionName")
+# versionName 只写「主.次.修订」,不带代号后缀:发布 tag 是 v0.1.0,带后缀会被 AppVersion 当预发布版、
+# 给装了正式版的人推「升级」又因 versionCode 相同装不上(见 app/build.gradle.kts)。代号写在 README/发布说明里。
+check('versionName = "0.1.0"' in gradle,
+      "versionName must be 0.1.0 without a codename suffix (see app/build.gradle.kts)")
+check("Dolores" in readme, "release codename (Dolores) must be documented in README")
 
 # 7. No residual upstream package identifier anywhere in the repo, markdown included:
 #    the scan guards package/resource residue; the files that must carry the upstream
