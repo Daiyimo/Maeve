@@ -18,6 +18,8 @@ class ActionEffectsTest {
     private fun result(ok: Boolean = true, executed: Boolean? = null) = ToolExecution(buildJsonObject {
         put("ok", ok); executed?.let { put("executed", it) }
     })
+    /** 既没说成功、也没说没执行、连 ok 都没有的畸形结果:真不知道有没有生效。 */
+    private fun malformed() = ToolExecution(buildJsonObject { put("note", "no outcome reported") })
 
     @Test fun savesStartedBeforeExecutionAndNeverReexecutesAcknowledgedInvocation() = runTest {
         val store = ActionEffectStore(temp.root)
@@ -47,14 +49,39 @@ class ActionEffectsTest {
         assertEquals(ActionEffectStore.State.Started, store.receipts("conversation").single().state)
     }
 
-    @Test fun uncertainFailureStopsAndCannotBeReplayedWithNewCallId() = runTest {
+    @Test fun unconfirmedResultStopsAndCannotBeReplayedWithNewCallId() = runTest {
         val store = ActionEffectStore(temp.root)
         val effects = ActionEffects(store, "c", "run")
-        val error = runCatching { effects.execute(call, Origin.Model(1)) { result(false) } }.exceptionOrNull()
+        val error = runCatching { effects.execute(call, Origin.Model(1)) { malformed() } }.exceptionOrNull()
         assertEquals("effect_unknown", (error as ActionEffects.Blocked).code)
         assertEquals(ActionEffectStore.State.Unknown, store.receipts("c").single().state)
+        assertEquals("outcome_unconfirmed", store.receipts("c").single().evidence)
         assertTrue(runCatching { effects.execute(call.copy(id = "retry"), Origin.Model(2)) { error("must not run") } }.exceptionOrNull() is ActionEffects.Blocked)
         assertTrue(runCatching { effects.checkSettled() }.exceptionOrNull() is ActionEffects.Blocked)
+    }
+
+    @Test fun cleanFailureIsNotAppliedAndDoesNotBlockNextWrite() = runTest {
+        val store = ActionEffectStore(temp.root)
+        val effects = ActionEffects(store, "c", "run")
+        // 干净地报了失败(ok=false):动作确定没生效,记 NotApplied,不抛、也不卡住后面的写动作
+        val ran = effects.execute(call, Origin.Model(1)) { result(false) }
+        assertEquals(JsonPrimitive(false), ran.content["ok"])
+        val receipt = store.receipts("c").single()
+        assertEquals(ActionEffectStore.State.NotApplied, receipt.state)
+        assertEquals("tool_declared_not_executed", receipt.evidence)
+        var nextRan = false
+        effects.execute(call.copy(id = "next"), Origin.Model(2)) { nextRan = true; result() }
+        assertTrue(nextRan)
+        assertEquals(listOf(ActionEffectStore.State.NotApplied, ActionEffectStore.State.Applied), store.receipts("c").map { it.state })
+    }
+
+    @Test fun cleanFailureWithErrorCodeKeepsItAsEvidence() = runTest {
+        val store = ActionEffectStore(temp.root)
+        val effects = ActionEffects(store, "c", "run")
+        effects.execute(call, Origin.Model(1)) { ToolExecution(buildJsonObject { put("ok", false); put("error", "tap_text_mismatch") }) }
+        val receipt = store.receipts("c").single()
+        assertEquals(ActionEffectStore.State.NotApplied, receipt.state)
+        assertEquals("tap_text_mismatch", receipt.evidence)
     }
 
     @Test fun notExecutedProofAndExplicitNewIntentRemainDistinct() = runTest {
@@ -116,7 +143,7 @@ class ActionEffectsTest {
     @Test fun localReviewSettlesOnlySelectedReceiptAndDoesNotReplayOldInvocation() = runTest {
         val store = ActionEffectStore(temp.root)
         val effects = ActionEffects(store, "c", "run")
-        runCatching { effects.execute(call, Origin.Model(1)) { result(false) } }
+        runCatching { effects.execute(call, Origin.Model(1)) { malformed() } }
         val receipt = store.receipts("c").single()
         store.reconcile("c", receipt.effectId, receipt.startedSequence, applied = false)
         assertEquals("local_user_review", store.receipts("c").single().evidence)
@@ -141,5 +168,26 @@ class ActionEffectsTest {
         assertEquals(ActionEffectStore.State.Applied, store.receipts("c").single().state)
         assertTrue(runCatching { executor.run(tap, Origin.Model(2)) }.exceptionOrNull() is ActionEffects.Blocked)
         assertEquals(1, screen.calls.count { it.startsWith("tap") })
+    }
+
+    @Test fun executedTapThatCleanlyFailsIsNotAppliedAndDoesNotBlockNext() = runTest {
+        val store = ActionEffectStore(temp.root)
+        val screen = com.daiyimo.maeve.core.tool.FakeScreen()
+        val tools = com.daiyimo.maeve.core.assembly.toolDispatcher(screen)
+        val executor = ActionExecutor(tools, com.daiyimo.maeve.core.guard.OperationGuards(), null, gate = {},
+            recorder = ActionRecorder(com.daiyimo.maeve.core.record.RunSink.NONE), effects = ActionEffects(store, "c", "run"))
+        val tap = call.copy(name = "phone_tap", argsJson = """{"x":500,"y":100}""")
+        // 真机 bug 形态:点击已执行、端口干净地报失败(ok=false)。旧逻辑误判 Unknown 抛 effect_unknown 并卡住整个会话。
+        screen.result = com.daiyimo.maeve.core.uistate.ActionResult.Failed("action_failed")
+        val failed = executor.run(tap, Origin.Model(1))
+        assertTrue(failed is ActionOutcome.Ran)
+        val receipt = store.receipts("c").single()
+        assertEquals(ActionEffectStore.State.NotApplied, receipt.state)
+        assertEquals("action_failed", receipt.evidence)
+        // 同一会话的下一个写动作照常执行,不被上一条干净失败卡住
+        screen.result = com.daiyimo.maeve.core.uistate.ActionResult.Ok()
+        val next = executor.run(tap.copy(id = "next"), Origin.Model(2))
+        assertTrue(next is ActionOutcome.Ran)
+        assertEquals(listOf(ActionEffectStore.State.NotApplied, ActionEffectStore.State.Applied), store.receipts("c").map { it.state })
     }
 }

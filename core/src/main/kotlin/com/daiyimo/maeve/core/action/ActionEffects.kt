@@ -135,11 +135,19 @@ class ActionEffects(
         val state = when {
             result.content["executed"] == JsonPrimitive(false) -> ActionEffectStore.State.NotApplied
             result.content["ok"] == JsonPrimitive(true) -> ActionEffectStore.State.Applied
+            // 干净地报了失败(ok=false):动作确定没生效,记成 NotApplied,不再卡住后面的写动作;
+            // 只有既没说成功、也没说没执行、连 ok 都没有的畸形结果才算 Unknown(真不知道有没有生效)
+            result.content["ok"] == JsonPrimitive(false) -> ActionEffectStore.State.NotApplied
             else -> ActionEffectStore.State.Unknown
         }
         try {
             withContext(NonCancellable + Dispatchers.IO) { store.settle(scope, receipt, state, result.content,
-                when (state) { ActionEffectStore.State.Applied -> "tool_acknowledged"; ActionEffectStore.State.NotApplied -> "tool_declared_not_executed"; else -> "outcome_unconfirmed" }) }
+                when (state) {
+                    ActionEffectStore.State.Applied -> "tool_acknowledged"
+                    // 失败结算成 NotApplied 的,把错误码写进证据,便于核对时看清是哪一步没生效
+                    ActionEffectStore.State.NotApplied -> (result.content["error"] as? JsonPrimitive)?.content ?: "tool_declared_not_executed"
+                    else -> "outcome_unconfirmed"
+                }) }
         } catch (_: Exception) { throw Blocked("effect_receipts_unavailable") }
         if (state == ActionEffectStore.State.Unknown) throw Blocked("effect_unknown")
         result
