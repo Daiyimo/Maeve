@@ -805,7 +805,7 @@ class TaskRun(
                     AgentLoop(model, childTools, SystemPrompt.identity(), maxSteps = childSpec.stepBudget ?: AgentLoop.UNLIMITED_STEPS,
                         effects = com.daiyimo.maeve.core.action.ActionEffects((service.application as MaeveApp).actionEffects, conversationId, childSpec.id.value),
                         // 子任务跟着询问 / 自主;询问时它也过关卡,子任务里花钱的一步一律不做
-                        confirmations = runApproval.gate(), approvals = runApproval, autonomous = false,
+                        confirmations = runApproval.gate(), approvals = runApproval, autonomous = runApproval.autonomous(),
                         reviewFinalAnswer = false, flags = speed, outwardPacing = OutwardPacing.human(), budget = budget)
                 },
                 store = (service.application as MaeveApp).childRuns,
@@ -877,7 +877,7 @@ class TaskRun(
                 // 开工时询问、中途换成自主的,下一步起不再问;开工时自主的,换成询问留给下一个任务
                 confirmations = runApproval.gate(),
                 approvals = runApproval,
-                autonomous = false,
+                autonomous = runApproval.autonomous(),
                 confirmTimeoutMs = TaskService.CONFIRM_TIMEOUT_MS,
                 selfPackage = service.packageName,
                 flags = speed,

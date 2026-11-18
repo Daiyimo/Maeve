@@ -116,6 +116,9 @@ class ConfirmDecision(
         if (hit != null || !IrreversibleDetector.unresolved(target, checked, snap, fresh)) return Decision.Clear
         // 有名字、经过定位与复看的视觉目标可继续；裸坐标/失效编号不能靠记日志后盲点。
         if (aim.bySight && !seen.isNullOrBlank() && fresh != null && fresh.packageName == snap?.packageName) return Decision.Clear
+        // 自主执行:不可逆动作已在上面被拦下,走到这里说明这一下是安全的;自绘界面(canvas)上没有元素,
+        // 裸坐标点击不该再被「目标确认不了」卡住,否则模型反复盲点、最后放弃。
+        if (autonomous) return Decision.Clear
         return Decision.Unresolved
     }
 
