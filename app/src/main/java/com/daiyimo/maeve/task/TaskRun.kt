@@ -538,7 +538,8 @@ class TaskRun(
             wakeHandoff?.release()
             wakeHandoff = null
             val stepLimit = FeatureFlags.get(service).taskStepLimit()
-            val budget = com.daiyimo.maeve.core.run.RunBudget(maxSteps = stepLimit).also { runBudget = it }
+            // token 预算按步数放大:每步请求(压缩后)约 20-30k,60 步要 1.2-1.8M,默认 1M 不够
+            val budget = com.daiyimo.maeve.core.run.RunBudget(maxSteps = stepLimit, maxReportedTokens = (stepLimit.toLong() * 40_000L).coerceAtLeast(1_000_000L)).also { runBudget = it }
             val model = env.modelFactory(service, session)?.let(budget::wrap) ?: return TaskState.Failed(tr(R.string.fail_no_main_model), FailKind.Environment)
             // 用户在浏览器页上对着一页问的:那一页借给这个任务当当前网页标签(见 PageLoans);开跑时页面还开着才借得到
             val pageLoan = if (provenance.origin == RunOrigin.Ui) withContext(Dispatchers.Main) { UserBrowser.existing()?.claim(conversationId, key) } else null
