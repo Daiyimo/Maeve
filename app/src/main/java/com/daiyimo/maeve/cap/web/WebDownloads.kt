@@ -7,7 +7,6 @@ import com.daiyimo.maeve.core.workspace.SandboxError
 import com.daiyimo.maeve.core.workspace.WorkspaceFileGate
 import com.daiyimo.maeve.core.cap.web.DownloadAddressPolicy
 import com.daiyimo.maeve.core.cap.web.DownloadInfo
-import com.daiyimo.maeve.core.cap.web.WebUrlPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -121,7 +120,9 @@ class WebDownloads(
         viaPage: (suspend (Long) -> Pair<ByteArray, String?>?)? = null,
     ): String {
         val name = fileName(contentDisposition, url, mime, suggested)
-        if (WebUrlPolicy.checkNavigable(url) != null || !(url.startsWith("http://", true) || url.startsWith("https://", true))) {
+        // 只校验网址格式(http/https 可解析)。内网/回环拦截交给下面的 addressRefusal(下载侧地址规则,调用方可覆写):
+        // 不用 checkNavigable——它含主文档导航的 SSRF 主机拦截,会把调用方放行的地址(如本机测试服务器)误判 not_a_web_address。
+        if (url.toHttpUrlOrNull() == null) {
             return failed(name, mime, "not_a_web_address")
         }
         if (addressRefusal(url) != null) return failed(name, mime, BLOCKED_ADDRESS)
