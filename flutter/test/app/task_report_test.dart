@@ -59,7 +59,10 @@ TaskReport _report({int frames = 3}) => TaskReport.fromMap({
 
 void main() {
   /// 挂一个真实的壳,再把二级页推进去:测的就是真机上的那条路径。
-  Future<FakeChatBridge> mount(WidgetTester tester, Widget Function(FakeChatBridge) page) async {
+  Future<FakeChatBridge> mount(
+    WidgetTester tester,
+    Widget Function(FakeChatBridge) page,
+  ) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     final bridge = FakeChatBridge()

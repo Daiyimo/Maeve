@@ -45,7 +45,9 @@ class HostUpdateBridge extends MaeveUpdateBridge {
 
   @override
   Future<AppUpdate> download() async => _parse(
-    await MaeveBridge.methods.invokeMapMethod<Object?, Object?>('downloadUpdate'),
+    await MaeveBridge.methods.invokeMapMethod<Object?, Object?>(
+      'downloadUpdate',
+    ),
   );
 
   @override
@@ -55,17 +57,20 @@ class HostUpdateBridge extends MaeveUpdateBridge {
 
   @override
   Future<String> install() async {
-    final reply = await MaeveBridge.methods
-        .invokeMapMethod<Object?, Object?>('installUpdate');
+    final reply = await MaeveBridge.methods.invokeMapMethod<Object?, Object?>(
+      'installUpdate',
+    );
     return reply?['state'] as String? ?? 'installing';
   }
 
   @override
   Future<AppUpdate> setAccel(GitHubAccelMode mode, {String ip = ''}) async =>
-      _parse(await MaeveBridge.methods.invokeMapMethod<Object?, Object?>(
-        'setGitHubAccel',
-        {'mode': mode.name, 'ip': ip},
-      ));
+      _parse(
+        await MaeveBridge.methods.invokeMapMethod<Object?, Object?>(
+          'setGitHubAccel',
+          {'mode': mode.name, 'ip': ip},
+        ),
+      );
 
   /// 宿主状态流里 kind=update 的那部分;宿主状态(kind=status)不是更新,过滤掉。
   @override

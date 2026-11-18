@@ -114,8 +114,7 @@ class AppUpdate {
   bool get ready => phase == UpdatePhase.ready;
 
   /// 有东西可删时才出现「删除下载」。
-  bool get cancellable =>
-      downloading || ready;
+  bool get cancellable => downloading || ready;
 
   /// 这一页该展示哪个发布:有新版看新版,没有就看最近查到的那个。
   AppRelease? get shown => update ?? latest;

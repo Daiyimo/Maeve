@@ -181,10 +181,7 @@ class _TaskReportPageState extends State<TaskReportPage> {
           ],
           if (report.pages.isNotEmpty) ...[
             const SizedBox(height: MaeveSpace.s24),
-            Text(
-              '关键页面',
-              style: MaeveType.bodyStrong.copyWith(color: c.ink),
-            ),
+            Text('关键页面', style: MaeveType.bodyStrong.copyWith(color: c.ink)),
             const SizedBox(height: MaeveSpace.s12),
             for (final page in report.pages) ...[
               _KeyPage(
@@ -250,9 +247,7 @@ class _ReportCard extends StatelessWidget {
               decoration: BoxDecoration(
                 color: c.accent.withValues(alpha: .10),
                 borderRadius: BorderRadius.circular(MaeveRadius.sm),
-                border: Border(
-                  left: BorderSide(color: c.accent, width: 3),
-                ),
+                border: Border(left: BorderSide(color: c.accent, width: 3)),
               ),
               padding: const EdgeInsets.symmetric(
                 horizontal: MaeveSpace.s12,
@@ -266,10 +261,7 @@ class _ReportCard extends StatelessWidget {
           ],
           if (report.criteria.isNotEmpty) ...[
             const SizedBox(height: MaeveSpace.s16),
-            Text(
-              '做成的标准',
-              style: MaeveType.label.copyWith(color: c.ink3),
-            ),
+            Text('做成的标准', style: MaeveType.label.copyWith(color: c.ink3)),
             const SizedBox(height: MaeveSpace.s6),
             for (final item in report.criteria)
               Padding(
@@ -564,10 +556,7 @@ class _TaskPlaybackPageState extends State<TaskPlaybackPage>
         title: '操作回放',
         children: [
           const SizedBox(height: MaeveSpace.s20),
-          Text(
-            '这次任务没有记录画面。',
-            style: MaeveType.body.copyWith(color: c.ink2),
-          ),
+          Text('这次任务没有记录画面。', style: MaeveType.body.copyWith(color: c.ink2)),
         ],
       );
     }
@@ -672,9 +661,7 @@ class _TaskPlaybackPageState extends State<TaskPlaybackPage>
             ),
             const SizedBox(width: MaeveSpace.s8),
             MaeveGlassButton(
-              icon: _playing
-                  ? Icons.pause_rounded
-                  : Icons.play_arrow_rounded,
+              icon: _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
               tooltip: _playing ? '暂停' : '播放',
               prominent: true,
               haptic: MaeveHaptic.light,
@@ -743,10 +730,7 @@ class _TaskPlaybackPageState extends State<TaskPlaybackPage>
           ),
         ],
         const SizedBox(height: MaeveSpace.s16),
-        Text(
-          '紫色标记是实际派发的输入位置。',
-          style: MaeveType.hint.copyWith(color: c.ink3),
-        ),
+        Text('紫色标记是实际派发的输入位置。', style: MaeveType.hint.copyWith(color: c.ink3)),
         if (widget.report.missingFrames > 0) ...[
           const SizedBox(height: MaeveSpace.s4),
           Text(

@@ -18,7 +18,8 @@ import '../support/fake_settings_bridge.dart';
 
 /// 可控的更新桥:记录调用、按脚本返回状态,失败时抛和真机一样的 PlatformException。
 class FakeUpdateBridge extends MaeveUpdateBridge {
-  FakeUpdateBridge({AppUpdate? initial}) : _state = initial ?? const AppUpdate();
+  FakeUpdateBridge({AppUpdate? initial})
+    : _state = initial ?? const AppUpdate();
 
   AppUpdate _state;
   final calls = <String>[];
@@ -239,13 +240,15 @@ void main() {
     );
     expect(find.text('尚未发布'), findsOneWidget);
     expect(find.text('连不上 GitHub'), findsNothing);
-    bridge.emit(AppUpdate.fromMap({
-      'available': false,
-      'currentVersion': '0.1.0',
-      'status': 'failed',
-      'problem': 'noRelease',
-      'manualRounds': 2,
-    }));
+    bridge.emit(
+      AppUpdate.fromMap({
+        'available': false,
+        'currentVersion': '0.1.0',
+        'status': 'failed',
+        'problem': 'noRelease',
+        'manualRounds': 2,
+      }),
+    );
     await tester.tap(find.text('检查更新').last);
     await tester.pumpAndSettle();
     expect(find.text('GitHub 上还没有已发布的版本。'), findsOneWidget);
@@ -273,12 +276,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(bridge.accelCalls, [(GitHubAccelMode.customIp, '')]);
     // 自定义 IP 选中后才出现 IP 输入框
-    bridge.emit(AppUpdate.fromMap({
-      'available': false,
-      'currentVersion': '0.1.0',
-      'status': 'idle',
-      'accel': {'mode': 'customIp', 'ip': ''},
-    }));
+    bridge.emit(
+      AppUpdate.fromMap({
+        'available': false,
+        'currentVersion': '0.1.0',
+        'status': 'idle',
+        'accel': {'mode': 'customIp', 'ip': ''},
+      }),
+    );
     await tester.pumpAndSettle();
     expect(find.text('例如 20.205.243.166'), findsOneWidget);
   });
@@ -314,10 +319,7 @@ void main() {
     await tester.tap(find.text('安装更新'));
     await tester.pumpAndSettle();
     expect(bridge.calls, ['state', 'install', 'state']);
-    expect(
-      find.text('请先允许 Maeve 安装未知应用，回来后再次点「安装更新」。'),
-      findsOneWidget,
-    );
+    expect(find.text('请先允许 Maeve 安装未知应用，回来后再次点「安装更新」。'), findsOneWidget);
   });
 
   testWidgets('校验被拒时把原因说出来，不静默失败', (tester) async {
@@ -328,17 +330,11 @@ void main() {
     );
     await tester.tap(find.text('下载更新'));
     await tester.pumpAndSettle();
-    expect(
-      find.text('这个安装包的签名和已装的 Maeve 不同，不能覆盖安装，已删除。'),
-      findsOneWidget,
-    );
+    expect(find.text('这个安装包的签名和已装的 Maeve 不同，不能覆盖安装，已删除。'), findsOneWidget);
   });
 
   testWidgets('发布没有可下的包时不给下载，只留浏览器入口', (tester) async {
-    await mount(
-      tester,
-      FakeUpdateBridge(initial: _update(canDownload: false)),
-    );
+    await mount(tester, FakeUpdateBridge(initial: _update(canDownload: false)));
     expect(find.text('这个发布没有可下载的安装包'), findsOneWidget);
     expect(find.text('在浏览器打开'), findsOneWidget);
   });

@@ -178,6 +178,7 @@ class HostChatBridge extends MaeveChatBridge {
     });
     return reply?['state'] as String? ?? 'failed';
   }
+
   @override
   Future<Uint8List?> runScreen(String runId, int screenId) =>
       MaeveBridge.chatMethods.invokeMethod<Uint8List>('runScreen', {

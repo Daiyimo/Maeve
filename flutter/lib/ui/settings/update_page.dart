@@ -33,7 +33,8 @@ class UpdatePage extends StatefulWidget {
 }
 
 class _UpdatePageState extends State<UpdatePage> {
-  late final MaeveUpdateBridge _bridge = widget.bridge ?? const HostUpdateBridge();
+  late final MaeveUpdateBridge _bridge =
+      widget.bridge ?? const HostUpdateBridge();
 
   AppUpdate _state = const AppUpdate();
   StreamSubscription<AppUpdate>? _sub;
@@ -118,15 +119,12 @@ class _UpdatePageState extends State<UpdatePage> {
         // 失败但宿主没说原因(旧桥、异常路径):照旧说连不上,别冒充"已是最新"
         UpdateProblem.none when next.check == UpdateCheck.failed =>
           '暂时连不上 GitHub，稍后再试。',
-        UpdateProblem.none => next.hasUpdate
-            ? '发现新版本 ${next.update!.version}'
-            : '已是最新版本。',
+        UpdateProblem.none =>
+          next.hasUpdate ? '发现新版本 ${next.update!.version}' : '已是最新版本。',
       };
     });
     unawaited(
-      MaeveHaptics.play(
-        next.hasUpdate ? MaeveHaptic.heavy : MaeveHaptic.light,
-      ),
+      MaeveHaptics.play(next.hasUpdate ? MaeveHaptic.heavy : MaeveHaptic.light),
     );
   });
 
@@ -241,8 +239,10 @@ class _VersionCard extends StatelessWidget {
       UpdateCheck.checking => ('正在检查', MaeveTone.running),
       _ when state.hasUpdate => ('有新版本', MaeveTone.ready),
       // 没查到也分两种:仓库上没有发布,和这次没连上——说法不一样,用户才知道该干嘛
-      UpdateCheck.failed when state.problem == UpdateProblem.noRelease =>
-        ('尚未发布', MaeveTone.idle),
+      UpdateCheck.failed when state.problem == UpdateProblem.noRelease => (
+        '尚未发布',
+        MaeveTone.idle,
+      ),
       UpdateCheck.failed => ('连不上 GitHub', MaeveTone.warning),
       UpdateCheck.done => ('已是最新', MaeveTone.ready),
       _ => (loaded ? '尚未检查' : '读取中', MaeveTone.idle),
@@ -260,10 +260,7 @@ class _VersionCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '当前版本',
-                  style: MaeveType.eyebrow.copyWith(color: c.ink3),
-                ),
+                Text('当前版本', style: MaeveType.eyebrow.copyWith(color: c.ink3)),
                 const SizedBox(height: MaeveSpace.s6),
                 Text(
                   state.currentVersion.isEmpty ? 'Maeve' : state.currentVersion,
@@ -447,6 +444,7 @@ class _DownloadBar extends StatelessWidget {
     );
   }
 }
+
 /// 「GitHub 加速」:连不上 GitHub 时,换个域名解析方式再试。
 ///
 /// 只影响检查更新与下载安装问 GitHub 的那几个域名;别处(调模型、列模型)照旧走系统 DNS。
@@ -467,8 +465,9 @@ class _AccelSection extends StatefulWidget {
 }
 
 class _AccelSectionState extends State<_AccelSection> {
-  late final TextEditingController _ip =
-      TextEditingController(text: widget.state.accel.ip);
+  late final TextEditingController _ip = TextEditingController(
+    text: widget.state.accel.ip,
+  );
   bool _busy = false;
   String? _error;
 
@@ -478,12 +477,7 @@ class _AccelSectionState extends State<_AccelSection> {
     super.dispose();
   }
 
-  static const _labels = <String>[
-    '跟随系统',
-    '阿里 DoH',
-    '腾讯 DoH',
-    '自定义 IP',
-  ];
+  static const _labels = <String>['跟随系统', '阿里 DoH', '腾讯 DoH', '自定义 IP'];
 
   Future<void> _pick(GitHubAccelMode mode) async {
     if (_busy) return;
@@ -543,8 +537,7 @@ class _AccelSectionState extends State<_AccelSection> {
             ),
           ),
       ],
-      footnote: _error ??
-          '只影响检查更新与下载安装;别处(调模型、列模型)照旧走系统 DNS。',
+      footnote: _error ?? '只影响检查更新与下载安装;别处(调模型、列模型)照旧走系统 DNS。',
     );
   }
 }
