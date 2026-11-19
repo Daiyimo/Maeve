@@ -16,6 +16,7 @@ import com.daiyimo.maeve.core.trigger.TriggerDefinition
 import com.daiyimo.maeve.core.trigger.ScheduleAdmin
 import com.daiyimo.maeve.core.child.ChildRunHost
 import com.daiyimo.maeve.core.run.RunSpec
+import kotlinx.coroutines.CoroutineScope
 
 /** 本任务的配置(模型、技能、记忆、开关);能力各自的端口与开关在能力里。 */
 internal class ToolConfig(
@@ -48,6 +49,8 @@ internal class ToolConfig(
     val tapVisionCheck: Boolean = true,
     /** 点前核查对每次点击都做;关了只查可疑的落点(大容器、超长拼接名、带 target 的坐标点击)。 */
     val tapVisionCheckAll: Boolean = false,
+    /** 点后视觉核对异步跑在这个 scope 上;为空时用全局 scope。测试注入可控 scope 以便确定性断言。 */
+    val visionScope: CoroutineScope? = null,
 )
 
 /**

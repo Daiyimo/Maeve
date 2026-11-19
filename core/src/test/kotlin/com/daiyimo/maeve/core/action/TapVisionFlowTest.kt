@@ -19,6 +19,8 @@ import com.daiyimo.maeve.core.vision.LocScreen
 import com.daiyimo.maeve.core.vision.VisionService
 import com.daiyimo.maeve.core.vision.says
 import com.daiyimo.maeve.core.vision.uiEl
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -43,8 +45,9 @@ class TapVisionFlowTest {
         }
     }
 
-    private fun executor(screen: ScreenPort, vision: FakeModel) = ActionExecutor(
-        toolDispatcher(screen, vision = VisionService(vision, JvmTestImageOps)), OperationGuards(), ConfirmationGate(), gate = {},
+    // 点后视觉核对异步化:测试注入 runTest 的 backgroundScope,advanceUntilIdle 后核对确定性跑完。
+    private fun executor(screen: ScreenPort, vision: FakeModel, scope: CoroutineScope) = ActionExecutor(
+        toolDispatcher(screen, vision = VisionService(vision, JvmTestImageOps), visionScope = scope), OperationGuards(), ConfirmationGate(), gate = {},
         recorder = ActionRecorder(sink))
 
     private suspend fun observe(e: ActionExecutor) = e.run(Part.ToolCall("c", "phone_observe", "{}"), Origin.Model(1))
@@ -67,7 +70,7 @@ class TapVisionFlowTest {
     @Test fun bigBlankBoxIsNotTappedWhenThePointIsEmpty() = runTest {
         val screen = LocScreen(listOf(blankBox), FRAME_A, FRAME_B)
         val vision = says("""{"at": null}""")
-        val e = executor(screen, vision)
+        val e = executor(screen, vision, backgroundScope)
         content(observe(e))
         screen.show(FRAME_A, FRAME_B)
         val c = content(tap(e, """{"ref":"@e1","snapshotId":"s"}"""))
@@ -81,7 +84,7 @@ class TapVisionFlowTest {
     @Test fun bigBoxPointingAtSomethingElseIsNotTapped() = runTest {
         val screen = LocScreen(listOf(stitchedBox), FRAME_A, FRAME_B)
         val vision = says("""{"at": "设置"}""")
-        val e = executor(screen, vision)
+        val e = executor(screen, vision, backgroundScope)
         content(observe(e))
         screen.show(FRAME_A, FRAME_B)
         val c = content(tap(e, """{"ref":"@e2","snapshotId":"s"}"""))
@@ -93,7 +96,7 @@ class TapVisionFlowTest {
     @Test fun coordinateTapOnTheWrongThingIsNotTapped() = runTest {
         val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)
         val vision = says("""{"at": "视频"}""")
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":300,"target":"更多热搜"}"""))
+        val c = content(tap(executor(screen, vision, backgroundScope), """{"x":500,"y":300,"target":"更多热搜"}"""))
         assertEquals("tap_point_off_target", c.s("error"))
         assertTrue(c.s("message"), "「视频」" in c.s("message") && "「更多热搜」" in c.s("message"))
         assertTrue(screen.taps.isEmpty())
@@ -102,46 +105,50 @@ class TapVisionFlowTest {
     @Test fun coordinateTapOnTheRightThingGoesThrough() = runTest {
         val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)
         val vision = says("""{"at": "更多热搜"}""", "page")
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":300,"target":"更多热搜"}"""))
+        val e = executor(screen, vision, backgroundScope)
+        val c = content(tap(e, """{"x":500,"y":300,"target":"更多热搜"}"""))
         assertEquals("true", c.s("ok"))
         assertEquals(listOf("540,720"), screen.taps)
-        assertEquals("page", c.effect("visionCheck"))
-        assertEquals(2, vision.requests.size)
+        assertFalse("点后核对异步,点击结果当下不带 visionCheck", "visionCheck" in (c["effect"] as JsonObject))
+        advanceUntilIdle()
     }
 
     @Test fun coordinateTapOnATextlessIconGoesThrough() = runTest {
         // 微信首页放大镜搜索图标:无文字,旧版预检当空白拒点(tap_point_blank)让模型卡死;现在报图标就放行
         val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)
         val vision = says("""{"at": null, "icon": "magnifier search icon"}""", "page")
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":300,"target":"搜索图标"}"""))
+        val e = executor(screen, vision, backgroundScope)
+        val c = content(tap(e, """{"x":500,"y":300,"target":"搜索图标"}"""))
         assertEquals("true", c.s("ok"))
         assertEquals(listOf("540,720"), screen.taps)
-        assertEquals("page", c.effect("visionCheck"))
-        assertEquals(2, vision.requests.size)
+        assertFalse("visionCheck" in (c["effect"] as JsonObject))
+        advanceUntilIdle()
     }
 
     @Test fun cannotSeeThePointLetsTheTapThrough() = runTest {
         // 视觉核查是兜底:看不了的时候不拦路
         val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)
         val vision = says(ModelError.Network(), "minor")
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":300,"target":"更多热搜"}"""))
+        val e = executor(screen, vision, backgroundScope)
+        val c = content(tap(e, """{"x":500,"y":300,"target":"更多热搜"}"""))
         assertEquals("true", c.s("ok"))
         assertEquals(listOf("540,720"), screen.taps)
-        assertEquals("minor", c.effect("visionCheck"))
+        assertFalse("visionCheck" in (c["effect"] as JsonObject))
+        advanceUntilIdle()
     }
 
     @Test fun smallNamedElementIsNotAudited() = runTest {
         // 名字短、占屏小:几何中心就是它,不麻烦视觉模型
         val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)
         val vision = says("page")
-        val e = executor(screen, vision)
+        val e = executor(screen, vision, backgroundScope)
         content(observe(e))
         screen.show(FRAME_A, FRAME_B)
         val c = content(tap(e, """{"ref":"@e3","snapshotId":"s"}"""))
         assertEquals("true", c.s("ok"))
         assertEquals(listOf("ref @e3"), screen.taps)
-        assertEquals("page", c.effect("visionCheck"))
-        assertEquals("只有点后核对那一次", 1, vision.requests.size)
+        assertFalse("visionCheck" in (c["effect"] as JsonObject))
+        advanceUntilIdle()
     }
 
     @Test fun smallUnnamedElementWithAStatedLabelIsAudited() = runTest {
@@ -149,7 +156,7 @@ class TapVisionFlowTest {
         val hamburger = uiEl("@e4", "", listOf(886, 582, 999, 636))
         val screen = LocScreen(listOf(hamburger), FRAME_A, FRAME_B)
         val vision = says("""{"at": "菜单"}""", "page")
-        val e = executor(screen, vision)
+        val e = executor(screen, vision, backgroundScope)
         content(observe(e))
         screen.show(FRAME_A, FRAME_B)
         val c = content(tap(e, """{"ref":"@e4","snapshotId":"s","reason":"点击\"更多热搜\"进入热搜榜单页面"}"""))
@@ -164,14 +171,14 @@ class TapVisionFlowTest {
         val link = uiEl("@e4", "", listOf(778, 200, 916, 235))
         val screen = LocScreen(listOf(link), FRAME_A, FRAME_B)
         val vision = says("""{"at": "更多热搜"}""", "page")
-        val e = executor(screen, vision)
+        val e = executor(screen, vision, backgroundScope)
         content(observe(e))
         screen.show(FRAME_A, FRAME_B)
         val c = content(tap(e, """{"ref":"@e4","snapshotId":"s","reason":"点击\"更多热搜\"进入热搜榜单页面"}"""))
         assertEquals("true", c.s("ok"))
         assertEquals(listOf("ref @e4"), screen.taps)
-        assertEquals("page", c.effect("visionCheck"))
-        assertEquals(2, vision.requests.size)
+        assertFalse("visionCheck" in (c["effect"] as JsonObject))
+        advanceUntilIdle()
     }
 
     @Test fun smallUnnamedElementWithoutAStatedLabelIsNotAudited() = runTest {
@@ -179,67 +186,71 @@ class TapVisionFlowTest {
         val icon = uiEl("@e4", "", listOf(886, 582, 999, 636))
         val screen = LocScreen(listOf(icon), FRAME_A, FRAME_B)
         val vision = says("page")
-        val e = executor(screen, vision)
+        val e = executor(screen, vision, backgroundScope)
         content(observe(e))
         screen.show(FRAME_A, FRAME_B)
         val c = content(tap(e, """{"ref":"@e4","snapshotId":"s","reason":"点右下角那个图标"}"""))
         assertEquals("true", c.s("ok"))
         assertEquals(listOf("ref @e4"), screen.taps)
-        assertEquals("只有点后核对那一次", 1, vision.requests.size)
+        advanceUntilIdle()
     }
 
     @Test fun coordinateTapWithoutATargetIsNotAudited() = runTest {
         // 坐标是模型自己算的、又没说点的是什么:无从核对,只按点后核对兜底
         val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)
         val vision = says("none")
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":300}"""))
+        val e = executor(screen, vision, backgroundScope)
+        val c = content(tap(e, """{"x":500,"y":300}"""))
         assertEquals("true", c.s("ok"))
-        assertEquals("no_effect", c.effect("kind"))
-        assertEquals("none", c.effect("visionCheck"))
-        assertEquals(1, vision.requests.size)
+        assertFalse("点后核对异步,当下不带 visionCheck", "visionCheck" in (c["effect"] as JsonObject))
+        advanceUntilIdle()
     }
 
     // ---- 第 2 层:点了之后的界面变化核查 ----
 
-    @Test fun visionSeesNoChangeSoTheTapIsCountedAsMissed() = runTest {
-        // 树说变了(端口报了 changed)、视觉说一动不动:正是点歪了却报成功的那类
-        val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)
-        val vision = says("""{"at": "设置"}""", "none")
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":300,"target":"设置"}"""))
+    @Test fun visionSeesNoChangeWarnsOnTheNextStep() = runTest {
+        // 树判明显变了、视觉异步核对说一动不动:点击当下先按树判放行,核对结论晚一步提醒模型可能没点上
+        val inner = LocScreen(rows("按钮1", "按钮2", "按钮3", "按钮4", "按钮5", "按钮6"), FRAME_A, FRAME_B)
+        val screen = SwapScreen(inner, rows("换过的1", "换过的2", "换过的3", "按钮4", "按钮5", "按钮6"))
+        val vision = says("""{"at": "按钮1"}""", "none")
+        val e = executor(screen, vision, backgroundScope)
+        content(observe(e)); inner.show(FRAME_A, FRAME_B)
+        val c = content(tap(e, """{"x":500,"y":130,"target":"按钮1"}"""))
         assertEquals("true", c.s("ok"))
-        assertEquals("no_effect", c.effect("kind"))
-        assertEquals("none", c.effect("visionCheck"))
-        assertEquals("false", c.s("changed"))
-        assertTrue(c.s("hint"), Feedback["effect.vision_no_change"] in c.s("hint"))
-        assertEquals(listOf("540,720"), screen.taps)
+        assertEquals("done", c.effect("kind"))
+        assertFalse("点后核对异步,点击结果当下不带 visionCheck", "visionCheck" in (c["effect"] as JsonObject))
+        advanceUntilIdle()
     }
 
-    @Test fun visionSeesOnlyASmallChangeSoDoneIsDowngraded() = runTest {
-        val screen = SwapScreen(LocScreen(rows("按钮1", "按钮2", "按钮3", "按钮4", "按钮5", "按钮6"), FRAME_A, FRAME_B),
-            rows("换过的1", "换过的2", "换过的3", "按钮4", "按钮5", "按钮6"))
+    @Test fun visionSeesOnlyASmallChangeWarnsOnTheNextStep() = runTest {
+        val inner = LocScreen(rows("按钮1", "按钮2", "按钮3", "按钮4", "按钮5", "按钮6"), FRAME_A, FRAME_B)
+        val screen = SwapScreen(inner, rows("换过的1", "换过的2", "换过的3", "按钮4", "按钮5", "按钮6"))
         val vision = says("""{"at": "按钮1"}""", "minor")
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":130,"target":"按钮1"}"""))
+        val e = executor(screen, vision, backgroundScope)
+        content(observe(e)); inner.show(FRAME_A, FRAME_B)
+        val c = content(tap(e, """{"x":500,"y":130,"target":"按钮1"}"""))
         assertEquals("true", c.s("ok"))
-        assertEquals("small_change", c.effect("kind"))
-        assertEquals("minor", c.effect("visionCheck"))
-        assertEquals("true", c.s("changed"))
-        assertTrue(c.s("hint"), Feedback["effect.vision_minor"] in c.s("hint"))
+        assertEquals("done", c.effect("kind"))
+        assertFalse("点后核对异步,点击结果当下不带 visionCheck", "visionCheck" in (c["effect"] as JsonObject))
+        advanceUntilIdle()
     }
 
     @Test fun visionSeesANewPageSoDoneStands() = runTest {
-        val screen = SwapScreen(LocScreen(rows("按钮1", "按钮2", "按钮3", "按钮4", "按钮5", "按钮6"), FRAME_A, FRAME_B),
-            rows("换过的1", "换过的2", "换过的3", "按钮4", "按钮5", "按钮6"))
+        val inner = LocScreen(rows("按钮1", "按钮2", "按钮3", "按钮4", "按钮5", "按钮6"), FRAME_A, FRAME_B)
+        val screen = SwapScreen(inner, rows("换过的1", "换过的2", "换过的3", "按钮4", "按钮5", "按钮6"))
         val vision = says("""{"at": "按钮1"}""", "page")
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":130,"target":"按钮1"}"""))
+        val e = executor(screen, vision, backgroundScope)
+        content(observe(e)); inner.show(FRAME_A, FRAME_B)
+        val c = content(tap(e, """{"x":500,"y":130,"target":"按钮1"}"""))
         assertEquals("done", c.effect("kind"))
-        assertEquals("page", c.effect("visionCheck"))
-        assertTrue(c.s("hint"), Feedback["effect.vision_minor"] !in c.s("hint"))
+        assertFalse("点后核对异步,点击结果当下不带 visionCheck", "visionCheck" in (c["effect"] as JsonObject))
+        advanceUntilIdle()
     }
 
     @Test fun visionCannotSeeKeepsTheTreeVerdict() = runTest {
         val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)
         val vision = says("""{"at": "设置"}""", ModelError.Server(500))
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":300,"target":"设置"}"""))
+        val c = content(tap(executor(screen, vision, backgroundScope), """{"x":500,"y":300,"target":"设置"}"""))
         assertEquals("small_change", c.effect("kind"))
         assertFalse("visionCheck" in (c["effect"] as JsonObject))
     }
@@ -248,7 +259,7 @@ class TapVisionFlowTest {
         // 截不到图(受保护、还没开 App):点前不查、点后也不查,照树的判
         val screen = LocScreen(listOf(smallButton), null)
         val vision = FakeModel()
-        val c = content(tap(executor(screen, vision), """{"x":500,"y":300,"target":"设置"}"""))
+        val c = content(tap(executor(screen, vision, backgroundScope), """{"x":500,"y":300,"target":"设置"}"""))
         assertEquals("true", c.s("ok"))
         assertEquals("small_change", c.effect("kind"))
         assertTrue(vision.requests.isEmpty())

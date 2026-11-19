@@ -132,11 +132,11 @@ class TapVisionCheck(private val vision: VisionService) {
         /** 落点标记的半宽(0–999)。 */
         const val MARK = 16
 
-        /** 点前核查不能把循环拖住。 */
-        const val POINT_AUDIT_MS = 15_000L
+        /** 点前核查不能把循环拖住:视觉模型慢时尽快超时回退到树判,别把每步点击拖满。 */
+        const val POINT_AUDIT_MS = 6_000L
 
-        /** 点后核查等的是两张图的对比,放宽一点。 */
-        const val SCREEN_CHANGE_MS = 30_000L
+        /** 点后核查等两张图对比;同样设短超时,慢模型超时即按树的原判,不阻塞快速执行。 */
+        const val SCREEN_CHANGE_MS = 8_000L
 
         val PROMPTS: Pair<String, String> by lazy {
             Prompts.role("point_audit") to Prompts.role("screen_change")

@@ -120,9 +120,11 @@ fun toolDispatcher(
     runRecords: RunRecords? = null,
     /** 以 root 跑命令(已 root 的手机上用户打开了「允许 Maeve 执行 root 命令」才给);为空时 root 工具不登记。 */
     root: RootPort? = null,
+    /** 点后视觉核对异步跑的 scope;为空用全局 scope。测试注入可控 scope。 */
+    visionScope: kotlinx.coroutines.CoroutineScope? = null,
 ): ToolDispatcher {
     val config = ToolConfig(visionEnabled, skills, recordFrames, vision, inlineScreen, adaptiveVision, memory, profile, utterances, conversationId,
-        imageOps, scheduleTrigger, scheduleAdmin, runSpec, childHost, userScreens, personalSkills, selfConfig, runRecords)
+        imageOps, scheduleTrigger, scheduleAdmin, runSpec, childHost, userScreens, personalSkills, selfConfig, runRecords, visionScope = visionScope)
     val providers: List<CapabilityProvider> = listOf(
         object : CapabilityProvider {
             override val id = PHONE

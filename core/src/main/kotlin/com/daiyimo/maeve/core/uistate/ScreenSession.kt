@@ -8,7 +8,11 @@ import com.daiyimo.maeve.core.visual.FrameGrid
 import com.daiyimo.maeve.core.visual.Recall
 import com.daiyimo.maeve.core.visual.Shots
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -73,7 +77,11 @@ internal class ScreenSession(
     private val adaptiveVision: Boolean = false,
     /** 点击前后的视觉核查(点前查落点、点后查界面变化);没有视觉模型、或视觉核查关着时为 null。 */
     private val tapVisionCheck: TapVisionCheck? = null,
+    /** 点后视觉核对异步跑在这个 scope 上,不阻塞执行;默认全局 scope(.fire-and-forget,核对很快)。 */
+    private val visionScope: CoroutineScope = GlobalScope,
 ) {
+    /** 上一次点击的异步视觉核对结论(可能晚于点击结果到达);下一步结果里带给模型,据此知道上一步到底变没变。 */
+    @Volatile private var pendingVisionNote: String? = null
     /** 手机模型的结果不按元素数量截断;网页仍沿用自己的输出预算。 */
     private val modelElementsLimit get() = if (surface.id == "phone") Int.MAX_VALUE else MAX_ELEMENTS
     val screen: ScreenPort get() = surface.screen
@@ -460,13 +468,22 @@ internal class ScreenSession(
             val verdictQuality = treeVerdict?.quality ?: probe.before?.let { TreeAdequacy.ofTree(it).quality }
             if (v.kind == EffectKind.NoEffect && ActionEffect.treeBlind(verb, verdictQuality, probe.before, target, region)) v.copy(treeBlind = true) else v
         } ?: return r
-        // 点击之后视觉核对界面变化:树说变化够多、视觉说没变或只有小变化,正是点歪了却报成功的那类,据视觉改判
-        val confirmed = if (verb == Verb.Tap && (judged.kind == EffectKind.Done || judged.kind == EffectKind.SmallChange)) visionConfirm(judged, probe.png) else judged
+        // 点后视觉核对异步化:先按树判放行执行,视觉在后台核对界面变化,不阻塞每一步;
+        // 结论(若晚到)存进 pendingVisionNote,下一步结果带给模型,据此知道上一步到底变没变。
+        val confirmed = judged
+        if (verb == Verb.Tap && (judged.kind == EffectKind.Done || judged.kind == EffectKind.SmallChange)) {
+            val beforePng = probe.png
+            if (beforePng != null) {
+                val afterPng = shotNow()
+                if (afterPng != null) visionConfirmAsync(judged, beforePng, afterPng)
+            }
+        }
         if ("screen" !in content && confirmed.kind != EffectKind.NoEffect) stale = true
         val didChange = confirmed.kind != EffectKind.NoEffect
+        val visionNote = pendingVisionNote.also { pendingVisionNote = null }
         val hints = listOfNotNull(limitNote?.let { Feedback.format("effect.limit_reached", "text" to it.take(LIMIT_NOTE_MAX)) },
             EffectFeedback.hint(confirmed, verb, portSwitched = "app_switched" in content || openedInfo != null),
-            Feedback["effect.stale"].takeIf { stale && confirmed.kind != EffectKind.SmallChange }, (content["hint"] as? JsonPrimitive)?.content)
+            Feedback["effect.stale"].takeIf { stale && confirmed.kind != EffectKind.SmallChange }, visionNote, (content["hint"] as? JsonPrimitive)?.content)
         val updated = JsonObject(content - "hint" + ("effect" to confirmed.toJson()) +
             (if ("changed" in content) mapOf("changed" to JsonPrimitive(didChange)) else emptyMap()) +
             (if (verb == Verb.Scroll && confirmed.kind == EffectKind.NoEffect) mapOf("atEnd" to JsonPrimitive(true)) else emptyMap()) +
@@ -477,19 +494,19 @@ internal class ScreenSession(
     }
 
     /**
-     * 点击之后视觉核对界面变化(见 [TapVisionCheck.screenChange]):树判 Done/SmallChange 时,拿动作前后两张截图问视觉模型。
-     * 说没变 → 改判没生效(点了而界面一点没动,多半是没点上);说只有小变化而树说明显变了 → 降级成小变化。
-     * 看不了(没有视觉模型、截图拿不到、受保护、出错)时按树的原判:视觉核查只是兜底,不拦路。
+     * 点击之后视觉核对界面变化(见 [TapVisionCheck.screenChange]),异步跑、不阻塞执行:前后两张截图已在点击当下取好,
+     * 这里只把「问视觉模型」那一步放到后台。说没变/只有小变化(而树判明显变了)时,把提醒存进 [pendingVisionNote],
+     * 下一步结果带给模型,让它知道上一步可能没点上、先看屏幕确认。看不了(出错/超时)时不打扰:视觉核查只是兜底。
      */
-    private suspend fun visionConfirm(e: ActionEffect, beforePng: ByteArray?): ActionEffect {
-        val vision = tapVisionCheck ?: return e
-        if (beforePng == null) return e
-        val afterShotPng = shotNow() ?: return e
-        return when (vision.screenChange(beforePng, afterShotPng)) {
-            ScreenChange.None -> e.copy(kind = EffectKind.NoEffect, visionCheck = "none")
-            ScreenChange.Minor -> if (e.kind == EffectKind.Done) e.copy(kind = EffectKind.SmallChange, visionCheck = "minor") else e.copy(visionCheck = "minor")
-            ScreenChange.Page -> e.copy(visionCheck = "page")
-            ScreenChange.Unavailable -> e
+    private fun visionConfirmAsync(e: ActionEffect, beforePng: ByteArray, afterPng: ByteArray) {
+        val vision = tapVisionCheck ?: return
+        visionScope.launch {
+            val note = when (vision.screenChange(beforePng, afterPng)) {
+                ScreenChange.None -> "上一步点击后,视觉核对发现界面几乎没变,那一下可能没点上;先看当前屏幕确认实际状态,别假设已生效。"
+                ScreenChange.Minor -> if (e.kind == EffectKind.Done) "上一步点击后,视觉核对只看到小变化,可能没完全生效;先确认当前屏幕再继续。" else null
+                else -> null
+            }
+            if (note != null) pendingVisionNote = note
         }
     }
 
