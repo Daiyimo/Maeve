@@ -23,6 +23,14 @@ class ContextLimits private constructor(
         const val AFTER_COMPACTION = 0.5
         /** 触发点的下限(占窗口的比例):给了别的触发点也不会低到一开局就压。 */
         const val MIN_TRIGGER_SHARE = 0.5
+        /**
+         * 生产默认的主动压缩触发点(整份请求 token)。大窗口按比例算触发点会高到每步都不压、请求越攒越大、
+         * 模型越来越慢;生产经 [com.daiyimo.maeve.core.model.Capabilities.compactionTriggerTokens] 显式给这条线,
+         * 保持每步请求小、模型快。测试不给(走 [of] 的不封顶默认),前缀稳定性按原样验证。
+         */
+        const val PRODUCTION_COMPACTION_TRIGGER = 30_000
+        /** 触发点下限的绝对上限:大窗口按窗口比例算下限会高到把生产给的较低触发点抬上去、压缩永不触发;封顶让生产触发点落得下来。 */
+        const val MAX_FLOOR_TOKENS = 20_000
 
         /**
          * [window]:模型上下文长度。[triggerOverride]:按模型单独给的触发点(整份请求的 token);限在下限和 [usable] 之间。
@@ -31,7 +39,7 @@ class ContextLimits private constructor(
             val w = window.coerceAtLeast(0)
             val usable = w - minOf(MAX_OUTPUT_RESERVE, w / 4)
             val margin = minOf(MARGIN_TOKENS, usable / 4)
-            val floor = minOf((w * MIN_TRIGGER_SHARE).toInt(), usable)
+            val floor = minOf((w * MIN_TRIGGER_SHARE).toInt(), usable, MAX_FLOOR_TOKENS)
             val trigger = (triggerOverride ?: (usable - margin)).coerceIn(floor, usable)
             val target = minOf((usable * AFTER_COMPACTION).toInt(), trigger - margin).coerceAtLeast(0)
             return ContextLimits(w, usable, trigger, margin, target, floor)

@@ -15,6 +15,7 @@ import com.daiyimo.maeve.core.uistate.normalize
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.ensureActive
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -22,6 +23,12 @@ import kotlin.coroutines.resumeWithException
 /** 两套内置模型均在本机运行；同一帧并行识别，完成后才释放位图。两套都出错时抛异常(不当成没字)。 */
 internal object PhoneOcr {
     private const val TAG = "PhoneOcr"
+
+    // 飞行守卫:ML Kit 识别器串行处理,密集帧(几百条评论)一次要几十秒。若每次读屏都排队等上一帧认完,
+    // 点击会被拖到几十秒。有任务在跑时新调用直接拿上一次结果(位置稍旧也比卡死强),任务完成才更新缓存。
+    // 守卫绑 ML Kit 任务的完成回调,不绑协程取消:读屏超时取消了等待,任务仍在跑,后续调用照样不排队。
+    private val busy = AtomicBoolean(false)
+    @Volatile private var lastLines: List<VisibleTextLine>? = null
 
     private val chinese: TextRecognizer by lazy {
         TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
@@ -38,13 +45,8 @@ internal object PhoneOcr {
             val small = full.count { (it.bounds[3] - it.bounds[1]) * bitmap.height / 999 < 32 }
             if (bitmap.width < 600 || small < 3) return full
             val detailed = mutableListOf<VisibleTextLine>()
-            // Some decorated labels survive better at overview scale than at native scale.
-            if (bitmap.width > 900) try {
-                detailed += recognize(Bitmap.createScaledBitmap(bitmap, 720, bitmap.height * 720 / bitmap.width, true), chineseOnly = true)
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (_: Exception) { /* Keep the successful native read. */ }
-            // 4 块重叠 tiles 串行识别:并行会抢同一个 ML Kit 识别器反而更慢(实测点击从 ~6s 涨到 ~13s)。
-            // 密集小字页面才做;块数从 8 减到 4(上下两半 × 左右两半),少一半识别调用,每块失败不抹整帧读数。
+            // 4 块重叠 tiles 串行识别(并行抢 ML Kit 反而更慢);密集小字页面才做。
+            // 去掉冗余的 720px 概览识别(整帧已读过),并跳过放大不足 1.5 倍的块(认不出更多小字,白耗一次识别)。
             for (band in 0..1) for (column in 0..1) {
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 val top = (band * bitmap.height / 2 - 48).coerceAtLeast(0)
@@ -52,7 +54,7 @@ internal object PhoneOcr {
                 val left = (column * bitmap.width / 2 - 32).coerceAtLeast(0)
                 val right = ((column + 1) * bitmap.width / 2 + 32).coerceAtMost(bitmap.width)
                 val scale = minOf(3.0, 1280.0 / maxOf(right - left, bottom - top))
-                if (scale <= 1.0) continue
+                if (scale < 1.5) continue
                 val crop = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
                 val enlarged = Bitmap.createScaledBitmap(crop, (crop.width * scale).toInt(), (crop.height * scale).toInt(), true)
                 if (crop !== bitmap && crop !== enlarged) crop.recycle()
@@ -80,12 +82,13 @@ internal object PhoneOcr {
     }
 
     private suspend fun recognize(bitmap: Bitmap, chineseOnly: Boolean = false): List<VisibleTextLine> {
+        if (!busy.compareAndSet(false, true)) { bitmap.recycle(); return lastLines ?: emptyList() }
         val recognizers = try { if (chineseOnly) listOf(chinese) else listOf(chinese, latin) } catch (e: Exception) {
-            bitmap.recycle()
+            bitmap.recycle(); busy.set(false)
             throw e
         }
         val image = try { InputImage.fromBitmap(bitmap, 0) } catch (e: Exception) {
-            bitmap.recycle()
+            bitmap.recycle(); busy.set(false)
             throw e
         }
         return suspendCancellableCoroutine { continuation ->
@@ -108,6 +111,8 @@ internal object PhoneOcr {
                 if (remaining.decrementAndGet() == 0) {
                     val complete = lines.toList()
                     bitmap.recycle()
+                    if (succeeded.get() > 0) lastLines = complete
+                    busy.set(false)
                     // 两套都出错不是「屏上没字」:照实报错,读屏结果才写得出 ocr: failed
                     if (continuation.isActive) {
                         if (succeeded.get() == 0) continuation.resumeWithException(IllegalStateException("text recognition failed"))

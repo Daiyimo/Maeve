@@ -398,7 +398,7 @@ internal class ScreenSession(
      * [withPng]:同时截一张图留着,点了之后给视觉核查当「之前」(只对点击类动作才采)。
      */
     suspend fun probe(snapshotId: String? = null, withPng: Boolean = false): EffectProbe {
-        val shot = if (withPng) shotNow() else null
+        val shot = if (withPng) withTimeoutOrNull(EffectTuning.PROBE_MS) { shotNow() } else null
         val primedSnap = primedRead?.takeIf { it.first == snapshotId }?.second
         primedRead = null
         if (primedSnap != null) {
@@ -474,7 +474,7 @@ internal class ScreenSession(
         if (verb == Verb.Tap && (judged.kind == EffectKind.Done || judged.kind == EffectKind.SmallChange)) {
             val beforePng = probe.png
             if (beforePng != null) {
-                val afterPng = shotNow()
+                val afterPng = withTimeoutOrNull(EffectTuning.PROBE_MS) { shotNow() }
                 if (afterPng != null) visionConfirmAsync(judged, beforePng, afterPng)
             }
         }

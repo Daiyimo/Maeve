@@ -1186,6 +1186,8 @@ class ProviderStore(
             reasoning = o["reasoning"]!!.jsonPrimitive.boolean,
             groundingVerified = o["groundingVerified"]?.jsonPrimitive?.boolean ?: false,
             promptCaching = PromptCaching.of(o["promptCaching"]?.jsonPrimitive?.content),
+            // 生产主动压缩触发点:大窗口不封顶会越攒越大、模型越来越慢;压到这条线保持每步请求小(见 ContextLimits)。
+            compactionTriggerTokens = ContextLimits.PRODUCTION_COMPACTION_TRIGGER,
         ),
         name = o["name"]?.jsonPrimitive?.content.orEmpty(),
         providerId = o["providerId"]?.jsonPrimitive?.content.orEmpty(),
