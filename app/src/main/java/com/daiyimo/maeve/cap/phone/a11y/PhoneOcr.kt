@@ -14,6 +14,9 @@ import com.daiyimo.maeve.core.uistate.VisibleTextLine
 import com.daiyimo.maeve.core.uistate.normalize
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import java.util.Collections
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
@@ -43,26 +46,32 @@ internal object PhoneOcr {
                 detailed += recognize(Bitmap.createScaledBitmap(bitmap, 720, bitmap.height * 720 / bitmap.width, true), chineseOnly = true)
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (_: Exception) { /* Keep the successful native read. */ }
-            for (band in 0..3) for (column in 0..1) {
-                kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                val top = (band * bitmap.height / 4 - 48).coerceAtLeast(0)
-                val bottom = ((band + 1) * bitmap.height / 4 + 48).coerceAtMost(bitmap.height)
-                val left = (column * bitmap.width / 2 - 32).coerceAtLeast(0)
-                val right = ((column + 1) * bitmap.width / 2 + 32).coerceAtMost(bitmap.width)
-                val scale = minOf(3.0, 1280.0 / maxOf(right - left, bottom - top))
-                if (scale <= 1.0) continue
-                val crop = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
-                val enlarged = Bitmap.createScaledBitmap(crop, (crop.width * scale).toInt(), (crop.height * scale).toInt(), true)
-                if (crop !== bitmap && crop !== enlarged) crop.recycle()
-                val lines = try { recognize(enlarged, chineseOnly = true) }
-                catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                catch (_: Exception) { continue } // A refinement failure must not erase a valid full-frame read.
-                detailed += lines.map { line -> line.copy(bounds = listOf(
-                    normalize(left + line.bounds[0] * (right - left - 1) / 999, bitmap.width),
-                    normalize(top + line.bounds[1] * (bottom - top - 1) / 999, bitmap.height),
-                    normalize(left + line.bounds[2] * (right - left - 1) / 999, bitmap.width),
-                    normalize(top + line.bounds[3] * (bottom - top - 1) / 999, bitmap.height))) }
+            // 8 块重叠 tiles 并行识别(原先串行逐块等 ML Kit,密集小字页面因此很慢);每块自管位图,失败不抹掉整帧读数。
+            val tiles = coroutineScope {
+                (0..3).flatMap { band -> (0..1).map { column ->
+                    async {
+                        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                        val top = (band * bitmap.height / 4 - 48).coerceAtLeast(0)
+                        val bottom = ((band + 1) * bitmap.height / 4 + 48).coerceAtMost(bitmap.height)
+                        val left = (column * bitmap.width / 2 - 32).coerceAtLeast(0)
+                        val right = ((column + 1) * bitmap.width / 2 + 32).coerceAtMost(bitmap.width)
+                        val scale = minOf(3.0, 1280.0 / maxOf(right - left, bottom - top))
+                        if (scale <= 1.0) return@async emptyList()
+                        val crop = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
+                        val enlarged = Bitmap.createScaledBitmap(crop, (crop.width * scale).toInt(), (crop.height * scale).toInt(), true)
+                        if (crop !== bitmap && crop !== enlarged) crop.recycle()
+                        val lines = try { recognize(enlarged, chineseOnly = true) }
+                        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                        catch (_: Exception) { return@async emptyList() }
+                        lines.map { line -> line.copy(bounds = listOf(
+                            normalize(left + line.bounds[0] * (right - left - 1) / 999, bitmap.width),
+                            normalize(top + line.bounds[1] * (bottom - top - 1) / 999, bitmap.height),
+                            normalize(left + line.bounds[2] * (right - left - 1) / 999, bitmap.width),
+                            normalize(top + line.bounds[3] * (bottom - top - 1) / 999, bitmap.height))) }
+                    }
+                } }.awaitAll()
             }
+            detailed += tiles.flatten()
             // Keep a better region reading instead of two contradictory labels at the same spot.
             return detailed + full.filterNot { old -> detailed.any { fresh ->
                 overlaps(old.bounds, fresh.bounds) && (fresh.confidence ?: 0f) >= (old.confidence ?: 0f)

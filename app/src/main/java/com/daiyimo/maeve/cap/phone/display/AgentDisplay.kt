@@ -43,6 +43,11 @@ class AgentDisplay(
     /** 实时画面:限速 ≤10 帧/秒,缩到短边 ≤360。 */
     val frames: StateFlow<Bitmap?> = _frames.asStateFlow()
 
+    private val _fullFrames = MutableStateFlow<Bitmap?>(null)
+    /** 原图分辨率的实时画面(放大查看用):限速 ≤2 帧/秒,不缩放,避免放大后发糊。 */
+    val fullFrames: StateFlow<Bitmap?> = _fullFrames.asStateFlow()
+    private var lastFullAt = 0L
+
     private val frameLock = Any()
     private var fullFrame: Bitmap? = null // 带行填充的整帧,宽 = rowStride / pixelStride
     private var hasFrame = false
@@ -101,6 +106,11 @@ class AgentDisplay(
                 hasFrame = true
                 frameGeometry = capturedGeometry
                 _frames.value = uprightDisplayFrame(bmp, capturedGeometry, capturedGeometry.previewWidth(PREVIEW_SHORT_SIDE), paint)
+                val now = SystemClock.uptimeMillis()
+                if (now - lastFullAt >= FULL_FRAME_INTERVAL_MS) {
+                    lastFullAt = now
+                    _fullFrames.value = uprightDisplayFrame(bmp, capturedGeometry, paint = paint)
+                }
             }
         } finally {
             image.close()
@@ -129,6 +139,7 @@ class AgentDisplay(
         runCatching { shell.releaseDisplay(displayId) }
         closeLocal()
         _frames.value = null
+        _fullFrames.value = null
     }
 
     private fun closeLocal() {
@@ -149,5 +160,6 @@ class AgentDisplay(
     private companion object {
         const val PREVIEW_SHORT_SIDE = 360
         const val FRAME_INTERVAL_MS = 100L
+        const val FULL_FRAME_INTERVAL_MS = 500L
     }
 }

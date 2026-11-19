@@ -223,6 +223,8 @@ class TaskRun(
     private val _tagged = Mirrored<Pair<String, TaskState>?>(conversationId to _state.value, service.taskState._shownTask)
     private val _takeoverStage = Mirrored(Takeover.Stage.None, service.taskState._takeoverStage)
     private val _frames = Mirrored<Bitmap?>(null, service.taskState._frames)
+    /** 原图分辨率的实时画面,只给悬浮胶囊放大查看用(不镜像到对话预览)。 */
+    private val _fullFrames = MutableStateFlow<Bitmap?>(null)
     private val _activities = Mirrored<List<RunEvent.Activity>>(emptyList(), service.taskState._activities)
     /** 活动只追加;发布的是前 n 条的只读视图,每来一条不复制已有的。 */
     private val activityLog = ArrayList<RunEvent.Activity>()
@@ -243,6 +245,8 @@ class TaskRun(
     val sharedFiles: StateFlow<List<SharedFile>> = _sharedFiles.flow
     val takeoverStage: StateFlow<Takeover.Stage> = _takeoverStage.flow
     val frames: StateFlow<Bitmap?> = _frames.flow
+    /** 原图分辨率的实时画面(放大查看用,不缩放)。 */
+    val fullFrames: StateFlow<Bitmap?> = _fullFrames.asStateFlow()
     /** 本任务到此刻的活动(实际做过的事);悬浮胶囊的卡片按任务取,不只看显示中的那个。 */
     val activities: StateFlow<List<RunEvent.Activity>> = _activities.flow
     /** 本任务的虚拟屏编号;屏到用到系统命令、事件工具或第一次打开 App 时才建,之前和释放之后为 -1。 */
@@ -616,7 +620,8 @@ class TaskRun(
                     }.also { d ->
                         _displayId.value = d.displayId
                         side.launch { d.frames.collect { if (dispatcher?.surface != WEB) _frames.value = if (previewAllowed()) it else null } }
-                        side.launch { appAccess.state.collect { if (dispatcher?.surface != WEB && !previewAllowed()) _frames.value = null } }
+                        side.launch { d.fullFrames.collect { if (dispatcher?.surface != WEB) _fullFrames.value = if (previewAllowed()) it else null } }
+                        side.launch { appAccess.state.collect { if (dispatcher?.surface != WEB && !previewAllowed()) { _frames.value = null; _fullFrames.value = null } } }
                     }
                 }
                 val audio = recovery.audioMute(shell, key).also { mute = it }
@@ -740,6 +745,7 @@ class TaskRun(
                         val surface = dispatcher?.surface
                         if (surface != last) {
                             _frames.value = null
+                            _fullFrames.value = null
                             last = surface
                         }
                         // 当前标签是借来的那一页时它就在用户眼前,和接管中一样不放画面
@@ -1005,6 +1011,7 @@ class TaskRun(
             handoffUnconsumed()
             side.cancel()
             _frames.value = null
+            _fullFrames.value = null
             _webOpen.value = false
             synchronized(publishLock) { ended = true }
             if (awake != null && service.hasQueuedRuns()) wakeHandoff = service.wakeLock.lease().also { it.acquire() }

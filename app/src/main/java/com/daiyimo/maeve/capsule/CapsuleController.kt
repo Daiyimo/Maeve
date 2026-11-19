@@ -790,8 +790,16 @@ class CapsuleController(
         val run = key?.let(::runFor) ?: return
         previewJob = scope.launch {
             launch { run.frames.collect { if (it == null) preview = null } }
-            run.frames.filterNotNull().previewFrames(same = ::sameFrame).flowOn(Dispatchers.Default).collect {
-                preview = it.takeIf { run.frames.value != null }
+            // 收起时给缩略小画面;放大时换原图分辨率,避免放大发糊
+            launch {
+                run.frames.filterNotNull().previewFrames(same = ::sameFrame).flowOn(Dispatchers.Default).collect {
+                    if (!zoomed) preview = it.takeIf { run.frames.value != null }
+                }
+            }
+            launch {
+                run.fullFrames.filterNotNull().previewFrames(same = ::sameFrame).flowOn(Dispatchers.Default).collect {
+                    if (zoomed) preview = it.takeIf { run.frames.value != null }
+                }
             }
         }
     }
