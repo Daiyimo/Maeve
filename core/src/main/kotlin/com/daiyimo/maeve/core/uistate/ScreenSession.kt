@@ -398,25 +398,28 @@ internal class ScreenSession(
      * [withPng]:同时截一张图留着,点了之后给视觉核查当「之前」(只对点击类动作才采)。
      */
     suspend fun probe(snapshotId: String? = null, withPng: Boolean = false): EffectProbe {
-        val shot = if (withPng) withTimeoutOrNull(EffectTuning.PROBE_MS) { shotNow() } else null
         val primedSnap = primedRead?.takeIf { it.first == snapshotId }?.second
         primedRead = null
+        // 截图复用同一份快照判 protected,不再为截图单独读一遍树:复杂页面 a11y 读会阻塞,少读一次省一半等待
+        suspend fun shotFor(snap: ScreenSnapshot?): ByteArray? =
+            if (withPng && snap != null && !snap.protected) withTimeoutOrNull(EffectTuning.PROBE_MS) { screenAttempt { screen.screenshotPng() } } else null
         if (primedSnap != null) {
             var frameGrid: FrameGrid? = null
             withTimeoutOrNull(EffectTuning.PROBE_MS) { frameGrid = gridNow() }
-            return EffectProbe(primedSnap, frameGrid, shot).also { awaitingProbe = it }
+            return EffectProbe(primedSnap, frameGrid, shotFor(primedSnap)).also { awaitingProbe = it }
         }
         var beforeSnap: ScreenSnapshot? = null
         var frameGrid: FrameGrid? = null
         withTimeoutOrNull(EffectTuning.PROBE_MS) { beforeSnap = peek(); frameGrid = gridNow() }
-        return EffectProbe(beforeSnap, frameGrid, shot).also { awaitingProbe = it }
+        return EffectProbe(beforeSnap, frameGrid, shotFor(beforeSnap)).also { awaitingProbe = it }
     }
 
     /** 此刻的一张截图,给点击前后的视觉核查当「之前」「之后」;受保护页面、截不到时为 null。 */
     private suspend fun shotNow(): ByteArray? {
         val snap = screenAttempt { screen.peek() } ?: return null
+        // snap.protected 已含「有窗口且画面全黑」判断,不再重复读一次树(isProtected 会再读一遍 a11y,复杂页面阻塞翻倍)
         if (snap.protected) return null
-        return screenAttempt { if (screen.isProtected()) null else screen.screenshotPng() }
+        return screenAttempt { screen.screenshotPng() }
     }
 
     private suspend fun gridNow(): FrameGrid? = screenAttempt { screen.frameGrid() }
