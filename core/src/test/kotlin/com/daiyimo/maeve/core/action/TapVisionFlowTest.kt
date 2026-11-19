@@ -109,6 +109,17 @@ class TapVisionFlowTest {
         assertEquals(2, vision.requests.size)
     }
 
+    @Test fun coordinateTapOnATextlessIconGoesThrough() = runTest {
+        // 微信首页放大镜搜索图标:无文字,旧版预检当空白拒点(tap_point_blank)让模型卡死;现在报图标就放行
+        val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)
+        val vision = says("""{"at": null, "icon": "magnifier search icon"}""", "page")
+        val c = content(tap(executor(screen, vision), """{"x":500,"y":300,"target":"搜索图标"}"""))
+        assertEquals("true", c.s("ok"))
+        assertEquals(listOf("540,720"), screen.taps)
+        assertEquals("page", c.effect("visionCheck"))
+        assertEquals(2, vision.requests.size)
+    }
+
     @Test fun cannotSeeThePointLetsTheTapThrough() = runTest {
         // 视觉核查是兜底:看不了的时候不拦路
         val screen = LocScreen(listOf(smallButton), FRAME_A, FRAME_B)

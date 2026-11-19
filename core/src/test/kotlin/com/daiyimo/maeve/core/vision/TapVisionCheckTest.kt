@@ -33,6 +33,19 @@ class TapVisionCheckTest {
         assertEquals(PointAudit.Blank, check("那一点什么都没有\n```json\n{\"at\": null}\n```").auditPoint(shot, 500, 300, null))
     }
 
+    @Test fun iconWithNoTextIsAValidTargetNotBlank() = runTest {
+        // 微信首页放大镜搜索图标这类无文字控件:旧版当空白拒点,现在报图标就放行
+        assertEquals(PointAudit.Ok, check("""{"at": null, "icon": "magnifier search icon"}""").auditPoint(shot, 500, 300, "搜索图标"))
+        assertEquals(PointAudit.Ok, check("""{"at": null, "icon": "plus button"}""").auditPoint(shot, 500, 300, null))
+        // 图标和文字都报时,仍按文字核对期望
+        assertEquals(PointAudit.OffTarget("视频"), check("""{"at": "视频", "icon": "play button"}""").auditPoint(shot, 500, 300, "更多热搜"))
+    }
+
+    @Test fun bothNullIsStillBlank() = runTest {
+        assertEquals(PointAudit.Blank, check("""{"at": null, "icon": null}""").auditPoint(shot, 500, 300, "搜索图标"))
+        assertEquals(PointAudit.Blank, check("""{"at": null, "icon": ""}""").auditPoint(shot, 500, 300, null))
+    }
+
     @Test fun textOfSomethingElseIsRejected() = runTest {
         val r = check("""{"at": "视频"}""").auditPoint(shot, 500, 300, "更多热搜")
         assertEquals(PointAudit.OffTarget("视频"), r)

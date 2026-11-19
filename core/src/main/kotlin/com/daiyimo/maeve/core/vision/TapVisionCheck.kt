@@ -1,7 +1,6 @@
 package com.daiyimo.maeve.core.vision
 
 import com.daiyimo.maeve.core.model.ModelJson
-import com.daiyimo.maeve.core.model.ModelJson.field
 import com.daiyimo.maeve.core.prompt.Prompts
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
@@ -11,7 +10,7 @@ import kotlinx.serialization.json.contentOrNull
 
 /** 落点上视觉核查的结论。 */
 sealed interface PointAudit {
-    /** 落点处有文字、和期望相符(没有期望文字时只要不是空白处就算过)。 */
+    /** 落点处有文字且和期望相符,或是个无文字的图形控件(图标/按钮/输入框);没有期望文字时只要不是空白处就算过。 */
     data object Ok : PointAudit
 
     /** 落点在空白处:那一点什么都没有,点不下去。 */
@@ -41,8 +40,8 @@ enum class ScreenChange {
 
 /**
  * 点击前后的视觉核查,杜绝「工具说成功了其实没点上」:
- * - [auditPoint]:点之前,在一张截图上的落点处画小红标记,问视觉模型那一点上是什么文字。
- *   空白处、或和期望的文字不是一回事 → 不点(调用方照失败处理)。
+ * - [auditPoint]:点之前,在一张截图上的落点处画小红标记,问视觉模型那一点上是什么文字或什么图标。
+ *   真空白处、或文字和期望不是一回事 → 不点(调用方照失败处理);无文字的图形控件是有效落点,放行。
  * - [screenChange]:点之后,对比动作前后两张截图,问视觉模型界面是换了页面、只有小变化、还是没变。
  *   说没变而树说变化够多时,调用方把效果改判成没生效。
  *
@@ -71,10 +70,15 @@ class TapVisionCheck(private val vision: VisionService) {
         } catch (e: Exception) {
             return PointAudit.Unavailable("vision_unavailable")
         }
-        val at = parseAt(reply) ?: return PointAudit.Unavailable("audit_unparsed")
-        if (at.isBlank()) return PointAudit.Blank
-        if (want.isNullOrBlank()) return PointAudit.Ok
-        return if (related(at, want)) PointAudit.Ok else PointAudit.OffTarget(at)
+        val reading = parseAt(reply) ?: return PointAudit.Unavailable("audit_unparsed")
+        if (reading.at.isNotBlank()) {
+            if (want.isNullOrBlank()) return PointAudit.Ok
+            return if (related(reading.at, want)) PointAudit.Ok else PointAudit.OffTarget(reading.at)
+        }
+        // 无文字但是个图形控件(图标/图片按钮/输入框):是有效落点,放行;点得对不对由点后核对兜底。
+        // 旧版把图标也当空白拒点,微信首页的放大镜搜索图标这类无文字目标因此点不下去。
+        if (reading.icon.isNotBlank()) return PointAudit.Ok
+        return PointAudit.Blank
     }
 
     /** 对比动作前后 ([before]/[after]) 两张截图,判界面变化。 */
@@ -95,14 +99,25 @@ class TapVisionCheck(private val vision: VisionService) {
         }
     }
 
-    /** 回复里 {"at": "文字"};at 是 null(那一点什么都没有)、空串也算查到了;at 缺失、整个回复读不出时为 null。 */
-    private fun parseAt(reply: String): String? {
+    /** 落点读数:[at] 是那一点的可见文字,[icon] 是无文字图形控件的简述;两者都空才是真空白。 */
+    private class Reading(val at: String, val icon: String)
+
+    /** 回复里 {"at": "文字", "icon": "图标简述"};null/空串算查到了(那一点没有该类内容);at 与 icon 都缺失、整个回复读不出时为 null。 */
+    private fun parseAt(reply: String): Reading? {
         val obj = ModelJson.firstObject(reply) ?: return null
-        return when (val at = obj.field("at", "text")) {
-            is JsonNull -> ""
-            is JsonPrimitive -> at.contentOrNull
-            else -> null
+        fun str(vararg keys: String): String? {
+            for (k in keys) when (val v = obj[k]) {
+                is JsonNull -> return ""
+                is JsonPrimitive -> return v.contentOrNull
+                null -> {}
+                else -> return null
+            }
+            return null
         }
+        val at = str("at", "text")
+        val icon = str("icon")
+        if (at == null && icon == null) return null
+        return Reading(at ?: "", icon ?: "")
     }
 
     /** 两段文字是不是指同一个东西:去空白、小写后互相包含(和 [Locator] 核对名字同一口径)。 */
