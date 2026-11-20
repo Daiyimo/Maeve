@@ -12,7 +12,7 @@
 | Kotlin | 2.4.0 | 同上 |
 | compileSdk / targetSdk / minSdk | 36 / 35 / 30 | `app/build.gradle.kts` |
 | Android build-tools | 36.0.0 | 平台 36 对应版本 |
-| NDK | 25.1.8937393 | 沙箱原生库使用的版本 |
+| NDK | 28.2.13676358 | 沙箱原生库使用的版本 |
 | Flutter | 3.47.7 stable | Dart 3.13.5；`flutter/pubspec.yaml` 的约束是 `^3.13.5` |
 | Python | 3.10+ | `tools/` 下的 CLI、i18n 和评测脚本 |
 

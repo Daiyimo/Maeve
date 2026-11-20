@@ -24,7 +24,7 @@
     "targetSdk": "35",
     "minSdk": "30",
     "buildTools": "36.0.0",
-    "ndk": "25.1.8937393"
+    "ndk": "28.2.13676358"
   },
   "testNode": {
     "version": "24.15.0",

@@ -150,10 +150,10 @@ class ProviderStoreTest {
         val p = connected(s)
         s.use(ModelRole.Main, p.id, "m1", none.copy(contextTokens = 1_000_000))
         val id = s.configFor(ModelRole.Main)!!.id
-        for (value in listOf(500_000, 980_000, 950_000)) {
+        for (value in listOf(20_000, 500_000, 980_000, 950_000)) {
             assertTrue(s.setModelContext(id, ModelContextSettings(triggerTokens = value)))
         }
-        for (value in listOf(0, 499_999, 980_001)) {
+        for (value in listOf(0, 19_999, 980_001)) {
             assertFalse(s.setModelContext(id, ModelContextSettings(triggerTokens = value)))
         }
         assertFalse(s.setModelContext(id, ModelContextSettings(windowTokens = -1)))

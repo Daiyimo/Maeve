@@ -80,7 +80,7 @@
 
 <h3 align="center">花钱的事，先问你</h3>
 
-<p align="center">默认询问模式：下单、付款这一步停下来，卡片写清在哪、买什么、多少钱，只能同意这一次；付款本身由你亲手完成。也可以切到自主模式连付款也不问。登录、验证码这类要你亲手处理的，两种模式都会请你接管。</p>
+<p align="center">默认自主模式：普通可恢复操作连续执行；发送、提交、删除、下单等对外或不可逆动作仍会按守卫拦下并征求这一次同意，付款本身始终由你亲手完成。也可以切回询问模式，让微信写操作与自绘界面里看不清目标的点击也逐次确认。登录、验证码这类要你亲手处理的，两种模式都会请你接管。</p>
 
 <p align="center"><img src="docs/media/f-confirm.png" width="680" alt="付款确认卡片：在哪、买什么、多少钱、同意这一次"></p>
 
@@ -149,7 +149,7 @@ flowchart TD
         KSM["Knowledge · skills · memory"]
         LOOP --> EXEC --> GUARD
     end
-    CORE -->|OpenAI-compatible / Anthropic / Gemini| LLM["Model providers"]
+    CORE -->|OpenAI-compatible / Anthropic / Gemini / Responses| LLM["Model providers"]
 ```
 
 | 层 | 技术 | 职责 |

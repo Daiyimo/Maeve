@@ -11,9 +11,8 @@ val gitHash: String = runCatching {
     providers.exec { commandLine("git", "rev-parse", "--short=7", "HEAD") }.standardOutput.asText.get().trim()
 }.getOrNull()?.takeIf { it.isNotEmpty() } ?: "dev"
 
-// 发布签名:密钥不进仓库。按「local.properties → 环境变量」的顺序取,两处都没有就退回调试签名,
-// 让 CI 和干净 clone 照样能编出可安装的包;正式分发必须提供密钥,否则装上去的包换不了签名、
-// 后续版本无法覆盖升级(检查更新里的签名校验也会拒绝)。属性名见 local.properties.example。
+// 发布签名:密钥不进仓库。按「local.properties → 环境变量」的顺序取。debug/perf 仍可使用调试签名;
+// release 缺密钥时直接失败,避免产出看似正式、实际上不可升级也不可验证的包。属性名见 local.properties.example。
 val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.isFile) f.inputStream().use { load(it) }
@@ -28,14 +27,11 @@ val releaseKeyAlias = signingValue("maeve.release.keyAlias", "MAEVE_RELEASE_KEY_
 val releaseKeyPassword = signingValue("maeve.release.keyPassword", "MAEVE_RELEASE_KEY_PASSWORD")
 val hasReleaseKey = releaseStoreFile != null && releaseStorePassword != null &&
     releaseKeyAlias != null && releaseKeyPassword != null
-if (!hasReleaseKey) {
-    // 只在真要出 release 包时提醒,免得编调试包也刷一行。
-    if (gradle.startParameter.taskNames.any { Regex("(?i)release").containsMatchIn(it) }) {
-        logger.warn(
-            "[maeve] 没有发布密钥,release 包改用调试签名,只能本机验证、不能对外分发。" +
-                "配置方式见 local.properties.example。"
-        )
-    }
+if (!hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(?i)release").containsMatchIn(it) }) {
+    throw GradleException(
+        "[maeve] 没有发布密钥,拒绝构建 release。调试包与 perf 包仍可用调试签名;" +
+            "正式发行请按 local.properties.example 配置密钥。"
+    )
 }
 
 android {

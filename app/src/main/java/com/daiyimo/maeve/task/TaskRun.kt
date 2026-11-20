@@ -880,8 +880,8 @@ class TaskRun(
                 effects = com.daiyimo.maeve.core.action.ActionEffects((service.application as MaeveApp).actionEffects, conversationId, key),
                 reviewFinalAnswer = false,
                 inputTimeoutMs = TaskService.INPUT_TIMEOUT_MS,
-                // 询问 / 自主:询问时只有花钱的一步先问(有确认关卡和 request_confirmation);自主时连付款也不问。
-                // 开工时询问、中途换成自主的,下一步起不再问;开工时自主的,换成询问留给下一个任务
+                // 询问 / 自主:两种模式都拦对外、不可逆、工具申报风险与付款;自主只豁免微信每步写确认和自绘盲点限制。
+                // 开工后中途切换从下一个动作边界生效,已经弹出的确认仍要回答
                 confirmations = runApproval.gate(),
                 approvals = runApproval,
                 autonomous = runApproval.autonomous(),

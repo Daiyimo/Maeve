@@ -51,7 +51,7 @@ Any app installed on your phone works, with no per-app integration: Maeve looks 
 
 ## Ask / Autonomous
 
-- The default is **Ask**: only spending money (placing orders, paying) is confirmed with you first; sending messages, submitting and deleting are done directly. You can switch to **Autonomous**, which does not ask even before paying. See [Ask and Autonomous](modes.en.md).
+- The default is **Autonomous**: ordinary reversible actions continue, while outward or irreversible actions such as sending, submitting, deleting or placing an order still require approval, and payment is always completed by you. Switch to **Ask** to also confirm every WeChat write and blind taps on self-drawn screens. See [Ask and Autonomous](modes.en.md).
 
 ## Memory
 

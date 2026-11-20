@@ -11,10 +11,9 @@ being edited in place.
 | [0002](0002-mechanical-action-outcome.md) | Mechanical action outcomes; do not copy byte-exact screenshot diff | Proposed | §13.5 |
 | [0003](0003-sensitive-app-policy.md) | Sensitive-app policy with mandatory `ASK_USER` | Proposed | §13.6 |
 | [0004](0004-selfcheck-harness.md) | Extend `SelfCheck` into the official acceptance harness | Proposed | §13.7 |
-| [0005](0005-bridge-v3.md) | `maeve-bridge` v3 with heartbeat, codes and idempotency | Proposed | §13.8 |
+| [0005](0005-bridge-v3.md) | `maeve-bridge` v3 with heartbeat, codes and idempotency | Superseded by current v7 implementation | Historical: §13.8 |
 
-All five are **Proposed** until M2/M3/M4 implementation begins. None of them has been
-applied to the source tree yet — the M1 cut is deliberately documentation + identity only,
-so `git diff bbc8922a..HEAD` stays reviewable.
+ADR-0001 through ADR-0004 remain **Proposed**. ADR-0005 is **Superseded** by the current
+v7 / schemaVersion 1 file-bridge implementation; its replacement ADR is still pending.
 
 Template for new records: Context → Decision → Consequences → Acceptance → References.

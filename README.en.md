@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ 13e12d01e489 -->
+<!-- translated-from: README.md @ e77a4da7bf23 -->
 <p align="center">
   <a href="README.md">简体中文</a> · <b>English</b>
 </p>
@@ -81,7 +81,7 @@ Release codename **Dolores** · `v0.1.0` · [SPEC.md](SPEC.md). Maeve is an inde
 
 <h3 align="center">It asks before spending money</h3>
 
-<p align="center">Ask mode by default: it pauses at checkout/payment, with a card stating where, what and how much, approve once only; you complete the payment yourself. Switch to autonomous to skip even that. Login and captchas hand over to you in both modes.</p>
+<p align="center">Autonomous mode by default: ordinary reversible actions continue, while outward or irreversible actions such as sending, submitting, deleting or placing an order still stop for one-time approval, and payment is always completed by you. Switch to Ask to also confirm every WeChat write and blind taps on self-drawn screens. Login and captchas hand over to you in both modes.</p>
 
 <p align="center"><img src="docs/media/f-confirm.png" width="680" alt="Payment confirmation card: where, what, how much, approve once"></p>
 
@@ -150,7 +150,7 @@ flowchart TD
         KSM["Knowledge · skills · memory"]
         LOOP --> EXEC --> GUARD
     end
-    CORE -->|OpenAI-compatible / Anthropic / Gemini| LLM["Model providers"]
+    CORE -->|OpenAI-compatible / Anthropic / Gemini / Responses| LLM["Model providers"]
 ```
 
 | Layer | Tech | Responsibility |

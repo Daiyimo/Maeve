@@ -406,7 +406,7 @@ stateDiagram-v2
 
 - 目录：`/sdcard/Android/media/<applicationId>/amoo/{in,out}`（`<applicationId>` 跟随包名自动变化，源码里 `$pkg` 与 `${applicationId}` 已是运行时/占位，不要写死）。
 - 默认：`bridge_amoo = false`（安全默认，开箱不轮询信箱）。设置页提供开关供诊断/高级用户显式开启（`FlutterWechatSettings`），开启后诊断页只读展示「最近一次收/发时间、在途数」。（v0.3 原写「默认 true 且不出现设置页」，与 `FeatureFlags.bridgeAmoo` 默认 false 及设置页开关脱节，此处对齐代码。）
-- 认领（**v0.3 按 `AmooBridge.kt:105-132` 逐行订正**）：`in/<id>.json` → `renameTo(.claimed)` → 解析 → `RemoteTaskService.start(goal, null, requestId)`；**`requestId` 由 Maeve 侧 `UUID.randomUUID()` 生成，不是文件桥的 `id`**（v0.1 此处误写成传 `id`）。产品 `v0.1.0` 起改为 `id` 的稳定 UUIDv5 映射以获得幂等能力，见 §13.8。写回 `out/<id>.json` 用临时文件 + 原子 rename。
+- 认领（**当前实现**）：`in/<id>.json` → `renameTo(.claimed)` → 解析 → `receipts.begin(id, goal)` 基于 `id` 生成稳定的 UUIDv3 名称映射作为 `taskId` → `RemoteTaskService.start(goal, null, taskId)`；同一 `id` 重放得到同一任务。§13.8 的 UUIDv5 是未落地历史目标。写回 `out/<id>.json` 用临时文件 + 原子 rename。
 - 并发：`MAX_IN_FLIGHT` 上限保持；两条路线同时在途时按 `request_id` 在 receipts 排队，不并发抢后台屏。
 - 安全：**信箱是明文的，等价于把「动手机」的能力交给任何能写该目录的应用**。产品 `v0.1.0` 至少补：请求体大小上限、`goal` 长度上限、来源目录权限检查、异常请求隔离（单个坏 JSON 不影响轮询）。更严格的签名校验列入后续版本。
 - **技能必须升级（v0.3 订正）**：v0.1 此处原写「不改 `AmooSetup` 注入的 skill 说明（SKILL_VERSION=2）」，与 §12.2⑦ 和 §12.6 直接矛盾。改包名后旧技能里的 `/sdcard/Android/media/<旧包名>/amoo/` 永久失效，因此**必须**改名 `maeve-bridge`、`SKILL_VERSION` 升 **3**、首次启动自动重注入，并把 `AMOO_PKG` / `ID_INPUT` / `ID_SEND` 改为运行时探测。MCP 侧 `maeve_*` alias 只兜住电脑客户端，**兜不住文件桥**。
@@ -812,6 +812,8 @@ FLAG_SECURE 页面（银行 / 密码框）在自研 App 里读不到——豆包
 | 长任务驻留 | 后台屏跑 ≥60s 不掉线、不息屏、主屏焦点未被抢 |
 
 ### 13.8 文件桥 v3 wire contract（从缺陷描述落成可实现协议）
+
+> **历史目标（2026-11-20）**：当前实现已演进为 `SKILL_VERSION=7` / `schemaVersion=1`，线协议以 [docs/dev/amoo-bridge.md](docs/dev/amoo-bridge.md) 为准；本节保留为未落地的 v3 设计目标，不再代表当前行为。
 
 §12.3 只列了缺陷，本节给出 `maeve-bridge` v3 的具体字段；产品 `v0.1.0` 按此实现。
 

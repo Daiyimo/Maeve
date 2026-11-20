@@ -2,7 +2,7 @@
 
 > Source of truth: [SPEC.md](../../SPEC.md) §12.3, §12.6, §13.8. This document is the
 > implementer's contract for both sides: the Maeve Android app and the skill injected into
-> the on-device agent runtime. **Status: specified, not implemented** (M3).
+> the on-device agent runtime. **Status: historical target, superseded by the current v7 / schemaVersion 1 implementation.** See [the current contract](../dev/amoo-bridge.md).
 
 ## 1. Why a file bridge exists at all
 
