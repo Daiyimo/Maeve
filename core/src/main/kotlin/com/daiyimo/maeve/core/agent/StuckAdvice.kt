@@ -37,8 +37,8 @@ internal object StuckAdvice {
             if (n >= 2 && input.verdicts.any { it.code in STUCK_CODES })
                 Feedback.format("repeated_input_advice", "text" to t, "times" to n, "answer_or_failure" to ANSWER_OR_FAILURE) else null
         }
-        val advice = if (warnings >= 2 && input.verdicts.any { it.code in STUCK_CODES })
-            Feedback.format("give_up_advice", "answer_or_failure" to ANSWER_OR_FAILURE) else again
+        val advice = again ?: if (warnings >= 2 && !input.progressed && input.verdicts.any { it.code in STUCK_CODES })
+            Feedback.format("give_up_advice", "answer_or_failure" to ANSWER_OR_FAILURE) else null
         return StuckState(warnings, typed) to advice
     }
 

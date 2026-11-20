@@ -1051,6 +1051,8 @@ class TaskRun(
                 } finally {
                     resources.close()
                 }
+                // 任务收尾时收起键盘:打字、发消息之后键盘还弹着会挡住下一屏;不管怎么发的(点发送、回车、其它路径)都收
+                phone?.takeIf { !shellDied }?.let { p -> runCatching { p.screen.hideKeyboard() } }
             }
             phone = null
             // 屏释放后、对外报结束前清掉:界面看到任务结束时已经没有屏了

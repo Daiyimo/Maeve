@@ -117,6 +117,7 @@ class AppAccessScreenPort(
     override suspend fun gesture(paths: List<List<Pair<Int, Int>>>, durationMs: Long) = betweenChecks { inner.gesture(paths, durationMs) }
     override suspend fun back() = betweenChecks { inner.back() }
     override suspend fun pressKey(keyCode: Int) = betweenChecks { inner.pressKey(keyCode) }
+    override suspend fun hideKeyboard() = betweenChecks { inner.hideKeyboard() }
     override suspend fun setWheel(ref: String, snapshotId: String, value: String) = betweenChecks { inner.setWheel(ref, snapshotId, value) }
 
     // ---------- 等待与事件 ----------

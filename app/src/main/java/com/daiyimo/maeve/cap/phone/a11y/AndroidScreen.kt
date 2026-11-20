@@ -498,6 +498,17 @@ class AndroidScreen(
         verified { shell.injectKey(displayId, keyCode) }
     }
 
+    /** 收起键盘。键盘没弹着就不按(按返回会退页面),照实说已经收着;弹着时按一次返回,系统先收输入法,收掉了才算成功。 */
+    override suspend fun hideKeyboard(): ActionResult = withContext(Dispatchers.IO) {
+        if (!hasDisplay) return@withContext NO_APP_OPEN
+        if (!keyboardUp()) return@withContext ok(changed = false, hint = "Keyboard was already down.")
+        shell.injectKey(displayId, KeyEvent.KEYCODE_BACK)
+        val deadline = SystemClock.uptimeMillis() + 1_500
+        while (keyboardUp() && SystemClock.uptimeMillis() < deadline) delay(POLL_MS)
+        if (keyboardUp()) ActionResult.Failed("keyboard_still_up", hint = "The keyboard did not come down.")
+        else ok(changed = true, hint = "Keyboard hidden.")
+    }
+
     override suspend fun typeText(ref: String?, snapshotId: String?, text: String): ActionResult = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext NO_APP_OPEN
         val found = when (val f = findField(ref, snapshotId)) {

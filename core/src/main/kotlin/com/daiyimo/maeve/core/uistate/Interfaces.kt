@@ -183,6 +183,11 @@ internal class Interfaces(
         val audit = tapAudit ?: return null
         val shot = prep.probe?.png ?: return null
         val (x, y, wanted) = auditPoint(tool, o, prep) ?: return null
+        // 快速前置:OCR 已经确认落点有目标文字时,跳过点前视觉核查(视觉模型慢时不挡路);点后核对与矛盾检查不受影响。
+        if (wanted != null && prep.session.ocrConfirmsPoint(wanted, x, y)) return null
+        // 自绘界面(树读不出内容,如微信):落点核查是纯阻塞浪费(3 秒),OCR 多半确认不了模型的标签,几乎每次点击都查;
+        // 点后画面变化核对才是防「假成功」的真守卫,据此跳过点前核查。
+        if (prep.session.treeUnusable()) return null
         return when (val checked = audit.auditPoint(shot, x, y, wanted)) {
             is PointAudit.Ok, is PointAudit.Unavailable -> null
             is PointAudit.Blank -> fail("tap_point_blank", Feedback["failure.tap_point_blank"])

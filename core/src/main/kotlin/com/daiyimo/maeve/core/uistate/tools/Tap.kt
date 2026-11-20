@@ -71,10 +71,11 @@ internal class Tap(f: ScreenFamily) : ScreenTool(f, "tap") {
         rejectDescribed(a)
         if (ref == null && ctx.described && label == null) throw targetRequired()
         if (ref != null && (x != null || y != null)) throw ArgError("x", "give either ref+snapshotId or x+y, not both")
-        if (ref != null) return tapByRef(ctx, ref, clicks == 2)
+        if (ref != null) return finish(ctx, tapByRef(ctx, ref, clicks == 2), refName(ref, ctx) ?: label)
         if (x == null || y == null) throw ArgError(if (x == null) "x" else "y", if (x == null) "required with y when no ref is given" else "required with x when no ref is given")
-        ctx.session.checkTextPoint(label, x, y)?.let { return it }
-        return tapByPoint(ctx, x, y, clicks == 2)
+        val mismatch = ctx.session.checkTextPoint(label, x, y)
+        if (mismatch != null) return mismatch
+        return finish(ctx, tapByPoint(ctx, x, y, clicks == 2), label)
     }
 
     /**
@@ -100,6 +101,33 @@ internal class Tap(f: ScreenFamily) : ScreenTool(f, "tap") {
     private suspend fun tapByPoint(ctx: ToolContext, x: Int, y: Int, doubleTap: Boolean): ToolExecution {
         val snap = ctx.lastOrSnapshot()
         return ctx.action(tapAt(ctx, toPx(x, snap.width), toPx(y, snap.height), doubleTap))
+    }
+
+    /**
+     * 三种点法(坐标、@vN 定位、稳定编号)统一收口:点的是发送类按钮且点成功,
+     * 顺手收起键盘,免得键盘挡住下一屏。target 说明从能拿到的来源取——坐标点用
+     * target 参数,编号点用元素名或 find_visually 找到的描述。
+     */
+    private suspend fun finish(ctx: ToolContext, outcome: ToolExecution, target: String?): ToolExecution {
+        if (target == null || !isSendTarget(target) || outcome.content["ok"] != JsonPrimitive(true)) return outcome
+        val r = ctx.screen.hideKeyboard()
+        val note = when (r) {
+            is com.daiyimo.maeve.core.uistate.ActionResult.Ok -> r.hint ?: "Keyboard hidden."
+            is com.daiyimo.maeve.core.uistate.ActionResult.Failed -> "Keyboard still up after send (${r.reason})."
+        }
+        val adds = buildMap<String, JsonElement> { put("keyboardHidden", JsonPrimitive(true)); put("keyboardNote", JsonPrimitive(note)) }
+        return outcome.with(content = JsonObject(outcome.content + adds))
+    }
+
+    /** 编号点的对象名:稳定编号取元素名,@vN 取 find_visually 找到的描述。 */
+    private fun refName(ref: Pair<String, String>, ctx: ToolContext): String? =
+        if (LOCATED_REF.matches(ref.first)) ctx.locatedInfo[ref.first]?.target
+        else ctx.lastSnapshot?.elements?.firstOrNull { it.ref == ref.first }?.name?.takeIf(String::isNotBlank)
+
+    /** 点的是发送类按钮:点完顺手收起键盘,免得键盘挡住下一屏。 */
+    private fun isSendTarget(label: String): Boolean {
+        val s = label.trim()
+        return "发送" in s || "send" in s.lowercase()
     }
 
     private suspend fun tapAt(ctx: ToolContext, x: Int, y: Int, doubleTap: Boolean) =

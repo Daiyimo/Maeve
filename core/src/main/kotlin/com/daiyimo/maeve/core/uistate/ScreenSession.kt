@@ -410,7 +410,14 @@ internal class ScreenSession(
         }
         var beforeSnap: ScreenSnapshot? = null
         var frameGrid: FrameGrid? = null
-        withTimeoutOrNull(EffectTuning.PROBE_MS) { beforeSnap = peek(); frameGrid = gridNow() }
+        if (treeUnusable()) {
+            // 树读不出内容时不再重读 a11y(原生读不响应超时,复杂页面 5–8 秒纯阻塞):
+            // 复用模型手里那一屏判 protected,画面格子 + 端口事实就是变化信号。
+            beforeSnap = lastSnapshot
+            frameGrid = gridNow()
+        } else {
+            withTimeoutOrNull(EffectTuning.PROBE_MS) { beforeSnap = peek(); frameGrid = gridNow() }
+        }
         return EffectProbe(beforeSnap, frameGrid, shotFor(beforeSnap)).also { awaitingProbe = it }
     }
 
@@ -452,15 +459,18 @@ internal class ScreenSession(
         var verdict: ActionEffect? = judgeWith(null, null)
         // 动作之后看到的界面里新出现的「到上限了」的说法(看过两次时任一次有就算:提示条一会儿就消失)
         var limitNote: String? = null
+        // 树读不出内容时不再重读 a11y(原生读不响应超时,复杂页面 5–8 秒纯阻塞):
+        // 画面格子 + 端口事实就是变化信号,after/again 留空,判效果走 portOnly。
+        val unusable = treeUnusable()
         withTimeoutOrNull(EffectTuning.BUDGET_MS) {
-            if (!readAfterAction && !portAlreadyWaited) settle(EffectTuning.SETTLE_MS)
-            val after = if (readAfterAction) lastSnapshot else peek()
+            if (!readAfterAction && !portAlreadyWaited) settle(if (unusable) EffectTuning.SETTLE_UNUSABLE_MS else EffectTuning.SETTLE_MS)
+            val after = if (readAfterAction) lastSnapshot else if (unusable) null else peek()
             limitNote = LimitNotice.find(probe.before, after)
             verdict = judgeWith(after, gridNow())
             if (verdict?.kind == EffectKind.NoEffect) {
                 // 界面可能是异步更新的:再等一会儿重看一次,仍没变才算没效果
                 delay(EffectTuning.RECHECK_MS)
-                val again = peek()
+                val again = if (unusable) null else peek()
                 limitNote = limitNote ?: LimitNotice.find(probe.before, again)
                 verdict = judgeWith(again, gridNow())
             }
@@ -515,6 +525,12 @@ internal class ScreenSession(
 
     /** 最近一次读屏判的树够不够用;判效果时据此说「看不出变化」还是「没点上」。 */
     private var treeVerdict: TreeCheck? = null
+
+    /**
+     * 最近一次读屏判的树读不出内容(自绘界面,如微信):再读一遍 a11y 是纯阻塞浪费(原生读不响应超时,
+     * 复杂页面要 5–8 秒),而画面格子 + 端口事实就是变化信号。判效果时据此跳过 a11y 重读,只读画面格子。
+     */
+    fun treeUnusable(): Boolean = treeVerdict?.quality == TreeQuality.Unusable
 
     /**
      * 这一屏的树缺了一块或不能用(只在手机上判,和读屏结果里的 treeQuality 同一口径):光看树判不准时按最近一次读屏(读过屏上文字)的判断。
@@ -573,32 +589,12 @@ internal class ScreenSession(
     /** A named OCR-only target must not be dispatched at a contradictory point. This is not icon recognition. */
     suspend fun checkTextPoint(target: String?, x: Int, y: Int): ToolExecution? {
         if (surface.id != "phone" || lastSnapshot?.elements?.isNotEmpty() != false || target == null) return null
-        fun norm(text: String) = text.lowercase().filter(Char::isLetterOrDigit)
-        val label = norm(target).replace(Regex("(标签|按钮|入口|选项|button|tab)$"), "")
-        if (label.length !in 2..30) return null
-        fun matching(lines: List<VisibleTextLine>): VisibleTextLine? {
-            val exact = lines.filter { norm(it.text) == label }
-            val candidates = exact.ifEmpty { lines.filter {
-                // A small Chinese glyph or adjacent icon can be misread. A near match can
-                // reject a contradictory point, but never rewrites or dispatches a tap.
-                val raw = norm(it.text)
-                val word = if (raw.length == label.length + 1 && raw[1] == label[0]) raw.drop(1) else raw
-                label.length >= 3 && label.all { c -> Character.UnicodeScript.of(c.code) == Character.UnicodeScript.HAN } &&
-                    word.length == label.length && word.first() == label.first() && word.last() == label.last() &&
-                    word.zip(label).count { (a, b) -> a != b } == 1
-            } }
-            val best = candidates.maxByOrNull { it.confidence ?: 0f } ?: return null
-            // Repeated readings of the same spot are one location; distinct matches are ambiguous.
-            return best.takeIf { candidates.all { other ->
-                kotlin.math.abs(other.bounds[0] + other.bounds[2] - best.bounds[0] - best.bounds[2]) <= 24 &&
-                    kotlin.math.abs(other.bounds[1] + other.bounds[3] - best.bounds[1] - best.bounds[3]) <= 24
-            } }
-        }
-        if (matching(lastOcr) == null) return null
+        val label = ocrLabel(target) ?: return null
+        if (matchTarget(label, lastOcr) == null) return null
         val fresh = screenAttempt { screen.peek() } ?: return null
         if (fresh.protected || fresh.packageName != lastSnapshot?.packageName) return null
         val (lines, _) = readScreenText(fresh, 2_500)
-        val match = matching(lines.orEmpty().filter { it.confidence == null || it.confidence >= .6f }) ?: return null
+        val match = matchTarget(label, lines.orEmpty().filter { it.confidence == null || it.confidence >= .6f }) ?: return null
         val b = match.bounds
         if (x in (b[0] - 12)..(b[2] + 12) && y in (b[1] - 12)..(b[3] + 12)) return null
         val center = listOf((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
@@ -608,6 +604,47 @@ internal class ScreenSession(
             put("bounds", JsonArray(b.map(::JsonPrimitive)))
             put("inputDispatched", false)
         }))
+    }
+
+    /**
+     * 点前视觉核查的快速前置:OCR 读到的屏上文字里,目标文字是不是就在落点处。是 → 放行(跳过点前视觉核查,
+     * 视觉模型慢时不挡路);读不到、树够用、或目标不在落点处 → 不确认(照旧走视觉核查)。点后核对与矛盾检查不受影响。
+     */
+    fun ocrConfirmsPoint(target: String?, x: Int, y: Int): Boolean {
+        if (surface.id != "phone" || lastSnapshot?.elements?.isNotEmpty() != false || target == null) return false
+        val label = ocrLabel(target) ?: return false
+        val match = matchTarget(label, lastOcr) ?: return false
+        val b = match.bounds
+        // OCR 边界常偏几个像素,落点在文字框外 24(约 2.4% 屏)内仍算同一控件:放行,跳过点前视觉核查
+        return x in (b[0] - 24)..(b[2] + 24) && y in (b[1] - 24)..(b[3] + 24)
+    }
+
+    /** 把目标文字归一成可比对的标签(去空白小写、去掉「标签/按钮/入口」这类后缀);不合条件为 null。 */
+    private fun ocrLabel(target: String?): String? {
+        if (target == null) return null
+        val label = target.lowercase().filter(Char::isLetterOrDigit).replace(Regex("(标签|按钮|入口|选项|button|tab)$"), "")
+        return label.takeIf { it.length in 2..30 }
+    }
+
+    /** 在屏上文字里找目标文字(精确或近似匹配);找不到或歧义为 null。 */
+    private fun matchTarget(label: String, lines: List<VisibleTextLine>): VisibleTextLine? {
+        fun norm(text: String) = text.lowercase().filter(Char::isLetterOrDigit)
+        val exact = lines.filter { norm(it.text) == label }
+        val candidates = exact.ifEmpty { lines.filter {
+            // A small Chinese glyph or adjacent icon can be misread. A near match can
+            // reject a contradictory point, but never rewrites or dispatches a tap.
+            val raw = norm(it.text)
+            val word = if (raw.length == label.length + 1 && raw[1] == label[0]) raw.drop(1) else raw
+            label.length >= 3 && label.all { c -> Character.UnicodeScript.of(c.code) == Character.UnicodeScript.HAN } &&
+                word.length == label.length && word.first() == label.first() && word.last() == label.last() &&
+                word.zip(label).count { (a, b) -> a != b } == 1
+        } }
+        val best = candidates.maxByOrNull { it.confidence ?: 0f } ?: return null
+        // Repeated readings of the same spot are one location; distinct matches are ambiguous.
+        return best.takeIf { candidates.all { other ->
+            kotlin.math.abs(other.bounds[0] + other.bounds[2] - best.bounds[0] - best.bounds[2]) <= 24 &&
+                kotlin.math.abs(other.bounds[1] + other.bounds[3] - best.bounds[1] - best.bounds[3]) <= 24
+        } }
     }
 
     /**

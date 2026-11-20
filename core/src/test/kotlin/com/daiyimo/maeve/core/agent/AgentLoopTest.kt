@@ -586,12 +586,14 @@ class AgentLoopTest {
     @Test fun typingTheSameQueryAgainSuggestsReportFailure() = runTest {
         val m = FakeModel(
             tools(call("phone_type_text", """{"text":"回溯"}""")), tools(call("phone_type_text", """{"text":"时光"}""")),
+            tools(call("phone_type_text", """{"text":" 回溯 ","ref":"@e2","snapshotId":"s9"}""")),
             tools(call("phone_type_text", """{"text":" 回溯 ","ref":"@e2","snapshotId":"s9"}""")), finish(),
         )
         loop(m).run("t")
         assertNull(m.requests[1].withoutRuntime().last().results().single().json()["advice"])
         assertNull(m.requests[2].withoutRuntime().last().results().single().json()["advice"])
-        val again = m.requests[3].withoutRuntime().last().results().single().json()
+        assertNull(m.requests[3].withoutRuntime().last().results().single().json()["advice"])
+        val again = m.requests[4].withoutRuntime().last().results().single().json()
         assertTrue(again.s("advice"), "回溯" in again.s("advice") && "end_not_done" in again.s("advice"))
     }
 
@@ -641,7 +643,8 @@ class AgentLoopTest {
 
         val typed = FakeModel(tools(call("phone_type_text", """{"text":"张三"}""")), tools(call("phone_type_text", """{"text":"张三"}""")), finish())
         loop(typed).run("t")
-        assertNull(typed.requests[2].withoutRuntime().last().results().single().json()["advice"])
+        val typedAdvice = typed.requests[2].withoutRuntime().last().results().single().json().s("advice")
+        assertTrue(typedAdvice, "张三" in typedAdvice && "end_not_done" in typedAdvice)
 
         val w = FakeModel(*(1..11).map { tools(call("wait", """{"seconds":${1 + it / 10.0}}""")) }.toTypedArray(), finish())
         loop(w, maxSteps = 20).run("t")

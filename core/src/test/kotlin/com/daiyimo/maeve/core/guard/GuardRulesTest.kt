@@ -30,7 +30,7 @@ class GuardRulesTest {
             GuardRules.sameStateLadder(5), GuardRules.cycleLadder(5), GuardRules.noNewStateLadder(5),
         )
         for (l in ladders) assert(l.last() >= 2 * l.first() && l == l.sorted()) { "ladder $l" }
-        assertEquals(12, GuardRules.NO_EFFECT_LADDER.last())
+        assertEquals(8, GuardRules.NO_EFFECT_LADDER.last())
     }
 
     /** 慢慢兜圈子的安全网跟着任务的步数上限走,但不低于下限。 */

@@ -46,14 +46,14 @@ class OperationGuardsTest {
         assertEquals(1, g.unchangedFrames)
     }
 
-    @Test fun unchangedScreenNudgesAt3_6_9StopsAt12() {
+    @Test fun unchangedScreenNudgesAt2_4StopsAt8() {
         val g = OperationGuards()
         g.frame("f0", 42L)
-        val perAction = (1..12).map { g.noteAction(); g.frame("f$it", 42L) }
-        assertEquals(listOf(3, 6, 9, 12), perAction.withIndex().filter { it.value.any { v -> v.code == "no_progress" } }.map { it.index + 1 })
+        val perAction = (1..8).map { g.noteAction(); g.frame("f$it", 42L) }
+        assertEquals(listOf(2, 4, 8), perAction.withIndex().filter { it.value.any { v -> v.code == "no_progress" } }.map { it.index + 1 })
         val v = perAction.flatten().filter { it.code == "no_progress" }
-        assertEquals(listOf(Severity.Warn, Severity.Warn, Severity.Warn, Severity.Stop), v.map { it.severity })
-        assertEquals(12, v.last().evidence["unchanged"]!!.jsonPrimitive.int)
+        assertEquals(listOf(Severity.Warn, Severity.Warn, Severity.Stop), v.map { it.severity })
+        assertEquals(8, v.last().evidence["unchanged"]!!.jsonPrimitive.int)
     }
 
     @Test fun reportedNoEffectCountsOnceNotAgainForTheFrame() {
@@ -61,7 +61,7 @@ class OperationGuardsTest {
         g.frame("f0", 42L)
         val perAction = (1..3).map { g.noteAction(); g.effect("no_effect") + g.frame("f$it", 42L) }
         assertEquals(3, g.unchangedFrames)
-        assertEquals("no_progress", perAction.last().single().code)
+        assertTrue(perAction.any { it.any { v -> v.code == "no_progress" } })
         // 小的局部变化也是进展，应清零
         g.noteAction(); g.effect("small_change"); assertEquals(0, g.unchangedFrames)
         g.noteAction(); g.effect("done"); assertEquals(0, g.unchangedFrames)
@@ -208,7 +208,7 @@ class OperationGuardsTest {
     @Test fun changedFrameCancelsProvisionalNoProgressStop() {
         val g = OperationGuards()
         g.frame("initial", 1L)
-        repeat(11) { i -> g.noteAction(); g.effect("no_effect"); g.frame("same-$i", 1L) }
+        repeat(7) { i -> g.noteAction(); g.effect("no_effect"); g.frame("same-$i", 1L) }
         g.noteAction()
         assertEquals(Severity.Stop, g.effect("no_effect").single().severity)
         g.frame("changed", 2L)

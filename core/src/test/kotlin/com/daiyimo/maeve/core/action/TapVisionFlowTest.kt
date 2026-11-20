@@ -67,18 +67,18 @@ class TapVisionFlowTest {
 
     // ---- 第 1 层:点之前的落点核查 ----
 
-    @Test fun bigBlankBoxIsNotTappedWhenThePointIsEmpty() = runTest {
+    @Test fun blankBoxOnUnusableTreeSkipsPreTapAudit() = runTest {
+        // 自绘界面(树读不出内容):点前落点核查是纯阻塞浪费,据此跳过;点后画面变化核对才是防「假成功」的真守卫
         val screen = LocScreen(listOf(blankBox), FRAME_A, FRAME_B)
-        val vision = says("""{"at": null}""")
+        val vision = says("""{"at": null}""", "page")
         val e = executor(screen, vision, backgroundScope)
         content(observe(e))
         screen.show(FRAME_A, FRAME_B)
         val c = content(tap(e, """{"ref":"@e1","snapshotId":"s"}"""))
-        assertEquals("false", c.s("ok"))
-        assertEquals("tap_point_blank", c.s("error"))
-        assertEquals(Feedback["failure.tap_point_blank"], c.s("message"))
-        assertTrue("空白处不点下去", screen.taps.isEmpty())
-        assertEquals(1, vision.requests.size)
+        assertEquals("点前核查跳过,点击放行", "true", c.s("ok"))
+        assertFalse("点前核查没拦", "error" in c)
+        assertEquals(listOf("ref @e1"), screen.taps)
+        advanceUntilIdle()
     }
 
     @Test fun bigBoxPointingAtSomethingElseIsNotTapped() = runTest {
@@ -151,8 +151,9 @@ class TapVisionFlowTest {
         advanceUntilIdle()
     }
 
-    @Test fun smallUnnamedElementWithAStatedLabelIsAudited() = runTest {
-        // 微博「更多热搜」:字被并进大文本块,模型按位置点了个无名小元素(实际是行尾菜单),reason 里自报了要点什么——再小也查
+    @Test fun unnamedElementOnUnusableTreeSkipsPreTapAudit() = runTest {
+        // 自绘界面(树读不出内容):无名小元素、模型自报了要点什么,点前核查也跳过(纯阻塞浪费);
+        // 点后画面变化核对兜底。有名字的树里这类元素仍照查(见 coordinateTapOnTheWrongThingIsNotTapped)。
         val hamburger = uiEl("@e4", "", listOf(886, 582, 999, 636))
         val screen = LocScreen(listOf(hamburger), FRAME_A, FRAME_B)
         val vision = says("""{"at": "菜单"}""", "page")
@@ -160,10 +161,10 @@ class TapVisionFlowTest {
         content(observe(e))
         screen.show(FRAME_A, FRAME_B)
         val c = content(tap(e, """{"ref":"@e4","snapshotId":"s","reason":"点击\"更多热搜\"进入热搜榜单页面"}"""))
-        assertEquals("tap_point_off_target", c.s("error"))
-        assertTrue(c.s("message"), "「菜单」" in c.s("message") && "「更多热搜」" in c.s("message"))
-        assertTrue("落点不对不点下去", screen.taps.isEmpty())
-        assertEquals(1, vision.requests.size)
+        assertEquals("点前核查跳过,点击放行", "true", c.s("ok"))
+        assertFalse("点前核查没拦", "error" in c)
+        assertEquals(listOf("ref @e4"), screen.taps)
+        advanceUntilIdle()
     }
 
     @Test fun unnamedElementPointingAtTheStatedLabelGoesThrough() = runTest {

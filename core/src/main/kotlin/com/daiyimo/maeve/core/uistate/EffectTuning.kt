@@ -24,11 +24,13 @@ object EffectTuning {
 
     // ---- 等待:各阶段的时间上限 ----
     /** 端口没在动作里等过界面时,判效果前等界面稳定的上限。 */
-    const val SETTLE_MS = 1_500L
+    const val SETTLE_MS = 900L
+    /** 树读不出内容(自绘界面)时,判效果前等界面稳定的上限:画面格子就是信号,不必等满。 */
+    const val SETTLE_UNUSABLE_MS = 300L
     /** 看起来没变时再等这么久重看一次(界面可能异步更新)。 */
-    const val RECHECK_MS = 700L
+    const val RECHECK_MS = 450L
     /** 动作前看一眼最多花的时间;来不及就只按端口的事实判。 */
-    const val PROBE_MS = 1_000L
+    const val PROBE_MS = 600L
     /** 动作之后判效果最多再多花的时间(等待加读界面);到了就按已有事实下结论。 */
-    const val BUDGET_MS = 2_500L
+    const val BUDGET_MS = 1_800L
 }

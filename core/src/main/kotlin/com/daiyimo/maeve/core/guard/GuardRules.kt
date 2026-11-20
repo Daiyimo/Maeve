@@ -11,7 +11,7 @@ package com.daiyimo.maeve.core.guard
  * |---|---|---|
  * | 同一动作 + 同一目标重复(最近 [LOOP_WINDOW] 次里) | 3、6 | 12 |
  * | 同上,诊断类看界面的工具(按工具计) | 6、9 | 15 |
- * | 动作没有效果(effect 为 no_effect,或动过之后界面不变),连续 | 3、6、9 | 12 |
+ * | 动作没有效果(effect 为 no_effect,或动过之后界面不变),连续 | 2、4 | 8 |
  * | 页面没变时又读了一遍、没读出新内容 | 5、8 | 12 |
  * | 连续失败(第 4 次起附出路) | 2、4 | 8 |
  * | 不可恢复的失败 | 1 | 3 |
@@ -35,7 +35,7 @@ internal object GuardRules {
     fun repeatLadder(diagnostic: Boolean): List<Int> = if (diagnostic) listOf(6, 9, 15) else listOf(3, 6, 12)
 
     /** 动作没有效果的阶梯。 */
-    val NO_EFFECT_LADDER = listOf(3, 6, 9, 12)
+    val NO_EFFECT_LADDER = listOf(2, 4, 8)
 
     /** 页面没变时重读的阶梯。 */
     val REREAD_LADDER = listOf(5, 8, 12)

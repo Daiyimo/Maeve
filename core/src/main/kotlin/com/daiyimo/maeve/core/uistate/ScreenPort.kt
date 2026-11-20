@@ -279,6 +279,8 @@ interface ScreenPort {
     suspend fun idleScroll(fraction: Double): Boolean = false
     /** 多点手势;每条路径是按时间先后排列的像素点,所有手指同时移动。 */
     suspend fun gesture(paths: List<List<Pair<Int, Int>>>, durationMs: Long): ActionResult = unsupported()
+    /** 收起键盘(输入法)。键盘没弹着时什么都不做。默认不支持。 */
+    suspend fun hideKeyboard(): ActionResult = unsupported()
     /** 系统返回键。 */
     suspend fun back(): ActionResult
     /** 按安卓键码 [keyCode] 对应的那个键。 */
