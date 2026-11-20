@@ -176,8 +176,10 @@ void main() {
       '帮我理一下这件事',
     );
     await tester.pump();
+    expect(tester.testTextInput.isVisible, isTrue);
     await tester.tap(find.byKey(const ValueKey('send-message')));
     await tester.pump();
+    expect(tester.testTextInput.isVisible, isFalse);
 
     // 话真的转给了宿主(不再是本地假回复)
     expect(bridge.sent, ['帮我理一下这件事']);

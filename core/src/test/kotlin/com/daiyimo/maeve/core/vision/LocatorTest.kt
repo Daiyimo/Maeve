@@ -110,6 +110,20 @@ class LocatorTest {
         assertEquals("vision", r.source)
     }
 
+    @Test fun iconWithoutLabelOnlyCapturesOneFrame() = runTest {
+        var captures = 0
+        val screen = object : ScreenPort by LocScreen() {
+            override suspend fun screenshotPng(): ByteArray {
+                captures++
+                return FRAME_A
+            }
+        }
+        val model = says("""{"bbox_2d":[100,100,200,200]}""", "yes")
+        found(locator(screen, model).locate("search icon", null))
+        assertEquals(1, captures)
+        assertEquals(2, model.requests.size)
+    }
+
     @Test fun rejectsMalformedBoxes() = runTest {
         for (reply in listOf(
             """{"bbox_2d":[0.1,0.2,0.3,0.4],"seen":"x"}""",

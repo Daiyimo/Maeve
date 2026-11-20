@@ -5,6 +5,7 @@ import com.daiyimo.maeve.core.cap.web.FakeWebPort
 import com.daiyimo.maeve.core.gate.ConfirmationGate
 import com.daiyimo.maeve.core.guard.OperationGuards
 import com.daiyimo.maeve.core.model.Part
+import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.core.record.RunSink
 import com.daiyimo.maeve.core.risk.IrrevAction
 import com.daiyimo.maeve.core.testing.button
@@ -60,6 +61,54 @@ class DescribedActionsTest {
         val result = run(executor(toolDispatcher(screen)), "phone_tap", """{"element":"7"}""")
         assertEquals("$result", JsonPrimitive(true), content(result)["ok"])
         assertEquals(listOf("@e91"), tapped)
+    }
+
+    @Test fun routeAnchorsReuseTheSnapshotAttachedByTheAction() = runTest {
+        val events = mutableListOf<RunEvent>()
+        var opened = false
+        var postActionPeeks = 0
+        val screen = object : ScreenPort by FakeScreen() {
+            override suspend fun snapshot() = if (opened) {
+                ScreenSnapshot("opened", "com.test.details", listOf(button("@e2", "详情")), 1080, 2400)
+            } else {
+                ScreenSnapshot("initial", "com.test", listOf(button("@e1", "打开")), 1080, 2400)
+            }
+
+            override suspend fun peek(): ScreenSnapshot {
+                if (opened) postActionPeeks++
+                return snapshot()
+            }
+
+            override suspend fun tapRef(ref: String, snapshotId: String) =
+                ActionResult.Ok(changed = true).also { opened = true }
+        }
+        val tools = toolDispatcher(screen, inlineScreen = true).apply { captureTargets = true }
+        val recorder = ActionRecorder(object : RunSink { override fun event(e: RunEvent) { events += e } })
+        val executor = ActionExecutor(tools, OperationGuards(), null, gate = {}, autonomous = true, recorder = recorder)
+
+        val result = run(executor, "phone_tap", """{"element":"打开"}""") as ActionOutcome.Ran
+
+        assertEquals("com.test.details", result.seen?.packageName)
+        assertEquals(listOf("详情"), events.filterIsInstance<RunEvent.ActionTarget>().single().after.texts)
+        assertEquals(0, postActionPeeks)
+    }
+
+    @Test fun inlineScreenOnlyWaitsWhenThePhonePortHasNotConfirmedStability() = runTest {
+        for (settled in listOf(true, false, null)) {
+            var waits = 0
+            val screen = object : ScreenPort by Shop() {
+                override suspend fun tapRef(ref: String, snapshotId: String) =
+                    ActionResult.Ok(changed = true, settled = settled)
+
+                override suspend fun waitStable(timeoutMs: Long): Boolean {
+                    waits++
+                    return true
+                }
+            }
+            val result = run(executor(toolDispatcher(screen, inlineScreen = true)), "phone_tap", """{"element":"登录"}""")
+            assertTrue(content(result).containsKey("screen"))
+            assertEquals("port settled=$settled", if (settled == true) 0 else 1, waits)
+        }
     }
 
     @Test fun uniqueDescriptionActsOnThatElement() = runTest {

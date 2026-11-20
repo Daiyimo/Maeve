@@ -668,7 +668,7 @@ class AndroidScreen(
         val changed = withEventClock { clock ->
             clock.mark()
             pasted = pasteUnseen(text, beforeFrame)
-            pasted == true && awaitChange(clock, beforeTree, beforeFrame)
+            pasted == true && awaitChange(clock, beforeTree, beforeFrame).changed
         }
         when (pasted) {
             null -> return ActionResult.Failed("paste_unavailable", HINT_PASTE_BLOCKED)
@@ -1208,14 +1208,15 @@ class AndroidScreen(
         val beforeTree = treeHash()
         val beforeFrame = frameSignature()
         val w = armSpillWatch()
-        val changed = withEventClock { clock ->
+        val change = withEventClock { clock ->
             clock.mark()
             if (action()) awaitChange(clock, beforeTree, beforeFrame) else null
         } ?: return ActionResult.Failed("action_failed")
         // 从挪回来的任务里又打开了一个的,一并算进来
         val profile = adoptFromAdopted(w)
         val spill = takeSpill(w)
-        return ok(changed = changed || spill?.opened?.pulledBack == true, relocatedTo = relocatedTo, spill = spill, inProfile = profile)
+        return ok(changed = change.changed || spill?.opened?.pulledBack == true, relocatedTo = relocatedTo, spill = spill, inProfile = profile,
+            settled = true.takeIf { change.settled && profile == null && spill == null })
     }
 
     // ---------- 开到用户主屏上的 ----------
@@ -1575,7 +1576,7 @@ class AndroidScreen(
     }
 
     /** 等界面稳定后比对指纹(规则见 [ChangeWait]);确认变了立即返回 true。 */
-    private suspend fun awaitChange(clock: EventClock, beforeTree: Long, beforeFrame: IntArray?): Boolean =
+    private suspend fun awaitChange(clock: EventClock, beforeTree: Long, beforeFrame: IntArray?): ChangeWait.Result =
         ChangeWait.awaitStableChange(
             now = SystemClock::uptimeMillis,
             sleep = { delay(it) },
@@ -1627,7 +1628,7 @@ class AndroidScreen(
     /** 带上「是否被切走」的动作结果;[spill] 是这个动作开到用户主屏上的 App,[inProfile] 见 [ActionResult.Ok.inProfile]。 */
     private suspend fun ok(
         changed: Boolean? = null, relocatedTo: String? = null, verification: Verification? = null,
-        hint: String? = null, secret: Boolean = false, spill: Spill? = null, inProfile: String? = null,
+        hint: String? = null, secret: Boolean = false, spill: Spill? = null, inProfile: String? = null, settled: Boolean? = null,
     ): ActionResult.Ok {
         val adopted = adoptTargetTask()
         val shown = shownCopy()
@@ -1636,6 +1637,7 @@ class AndroidScreen(
         return ActionResult.Ok(
             changed = changed, appSwitched = sw?.packageName, switchedByTarget = sw?.byTarget == true,
             relocated = relocatedTo != null, relocatedTo = relocatedTo, verification = verification, hint = hint, secret = secret,
+            settled = settled.takeIf { sw == null },
             chooser = spill?.chooser, opened = spill?.opened, inProfile = profile,
             profileUser = shown?.second, requestedUser = requestedUser.takeIf { shown != null },
         )

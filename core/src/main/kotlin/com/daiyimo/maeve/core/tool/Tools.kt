@@ -46,6 +46,8 @@ class ToolExecution(
     val waitMs: Long = 0,
     /** Optional action-before frame, only for recorded input evidence; never sent to the model. */
     val recordFrame: ByteArray? = null,
+    /** The screen port already confirmed that the screen settled after the action. */
+    val screenSettled: Boolean = false,
 ) {
     val image: ByteArray? get() = images.firstOrNull()
 
@@ -54,9 +56,10 @@ class ToolExecution(
         content: JsonObject = this.content, changed: Boolean? = this.changed, frame: ByteArray? = this.frame, images: List<ByteArray> = this.images,
         record: JsonObject = this.record, screenElements: JsonArray? = this.screenElements, imageIds: List<Int?> = this.imageIds,
         observations: List<Observation> = this.observations, place: Place? = this.place, waitMs: Long = this.waitMs,
-        recordFrame: ByteArray? = this.recordFrame,
+        recordFrame: ByteArray? = this.recordFrame, screenSettled: Boolean = this.screenSettled,
     ) = ToolExecution(content, changed = changed, outcome = outcome, frame = frame, images = images, record = record,
-        screenElements = screenElements, imageIds = imageIds, observations = observations, place = place, waitMs = waitMs, recordFrame = recordFrame)
+        screenElements = screenElements, imageIds = imageIds, observations = observations, place = place, waitMs = waitMs,
+        recordFrame = recordFrame, screenSettled = screenSettled)
 
     /** 另读到了 [more]。 */
     fun observing(vararg more: Observation?): ToolExecution = more.filterNotNull().let { if (it.isEmpty()) this else with(observations = observations + it) }

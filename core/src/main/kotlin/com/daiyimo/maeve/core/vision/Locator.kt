@@ -79,13 +79,17 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
     private class Box(val l: Int, val t: Int, val r: Int, val b: Int, val seen: String?)
 
     suspend fun locate(target: String, text: String?): LocateResult {
-        val first = capture().let { it as? Shot.Ok ?: return (it as Shot.Missing).asNotFound() }
+        // 只有按原文核对元素表时才需要两帧,用来确认读树期间画面没变。
+        val first = if (text == null) null else when (val shot = capture()) {
+            is Shot.Ok -> shot
+            is Shot.Missing -> return shot.asNotFound()
+        }
         val elements = if (text != null) readElements() else null
         val second = capture().let { it as? Shot.Ok ?: return (it as Shot.Missing).asNotFound() }
-        val synced = elements != null && hamming(first.hash, second.hash) <= LOCATE_SCREEN_CHANGE
+        val synced = first != null && elements != null && hamming(first.hash, second.hash) <= LOCATE_SCREEN_CHANGE
 
         if (text != null && synced) {
-            val hit = exactMatch(elements!!, text)
+            val hit = exactMatch(elements, text)
             if (hit != null) {
                 val b = hit.bounds
                 val x = mid(b[0], b[2]); val y = mid(b[1], b[3])
@@ -106,7 +110,7 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
             return LocateResult.NotFound("name_mismatch", "The closest match reads \"${box.seen.take(40)}\", not \"$text\", so it was not used. ${m.notFoundNext}")
         }
         val x = mid(box.l, box.r); val y = mid(box.t, box.b)
-        val occupants = if (text != null && synced) elementsAt(elements!!, x, y) else emptyList()
+        val occupants = if (text != null && synced) elementsAt(elements, x, y) else emptyList()
         // 同一点上可能压着好几个元素(树会把同一块地方截断地报两遍):有一个对得上就算数,全对不上才拒
         val agreed = occupants.firstOrNull { it.name.isNotBlank() && !disagree(it.name, text!!) }
         if (agreed == null && occupants.any { it.name.isNotBlank() }) {

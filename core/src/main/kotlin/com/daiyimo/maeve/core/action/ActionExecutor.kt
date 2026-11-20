@@ -295,7 +295,7 @@ class ActionExecutor(
     }
 
     /**
-     * 开着回放时记路线要的目标元素和前后锚点(动作后多读一屏,返回它)。
+     * 开着回放时记路线要的目标元素和前后锚点,并返回用于核对的动作后快照。
      * 取不到目标、动作却生效了:路线不能缺步,标 incomplete,整条路线不记。
      */
     private suspend fun routeTarget(call: Part.ToolCall, verb: Verb?, origin: Origin, exec: ToolExecution): ScreenSnapshot? {
@@ -313,7 +313,7 @@ class ActionExecutor(
                 callId = call.id, source = source, incomplete = true))
             return null
         }
-        val seen = if (effective) ui.peek() else null
+        val seen = if (effective) ui.lastActionSnapshot() else null
         val after = seen?.let(ui::anchorsAfter) ?: none
         recorder.event(RunEvent.ActionTarget(recorder.now(), origin.step, call.name, args, captured.first, captured.second, after, effective,
             callId = call.id, protected = ui.lastActionProtected(), source = source))

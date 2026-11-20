@@ -289,12 +289,12 @@ internal class ScreenSession(
     }
 
     /**
-     * 写操作成功后:等界面稳定(上限 [INLINE_SETTLE_MS])再读一屏,和模型上次拿到的那一屏比,差异放进 screen 字段。
+     * 写操作成功后:端口尚未确认手机画面稳定时先等一等(上限 [INLINE_SETTLE_MS]),再读一屏并附上与上次的差异。
      * base 或最近一次全量屏幕模型已看不到时发全量;读不到屏幕,就照原样返回动作结果。
      */
     suspend fun withScreen(r: ToolExecution): ToolExecution {
         val fresh = try {
-            screen.waitStable(INLINE_SETTLE_MS)
+            if (surface.id != "phone" || !r.screenSettled) screen.waitStable(INLINE_SETTLE_MS)
             snapshot()
             stabilizer!!.latest!!
         } catch (e: CancellationException) {
@@ -360,6 +360,7 @@ internal class ScreenSession(
 
     /** 动作之前的界面状态(不登记编号)和一帧画面,判效果用;读不到的为 null。[png] 是动作前的截图,点了之后给视觉核对用。 */
     class EffectProbe internal constructor(before: ScreenSnapshot?, frame: FrameGrid?, png: ByteArray? = null) {
+        var after: ScreenSnapshot? = null
         var before: ScreenSnapshot? = before
             internal set
         var frame: FrameGrid? = frame
@@ -465,12 +466,14 @@ internal class ScreenSession(
         withTimeoutOrNull(EffectTuning.BUDGET_MS) {
             if (!readAfterAction && !portAlreadyWaited) settle(if (unusable) EffectTuning.SETTLE_UNUSABLE_MS else EffectTuning.SETTLE_MS)
             val after = if (readAfterAction) lastSnapshot else if (unusable) null else peek()
+            probe.after = after
             limitNote = LimitNotice.find(probe.before, after)
             verdict = judgeWith(after, gridNow())
             if (verdict?.kind == EffectKind.NoEffect) {
                 // 界面可能是异步更新的:再等一会儿重看一次,仍没变才算没效果
                 delay(EffectTuning.RECHECK_MS)
                 val again = if (unusable) null else peek()
+                probe.after = again
                 limitNote = limitNote ?: LimitNotice.find(probe.before, again)
                 verdict = judgeWith(again, gridNow())
             }

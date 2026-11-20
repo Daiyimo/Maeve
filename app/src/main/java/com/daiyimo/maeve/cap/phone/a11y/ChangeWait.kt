@@ -21,6 +21,8 @@ internal object ChangeWait {
     const val CAP_MS = 2_500L
     private const val MIN_SLEEP_MS = 10L
 
+    data class Result(val changed: Boolean, val settled: Boolean)
+
     /**
      * @param frame 当前预览帧的亮度格子,没有画面时为 null(此时只靠控件树和事件安静)
      * @param quietForMs 距最近一次界面事件过了多久
@@ -34,7 +36,7 @@ internal object ChangeWait {
         quietForMs: () -> Long,
         treeChanged: () -> Boolean,
         beforeFrame: IntArray?,
-    ): Boolean {
+    ): Result {
         val deadline = now() + CAP_MS
         var prev = frame()
         var wait = POLL_MS
@@ -43,11 +45,11 @@ internal object ChangeWait {
             val cur = frame()
             val quietFor = quietForMs()
             val quiet = quietFor >= QUIET_MS
-            if (quiet && treeChanged()) return true
             val stable = if (prev == null || cur == null) prev == null && cur == null else !FrameMath.differs(prev, cur)
+            if (quiet && treeChanged()) return Result(changed = true, settled = stable && cur != null)
             val frameChanged = FrameMath.differs(beforeFrame, cur)
-            if (quiet && stable && frameChanged) return true
-            if (now() >= deadline) return frameChanged || treeChanged()
+            if (quiet && stable && frameChanged) return Result(changed = true, settled = cur != null)
+            if (now() >= deadline) return Result(changed = frameChanged || treeChanged(), settled = false)
             wait = if (quiet) POLL_MS else minOf(POLL_MS, QUIET_MS - quietFor).coerceAtLeast(MIN_SLEEP_MS)
             prev = cur
         }

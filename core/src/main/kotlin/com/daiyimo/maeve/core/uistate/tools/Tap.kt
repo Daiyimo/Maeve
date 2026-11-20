@@ -116,7 +116,7 @@ internal class Tap(f: ScreenFamily) : ScreenTool(f, "tap") {
             is com.daiyimo.maeve.core.uistate.ActionResult.Failed -> "Keyboard still up after send (${r.reason})."
         }
         val adds = buildMap<String, JsonElement> { put("keyboardHidden", JsonPrimitive(true)); put("keyboardNote", JsonPrimitive(note)) }
-        return outcome.with(content = JsonObject(outcome.content + adds))
+        return outcome.with(content = JsonObject(outcome.content + adds), screenSettled = false)
     }
 
     /** 编号点的对象名:稳定编号取元素名,@vN 取 find_visually 找到的描述。 */

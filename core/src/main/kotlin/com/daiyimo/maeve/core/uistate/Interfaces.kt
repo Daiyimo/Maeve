@@ -266,6 +266,8 @@ internal class Interfaces(
             val typed = if (tool.verb == Verb.TypeText) o.argStr("text") else null
             outcome = session.withEffect(outcome, probe, tool.verb, readsAtAction, aimed.first, aimed.second, typed)
         }
+        val after = if (probe != null) probe.after else session.lastSnapshot.takeIf { session.reads > readsAtAction }
+        gate.capture?.after = after?.takeUnless { it.changedDuringRead }
         if (tool.writesScreen && outcome.content["error"] != JsonPrimitive("invalid_arguments")) session.clearLocated()
         return outcome
     }
@@ -397,6 +399,12 @@ internal class Interfaces(
 
     /** 上一次写操作之前的那一屏,受系统防截屏保护。 */
     fun lastActionProtected(): Boolean = gate.capture?.snapshot?.protected == true
+
+    /** 优先用这次动作已读到的稳定屏幕,没有才为路线另读一次。 */
+    internal suspend fun lastActionSnapshot(): ScreenSnapshot? {
+        val capture = gate.capture ?: return null
+        return capture.after ?: peek()
+    }
 
     /** 上一次写操作之后,此刻读一屏(不登记编号),取动作后新出现的文字;不是写操作或读不到时为 null。 */
     suspend fun actionAfter(): Anchors? {

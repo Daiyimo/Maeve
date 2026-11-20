@@ -84,7 +84,9 @@ internal class GateView {
     }
 
     /** 路线用:写操作执行前,从当时的读屏取下的目标元素、锚点与那一屏。 */
-    class Capture(val target: Selector?, val before: Anchors, val snapshot: ScreenSnapshot?)
+    class Capture(val target: Selector?, val before: Anchors, val snapshot: ScreenSnapshot?) {
+        var after: ScreenSnapshot? = null
+    }
     var capture: Capture? = null
 
     fun anchorsAfter(after: ScreenSnapshot): Anchors? = capture?.let { RouteAnchors.after(it.snapshot, after) }

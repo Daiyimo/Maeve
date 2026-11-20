@@ -165,7 +165,7 @@ sealed interface ActionResult {
      * [switchedByTarget] 新前台是目标 App 在自己任务里打开的(如分享到另一个 App),不是外来打断;[verification] 输入回读的结论;
      * [hint] 端口对这次结果的补充(例如为什么核实不了),原样转给模型;
      * [secret] 输入目标是密码框(运行记录据此不记原文);
-     * [settled] 网页有 DevTools 时:动作后等到网络空闲且页面安静为 true,到上限还没静下来为 false,其余情况为 null;
+     * [settled] 网页有 DevTools 时按网络空闲和页面安静判断;手机端口在事件安静、画面稳定时可报 true。未确认时为 null;
      * [coveredBy] 打开的 App 已到最上面,但另一个包的窗口盖在它上面(权限弹窗、账号选择器)时,那个包的包名;
      * [chooser] 打开 App 后系统先问「打开哪一个」(如同一 App 装了两份),选好之前 App 还没到前台;
      * [opened] 这个动作让某个 App 开到了用户的主屏上(见 [OpenedElsewhere]);

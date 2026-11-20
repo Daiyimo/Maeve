@@ -105,12 +105,13 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _send(MaeveController controller) async {
-    final inputValue = _input.value;
+    final inputValue = _input.value.copyWith(composing: TextRange.empty);
     final text = _input.text;
     if (text.trim().isEmpty || _submitting) return;
     final quote = _quote, key = _draftKey;
     _saveDraft();
     _submitting = true;
+    FocusScope.of(context).unfocus();
     try {
       final accepted = await controller.send(
         text,
@@ -125,7 +126,9 @@ class _ChatPageState extends State<ChatPage> {
       if (controller.drafts[key] == (text: text, quote: quote)) {
         controller.saveDraft(key!, '', null);
       }
-      if (_draftKey == key && _input.value == inputValue && _quote == quote) {
+      if (_draftKey == key &&
+          _input.value.copyWith(composing: TextRange.empty) == inputValue &&
+          _quote == quote) {
         _input.clear();
         setState(() => _quote = null);
       }

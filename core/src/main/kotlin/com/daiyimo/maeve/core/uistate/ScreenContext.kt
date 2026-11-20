@@ -80,7 +80,7 @@ internal fun ToolContext.action(r: ActionResult): ToolExecution = when (r) {
             r.profileUser?.let { put("profileUser", it) }
             r.requestedUser?.let { wanted -> r.profileUser?.let { put("requestedCopy", it == wanted) } }
             if (notes.isNotEmpty()) put("hint", notes.joinToString(" "))
-        }, changed = r.changed, recordFrame = r.pointer?.beforePng, record = buildJsonObject {
+        }, changed = r.changed, recordFrame = r.pointer?.beforePng, screenSettled = r.settled == true, record = buildJsonObject {
             r.pointer?.let { p -> put("pointer", buildJsonObject {
                 put("width", p.width); put("height", p.height); put("method", p.method); put("clicks", p.clicks)
                 p.x?.let { put("x", it) }; p.y?.let { put("y", it) }
