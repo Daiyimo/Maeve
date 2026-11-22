@@ -783,7 +783,7 @@ class _QuotedBlock extends StatelessWidget {
   }
 }
 
-/// 输入条那一整块:引文 / 自动同意 / 活动条叠在纸条上方,底下垫一段渐隐。
+/// 输入条那一整块:引文 / 自动同意 / 活动条叠在纸条上方;玻璃自行采样。
 class _ComposerDock extends StatelessWidget {
   const _ComposerDock({
     required this.controller,
@@ -807,18 +807,6 @@ class _ComposerDock extends StatelessWidget {
     final bottom = MediaQuery.viewPaddingOf(context).bottom;
     return Container(
       padding: EdgeInsets.only(bottom: bottom + MaeveSpace.s6),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            colors.bg.withValues(alpha: 0),
-            colors.bg.withValues(alpha: .92),
-            colors.bg,
-          ],
-          stops: const [0, .55, 1],
-        ),
-      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           MaeveSpace.s12,
@@ -966,6 +954,7 @@ class _ComposerBarState extends State<_ComposerBar> {
       child: MaeveGlassSurface(
         tier: MaeveGlassTier.chrome,
         shape: MaeveShapes.composer,
+        grouped: true,
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: MaeveSize.composer),
           child: Column(

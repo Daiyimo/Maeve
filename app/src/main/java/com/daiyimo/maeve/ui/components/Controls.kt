@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.ui.components
 
+import com.daiyimo.maeve.ui.components.glassShadow
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -41,6 +43,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -316,8 +319,7 @@ fun BarIconButton(
  * 眉标是这套界面最有辨识度的一处——标题上方那行小字 `LOOP 03` / `MODELS` / `DIAGNOSTIC`,
  * 把「这是一个页面」变成「这是一块仪表」。没有眉标时退化为普通的居中标题。
  *
- * 默认是纸(不透明底,内容从底下滚过时不透字);[glass] 为真时才取样背景模糊,
- * 只有浏览器那种整页被内容盖住的场景才需要。
+ * 默认使用 Chrome 玻璃;只有显式传 [glass] = false 才退回调用方提供的纸底。
  */
 @Composable
 fun TopBar(
@@ -337,28 +339,52 @@ fun TopBar(
     eyebrow: String? = null,
     /** 眉标左侧那个小点的颜色。默认强调色。 */
     eyebrowTone: Color = Color.Unspecified,
-    /** 需要玻璃顶栏时打开(默认纸)。 */
-    glass: Boolean = false,
+    /** 默认玻璃;显式关闭时使用 [background]。 */
+    glass: Boolean = true,
 ) {
     val c = MaeveTheme.colors
     val backdrop = LocalGlassBackdrop.current
     val chrome = LocalMaeveSurfaces.current.chrome
-    val sampling = glass && backdrop != null && chrome.blurs
+    val sampling = glass && backdrop != null && chrome.blurs && backdrop.samplesHere()
     // 对话页是「标志 / 标题 / 一行状态」三层，所以顶栏要高出一档；
     // 其他页只有标题（或标题 + 一行），用标准高度。
     // 这一档是给**字标**留的，不是为了堆更多碎字。
     val tall = brand
-    Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBars)) {
-        if (sampling) {
-            // 取样垫排第一个子位:模糊的背后画面,填充和内容依次画上去
-            GlassSampler(chrome, backdrop, Modifier.matchParentSize())
+    val topShape = RectangleShape
+    val fill = when {
+        sampling -> chrome.fill
+        glass -> chrome.fallbackFill
+        else -> background
+    }
+    val hairline = if (glass && chrome.hairlineWidth > 0.dp && chrome.hairline.alpha > 0f) {
+        Modifier.border(chrome.hairlineWidth, chrome.hairline, topShape)
+    } else {
+        Modifier
+    }
+    Box(
+        Modifier.fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .then(if (glass) Modifier.glassShadow(chrome, topShape) else Modifier),
+    ) {
+        if (sampling && backdrop != null) {
+            GlassSampler(chrome, backdrop, Modifier.matchParentSize(), topShape)
         }
         // 这里必须是 fillMaxWidth 而不是 fillMaxSize:外层 Box 是 wrap-content,
         // 内层一旦 fillMaxSize 就会吃掉父级剩余的全部高度——顶栏变成整屏高,
         // 那层不透明底色把后面的内容全盖住,同时把内容顶到屏幕外(全站每一页都会中招)。
         Box(
             Modifier.fillMaxWidth()
-                .then(if (sampling) Modifier.background(chrome.fill) else Modifier.background(background)),
+                .background(fill)
+                .then(
+                    if (glass) {
+                        Modifier
+                            .drawBehind { glassRim(chrome, topShape) }
+                            .drawBehind { glassBevel(chrome, topShape, c) }
+                            .then(hairline)
+                    } else {
+                        Modifier
+                    },
+                ),
         ) {
             Row(
                 Modifier.fillMaxWidth().height(if (tall) MaeveSize.TopBar + 18.dp else MaeveSize.TopBar).padding(horizontal = 8.dp),

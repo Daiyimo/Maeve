@@ -225,10 +225,10 @@ void main() {
     test('四档:只有 chrome / sheet 模糊,σ 与饱和度按契约', () {
       final c = MaeveColors.dark(deriveAccent(MaeveAccentPreset.reverie));
       final s = buildSurfaces(c);
-      expect(s.chrome.blurSigma, 24);
-      expect(s.chrome.saturation, 1.40);
-      expect(s.sheet.blurSigma, 30);
-      expect(s.sheet.saturation, 1.55);
+      expect(s.chrome.blurSigma, 3);
+      expect(s.chrome.saturation, 1.28);
+      expect(s.sheet.blurSigma, 4);
+      expect(s.sheet.saturation, 1.34);
       expect(s.card.blurSigma, 0);
       expect(s.pill.blurSigma, 0);
       // 发丝线 0.75,顶边高光比例按档位。
@@ -335,7 +335,7 @@ void main() {
       );
       expect(data.colors.isDark, isTrue);
       expect(data.accent.id, 'maze');
-      expect(data.surfaces.chrome.blurSigma, 24);
+      expect(data.surfaces.chrome.blurSigma, 3);
       expect(data.motion.reduced, isFalse);
     });
   });

@@ -93,6 +93,9 @@
         android:localeConfig="@xml/locales_config"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@android:style/Theme.Material.Light.NoActionBar">
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="true" />
         <!-- All app entry routes resolve to this single Flutter host. -->
         <activity
             android:name=".ui.MainActivity"

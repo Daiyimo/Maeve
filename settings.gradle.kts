@@ -15,7 +15,12 @@ dependencyResolutionManagement {
         for (mode in listOf("debug", "profile", "release")) {
             maven {
                 url = uri(if (mode == "debug") "flutter/build/host/outputs/repo" else "flutter/build/host-$mode/host/outputs/repo")
-                content { includeModule("com.daiyimo.maeve_flutter", "flutter_$mode") }
+                content {
+                    includeModule("com.daiyimo.maeve_flutter", "flutter_$mode")
+                    if (mode == "debug") {
+                        includeModule("dev.flutter.plugins.integration_test", "integration_test_debug")
+                    }
+                }
             }
         }
         google()

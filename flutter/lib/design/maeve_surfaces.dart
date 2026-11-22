@@ -40,13 +40,249 @@ enum MaeveGlassDensity {
   );
 }
 
-/// 浓度 → (填充, 模糊, 饱和度, 边光) 四项倍率。均衡档恒为 1 —— 默认数值不变。
-(double, double, double, double) _densityScale(MaeveGlassDensity density) =>
-    switch (density) {
-      MaeveGlassDensity.clear => (.45, .70, .90, .60),
-      MaeveGlassDensity.balanced => (1, 1, 1, 1),
-      MaeveGlassDensity.dense => (1.45, 1.35, 1.10, 1.40),
-    };
+/// Dart mirror of shared/glass_tokens.json. Keep these values in sync
+/// with the native/Compose contract; do not tune them independently.
+class _DensityTokens {
+  const _DensityTokens({
+    required this.tint,
+    required this.blur,
+    required this.saturation,
+    required this.light,
+    required this.refraction,
+  });
+
+  final double tint;
+  final double blur;
+  final double saturation;
+  final double light;
+  final double refraction;
+}
+
+const _clearDensity = _DensityTokens(
+  tint: .45,
+  blur: .70,
+  saturation: .90,
+  light: .60,
+  refraction: .85,
+);
+const _balancedDensity = _DensityTokens(
+  tint: 1,
+  blur: 1,
+  saturation: 1,
+  light: 1,
+  refraction: 1,
+);
+const _denseDensity = _DensityTokens(
+  tint: 1.45,
+  blur: 1.35,
+  saturation: 1.10,
+  light: 1.40,
+  refraction: 1.15,
+);
+
+class _TierTokens {
+  const _TierTokens({
+    required this.fillLight,
+    required this.fillDark,
+    required this.blurSigma,
+    required this.fallbackBlurSigma,
+    required this.saturation,
+    required this.refractionStrength,
+    required this.refractionWidth,
+    required this.chromaticAberration,
+    required this.specularStrength,
+    required this.hairlineLight,
+    required this.hairlineDark,
+    required this.rimLight,
+    required this.rimDark,
+    required this.sheenLight,
+    required this.sheenDark,
+    required this.rimFraction,
+    required this.sheenStop,
+    required this.band,
+    required this.catchLightLight,
+    required this.catchLightDark,
+    required this.bevelTopLight,
+    required this.bevelTopDark,
+    required this.bevelSideLight,
+    required this.bevelSideDark,
+    required this.bevelBaseLight,
+    required this.bevelBaseDark,
+    required this.shadowBlur,
+    required this.shadowOffsetY,
+    required this.shadowLight,
+    required this.shadowDark,
+  });
+
+  final double fillLight;
+  final double fillDark;
+  final double blurSigma;
+  final double fallbackBlurSigma;
+  final double saturation;
+  final double refractionStrength;
+  final double refractionWidth;
+  final double chromaticAberration;
+  final double specularStrength;
+  final double hairlineLight;
+  final double hairlineDark;
+  final double rimLight;
+  final double rimDark;
+  final double sheenLight;
+  final double sheenDark;
+  final double rimFraction;
+  final double sheenStop;
+  final double band;
+  final double catchLightLight;
+  final double catchLightDark;
+  final double bevelTopLight;
+  final double bevelTopDark;
+  final double bevelSideLight;
+  final double bevelSideDark;
+  final double bevelBaseLight;
+  final double bevelBaseDark;
+  final double shadowBlur;
+  final double shadowOffsetY;
+  final double shadowLight;
+  final double shadowDark;
+}
+
+const _chromeTokens = _TierTokens(
+  fillLight: .10,
+  fillDark: .14,
+  blurSigma: 3,
+  fallbackBlurSigma: 6,
+  saturation: 1.28,
+  refractionStrength: 14,
+  refractionWidth: 16,
+  chromaticAberration: .65,
+  specularStrength: .55,
+  hairlineLight: .14,
+  hairlineDark: .20,
+  rimLight: .55,
+  rimDark: .32,
+  sheenLight: .14,
+  sheenDark: .06,
+  rimFraction: .46,
+  sheenStop: .62,
+  band: 6,
+  catchLightLight: .65,
+  catchLightDark: .36,
+  bevelTopLight: .30,
+  bevelTopDark: .14,
+  bevelSideLight: .14,
+  bevelSideDark: .06,
+  bevelBaseLight: .06,
+  bevelBaseDark: .12,
+  shadowBlur: 24,
+  shadowOffsetY: 6,
+  shadowLight: .08,
+  shadowDark: .18,
+);
+
+const _sheetTokens = _TierTokens(
+  fillLight: .14,
+  fillDark: .18,
+  blurSigma: 4,
+  fallbackBlurSigma: 8,
+  saturation: 1.34,
+  refractionStrength: 18,
+  refractionWidth: 20,
+  chromaticAberration: .85,
+  specularStrength: .65,
+  hairlineLight: .16,
+  hairlineDark: .22,
+  rimLight: .62,
+  rimDark: .36,
+  sheenLight: .16,
+  sheenDark: .07,
+  rimFraction: .22,
+  sheenStop: .34,
+  band: 7,
+  catchLightLight: .70,
+  catchLightDark: .40,
+  bevelTopLight: .34,
+  bevelTopDark: .16,
+  bevelSideLight: .16,
+  bevelSideDark: .07,
+  bevelBaseLight: .07,
+  bevelBaseDark: .14,
+  shadowBlur: 28,
+  shadowOffsetY: 12,
+  shadowLight: .14,
+  shadowDark: .26,
+);
+
+const _cardTokens = _TierTokens(
+  fillLight: .12,
+  fillDark: .16,
+  blurSigma: 0,
+  fallbackBlurSigma: 0,
+  saturation: 1,
+  refractionStrength: 0,
+  refractionWidth: 0,
+  chromaticAberration: 0,
+  specularStrength: 0,
+  hairlineLight: .12,
+  hairlineDark: .18,
+  rimLight: .38,
+  rimDark: .24,
+  sheenLight: .10,
+  sheenDark: .05,
+  rimFraction: .40,
+  sheenStop: .50,
+  band: 5,
+  catchLightLight: .48,
+  catchLightDark: .28,
+  bevelTopLight: .22,
+  bevelTopDark: .12,
+  bevelSideLight: .10,
+  bevelSideDark: .05,
+  bevelBaseLight: .05,
+  bevelBaseDark: .10,
+  shadowBlur: 14,
+  shadowOffsetY: 3,
+  shadowLight: .05,
+  shadowDark: .10,
+);
+
+const _pillTokens = _TierTokens(
+  fillLight: .16,
+  fillDark: .20,
+  blurSigma: 0,
+  fallbackBlurSigma: 0,
+  saturation: 1,
+  refractionStrength: 0,
+  refractionWidth: 0,
+  chromaticAberration: 0,
+  specularStrength: 0,
+  hairlineLight: .14,
+  hairlineDark: .20,
+  rimLight: .45,
+  rimDark: .28,
+  sheenLight: .12,
+  sheenDark: .05,
+  rimFraction: .50,
+  sheenStop: .50,
+  band: 5,
+  catchLightLight: .52,
+  catchLightDark: .30,
+  bevelTopLight: .24,
+  bevelTopDark: .12,
+  bevelSideLight: .11,
+  bevelSideDark: .05,
+  bevelBaseLight: .05,
+  bevelBaseDark: .10,
+  shadowBlur: 0,
+  shadowOffsetY: 0,
+  shadowLight: 0,
+  shadowDark: 0,
+);
+
+_DensityTokens _densityScale(MaeveGlassDensity density) => switch (density) {
+  MaeveGlassDensity.clear => _clearDensity,
+  MaeveGlassDensity.balanced => _balancedDensity,
+  MaeveGlassDensity.dense => _denseDensity,
+};
 
 /// 一种表面材质的全部参数。
 @immutable
@@ -59,7 +295,12 @@ class MaeveGlassStyle {
     required this.sheen,
     this.sheenStop = .55,
     this.blurSigma = 0,
+    this.fallbackBlurSigma = 0,
     this.saturation = 1,
+    this.refractionStrength = 0,
+    this.refractionWidth = 0,
+    this.chromaticAberration = 0,
+    this.specularStrength = 0,
     this.hairlineWidth = .75,
     this.rimFraction = .30,
     this.shadows = const [],
@@ -103,8 +344,23 @@ class MaeveGlassStyle {
   /// 高斯模糊 σ(逻辑像素)。0 = 不模糊。
   final double blurSigma;
 
+  /// Shader 不可用时的原生模糊 σ(逻辑像素)。
+  final double fallbackBlurSigma;
+
   /// 模糊后的饱和度增益(iOS 式透色)。
   final double saturation;
+
+  /// 边缘折射位移(逻辑像素)。
+  final double refractionStrength;
+
+  /// 边缘折射带宽度(逻辑像素)。
+  final double refractionWidth;
+
+  /// RGB 色散强度(逻辑像素)。
+  final double chromaticAberration;
+
+  /// Fresnel/镜面高光强度。
+  final double specularStrength;
 
   /// 只画在形状**外部**的投影(玻璃内部不被阴影弄脏)。
   final List<BoxShadow> shadows;
@@ -151,7 +407,12 @@ class MaeveGlassStyle {
     Color? sheen,
     double? sheenStop,
     double? blurSigma,
+    double? fallbackBlurSigma,
     double? saturation,
+    double? refractionStrength,
+    double? refractionWidth,
+    double? chromaticAberration,
+    double? specularStrength,
     List<BoxShadow>? shadows,
     double? brightness,
     double? contrast,
@@ -170,7 +431,12 @@ class MaeveGlassStyle {
     sheen: sheen ?? this.sheen,
     sheenStop: sheenStop ?? this.sheenStop,
     blurSigma: blurSigma ?? this.blurSigma,
+    fallbackBlurSigma: fallbackBlurSigma ?? this.fallbackBlurSigma,
     saturation: saturation ?? this.saturation,
+    refractionStrength: refractionStrength ?? this.refractionStrength,
+    refractionWidth: refractionWidth ?? this.refractionWidth,
+    chromaticAberration: chromaticAberration ?? this.chromaticAberration,
+    specularStrength: specularStrength ?? this.specularStrength,
     shadows: shadows ?? this.shadows,
     brightness: brightness ?? this.brightness,
     contrast: contrast ?? this.contrast,
@@ -195,7 +461,12 @@ class MaeveGlassStyle {
       other.sheen == sheen &&
       other.sheenStop == sheenStop &&
       other.blurSigma == blurSigma &&
+      other.fallbackBlurSigma == fallbackBlurSigma &&
       other.saturation == saturation &&
+      other.refractionStrength == refractionStrength &&
+      other.refractionWidth == refractionWidth &&
+      other.chromaticAberration == chromaticAberration &&
+      other.specularStrength == specularStrength &&
       other.brightness == brightness &&
       other.contrast == contrast &&
       other.catchLight == catchLight &&
@@ -216,23 +487,32 @@ class MaeveGlassStyle {
 
   @override
   int get hashCode => Object.hash(
-    fill,
-    fallbackFill,
-    hairline,
-    hairlineWidth,
-    rim,
-    rimFraction,
-    sheen,
-    sheenStop,
-    blurSigma,
-    saturation,
-    brightness,
-    contrast,
-    catchLight,
-    bevelTop,
-    bevelSide,
-    bevelBase,
-    band,
+    Object.hash(
+      fill,
+      fallbackFill,
+      hairline,
+      hairlineWidth,
+      rim,
+      rimFraction,
+      sheen,
+      sheenStop,
+      blurSigma,
+      fallbackBlurSigma,
+      saturation,
+      refractionStrength,
+      refractionWidth,
+      chromaticAberration,
+      specularStrength,
+    ),
+    Object.hash(
+      brightness,
+      contrast,
+      catchLight,
+      bevelTop,
+      bevelSide,
+      bevelBase,
+      band,
+    ),
     Object.hashAll(shadows),
   );
 }
@@ -268,153 +548,90 @@ class MaeveSurfaces {
   };
 }
 
-/// 由颜色、模糊开关与**浓度**出四档表面。均衡档数值与 Compose 侧
-/// `buildSurfaces` 逐项一致。
-///
-/// 唯一一处刻意的偏差:降级填充(`fallbackFill`)按"玻璃色压在画布上再取不透明"
-/// 算,而不是把半透明填充的 alpha 直接改成 0.97。后者在深色下会把 8% 白的表面
-/// 变成 97% 白 —— 一关模糊,顶栏就白成一块塑料。降级只是"不透明",不是"变白"。
-///
-/// 投影统一**暖阴影**(浅色下 [MaeveColors.floatShadow] 是暖褐色):中性灰阴影
-/// 压在奶色纸上会发蓝,整块卡片看起来像贴上去的。
-///
-/// [density] 同时缩放四件东西:填充的厚薄、模糊的 σ、饱和度增益、边光与斜带的
-/// 亮度(见 [_densityScale])。均衡档 = 1,所以默认外观不变。
+/// Builds the four Flutter tiers from the shared optical contract.
+/// Density scales tint, blur, saturation, light and refraction independently.
 MaeveSurfaces buildSurfaces(
   MaeveColors colors, {
   bool blurEnabled = true,
   MaeveGlassDensity density = MaeveGlassDensity.balanced,
 }) {
   Color opaque(Color fill) => Color.alphaBlend(fill, colors.bg);
-  // 深色下投影几乎看不出来,靠发丝线和 sheen 立层次;浅色下投影是主要的层次手段。
   final shadow = colors.floatShadow;
   final dark = colors.isDark;
-  final (tintK, blurK, satK, lightK) = _densityScale(density);
-
-  /// 填充按浓度调厚薄(仍然半透明 —— 不透明就永远成不了玻璃)。
-  ///
-  /// **浅色下浓淡都不是"更白的白"**:画布本身就是奶白,纯缩放透明度肉眼不可辨
-  /// (真机量过:清透↔均衡只差 0~6/765)。glasswork 的厚玻璃是**烟色**的
-  /// (深色材质 #1e1e22),所以浅色下浓郁掺 12% 墨色、清透掺 5% 墨色——
-  /// 三档读作"薄烟 → 白洗 → 厚烟",厚薄单调可辨。深色画布上玻璃本就是中间调,
-  /// 直接缩放不透明度即可,不掺墨。
-  Color fill(Color base) {
-    final scaled = base.withValues(alpha: (base.a * tintK).clamp(0, .92));
-    if (dark) return scaled;
-    return switch (density) {
-      MaeveGlassDensity.clear => Color.alphaBlend(
-        colors.ink.withValues(alpha: .05),
-        scaled,
-      ),
-      MaeveGlassDensity.dense => Color.alphaBlend(
-        colors.ink.withValues(alpha: .12),
-        scaled,
-      ),
-      MaeveGlassDensity.balanced => scaled,
-    };
-  }
-
-  /// 边光 / 斜带按浓度调亮度。
-  Color light(Color base, double alpha) =>
-      base.withValues(alpha: (alpha * lightK).clamp(0, 1));
-  double sigma(double base) => blurEnabled ? base * blurK : 0;
-  double sat(double base) => base * satK;
-
-  // 液态玻璃的"光":浅色玻璃把背后的画面提亮(光透过净玻璃),深色玻璃压暗
-  // (烟色玻璃)。受光边在左上,右下渐隐;斜带贴在边内几像素,读出玻璃的厚度。
-  // 高光一律纯白:暖色高光会让玻璃发黄,读作"旧"(与 MaeveColors 同约定)。
+  final scale = _densityScale(density);
   const white = Color(0xFFFFFFFF);
-  final brightness = dark ? .92 : 1.06;
-  final catchLight = light(white, dark ? .34 : .80);
-  final bevelTop = light(white, dark ? .16 : .42);
-  final bevelSide = light(white, dark ? .07 : .20);
-  final bevelBase = light(colors.ink, dark ? .10 : .05);
+
+  Color light(Color base, double alpha) =>
+      base.withValues(alpha: (alpha * scale.light).clamp(0, 1));
+
+  MaeveGlassStyle style(_TierTokens tokens, Color base) {
+    final fill = base.withValues(
+      alpha: ((dark ? tokens.fillDark : tokens.fillLight) * scale.tint).clamp(
+        0,
+        .92,
+      ),
+    );
+    final shadowAlpha = dark ? tokens.shadowDark : tokens.shadowLight;
+    return MaeveGlassStyle(
+      fill: fill,
+      fallbackFill: opaque(fill),
+      hairline: colors.glassEdge.withValues(
+        alpha: dark ? tokens.hairlineDark : tokens.hairlineLight,
+      ),
+      rim: light(white, dark ? tokens.rimDark : tokens.rimLight),
+      sheen: light(white, dark ? tokens.sheenDark : tokens.sheenLight),
+      sheenStop: tokens.sheenStop,
+      blurSigma: blurEnabled ? tokens.blurSigma * scale.blur : 0,
+      fallbackBlurSigma: blurEnabled
+          ? tokens.fallbackBlurSigma * scale.blur
+          : 0,
+      saturation: tokens.saturation * scale.saturation,
+      refractionStrength: blurEnabled
+          ? tokens.refractionStrength * scale.refraction
+          : 0,
+      refractionWidth: blurEnabled
+          ? tokens.refractionWidth * scale.refraction
+          : 0,
+      chromaticAberration: blurEnabled
+          ? tokens.chromaticAberration * scale.refraction
+          : 0,
+      specularStrength: blurEnabled ? tokens.specularStrength * scale.light : 0,
+      rimFraction: tokens.rimFraction,
+      brightness: dark ? .94 : 1.04,
+      contrast: 1.02,
+      catchLight: light(
+        white,
+        dark ? tokens.catchLightDark : tokens.catchLightLight,
+      ),
+      bevelTop: light(white, dark ? tokens.bevelTopDark : tokens.bevelTopLight),
+      bevelSide: light(
+        white,
+        dark ? tokens.bevelSideDark : tokens.bevelSideLight,
+      ),
+      bevelBase: light(
+        colors.ink,
+        dark ? tokens.bevelBaseDark : tokens.bevelBaseLight,
+      ),
+      band: tokens.band,
+      shadows: tokens.shadowBlur <= 0 || shadowAlpha <= 0
+          ? const []
+          : [
+              BoxShadow(
+                color: shadow.withValues(alpha: shadowAlpha),
+                blurRadius: tokens.shadowBlur,
+                offset: Offset(0, tokens.shadowOffsetY),
+              ),
+            ],
+    );
+  }
 
   return MaeveSurfaces(
     blurEnabled: blurEnabled,
     density: density,
-    chrome: MaeveGlassStyle(
-      fill: fill(colors.glass),
-      fallbackFill: opaque(colors.glass),
-      hairline: colors.glassEdge,
-      rim: light(colors.glassRim, colors.glassRim.a * (dark ? .65 : 1)),
-      sheen: light(colors.sheen, colors.sheen.a),
-      sheenStop: .62,
-      blurSigma: sigma(24),
-      saturation: sat(1.40),
-      rimFraction: .46,
-      brightness: brightness,
-      contrast: 1,
-      catchLight: catchLight,
-      bevelTop: bevelTop,
-      bevelSide: bevelSide,
-      bevelBase: bevelBase,
-      band: 6,
-      shadows: [
-        BoxShadow(
-          color: shadow.withValues(alpha: dark ? .14 : .04),
-          blurRadius: 24,
-          offset: const Offset(0, 6),
-        ),
-      ],
-    ),
-    sheet: MaeveGlassStyle(
-      fill: fill(colors.glassSheet),
-      fallbackFill: opaque(colors.glassSheet),
-      hairline: colors.glassEdge,
-      rim: light(colors.glassRim, colors.glassRim.a * .70),
-      sheen: light(colors.sheen, colors.sheen.a),
-      sheenStop: .34,
-      blurSigma: sigma(30),
-      saturation: sat(1.55),
-      rimFraction: .18,
-      brightness: brightness,
-      contrast: 1,
-      catchLight: catchLight,
-      bevelTop: bevelTop,
-      bevelSide: bevelSide,
-      bevelBase: bevelBase,
-      band: 7,
-      shadows: [
-        BoxShadow(
-          color: shadow.withValues(alpha: dark ? .30 : .12),
-          blurRadius: 28,
-          offset: const Offset(0, 12),
-        ),
-      ],
-    ),
-    card: MaeveGlassStyle(
-      fill: fill(colors.glassCard),
-      fallbackFill: opaque(colors.glassCard),
-      hairline: colors.glassEdge,
-      rim: light(colors.glassRim, colors.glassRim.a * .38),
-      sheen: light(colors.sheen, colors.sheen.a),
-      sheenStop: .50,
-      rimFraction: .40,
-      brightness: brightness,
-      contrast: 1,
-      catchLight: catchLight,
-      bevelTop: bevelTop,
-      bevelSide: bevelSide,
-      bevelBase: bevelBase,
-      band: 5,
-    ),
-    pill: MaeveGlassStyle(
-      fill: fill(colors.glassPill),
-      fallbackFill: opaque(colors.glassPill),
-      hairline: colors.glassEdge,
-      rim: light(colors.glassRim, colors.glassRim.a * .45),
-      sheen: light(colors.sheen, colors.sheen.a),
-      sheenStop: .50,
-      rimFraction: .50,
-      brightness: brightness,
-      contrast: 1,
-      catchLight: catchLight,
-      bevelTop: bevelTop,
-      bevelSide: bevelSide,
-      bevelBase: bevelBase,
-      band: 5,
-    ),
+    chrome: style(_chromeTokens, colors.glass),
+    sheet: style(_sheetTokens, colors.glassSheet),
+    card: style(_cardTokens, colors.glassCard),
+    pill: style(_pillTokens, colors.glassPill),
   );
 }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -38,7 +39,7 @@ export '../design/maeve_surfaces.dart'
 ///
 /// 玻璃内部是半透明的,普通 `BoxShadow` 画在形状下方会透过玻璃、又被模糊一次,
 /// 玻璃中间发灰。这里用 even-odd 裁剪,只在形状**外部**画投影。
-class MaeveGlassSurface extends StatelessWidget {
+class MaeveGlassSurface extends StatefulWidget {
   const MaeveGlassSurface({
     super.key,
     required this.child,
@@ -53,6 +54,7 @@ class MaeveGlassSurface extends StatelessWidget {
     this.onTap,
     this.onLongPress,
     this.framed = true,
+    this.shaderEnabled,
   });
 
   final Widget child;
@@ -75,14 +77,17 @@ class MaeveGlassSurface extends StatelessWidget {
   /// 与同一 [BackdropGroup] 下的其他玻璃共享一次背景采样。
   final bool grouped;
 
-  /// 会动的玻璃(升起、被拖动的弹层)。0 = 在动:不采样背景,用不透明填充。
+  /// 会动的玻璃(升起、被拖动的弹层)。只有 1 表示完全停稳并允许采样。
   final double? settled;
 
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
-  /// Page chrome shares the canvas without a surrounding card outline.
+  /// false 时只省略外阴影;边、斜带和顶光仍然绘制。
   final bool framed;
+
+  /// null 跟随 Impeller 能力;false 可强制走原生模糊回退。
+  final bool? shaderEnabled;
 
   ShapeBorder get _shape =>
       shape ??
@@ -94,101 +99,158 @@ class MaeveGlassSurface extends StatelessWidget {
       };
 
   @override
+  State<MaeveGlassSurface> createState() => _MaeveGlassSurfaceState();
+}
+
+class _MaeveGlassSurfaceState extends State<MaeveGlassSurface> {
+  // Host widget tests compile the shader but disable its runtime GPU path.
+  // Emulator/device builds keep it enabled by default.
+  static const bool _runtimeShaderEnabled = bool.fromEnvironment(
+    'MAEVE_GLASS_SHADER',
+    defaultValue: true,
+  );
+
+  ui.FragmentProgram? _program;
+  ui.FragmentShader? _shader;
+  Object? _shaderKey;
+
+  bool get _shaderSupported =>
+      _runtimeShaderEnabled &&
+      ui.ImageFilter.isShaderFilterSupported &&
+      (widget.shaderEnabled ?? true);
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadShader());
+  }
+
+  @override
+  void didUpdateWidget(covariant MaeveGlassSurface oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final wasSupported =
+        _runtimeShaderEnabled &&
+        ui.ImageFilter.isShaderFilterSupported &&
+        (oldWidget.shaderEnabled ?? true);
+    if (_shaderSupported && !wasSupported) {
+      unawaited(_loadShader());
+    }
+  }
+
+  Future<void> _loadShader() async {
+    if (!_shaderSupported) return;
+    try {
+      final program = await ui.FragmentProgram.fromAsset(
+        'shaders/liquid_glass.frag',
+      );
+      if (!mounted) return;
+      setState(() => _program = program);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _program = null);
+    }
+  }
+
+  @override
+  void dispose() {
+    _shader?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = MaeveTheme.of(context);
     final surfaces = theme.surfaces;
-    final s = surfaces.tier(tier);
+    final s = surfaces.tier(widget.tier);
     final highContrast = MediaQuery.maybeHighContrastOf(context) ?? false;
     final reduce = !surfaces.blurEnabled || highContrast;
-    final useBlur = !reduce && (blur ?? s.blurs);
-    var fill = useBlur
-        ? Color.lerp(s.fallbackFill, s.fill, settled ?? 1)!
-        : (reduce || s.blurs ? s.fallbackFill : s.fill);
-    final tintColor = tint;
+    final useBlur = !reduce && (widget.blur ?? s.blurs);
+    final sampling = useBlur && (widget.settled ?? 1) == 1;
+    var fill = sampling
+        ? s.fill
+        : (useBlur || reduce ? s.fallbackFill : s.fill);
+    final tintColor = widget.tint;
     if (tintColor != null) {
       fill = Color.alphaBlend(
-        tintColor.withValues(alpha: tintAlpha ?? .10),
+        tintColor.withValues(alpha: widget.tintAlpha ?? .10),
         fill,
       );
     }
-    // Unframed chrome should dissolve into the canvas, not form a grey bar.
-    // Keep the opaque accessibility fallback intact.
-    if (!framed && !reduce) fill = fill.withValues(alpha: fill.a * .38);
-    final shape = _shape;
+    final shape = widget._shape;
     final textDirection = Directionality.maybeOf(context);
 
-    Widget content = child;
-    if (padding != null) {
-      content = Padding(padding: padding!, child: content);
+    Widget content = widget.child;
+    if (widget.padding != null) {
+      content = Padding(padding: widget.padding!, child: content);
     }
-    if (onTap != null || onLongPress != null) {
+    if (widget.onTap != null || widget.onLongPress != null) {
       content = Material(
         type: MaterialType.transparency,
         child: InkWell(
           customBorder: shape,
           splashFactory: NoSplash.splashFactory,
           highlightColor: Colors.transparent,
-          onTap: onTap,
-          onLongPress: onLongPress,
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
           child: content,
         ),
       );
     }
 
-    // 层次(从下到上):填充 → 斜带 → 内部提亮 → 内容 → 边。
-    // 斜带垫在内容底下(CSS 里 inset box-shadow 的位置),边画在内容之上。
+    // 从下到上:折射背景 → 斜带 → 填充 → 顶光 → 内容 → 受光边。
     content = CustomPaint(
-      painter: framed
-          ? _GlassBevelPainter(
-              style: s,
-              shape: shape,
-              textDirection: textDirection,
-            )
-          : null,
+      painter: _GlassBevelPainter(
+        style: s,
+        shape: shape,
+        textDirection: textDirection,
+      ),
       child: DecoratedBox(
         decoration: ShapeDecoration(shape: shape, color: fill),
         child: _Sheen(
           shape: shape,
-          sheen: framed ? s.sheen : Colors.transparent,
+          sheen: s.sheen,
           stop: s.sheenStop,
           child: content,
         ),
       ),
     );
     content = CustomPaint(
-      foregroundPainter: !framed
-          ? null
-          : _GlassEdgePainter(
-              style: s,
-              shape: shape,
-              textDirection: textDirection,
-            ),
+      foregroundPainter: _GlassEdgePainter(
+        style: s,
+        shape: shape,
+        textDirection: textDirection,
+      ),
       child: content,
     );
 
-    if (useBlur) {
-      final config = _filterFor(
-        s.blurs ? s.blurSigma : 14,
-        s.saturation,
-        s.brightness,
-        s.contrast,
-      );
-      final sampling = settled != 0;
-      content = grouped
-          ? BackdropFilter.grouped(
-              filterConfig: config,
-              enabled: sampling,
-              child: content,
-            )
-          : BackdropFilter(
-              filterConfig: config,
-              enabled: sampling,
-              child: content,
+    if (sampling) {
+      // Capture the original child before assigning content to the builder;
+      // capturing the mutable variable would make the builder wrap itself.
+      final child = content;
+      if (_runtimeShaderEnabled) {
+        content = LayoutBuilder(
+          builder: (context, constraints) {
+            final config = _filterConfig(
+              s,
+              size: constraints.biggest,
+              shape: shape,
+              textDirection: textDirection,
             );
-      content = _clip(content, shape);
+            return _clip(_backdrop(config, child), shape);
+          },
+        );
+      } else {
+        final config = _filterFor(
+          s.fallbackBlurSigma,
+          s.saturation,
+          s.brightness,
+          s.contrast,
+        );
+        content = _clip(_backdrop(config, child), shape);
+      }
     }
 
-    if (framed && s.shadows.isNotEmpty) {
+    if (widget.framed && s.shadows.isNotEmpty) {
       content = CustomPaint(
         painter: _GlassShadowPainter(
           shape: shape,
@@ -201,7 +263,115 @@ class MaeveGlassSurface extends StatelessWidget {
     return content;
   }
 
-  Widget _clip(Widget child, ShapeBorder shape) {
+  Widget _backdrop(ImageFilterConfig config, Widget child) => widget.grouped
+      ? BackdropFilter.grouped(
+          filterConfig: config,
+          enabled: true,
+          child: child,
+        )
+      : BackdropFilter(filterConfig: config, enabled: true, child: child);
+
+  ImageFilterConfig _filterConfig(
+    MaeveGlassStyle style, {
+    required Size size,
+    required ShapeBorder shape,
+    required TextDirection? textDirection,
+  }) {
+    if (!size.isFinite || size.isEmpty) {
+      return _filterFor(
+        style.fallbackBlurSigma,
+        style.saturation,
+        style.brightness,
+        style.contrast,
+      );
+    }
+    final sigma = style.blurs ? style.blurSigma : style.fallbackBlurSigma;
+    final program = _program;
+    final refractive =
+        style.refractionStrength > 0 ||
+        style.chromaticAberration > 0 ||
+        style.specularStrength > 0;
+    if (!_shaderSupported || program == null || !refractive) {
+      return _filterFor(
+        style.fallbackBlurSigma,
+        style.saturation,
+        style.brightness,
+        style.contrast,
+      );
+    }
+
+    final radii = _radiiFor(shape, size, textDirection);
+    final key = (size, radii, style);
+    if (_shader == null || _shaderKey != key) {
+      _shader?.dispose();
+      final shader = program.fragmentShader();
+      final width = size.width <= 0 ? 1.0 : size.width;
+      _setVec4(shader, 'uRadii', [
+        (radii.$1 / width).clamp(0, .5),
+        (radii.$2 / width).clamp(0, .5),
+        (radii.$3 / width).clamp(0, .5),
+        (radii.$4 / width).clamp(0, .5),
+      ]);
+      _setVec2(shader, 'uSurfaceSize', [size.width, size.height]);
+      _setVec4(shader, 'uOptics', [
+        style.refractionStrength,
+        style.refractionWidth,
+        style.chromaticAberration,
+        style.specularStrength,
+      ]);
+      _setVec4(shader, 'uTone', [
+        style.brightness,
+        style.contrast,
+        style.saturation,
+        0,
+      ]);
+      _shader = shader;
+      _shaderKey = key;
+    }
+
+    return ImageFilterConfig.compose(
+      outer: ImageFilterConfig(ui.ImageFilter.shader(_shader!)),
+      inner: ImageFilterConfig.blur(
+        sigmaX: sigma,
+        sigmaY: sigma,
+        bounded: true,
+      ),
+    );
+  }
+
+  static void _setVec2(ui.FragmentShader shader, String name, List<double> v) {
+    for (var i = 0; i < 2; i++) {
+      shader.getUniformFloat(name, i).set(v[i]);
+    }
+  }
+
+  static void _setVec4(ui.FragmentShader shader, String name, List<double> v) {
+    for (var i = 0; i < 4; i++) {
+      shader.getUniformFloat(name, i).set(v[i]);
+    }
+  }
+
+  static (double, double, double, double) _radiiFor(
+    ShapeBorder shape,
+    Size size,
+    TextDirection? textDirection,
+  ) {
+    if (shape is CircleBorder || shape is StadiumBorder) {
+      final radius = size.shortestSide / 2;
+      return (radius, radius, radius, radius);
+    }
+    if (shape is RoundedRectangleBorder) {
+      final r = shape.borderRadius.resolve(textDirection);
+      return (r.topLeft.x, r.topRight.x, r.bottomRight.x, r.bottomLeft.x);
+    }
+    if (shape is RoundedSuperellipseBorder) {
+      final r = shape.borderRadius.resolve(textDirection);
+      return (r.topLeft.x, r.topRight.x, r.bottomRight.x, r.bottomLeft.x);
+    }
+    return (0, 0, 0, 0);
+  }
+
+  static Widget _clip(Widget child, ShapeBorder shape) {
     if (shape is CircleBorder) return ClipOval(child: child);
     if (shape is StadiumBorder) {
       return ClipRRect(
@@ -217,114 +387,105 @@ class MaeveGlassSurface extends StatelessWidget {
     }
     return child;
   }
+}
 
-  /// glasswork 的 `backdrop-filter`:模糊之后依次做
-  /// saturate → contrast → brightness(顺序与 CSS 一致,合进一个矩阵)。
-  ///
-  /// 浅色玻璃 brightness > 1:背后的画面被提亮,像光透过净玻璃;
-  /// 深色 < 1:背后的画面被压暗,像烟色玻璃 —— 而不是糊成一片灰。
-  static ImageFilterConfig _filterFor(
-    double sigma,
-    double saturation,
-    double brightness,
-    double contrast,
-  ) {
-    final blur = ImageFilterConfig.blur(
-      sigmaX: sigma,
-      sigmaY: sigma,
-      bounded: true,
-    );
-    final plain = saturation == 1 && brightness == 1 && contrast == 1;
-    if (plain) return blur;
-    return ImageFilterConfig.compose(
-      outer: ImageFilterConfig(
-        ColorFilter.matrix(_tone(saturation, contrast, brightness)),
-      ),
-      inner: blur,
-    );
+/// Native blur + tone fallback used when the refractive shader is unavailable.
+ImageFilterConfig _filterFor(
+  double sigma,
+  double saturation,
+  double brightness,
+  double contrast,
+) {
+  final blur = ImageFilterConfig.blur(
+    sigmaX: sigma,
+    sigmaY: sigma,
+    bounded: true,
+  );
+  final plain = saturation == 1 && brightness == 1 && contrast == 1;
+  if (plain) return blur;
+  return ImageFilterConfig.compose(
+    outer: ImageFilterConfig(
+      ColorFilter.matrix(_tone(saturation, contrast, brightness)),
+    ),
+    inner: blur,
+  );
+}
+
+/// 保亮度的饱和度矩阵(Rec. 709 权重)。
+List<double> _saturate(double s) {
+  final r = .2126 * (1 - s);
+  final g = .7152 * (1 - s);
+  final b = .0722 * (1 - s);
+  return <double>[
+    r + s, g, b, 0, 0, //
+    r, g + s, b, 0, 0, //
+    r, g, b + s, 0, 0, //
+    0, 0, 0, 1, 0, //
+  ];
+}
+
+/// 把 saturate / contrast / brightness 三个滤镜按 CSS 的顺序合成一个 4×5 矩阵。
+List<double> _tone(double s, double c, double b) {
+  final sat = _asAffine(_saturate(s));
+  final con = _asAffine(<double>[
+    c, 0, 0, 0, .5 * (1 - c), //
+    0, c, 0, 0, .5 * (1 - c), //
+    0, 0, c, 0, .5 * (1 - c), //
+    0, 0, 0, 1, 0,
+  ]);
+  final bri = _asAffine(<double>[
+    b, 0, 0, 0, 0, //
+    0, b, 0, 0, 0, //
+    0, 0, b, 0, 0, //
+    0, 0, 0, 1, 0,
+  ]);
+  final (m, o) = _compose(_compose(bri, con), sat);
+  return <double>[
+    for (var row = 0; row < 4; row++) ...[
+      m[row][0],
+      m[row][1],
+      m[row][2],
+      m[row][3],
+      o[row],
+    ],
+  ];
+}
+
+(List<List<double>>, List<double>) _asAffine(List<double> m) {
+  final a = <List<double>>[];
+  final o = <double>[];
+  for (var row = 0; row < 4; row++) {
+    a.add(m.sublist(row * 5, row * 5 + 4));
+    o.add(m[row * 5 + 4]);
   }
+  return (a, o);
+}
 
-  /// 保亮度的饱和度矩阵(Rec. 709 权重)。
-  static List<double> _saturate(double s) {
-    final r = .2126 * (1 - s);
-    final g = .7152 * (1 - s);
-    final b = .0722 * (1 - s);
-    return <double>[
-      r + s, g, b, 0, 0, //
-      r, g + s, b, 0, 0, //
-      r, g, b + s, 0, 0, //
-      0, 0, 0, 1, 0, //
-    ];
-  }
-
-  /// 把 saturate / contrast / brightness 三个滤镜按 CSS 的顺序合成一个 4×5 矩阵。
-  ///
-  /// 三个都是通道上的仿射变换(y = A·x + a),按 (A2,a2)∘(A1,a1) =
-  /// (A2·A1, A2·a1 + a2) 复合;alpha 行恒为 [0,0,0,1,0]。
-  static List<double> _tone(double s, double c, double b) {
-    final sat = _asAffine(_saturate(s));
-    final con = _asAffine(<double>[
-      c, 0, 0, 0, .5 * (1 - c), //
-      0, c, 0, 0, .5 * (1 - c), //
-      0, 0, c, 0, .5 * (1 - c), //
-      0, 0, 0, 1, 0,
-    ]);
-    final bri = _asAffine(<double>[
-      b, 0, 0, 0, 0, //
-      0, b, 0, 0, 0, //
-      0, 0, b, 0, 0, //
-      0, 0, 0, 1, 0,
-    ]);
-    // brightness ∘ contrast ∘ saturate(CSS 的应用顺序)
-    final (m, o) = _compose(_compose(bri, con), sat);
-    // ColorFilter.matrix 要 20 个值:每行 4 个矩阵元素 + 1 个偏移。
-    return <double>[
-      for (var row = 0; row < 4; row++) ...[
-        m[row][0],
-        m[row][1],
-        m[row][2],
-        m[row][3],
-        o[row],
-      ],
-    ];
-  }
-
-  /// 4×5 行主序 → (4×4 矩阵, 4 偏移)。
-  static (List<List<double>>, List<double>) _asAffine(List<double> m) {
-    final a = <List<double>>[];
-    final o = <double>[];
-    for (var row = 0; row < 4; row++) {
-      a.add(m.sublist(row * 5, row * 5 + 4));
-      o.add(m[row * 5 + 4]);
-    }
-    return (a, o);
-  }
-
-  /// (A2,a2)∘(A1,a1) = (A2·A1, A2·a1 + a2)。
-  static (List<List<double>>, List<double>) _compose(
-    (List<List<double>>, List<double>) second,
-    (List<List<double>>, List<double>) first,
-  ) {
-    final (a2, o2) = second;
-    final (a1, o1) = first;
-    final a = List.generate(4, (_) => List<double>.filled(4, 0));
-    final o = List<double>.filled(4, 0);
-    for (var i = 0; i < 4; i++) {
-      for (var j = 0; j < 4; j++) {
-        var sum = 0.0;
-        for (var k = 0; k < 4; k++) {
-          sum += a2[i][k] * a1[k][j];
-        }
-        a[i][j] = sum;
+(List<List<double>>, List<double>) _compose(
+  (List<List<double>>, List<double>) second,
+  (List<List<double>>, List<double>) first,
+) {
+  final (a2, o2) = second;
+  final (a1, o1) = first;
+  final a = List.generate(4, (_) => List<double>.filled(4, 0));
+  final o = List<double>.filled(4, 0);
+  for (var i = 0; i < 4; i++) {
+    for (var j = 0; j < 4; j++) {
+      var sum = 0.0;
+      for (var k = 0; k < 4; k++) {
+        sum += a2[i][k] * a1[k][j];
       }
+      a[i][j] = sum;
+    }
+    for (var j = 0; j < 4; j++) {
       var sum = 0.0;
       for (var k = 0; k < 4; k++) {
         sum += a2[i][k] * o1[k];
       }
       o[i] = sum + o2[i];
     }
-    return (a, o);
   }
+  return (a, o);
 }
 
 /// 玻璃内部自上而下的一道提亮(见 [MaeveGlassStyle.sheen])。

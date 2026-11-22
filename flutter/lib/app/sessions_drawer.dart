@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'maeve_controller.dart';
+import '../design/maeve_shapes.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../models/conversation.dart';
@@ -14,9 +15,15 @@ import '../ui/settings/settings_components.dart';
 import '../ui/settings/settings_hub.dart';
 
 class SessionsDrawer extends StatefulWidget {
-  const SessionsDrawer({super.key, this.docked = false, required this.onClose});
+  const SessionsDrawer({
+    super.key,
+    this.docked = false,
+    this.settled = 1,
+    required this.onClose,
+  });
   final VoidCallback onClose;
   final bool docked;
+  final double settled;
   @override
   State<SessionsDrawer> createState() => _SessionsDrawerState();
 }
@@ -138,13 +145,17 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
     final controller = MaeveScope.of(context),
         c = MaeveTheme.of(context).colors;
     final conversations = controller.visibleConversations;
-    return DecoratedBox(
+    return MaeveGlassSurface(
       key: const ValueKey('conversation-sidebar'),
-      decoration: BoxDecoration(
-        color: c.isDark
-            ? c.bg
-            : Color.alphaBlend(c.accent.withValues(alpha: .015), Colors.white),
-        border: Border(right: BorderSide(color: c.rule, width: .5)),
+      tier: MaeveGlassTier.sheet,
+      grouped: false,
+      settled: widget.settled,
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.only(
+          topRight: Radius.circular(MaeveRadius.xl),
+          bottomRight: Radius.circular(MaeveRadius.xl),
+        ),
+        side: BorderSide(color: c.rule, width: .5),
       ),
       child: SafeArea(
         right: false,

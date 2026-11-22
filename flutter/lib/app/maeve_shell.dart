@@ -25,6 +25,7 @@ class _MaeveShellState extends State<MaeveShell>
     vsync: this,
     duration: MaeveMotion.emphasized,
   )..addListener(_syncOverlay);
+  late final BackdropKey _backdropKey = BackdropKey();
   bool _folded = false, _overlayOpen = false, _dragging = false;
   double _dragStart = 0, _dragDelta = 0;
   bool get _wide => MediaQuery.sizeOf(context).width >= MaeveBreakpoints.wide;
@@ -124,58 +125,74 @@ class _MaeveShellState extends State<MaeveShell>
           onHorizontalDragEnd: _end,
           child: AnimatedBuilder(
             animation: _drawer,
-            builder: (context, _) => Stack(
-              fit: StackFit.expand,
-              children: [
-                const Positioned.fill(child: MaeveBackdrop()),
-                Positioned.fill(
-                  child: Row(
-                    children: [
-                      if (wide)
-                        AnimatedContainer(
-                          duration: AppMotion.of(context).emphasized,
-                          curve: MaeveMotion.glide,
-                          width: _folded ? 0 : 288,
-                          child: ClipRect(
-                            child: OverflowBox(
-                              alignment: Alignment.centerLeft,
-                              minWidth: 288,
-                              maxWidth: 288,
-                              child: SessionsDrawer(
-                                docked: true,
-                                onClose: () => setState(() => _folded = true),
+            builder: (context, _) => BackdropGroup(
+              backdropKey: _backdropKey,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  const Positioned.fill(child: MaeveBackdrop()),
+                  Positioned.fill(
+                    child: Row(
+                      children: [
+                        if (wide)
+                          TweenAnimationBuilder<double>(
+                            tween: Tween<double>(
+                              begin: _folded ? 0 : 288,
+                              end: _folded ? 0 : 288,
+                            ),
+                            duration: AppMotion.of(context).emphasized,
+                            curve: MaeveMotion.glide,
+                            builder: (context, width, _) => SizedBox(
+                              width: width,
+                              child: ClipRect(
+                                child: OverflowBox(
+                                  alignment: Alignment.centerLeft,
+                                  minWidth: 288,
+                                  maxWidth: 288,
+                                  child: SessionsDrawer(
+                                    docked: true,
+                                    settled: width == (_folded ? 0 : 288)
+                                        ? 1
+                                        : 0,
+                                    onClose: () =>
+                                        setState(() => _folded = true),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      Expanded(child: ChatPage(onMenu: _toggle)),
-                    ],
+                        Expanded(child: ChatPage(onMenu: _toggle)),
+                      ],
+                    ),
                   ),
-                ),
-                if (!wide && _drawer.value > 0) ...[
-                  Positioned.fill(
-                    child: GestureDetector(
-                      key: const ValueKey('shell-scrim'),
-                      onTap: _close,
-                      child: ColoredBox(
-                        color: colors.scrim.withValues(
-                          alpha: colors.scrim.a * _drawer.value,
+                  if (!wide && _drawer.value > 0) ...[
+                    Positioned.fill(
+                      child: GestureDetector(
+                        key: const ValueKey('shell-scrim'),
+                        onTap: _close,
+                        child: ColoredBox(
+                          color: colors.scrim.withValues(
+                            alpha: colors.scrim.a * _drawer.value,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: _width,
-                    child: Transform.translate(
-                      offset: Offset(-_width * (1 - _drawer.value), 0),
-                      child: SessionsDrawer(onClose: _close),
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: _width,
+                      child: Transform.translate(
+                        offset: Offset(-_width * (1 - _drawer.value), 0),
+                        child: SessionsDrawer(
+                          onClose: _close,
+                          settled: _drawer.value == 1 ? 1 : 0,
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),

@@ -1,7 +1,13 @@
 package com.daiyimo.maeve.ui.components
 
+import android.graphics.BlurMaskFilter as AndroidBlurMaskFilter
+import android.graphics.Paint as AndroidPaint
+import android.graphics.RenderEffect as AndroidRenderEffect
+import android.graphics.RuntimeShader
+import android.graphics.Shader
 import android.os.Build
 import android.view.View
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -35,24 +41,35 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.IntSize
@@ -64,10 +81,17 @@ import com.daiyimo.maeve.ui.theme.LocalGlassBackdrop
 import com.daiyimo.maeve.ui.theme.LocalMaeveSurfaces
 import com.daiyimo.maeve.ui.theme.MaeveBackdrop
 import com.daiyimo.maeve.ui.theme.MaeveColors
+import com.daiyimo.maeve.ui.theme.MaeveRadius
 import com.daiyimo.maeve.ui.theme.MaeveShapes
 import com.daiyimo.maeve.ui.theme.MaeveSize
 import com.daiyimo.maeve.ui.theme.MaeveTheme
+import com.daiyimo.maeve.ui.theme.LocalMaeveColors
+import com.daiyimo.maeve.ui.theme.drawAurora
+import com.daiyimo.maeve.ui.theme.inactiveFill
 import com.daiyimo.maeve.ui.theme.MaeveType
+import com.daiyimo.maeve.R
+import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
@@ -115,21 +139,8 @@ fun Modifier.cardSurface(
     // 弹层、对话框是另一个窗口,坐标根都不一样,取样只会取到错位的东西。
     val sampling = style.blurs && bd != null && bd.samplesHere()
 
-    // 外投影:每一档都有,只是力度不同。平放的卡给一道极浅的(它没浮起来,
-    // 只是垫在页面上一层);顶栏/弹层给重的。投影是「玻璃浮在内容之上」这句话的一半。
-    val shadowed = then(
-        if (style.elevation > 0.dp && style.outerShadow.alpha > 0f) {
-            shadow(
-                style.elevation,
-                shape,
-                clip = false,
-                ambientColor = style.outerShadow.copy(alpha = style.outerShadow.alpha * 0.62f),
-                spotColor = style.outerShadow,
-            )
-        } else {
-            this
-        },
-    ).clip(shape)
+    // 外投影使用契约中的 blur/offset,并且只画在形状外部。
+    val shadowed = then(glassShadow(style, shape)).clip(shape)
 
     val hairline = if (style.hairlineWidth > 0.dp && style.hairline.alpha > 0f) {
         Modifier.border(style.hairlineWidth, style.hairline, shape)
@@ -140,8 +151,11 @@ fun Modifier.cardSurface(
     // 不取样的路径:半透明填充 + 顶边内高光 + 上亮下暗内描边。
     // 三层叠起来在浅色纸面上已经读作「一块玻璃」,而且零渲染风险。
     if (!sampling || bd == null) {
+        // Card/Pill 本来就不采样,必须画半透明 fill;只有 Chrome/Sheet 的
+        // 禁用/跨窗口回退才使用不透明 fallbackFill。
+        val inactive = style.inactiveFill(tier)
         return shadowed
-            .background(style.fallbackFill, shape)
+            .background(inactive, shape)
             .drawBehind { glassRim(style, shape) }
             .drawBehind { glassBevel(style, shape, colors) }
             .then(hairline)
@@ -150,7 +164,7 @@ fun Modifier.cardSurface(
     // 取样的路径:内容节点每录一帧,这里就把那一帧垫在身下,只糊这一帧。
     // 垫进来的层在 .clip(shape) 之后、.background() 之前,所以圆角、填充、
     // 高光、描边的层次都是对的。
-    val slot = rememberGlassSlot(bd, style)
+    val slot = rememberGlassSlot(bd, style, shape)
     return shadowed
         .onGloballyPositioned {
             slot.origin = it.positionInRoot()
@@ -173,6 +187,17 @@ fun Modifier.cardSurface(
  * 一枚 28dp 的药丸不该整个被高光填满,一张 200dp 的卡也不该只有一条细线。
  */
 internal fun DrawScope.glassRim(style: GlassStyle, shape: Shape) {
+    if (style.sheen.alpha > 0f) {
+        val sheenHeight = (size.height * style.sheenStop).coerceAtLeast(1f)
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(style.sheen, Color.Transparent),
+                startY = 0f,
+                endY = sheenHeight,
+            ),
+            size = Size(size.width, sheenHeight),
+        )
+    }
     if (style.rim.alpha <= 0f) return
     val rimHeight = (size.height * style.rimFraction).coerceIn(2f, 26.dp.toPx())
     drawRect(
@@ -302,6 +327,38 @@ private fun Shape.toFlatPath(size: Size, density: androidx.compose.ui.unit.Densi
     }
 }
 
+/** 契约中的外阴影:even-odd 裁掉形状内部,只让模糊落在玻璃外。 */
+fun Modifier.glassShadow(style: GlassStyle, shape: Shape): Modifier =
+    if (style.shadowBlur <= 0.dp || style.outerShadow.alpha <= 0f) {
+        this
+    } else {
+        drawBehind { drawGlassShadow(style, shape) }
+    }
+
+private fun DrawScope.drawGlassShadow(style: GlassStyle, shape: Shape) {
+    val blur = style.shadowBlur.toPx()
+    if (blur <= 0f || style.outerShadow.alpha <= 0f) return
+    val offsetY = style.shadowOffsetY.toPx()
+    val extent = blur * 3f + abs(offsetY) + 2f
+    val shapePath = shape.toFlatPath(size, this)
+    val outside = Path().apply {
+        fillType = PathFillType.EvenOdd
+        addRect(Rect(-extent, -extent, size.width + extent, size.height + extent))
+        addPath(shapePath)
+    }
+    val paint = AndroidPaint().apply {
+        color = style.outerShadow.toArgb()
+        maskFilter = AndroidBlurMaskFilter(blur, AndroidBlurMaskFilter.Blur.NORMAL)
+    }
+    clipPath(outside) {
+        translate(0f, offsetY) {
+            drawIntoCanvas { canvas ->
+                canvas.nativeCanvas.drawPath(shapePath.asAndroidPath(), paint)
+            }
+        }
+    }
+}
+
 /**
  * **轻量玻璃**:给那些原本 `background(某个颜色)` 直接铺底的大块元素用。
  *
@@ -404,13 +461,16 @@ fun StateCard(
  */
 val GlassBlurSupported: Boolean = Build.VERSION.SDK_INT >= 31
 
+/** AGSL/RuntimeShader RenderEffect 从 Android 13 起可用。 */
+val GlassRefractionSupported: Boolean = Build.VERSION.SDK_INT >= 33
+
 /**
  * 录制时玻璃四周多录多少像素(σ 的倍数)。
  *
  * 高斯模糊需要玻璃**外面**的真实内容才能糊得自然;只录玻璃自己那一块的话,
  * 边缘会因为 `TileMode.Clamp` 把边像素往外拉,糊出一个可见的"硬框"。
  */
-private const val BLUR_BLEED_SIGMA = 2f
+private const val BLUR_BLEED_SIGMA = 3f
 
 /** 溢出的录制区最大多少 dp。防呆:一个尺寸写错的玻璃件不该吃掉几十兆内存。 */
 private val MAX_BLEED_DP = 64.dp
@@ -434,13 +494,21 @@ internal class GlassSlot {
     /** 录制代:每录一帧 +1。玻璃件读它驱动自己重画(因此有一帧滞后)。 */
     var frame by mutableIntStateOf(0)
 
-    /** 录好的那一层:内容 + BlurEffect + 饱和度,由内容节点写入。 */
+    /** 当前材质与形状;source 录制时按尺寸折算四角半径和光学 uniforms。 */
+    internal var style by mutableStateOf<GlassStyle?>(null)
+    internal var shape by mutableStateOf<Shape>(RectangleShape)
+    internal var radii: FloatArray = FloatArray(4)
+
+    /** API 33 实现隔离在单独类中,低版本不会加载 RuntimeShader 类型。 */
+    internal var shaderHolder by mutableStateOf<Any?>(null)
+
+    /** 录好的那一层:内容 + Blur/RuntimeShader Effect,由内容节点写入。 */
     internal var layer: GraphicsLayer? = null
     /** 层比玻璃大出来的那一圈(px)。玻璃按 `-pad` 平移到正确位置。 */
     internal var pad = 0f
-    /** σ(px)。0 表示这一档不糊。 */
+    /** 当前生效的 σ(px)。0 表示这一档不糊。 */
     internal var sigma = 0f
-    /** 饱和度增益;iOS 式「透色」,背后的颜色透过玻璃更艳。 */
+    /** API 31-32/blur-only 路径使用的饱和度与色调矩阵。 */
     internal var filter: ColorFilter? = null
 }
 
@@ -478,14 +546,14 @@ class GlassBackdrop internal constructor(
 /** 不支持模糊时为 null,玻璃件就用不透明底。 */
 @Composable
 fun rememberGlassBackdrop(): GlassBackdrop? {
-    if (!GlassBlurSupported) return null
     val view = LocalView.current
+    if (!GlassBlurSupported || !view.isHardwareAccelerated) return null
     return remember(view) { GlassBackdrop(view) }
 }
 
 /** 玻璃件和内容在同一个窗口里才取样。弹层、对话框是另一个窗口,坐标根都不一样。 */
 @Composable
-private fun GlassBackdrop.samplesHere(): Boolean = LocalView.current === view
+internal fun GlassBackdrop.samplesHere(): Boolean = LocalView.current === view
 
 /**
  * 玻璃件的取样运行时:一个槽位。
@@ -494,13 +562,33 @@ private fun GlassBackdrop.samplesHere(): Boolean = LocalView.current === view
  * 离开组合时注销,槽位不会留在注册表里白录。
  */
 @Composable
-private fun rememberGlassSlot(backdrop: GlassBackdrop, style: GlassStyle): GlassSlot {
+private fun rememberGlassSlot(
+    backdrop: GlassBackdrop,
+    style: GlassStyle,
+    shape: Shape,
+): GlassSlot {
     val slot = remember { GlassSlot() }
     val density = LocalDensity.current
+    val context = LocalContext.current
+    slot.style = style
+    slot.shape = shape
     remember(style, density) {
-        // blurSigma 记的是 dp,这里折成 px 存进槽位
         slot.sigma = style.blurSigma * density.density
         slot.filter = toneFilter(style.saturation, style.brightness, style.contrast)
+    }
+    val shaderSource = remember(context) {
+        runCatching {
+            context.resources.openRawResource(R.raw.glass_refraction)
+                .bufferedReader()
+                .use { it.readText() }
+        }.getOrNull()
+    }
+    slot.shaderHolder = if (Build.VERSION.SDK_INT >= 33 && shaderSource != null) {
+        remember(shaderSource) {
+            runCatching { Api33ShaderHolder(shaderSource) }.getOrNull()
+        }
+    } else {
+        null
     }
     DisposableEffect(backdrop, slot) {
         backdrop.add(slot)
@@ -526,73 +614,105 @@ fun Modifier.glassSource(backdrop: GlassBackdrop?): Modifier =
     else composed(
         inspectorInfo = { name = "glassSource" },
         factory = {
-            // 每个内容节点一个身份牌,用来在 backdrop.sources 里认「谁是第一个」
             val token = remember { Any() }
             DisposableEffect(backdrop, token) {
                 backdrop.sources.add(token)
                 onDispose { backdrop.sources.remove(token) }
             }
+            val colors = LocalMaeveColors.current
             onGloballyPositioned { backdrop.sourceOrigin = it.positionInRoot() }
+                // The source owns the wallpaper so the recorded backdrop contains
+                // the aurora as well as scrolling content. The outer MaeveBackdrop
+                // keeps drawing it for pages that do not opt into sampling.
+                .drawBehind { drawAurora(colors) }
                 .drawWithCache {
-                    // 读槽位数量:有玻璃件挂上来/撤下去时重建缓存,顺手重申请层。
                     val count = backdrop.slots.size
-                    // 同一时刻只让第一个内容节点录,避免嵌套 glassSource 录两遍。
                     val designated = backdrop.sources.firstOrNull() === token
                     val layers = List(count) { obtainGraphicsLayer() }
                     val density = this
                     onDrawWithContent {
-                        // 先把正常内容画到屏幕上(主界面看得见的唯一来源),
-                        // 再把同一份内容按槽位录进层。顺序不能反。
                         drawContent()
                         if (count == 0 || !designated) return@onDrawWithContent
                         val src = backdrop.sourceOrigin
                         for (i in 0 until count) {
                             val slot = backdrop.slots.getOrNull(i) ?: continue
                             val layer = layers.getOrNull(i) ?: continue
+                            val style = slot.style ?: continue
                             val gw = slot.size.width
                             val gh = slot.size.height
                             if (gw < 1f || gh < 1f) continue
-                            val sigma = slot.sigma
-                            val pad = if (sigma > 0f) {
-                                (sigma * BLUR_BLEED_SIGMA).coerceAtMost(with(density) { MAX_BLEED_DP.toPx() })
-                            } else {
-                                0f
-                            }
-                            // 玻璃看到的是「背后那块」:把内容平移过来,让槽位那一块落在层里
+
+                            val refractive = Build.VERSION.SDK_INT >= 33 &&
+                                slot.shaderHolder != null && style.refracts
+                            val refractiveSigma = style.blurSigma * density.density
+                            val fallbackSigma = style.fallbackBlurSigma * density.density
+                            val refractionPx = if (refractive) style.refractionStrength.toPx() else 0f
+                            // 同时覆盖折射和 shader 失败后的 fallback blur。
+                            val pad = max(
+                                max(refractiveSigma, fallbackSigma) * BLUR_BLEED_SIGMA,
+                                refractionPx + 2.dp.toPx(),
+                            ).coerceAtMost(MAX_BLEED_DP.toPx())
+
                             val dx = slot.origin.x - src.x
                             val dy = slot.origin.y - src.y
                             val lw = (gw + pad * 2f).roundToInt().coerceIn(1, MAX_CAPTURE_PX)
                             val lh = (gh + pad * 2f).roundToInt().coerceIn(1, MAX_CAPTURE_PX)
+                            slot.radii = slot.shape.cornerRadiiPx(Size(gw, gh), density, layoutDirection)
+                            if (Build.VERSION.SDK_INT >= 33 && refractive) {
+                                (slot.shaderHolder as? Api33ShaderHolder)?.updateUniforms(
+                                    layerWidth = lw,
+                                    layerHeight = lh,
+                                    pad = pad,
+                                    glassWidth = gw,
+                                    glassHeight = gh,
+                                    radii = slot.radii,
+                                    optics = floatArrayOf(
+                                        style.refractionStrength.toPx(),
+                                        style.refractionWidth.toPx(),
+                                        style.chromaticAberration.toPx(),
+                                        style.specularStrength,
+                                    ),
+                                    tone = floatArrayOf(
+                                        style.saturation,
+                                        style.brightness,
+                                        style.contrast,
+                                    ),
+                                )
+                            }
+                            val prepared = prepareSlotEffect(slot, refractiveSigma, fallbackSigma)
+                            slot.sigma = prepared.sigma
                             layer.clip = true
-                            layer.renderEffect =
-                                if (sigma > 0f) BlurEffect(sigma, sigma, TileMode.Clamp) else null
-                            layer.colorFilter = slot.filter
+                            layer.renderEffect = prepared.renderEffect
+                            layer.colorFilter = prepared.colorFilter
                             try {
-                                // ★ record 的 block 里 this 是**这一层自己的** DrawScope,
-                                //   canvas 是层的录制画布。把外层 ContentDrawScope 的
-                                //   canvas 临时换成它,drawContent() 就录进离屏层;
-                                //   录完换回来,屏幕上照常。
-                                //   这是 1.7.6 唯一的公开路径:CacheDrawScope.record
-                                //   和 DrawScope.record 都是 internal。
                                 layer.record(density, layoutDirection, IntSize(lw, lh)) {
                                     val outer = this@onDrawWithContent
                                     val ctx = outer.drawContext
                                     val savedCanvas = ctx.canvas
                                     val savedLayer = ctx.graphicsLayer
-                                    ctx.canvas = drawContext.canvas
-                                    ctx.graphicsLayer = layer
-                                    drawContext.canvas.save()
-                                    drawContext.canvas.translate(-(dx - pad), -(dy - pad))
-                                    outer.drawContent()
-                                    drawContext.canvas.restore()
-                                    ctx.canvas = savedCanvas
-                                    ctx.graphicsLayer = savedLayer
+                                    var saved = false
+                                    try {
+                                        ctx.canvas = drawContext.canvas
+                                        ctx.graphicsLayer = layer
+                                        drawContext.canvas.save()
+                                        saved = true
+                                        drawContext.canvas.translate(-(dx - pad), -(dy - pad))
+                                        outer.drawContent()
+                                    } finally {
+                                        try {
+                                            if (saved) drawContext.canvas.restore()
+                                        } finally {
+                                            ctx.canvas = savedCanvas
+                                            ctx.graphicsLayer = savedLayer
+                                        }
+                                    }
                                 }
                                 slot.layer = layer
                                 slot.pad = pad
                                 slot.frame++
-                            } catch (t: Throwable) {
-                                // 某一层录失败不该带走整个页面:这一帧不垫,玻璃退回不透明底
+                            } catch (_: IllegalArgumentException) {
+                                slot.layer = null
+                            } catch (_: IllegalStateException) {
                                 slot.layer = null
                             }
                         }
@@ -601,16 +721,96 @@ fun Modifier.glassSource(backdrop: GlassBackdrop?): Modifier =
         },
     )
 
-/**
- * 把槽位录下来的那一帧垫在玻璃身下。
- *
- * 层是内容节点录的,这里只负责**摆到正确的位置**:层的左上角对应玻璃左上角
- * 再往外扩 [GlassSlot.pad],所以玻璃本地坐标系里层画在 `(-pad, -pad)`。
- * 圆角由调用方的 `.clip(shape)` 负责——这个 drawBehind 排在它后面。
- *
- * 还没录到东西时(第一帧,或者这一页根本没有 [glassSource])先按不透明底画一笔,
- * 别让背后的内容从半透明填充里直接透出来。
- */
+private data class PreparedSlotEffect(
+    val renderEffect: RenderEffect?,
+    val colorFilter: ColorFilter?,
+    val sigma: Float,
+)
+
+private fun prepareSlotEffect(
+    slot: GlassSlot,
+    refractiveSigma: Float,
+    fallbackSigma: Float,
+): PreparedSlotEffect {
+    if (Build.VERSION.SDK_INT >= 33) {
+        val holder = slot.shaderHolder as? Api33ShaderHolder
+        if (holder != null && (slot.style?.refracts == true)) {
+            try {
+                return PreparedSlotEffect(
+                    renderEffect = createRefractionEffect(holder, refractiveSigma),
+                    colorFilter = null,
+                    sigma = refractiveSigma,
+                )
+            } catch (_: IllegalArgumentException) {
+                slot.shaderHolder = null
+            } catch (_: IllegalStateException) {
+                slot.shaderHolder = null
+            }
+        }
+    }
+    return PreparedSlotEffect(
+        renderEffect = if (fallbackSigma > 0f) BlurEffect(fallbackSigma, fallbackSigma, TileMode.Clamp) else null,
+        colorFilter = slot.filter,
+        sigma = fallbackSigma,
+    )
+}
+
+@RequiresApi(33)
+private fun createRefractionEffect(holder: Api33ShaderHolder, sigma: Float): RenderEffect {
+    val blur = AndroidRenderEffect.createBlurEffect(sigma, sigma, Shader.TileMode.CLAMP)
+    val lens = AndroidRenderEffect.createRuntimeShaderEffect(holder.shader, "content")
+    return AndroidRenderEffect.createChainEffect(lens, blur).asComposeRenderEffect()
+}
+
+@RequiresApi(33)
+internal class Api33ShaderHolder(source: String) {
+    val shader = RuntimeShader(source)
+
+    fun updateUniforms(
+        layerWidth: Int,
+        layerHeight: Int,
+        pad: Float,
+        glassWidth: Float,
+        glassHeight: Float,
+        radii: FloatArray,
+        optics: FloatArray,
+        tone: FloatArray,
+    ) {
+        shader.setFloatUniform("uSize", layerWidth.toFloat(), layerHeight.toFloat())
+        shader.setFloatUniform("uGlassRect", pad, pad, glassWidth, glassHeight)
+        shader.setFloatUniform("uRadii", radii[0], radii[1], radii[2], radii[3])
+        shader.setFloatUniform("uOptics", optics[0], optics[1], optics[2], optics[3])
+        shader.setFloatUniform("uTone", tone[0], tone[1], tone[2])
+    }
+}
+
+private fun Shape.cornerRadiiPx(
+    size: Size,
+    density: androidx.compose.ui.unit.Density,
+    layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+): FloatArray {
+    when (val outline = createOutline(size, layoutDirection, density)) {
+        is androidx.compose.ui.graphics.Outline.Rectangle -> return FloatArray(4)
+        is androidx.compose.ui.graphics.Outline.Rounded -> {
+            val r = outline.roundRect
+            return floatArrayOf(
+                r.topLeftCornerRadius.x,
+                r.topRightCornerRadius.x,
+                r.bottomRightCornerRadius.x,
+                r.bottomLeftCornerRadius.x,
+            )
+        }
+        is androidx.compose.ui.graphics.Outline.Generic -> when (this) {
+            MaeveShapes.Sheet -> return FloatArray(4) { with(density) { MaeveRadius.Xl.toPx() } }
+            MaeveShapes.Card -> return FloatArray(4) { with(density) { MaeveRadius.Lg.toPx() } }
+            MaeveShapes.Button -> return FloatArray(4) { with(density) { MaeveRadius.Md.toPx() } }
+            MaeveShapes.Tile -> return FloatArray(4) { with(density) { MaeveRadius.Sm.toPx() } }
+            CircleShape -> return FloatArray(4) { minOf(size.width, size.height) / 2f }
+            else -> return FloatArray(4) { with(density) { 14.dp.toPx() } }
+        }
+    }
+}
+
 private fun DrawScope.drawGlassSample(slot: GlassSlot, style: GlassStyle) {
     // 读帧号:内容每录一帧,这块玻璃就跟着重画一次(因此有一帧滞后,模糊看不出来)
     if (slot.frame == 0) {
@@ -636,8 +836,13 @@ private fun DrawScope.drawGlassSample(slot: GlassSlot, style: GlassStyle) {
  * 填充和内容依次画在它上面。
  */
 @Composable
-fun GlassSampler(style: GlassStyle, backdrop: GlassBackdrop, modifier: Modifier = Modifier) {
-    val slot = rememberGlassSlot(backdrop, style)
+fun GlassSampler(
+    style: GlassStyle,
+    backdrop: GlassBackdrop,
+    modifier: Modifier = Modifier,
+    shape: Shape = RectangleShape,
+) {
+    val slot = rememberGlassSlot(backdrop, style, shape)
     Box(
         modifier
             .onGloballyPositioned {
@@ -662,17 +867,23 @@ fun GlassBar(
     val c = MaeveTheme.colors
     val style = LocalMaeveSurfaces.current.chrome
     val sampling = backdrop != null && style.blurs && backdrop.samplesHere()
+    val hairline = if (style.hairlineWidth > 0.dp && style.hairline.alpha > 0f) {
+        Modifier.border(style.hairlineWidth, style.hairline, shape)
+    } else {
+        Modifier
+    }
     Box(
-        modifier.floatShadow(c, shape).clip(shape),
+        modifier.glassShadow(style, shape).clip(shape),
     ) {
-        if (sampling) {
-            GlassSampler(style, backdrop, Modifier.matchParentSize())
+        if (sampling && backdrop != null) {
+            GlassSampler(style, backdrop, Modifier.matchParentSize(), shape)
         }
         Row(
             Modifier.fillMaxWidth()
                 .background(if (sampling) style.fill else style.fallbackFill)
                 .drawBehind { glassRim(style, shape) }
                 .drawBehind { glassBevel(style, shape, c) }
+                .then(hairline)
                 .heightIn(min = MaeveSize.Composer).padding(6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),

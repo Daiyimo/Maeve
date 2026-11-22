@@ -1,0 +1,68 @@
+uniform shader content;
+uniform float2 uSize;
+uniform float4 uGlassRect;
+uniform float4 uRadii;
+uniform float4 uOptics;
+uniform float3 uTone;
+
+float sdRoundRect(float2 p, float2 halfSize, float4 radii) {
+    float radius = p.y < 0.0
+        ? (p.x < 0.0 ? radii.x : radii.y)
+        : (p.x > 0.0 ? radii.z : radii.w);
+    float2 q = abs(p) - halfSize + radius;
+    return length(max(q, float2(0.0))) + min(max(q.x, q.y), 0.0) - radius;
+}
+
+float2 clampToLayer(float2 p) {
+    return clamp(p, float2(0.0), uSize);
+}
+
+half4 main(float2 fragCoord) {
+    float2 glassMin = uGlassRect.xy;
+    float2 glassMax = glassMin + uGlassRect.zw;
+    if (fragCoord.x < glassMin.x || fragCoord.y < glassMin.y ||
+        fragCoord.x > glassMax.x || fragCoord.y > glassMax.y) {
+        return content.eval(fragCoord);
+    }
+
+    float2 halfSize = uGlassRect.zw * 0.5;
+    float2 p = fragCoord - (glassMin + halfSize);
+    float d = sdRoundRect(p, halfSize, uRadii);
+    if (d > 0.0) {
+        return content.eval(fragCoord);
+    }
+
+    float edgeWidth = max(uOptics.y, 0.0001);
+    float band = smoothstep(-edgeWidth, 0.0, d);
+
+    float e = 0.75;
+    float2 grad = float2(
+        sdRoundRect(p + float2(e, 0.0), halfSize, uRadii)
+      - sdRoundRect(p - float2(e, 0.0), halfSize, uRadii),
+        sdRoundRect(p + float2(0.0, e), halfSize, uRadii)
+      - sdRoundRect(p - float2(0.0, e), halfSize, uRadii)
+    );
+    float2 normal = grad / max(length(grad), 0.0001);
+    float2 shift = -normal * uOptics.x * band;
+    float2 dispersion = normal * uOptics.z * band;
+
+    half4 c;
+    c.r = content.eval(clampToLayer(fragCoord + shift + dispersion)).r;
+    c.g = content.eval(clampToLayer(fragCoord + shift)).g;
+    c.b = content.eval(clampToLayer(fragCoord + shift - dispersion)).b;
+    c.a = content.eval(clampToLayer(fragCoord + shift)).a;
+
+    float luma = dot(c.rgb, float3(0.2126, 0.7152, 0.0722));
+    c.rgb = mix(float3(luma), c.rgb, uTone.x);
+    c.rgb = (c.rgb - 0.5) * uTone.z + 0.5;
+    c.rgb *= uTone.y;
+
+    float2 lightDir = normalize(float2(-0.55, -0.835));
+    float facing = max(dot(normal, lightDir), 0.0);
+    float fresnel = pow(band, 2.5);
+    float mirror = exp(-abs(d + 1.5) / 1.25) * pow(facing, 8.0);
+    c.rgb += float3(uOptics.w * (0.35 * fresnel + 0.65 * mirror));
+
+    c.rgb = clamp(c.rgb, 0.0, 1.0);
+    return c;
+}

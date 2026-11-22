@@ -1,7 +1,6 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:maeve_flutter/design/maeve_accent.dart';
@@ -20,6 +19,7 @@ Widget host(
   Brightness brightness = Brightness.dark,
   bool blurEnabled = true,
   bool highContrast = false,
+  MaeveGlassDensity density = MaeveGlassDensity.balanced,
 }) => MaterialApp(
   theme: maeveTheme(brightness: brightness),
   home: MediaQuery(
@@ -28,6 +28,7 @@ Widget host(
       brightness: brightness,
       accent: deriveAccent(MaeveAccentPreset.reverie),
       blurEnabled: blurEnabled,
+      glassDensity: density,
       child: Scaffold(body: Center(child: child)),
     ),
   ),
@@ -44,6 +45,7 @@ void main() {
               tier: MaeveGlassTier.chrome,
               child: Text('chrome'),
             ),
+            MaeveGlassSurface(tier: MaeveGlassTier.sheet, child: Text('sheet')),
             MaeveGlassSurface(tier: MaeveGlassTier.card, child: Text('card')),
             MaeveGlassSurface(tier: MaeveGlassTier.pill, child: Text('pill')),
           ],
@@ -51,10 +53,11 @@ void main() {
       ),
     );
     expect(find.text('chrome'), findsOneWidget);
+    expect(find.text('sheet'), findsOneWidget);
     expect(find.text('card'), findsOneWidget);
     expect(find.text('pill'), findsOneWidget);
-    // 只有 chrome 建了一层采样;card / pill 长在滚动内容里,取样会玻璃套玻璃。
-    expect(find.byType(BackdropFilter), findsOneWidget);
+    // chrome / sheet 采样;card / pill 长在滚动内容里,不玻璃套玻璃。
+    expect(find.byType(BackdropFilter), findsNWidgets(2));
   });
 
   testWidgets('关模糊(降级路径):一个 BackdropFilter 都不建', (tester) async {
@@ -80,10 +83,14 @@ void main() {
             builder: (context) {
               final surfaces = MaeveTheme.of(context).surfaces;
               expect(surfaces.density, MaeveGlassDensity.dense);
-              // 浓郁档:填充更厚、模糊更强,但每一档都仍然半透明。
-              expect(surfaces.chrome.fill.a, greaterThan(.5));
-              expect(surfaces.chrome.fill.a, lessThan(1));
-              expect(surfaces.chrome.blurSigma, greaterThan(24));
+              // 共享契约:浓郁档只做倍率缩放,不恢复旧的高磨砂参数。
+              expect(surfaces.chrome.fill.a, closeTo(.14 * 1.45, 0.0001));
+              expect(surfaces.chrome.blurSigma, closeTo(3 * 1.35, 0.0001));
+              expect(surfaces.chrome.saturation, closeTo(1.28 * 1.10, 0.0001));
+              expect(
+                surfaces.chrome.refractionStrength,
+                closeTo(14 * 1.15, 0.0001),
+              );
               return const SizedBox();
             },
           ),
@@ -125,7 +132,7 @@ void main() {
     expect(find.byType(BackdropFilter), findsNothing);
   });
 
-  testWidgets('会动的玻璃保留 filter 但停止采样', (tester) async {
+  testWidgets('会动的玻璃不创建采样层,停稳后才采样', (tester) async {
     await tester.pumpWidget(
       host(
         const MaeveGlassSurface(
@@ -135,21 +142,81 @@ void main() {
         ),
       ),
     );
-    final filter = tester.widget<BackdropFilter>(find.byType(BackdropFilter));
-    expect(filter.enabled, isFalse);
+    expect(find.byType(BackdropFilter), findsNothing);
+
+    await tester.pumpWidget(
+      host(
+        const MaeveGlassSurface(
+          tier: MaeveGlassTier.chrome,
+          settled: .999,
+          child: Text('moving'),
+        ),
+      ),
+    );
+    expect(find.byType(BackdropFilter), findsNothing);
+
+    await tester.pumpWidget(
+      host(
+        const MaeveGlassSurface(
+          tier: MaeveGlassTier.chrome,
+          settled: 1,
+          child: Text('settled'),
+        ),
+      ),
+    );
+    expect(find.byType(BackdropFilter), findsOneWidget);
   });
 
-  testWidgets('card 可以被强制开模糊(sigma 兜底 14)', (tester) async {
+  testWidgets('card 可以被强制开模糊,但契约光学参数仍为零', (tester) async {
     await tester.pumpWidget(
       host(
         const MaeveGlassSurface(
           tier: MaeveGlassTier.card,
           blur: true,
+          shaderEnabled: false,
           child: Text('forced'),
         ),
       ),
     );
     expect(find.byType(BackdropFilter), findsOneWidget);
+    final style = buildSurfaces(
+      MaeveColors.dark(deriveAccent(MaeveAccentPreset.reverie)),
+    ).card;
+    expect(style.blurSigma, 0);
+    expect(style.fallbackBlurSigma, 0);
+    expect(style.refractionStrength, 0);
+    expect(style.chromaticAberration, 0);
+    expect(style.specularStrength, 0);
+  });
+
+  testWidgets('shader 不支持时回退原生 blur+tone', (tester) async {
+    await tester.pumpWidget(
+      host(
+        const MaeveGlassSurface(
+          tier: MaeveGlassTier.chrome,
+          shaderEnabled: false,
+          child: Text('fallback'),
+        ),
+      ),
+    );
+    expect(find.byType(BackdropFilter), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('unframed chrome 保留边/斜带/顶光,只省略外阴影', (tester) async {
+    await tester.pumpWidget(
+      host(
+        const MaeveGlassSurface(
+          tier: MaeveGlassTier.chrome,
+          framed: false,
+          shaderEnabled: false,
+          child: SizedBox(width: 120, height: 40),
+        ),
+      ),
+    );
+    final paints = tester.widgetList<CustomPaint>(find.byType(CustomPaint));
+    expect(paints.where((p) => p.foregroundPainter != null), isNotEmpty);
+    expect(paints.where((p) => p.painter != null), isNotEmpty);
   });
 
   testWidgets('shared 采样:同一 BackdropGroup 下的多件只采一次', (tester) async {
@@ -211,6 +278,11 @@ void main() {
     );
     for (final style in [s.chrome, s.sheet, s.card, s.pill]) {
       expect(style.blurSigma, 0);
+      expect(style.fallbackBlurSigma, 0);
+      expect(style.refractionStrength, 0);
+      expect(style.refractionWidth, 0);
+      expect(style.chromaticAberration, 0);
+      expect(style.specularStrength, 0);
       expect(style.fallbackFill.a, greaterThanOrEqualTo(.98));
     }
   });
@@ -344,62 +416,105 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('浅色清透与均衡:玻璃像素可辨(薄烟对白洗)', (tester) async {
-    // 奶白画布上纯缩放透明度不可辨(真机量过 ≤6/765):清透掺 5% 墨后,
-    // 与均衡的像素差必须肉眼可读。这里在测试渲染器里锁住这条底线。
-    Future<List<int>> capture(MaeveGlassDensity density) async {
-      final key = GlobalKey();
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: maeveTheme(brightness: Brightness.light),
-          home: MaeveThemeScope(
-            brightness: Brightness.light,
-            accent: deriveAccent(MaeveAccentPreset.reverie),
-            glassDensity: density,
-            child: Builder(
-              builder: (context) {
-                final c = MaeveTheme.of(context).colors;
-                return Scaffold(
-                  backgroundColor: c.bg,
-                  body: Center(
-                    child: RepaintBoundary(
-                      key: key,
-                      child: const MaeveGlassSurface(
-                        tier: MaeveGlassTier.chrome,
-                        child: SizedBox(width: 200, height: 60),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
+  test('balanced optics mirror shared/glass_tokens.json', () {
+    for (final brightness in Brightness.values) {
+      final dark = brightness == Brightness.dark;
+      final colors = MaeveColors.light(deriveAccent(MaeveAccentPreset.reverie));
+      final surfaces = buildSurfaces(
+        dark
+            ? MaeveColors.dark(deriveAccent(MaeveAccentPreset.reverie))
+            : colors,
       );
-      await tester.pumpAndSettle();
-      final boundary =
-          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-      late List<int> bytes;
-      await tester.runAsync(() async {
-        final image = await boundary.toImage(pixelRatio: 1);
-        final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-        bytes = data!.buffer.asUint8List().toList();
-        image.dispose();
-      });
-      return bytes;
+      final chrome = surfaces.chrome;
+      final sheet = surfaces.sheet;
+      expect(chrome.fill.a, closeTo(dark ? .14 : .10, 0.0001));
+      expect(sheet.fill.a, closeTo(dark ? .18 : .14, 0.0001));
+      expect(chrome.blurSigma, 3);
+      expect(chrome.fallbackBlurSigma, 6);
+      expect(chrome.saturation, 1.28);
+      expect(chrome.refractionStrength, 14);
+      expect(chrome.refractionWidth, 16);
+      expect(chrome.chromaticAberration, .65);
+      expect(chrome.specularStrength, .55);
+      expect(sheet.blurSigma, 4);
+      expect(sheet.fallbackBlurSigma, 8);
+      expect(sheet.saturation, 1.34);
+      expect(sheet.refractionStrength, 18);
+      expect(sheet.refractionWidth, 20);
+      expect(sheet.chromaticAberration, .85);
+      expect(sheet.specularStrength, .65);
+      expect(chrome.brightness, dark ? .94 : 1.04);
+      expect(chrome.contrast, 1.02);
+      expect(chrome.rim.a, closeTo(dark ? .32 : .55, 0.0001));
+      expect(chrome.sheen.a, closeTo(dark ? .06 : .14, 0.0001));
+      expect(chrome.catchLight.a, closeTo(dark ? .36 : .65, 0.0001));
+      expect(chrome.bevelTop.a, closeTo(dark ? .14 : .30, 0.0001));
+      expect(chrome.bevelSide.a, closeTo(dark ? .06 : .14, 0.0001));
+      expect(chrome.bevelBase.a, closeTo(dark ? .12 : .06, 0.0001));
+      expect(sheet.rim.a, closeTo(dark ? .36 : .62, 0.0001));
+      expect(sheet.catchLight.a, closeTo(dark ? .40 : .70, 0.0001));
+      expect(sheet.bevelTop.a, closeTo(dark ? .16 : .34, 0.0001));
+      expect(sheet.bevelSide.a, closeTo(dark ? .07 : .16, 0.0001));
+      expect(sheet.bevelBase.a, closeTo(dark ? .14 : .07, 0.0001));
     }
+  });
 
-    final clear = await capture(MaeveGlassDensity.clear);
-    final balanced = await capture(MaeveGlassDensity.balanced);
-    expect(clear.length, balanced.length);
-    var sum = 0;
-    for (var i = 0; i < clear.length; i += 4) {
-      sum +=
-          (clear[i] - balanced[i]).abs() +
-          (clear[i + 1] - balanced[i + 1]).abs() +
-          (clear[i + 2] - balanced[i + 2]).abs();
+  test('density scales tint blur saturation light and refraction', () {
+    final colors = MaeveColors.dark(deriveAccent(MaeveAccentPreset.reverie));
+    final clear = buildSurfaces(
+      colors,
+      density: MaeveGlassDensity.clear,
+    ).chrome;
+    final dense = buildSurfaces(
+      colors,
+      density: MaeveGlassDensity.dense,
+    ).chrome;
+    expect(clear.fill.a, closeTo(.14 * .45, 0.0001));
+    expect(clear.blurSigma, closeTo(3 * .70, 0.0001));
+    expect(clear.saturation, closeTo(1.28 * .90, 0.0001));
+    expect(clear.refractionStrength, closeTo(14 * .85, 0.0001));
+    expect(clear.refractionWidth, closeTo(16 * .85, 0.0001));
+    expect(clear.chromaticAberration, closeTo(.65 * .85, 0.0001));
+    expect(clear.specularStrength, closeTo(.55 * .60, 0.0001));
+    expect(dense.fill.a, closeTo(.14 * 1.45, 0.0001));
+    expect(dense.blurSigma, closeTo(3 * 1.35, 0.0001));
+    expect(dense.saturation, closeTo(1.28 * 1.10, 0.0001));
+    expect(dense.refractionStrength, closeTo(14 * 1.15, 0.0001));
+    expect(dense.refractionWidth, closeTo(16 * 1.15, 0.0001));
+    expect(dense.chromaticAberration, closeTo(.65 * 1.15, 0.0001));
+    expect(dense.specularStrength, closeTo(.55 * 1.40, 0.0001));
+  });
+
+  test('card and pill never sample by default', () {
+    final surfaces = buildSurfaces(
+      MaeveColors.light(deriveAccent(MaeveAccentPreset.reverie)),
+    );
+    for (final style in [surfaces.card, surfaces.pill]) {
+      expect(style.blurs, isFalse);
+      expect(style.blurSigma, 0);
+      expect(style.fallbackBlurSigma, 0);
+      expect(style.refractionStrength, 0);
+      expect(style.refractionWidth, 0);
+      expect(style.chromaticAberration, 0);
+      expect(style.specularStrength, 0);
     }
-    final meanDiff = sum / (clear.length / 4);
-    expect(meanDiff, greaterThanOrEqualTo(12), reason: '清透↔均衡 $meanDiff/765');
+  });
+
+  test('copyWith and equality include every optical field', () {
+    final style = buildSurfaces(
+      MaeveColors.dark(deriveAccent(MaeveAccentPreset.reverie)),
+    ).chrome;
+    final copied = style.copyWith(
+      fallbackBlurSigma: style.fallbackBlurSigma,
+      refractionStrength: style.refractionStrength,
+      refractionWidth: style.refractionWidth,
+      chromaticAberration: style.chromaticAberration,
+      specularStrength: style.specularStrength,
+    );
+    expect(copied, style);
+    expect(copied.hashCode, style.hashCode);
+    expect(copied.copyWith(refractionStrength: 99), isNot(style));
+    expect(copied.copyWith(chromaticAberration: 99), isNot(style));
+    expect(copied.copyWith(specularStrength: 99), isNot(style));
   });
 }

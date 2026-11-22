@@ -197,124 +197,123 @@ class TopBar extends StatelessWidget {
     final sideWidth = 48.0 * (actions.isEmpty ? 1 : actions.length);
     final eyebrowText = subtitle == null ? eyebrow : null;
 
-    return BackdropGroup(
-      child: Container(
-        padding: EdgeInsets.only(top: safeTop),
-        color: colors.bg,
-        child: MaeveGlassSurface(
-          tier: MaeveGlassTier.chrome,
-          grouped: true,
-          framed: false,
-          shape: const RoundedRectangleBorder(),
-          blur: true,
-          // 顶栏底色遮住下层记录；滚动时仅加深自身材质。
-          tint: elevated ? colors.ink : null,
-          tintAlpha: elevated ? .02 : null,
-          child: SizedBox(
-            height: height,
-            child: Row(
-              children: [
-                SizedBox(
-                  width: sideWidth,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child:
-                        leading ??
-                        (showBack && canPop
-                            ? _BarButton(
-                                icon: Icons.arrow_back_ios_new_rounded,
-                                label: '返回',
-                                // 退页那一下由 maevePageRoute 的 PopScope 发,
-                                // 这里不重复发,否则点圆钮会震两次。
-                                haptic: null,
-                                onTap:
-                                    onBack ??
-                                    () => Navigator.of(context).maybePop(),
-                              )
-                            : const SizedBox.shrink()),
-                  ),
+    final hasGroup = BackdropGroup.of(context) != null;
+    final bar = Container(
+      padding: EdgeInsets.only(top: safeTop),
+      child: MaeveGlassSurface(
+        tier: MaeveGlassTier.chrome,
+        grouped: true,
+        framed: false,
+        shape: const RoundedRectangleBorder(),
+        blur: true,
+        // 滚动时只轻微加深自身材质,不再覆盖下层内容。
+        tint: elevated ? colors.ink : null,
+        tintAlpha: elevated ? .02 : null,
+        child: SizedBox(
+          height: height,
+          child: Row(
+            children: [
+              SizedBox(
+                width: sideWidth,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child:
+                      leading ??
+                      (showBack && canPop
+                          ? _BarButton(
+                              icon: Icons.arrow_back_ios_new_rounded,
+                              label: '返回',
+                              // 退页那一下由 maevePageRoute 的 PopScope 发,
+                              // 这里不重复发,否则点圆钮会震两次。
+                              haptic: null,
+                              onTap:
+                                  onBack ??
+                                  () => Navigator.of(context).maybePop(),
+                            )
+                          : const SizedBox.shrink()),
                 ),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
+              ),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (brand) ...[
+                          _BrandDot(working: working),
+                          const SizedBox(width: 7),
+                        ],
+                        Flexible(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: MaeveType.title.copyWith(
+                              fontSize: brand ? 21 : 17,
+                              height: 1.1,
+                              fontWeight: FontWeight.w600,
+                              color: colors.ink,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 1),
+                    if (subtitle != null)
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (brand) ...[
-                            _BrandDot(working: working),
-                            const SizedBox(width: 7),
+                          if (statusTone != null) ...[
+                            StatusDot(tone: statusTone!, size: 5),
+                            const SizedBox(width: 5),
                           ],
                           Flexible(
-                            child: Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: MaeveType.title.copyWith(
-                                fontSize: brand ? 21 : 17,
-                                height: 1.1,
-                                fontWeight: FontWeight.w600,
-                                color: colors.ink,
-                              ),
-                            ),
+                            child: working
+                                ? WorkingLine(
+                                    text: subtitle!,
+                                    active: true,
+                                    style: MaeveType.hint,
+                                  )
+                                : Text(
+                                    subtitle!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: MaeveType.hint.copyWith(
+                                      color: colors.ink3,
+                                      height: 1.1,
+                                    ),
+                                  ),
                           ),
                         ],
+                      )
+                    else if (eyebrowText != null)
+                      Text(
+                        eyebrowText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: MaeveType.eyebrowFor(eyebrowText)
+                            .copyWith(color: colors.ink3, height: 1.1),
                       ),
-                      const SizedBox(height: 1),
-                      if (subtitle != null)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (statusTone != null) ...[
-                              StatusDot(tone: statusTone!, size: 5),
-                              const SizedBox(width: 5),
-                            ],
-                            Flexible(
-                              child: working
-                                  ? WorkingLine(
-                                      text: subtitle!,
-                                      active: true,
-                                      style: MaeveType.hint,
-                                    )
-                                  : Text(
-                                      subtitle!,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.center,
-                                      style: MaeveType.hint.copyWith(
-                                        color: colors.ink3,
-                                        height: 1.1,
-                                      ),
-                                    ),
-                            ),
-                          ],
-                        )
-                      else if (eyebrowText != null)
-                        Text(
-                          eyebrowText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: MaeveType.eyebrowFor(eyebrowText)
-                              .copyWith(color: colors.ink3, height: 1.1),
-                        ),
-                    ],
-                  ),
+                  ],
                 ),
-                SizedBox(
-                  width: sideWidth,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: actions,
-                  ),
+              ),
+              SizedBox(
+                width: sideWidth,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: actions,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
+    return hasGroup ? bar : BackdropGroup(child: bar);
   }
 }
 
