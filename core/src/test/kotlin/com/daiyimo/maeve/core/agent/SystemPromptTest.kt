@@ -73,6 +73,13 @@ class SystemPromptTest {
         assertTrue("finished the task themselves" in p && "not operate the app further" in p)
     }
 
+    @Test fun socialPostsAreNotMixedWithSkillsOrCollections() {
+        val p = flat()
+        assertTrue("only entries marked 笔记/视频/作品" in p)
+        assertTrue("Never report Skill, 合集, 推荐 or search result cards" in p)
+        assertTrue("read the first visible post cards" in p)
+    }
+
     @Test fun presetSearchWordIsNotTheQuery() {
         val p = rules()
         assertTrue("hint:true" in p && "not your search term" in p && "type your own query" in p)

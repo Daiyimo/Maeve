@@ -96,6 +96,9 @@ class AppAccessScreenPort(
     // ---------- 读屏 ----------
     override suspend fun snapshot() = observed { inner.snapshot() }
     override suspend fun peek() = observed { inner.peek() }
+    override suspend fun currentPackage() = betweenChecks { inner.currentPackage() }
+    override suspend fun viewport() = betweenChecks { inner.viewport() }
+    override suspend fun waitVisualStable(timeoutMs: Long) = betweenChecks { inner.waitVisualStable(timeoutMs) }
     override suspend fun screenshotPng() = betweenChecks { inner.screenshotPng() }
     override suspend fun readVisibleText() = betweenChecks { inner.readVisibleText() }
     override suspend fun frameGrid() = betweenChecks { inner.frameGrid() }

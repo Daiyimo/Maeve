@@ -56,6 +56,7 @@ private const val KEEP_GENERATIONS = 20
  * 前台 App 没换、遍历顺序里前一个有名字的元素(上下文)相同,或页面整体没动且它还在原地、
  * 中心位移不超过短边的 [STABLE_REF_MAX_SHIFT];列表里的元素(落在可滚动容器里)还要页面没滚动、它没挪窝。
  * 列表里重复的同名元素(一排「关注」)永远拿新编号:滚动之后,同一位置已经是另一行。
+ * 曾在同名歧义组里出现过的编号也永远不再跨屏携带,避免用户条目在列表消失后被顶部搜索框顶替。
  * 没名字也没资源 ID 的元素,认不出是不是同一个,也拿新编号。编号在任务内单调递增,退役的不再复用。
  *
  * snapshotId 是 [prefix] 加序号:每块屏一个前缀,看编号就知道是哪块屏的。
@@ -67,6 +68,8 @@ class RefStabilizer(private val prefix: String = "s") {
         private set
     /** 每个编号首次出现在第几屏;编号一旦从某屏消失就不会再出现,所以它在 [firstSeen, 最新一屏] 里连续存在。 */
     private var firstSeen = mapOf<String, Int>()
+    /** 出生在角色+名字+资源 ID 同名歧义组里的编号;这类编号不再跨屏携带。 */
+    private var ambiguous = emptySet<String>()
     /** 最近 [KEEP_GENERATIONS] 屏里每个模型编号的中心;翻译旧 snapshotId 时,靠它限制累计位移。 */
     private val centers = LinkedHashMap<Int, Map<String, Pair<Int, Int>>>()
 
@@ -81,19 +84,23 @@ class RefStabilizer(private val prefix: String = "s") {
         val keyCounts = port.elements.groupingBy(::key).eachCount()
         val toPort = LinkedHashMap<String, String>()
         val seenNow = HashMap<String, Int>()
+        val ambiguousNow = mutableSetOf<String>()
         val elements = port.elements.mapIndexed { i, e ->
             val k = key(e)
-            val carried = previousByKey[k]?.singleOrNull()?.takeIf { (j, _) ->
-                identifiable(e) && keyCounts[k] == 1 && relocate(priorLocators[j], priorLocators, currentLocators, shortEdge) == Relocation.Found(i) &&
+            val carried = previousByKey[k]?.singleOrNull()?.takeIf { (j, previous) ->
+                previous.ref !in ambiguous && identifiable(e) && keyCounts[k] == 1 &&
+                    relocate(priorLocators[j], priorLocators, currentLocators, shortEdge) == Relocation.Found(i) &&
                     // 列表项会复用:只有页面没滚、它还在原地,才算同一个
                     (!(priorLocators[j].inList || currentLocators[i].inList) || (pageStill && shift(priorLocators[j], currentLocators[i]) <= shortEdge * SAME_SPOT_SHIFT))
             }?.value
             val ref = carried?.ref ?: "@e${nextIndex++}"
+            if ((previousByKey[k]?.size ?: 0) > 1 || (keyCounts[k] ?: 0) > 1) ambiguousNow += ref
             seenNow[ref] = firstSeen[ref] ?: n
             toPort[ref] = e.ref
             e.copy(ref = ref)
         }
         firstSeen = seenNow
+        ambiguous = ambiguousNow
         record(n, elements)
         return ModelSnapshot("$prefix$n", port, elements, toPort).also { latest = it }
     }

@@ -10,6 +10,7 @@ import com.daiyimo.maeve.core.tool.ToolDef
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.tool.argStr
+import com.daiyimo.maeve.core.tool.fail
 import com.daiyimo.maeve.core.tool.int
 import com.daiyimo.maeve.core.tool.str
 import com.daiyimo.maeve.core.uistate.DEFAULT_SWIPE_MS
@@ -17,6 +18,7 @@ import com.daiyimo.maeve.core.uistate.ScreenFamily
 import com.daiyimo.maeve.core.uistate.action
 import com.daiyimo.maeve.core.uistate.lastOrSnapshot
 import com.daiyimo.maeve.core.uistate.screen
+import com.daiyimo.maeve.core.uistate.session
 import com.daiyimo.maeve.core.uistate.toPx
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -83,7 +85,8 @@ internal class Scroll(f: ScreenFamily) : ScreenTool(f, "scroll") {
      * 其余按方向和格数算一段滑动手势,落点用归一化坐标、换算像素按此刻的一屏。
      */
     private suspend fun performScroll(ctx: ToolContext, direction: String, amount: Int, x: Int?, y: Int?): ToolExecution {
-        if (family.id == "phone" && direction in VERTICAL && x == null && amount == DEFAULT_AMOUNT)
+        val visual = family.id == "phone" && ctx.session.visualFirst()
+        if (!visual && family.id == "phone" && direction in VERTICAL && x == null && amount == DEFAULT_AMOUNT)
             return ctx.action(ctx.screen.scroll(null, null, direction == "down"))
         val midX = x ?: 500; val midY = y ?: 500
         // direction 是内容移动方向,手指反向滑动
@@ -137,6 +140,12 @@ private fun bound(v: Double) = max(50, min(949, v.roundToInt()))
 
 /** 按 0–999 归一化坐标发一次滑动手势;像素换算按此刻的一屏。 */
 private suspend fun swipeBetween(ctx: ToolContext, fromX: Int, fromY: Int, toX: Int, toY: Int, durationMs: Long = DEFAULT_SWIPE_MS): ToolExecution {
+    if (ctx.session.visualFirst()) {
+        val viewport = ctx.screen.viewport()
+            ?: return fail("viewport_unavailable", "The screen viewport is unavailable; wait and retry the swipe.")
+        return ctx.action(ctx.screen.swipe(toPx(fromX, viewport.first), toPx(fromY, viewport.second),
+            toPx(toX, viewport.first), toPx(toY, viewport.second), durationMs))
+    }
     val s = ctx.lastOrSnapshot()
     return ctx.action(ctx.screen.swipe(toPx(fromX, s.width), toPx(fromY, s.height), toPx(toX, s.width), toPx(toY, s.height), durationMs))
 }

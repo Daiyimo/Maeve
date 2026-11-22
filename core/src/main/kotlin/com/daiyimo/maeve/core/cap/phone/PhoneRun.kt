@@ -51,7 +51,10 @@ internal object PhoneRun : PhoneTool {
         },
     ), listOf("commands"))
 
-    override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution = ctx.session.textOnly { runCommands(a, ctx) }
+    override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution = ctx.session.textOnly {
+        ctx.visualFirstFailure("phone_run")?.let { return@textOnly it }
+        runCommands(a, ctx)
+    }
 
     private suspend fun runCommands(a: Args, ctx: ToolContext): ToolExecution {
         val commands = a.o["commands"] as? JsonArray ?: throw ArgError("commands", "must be an array")

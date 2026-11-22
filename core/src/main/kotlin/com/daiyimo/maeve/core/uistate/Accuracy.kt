@@ -118,7 +118,7 @@ interface TextField {
 private fun withoutSpaces(s: String) = s.filterNot { it.isWhitespace() }
 
 /**
- * 往 [field] 里写入 [text] 并读回核对,不一致就重试,最多 [attempts] 次;[settle] 在每次写入后等输入框更新。
+ * 往 [field] 里写入 [text] 并读回核对;读回完全没变才换通道重试,最多 [attempts] 次;[settle] 在每次写入后等输入框更新。
  * 只认「写入后读到的文字恰好是目标」;写入前就已经是目标时先清空——清不掉就分不清写没写进去,返回 UNKNOWN。
  * [text] 给空串表示清空,这时读回为空即 MATCH。
  * 有的输入框对无障碍一直报同一段文字(如提示语),读回永远对不上:每次读回都和写入前一样、
@@ -141,7 +141,7 @@ suspend fun typeAndVerify(
         val cleared = field.write("")
         settle()
         baseline = field.read() ?: return if (cleared) Verification.UNKNOWN else Verification.MISMATCH
-        if (withoutSpaces(baseline) == want) return blindWrite(field, text)
+        if (withoutSpaces(baseline) == want) return Verification.UNKNOWN
     }
     var stuck = true
     var wrote = false
@@ -152,7 +152,14 @@ suspend fun typeAndVerify(
         settle()
         val actual = field.read() ?: return Verification.UNKNOWN
         if (withoutSpaces(actual) == want) return Verification.MATCH
-        if (actual != baseline) stuck = false
+        if (actual != baseline) return Verification.MISMATCH
+        // 无障碍树可能比界面慢半拍。再安静一次后复核;仍没变才换通道,避免首次已落地时粘贴追加成两份。
+        if (round < attempts - 1) {
+            settle()
+            val late = field.read() ?: return Verification.UNKNOWN
+            if (withoutSpaces(late) == want) return Verification.MATCH
+            if (late != baseline) return Verification.MISMATCH
+        }
     }
     return if (wrote && stuck && reacted()) Verification.UNKNOWN else Verification.MISMATCH
 }

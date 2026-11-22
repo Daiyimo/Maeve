@@ -74,6 +74,9 @@ class LazyPhoneScreen(
 
     override suspend fun snapshot(): ScreenSnapshot = port?.snapshot() ?: empty()
     override suspend fun peek(): ScreenSnapshot = port?.peek() ?: empty()
+    override suspend fun currentPackage(): String? = port?.currentPackage()
+    override suspend fun viewport(): Pair<Int, Int> = port?.viewport() ?: (width to height)
+    override suspend fun waitVisualStable(timeoutMs: Long): Boolean = port?.waitVisualStable(timeoutMs) ?: true
     override suspend fun screenshotPng(): ByteArray? = port?.screenshotPng()
     override suspend fun readVisibleText(): List<VisibleTextLine>? = port?.readVisibleText()
     override suspend fun tapRef(ref: String, snapshotId: String) = port?.tapRef(ref, snapshotId) ?: NO_APP_OPEN

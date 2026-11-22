@@ -150,8 +150,10 @@ class ContextCompressor(
             if (tokens(c.messages) <= target) break
         }
         if (tokens(chosen.messages) > window) chosen = chosen.copy(messages = HistoryPruner.shrinkOversized(chosen.messages) { tokens(it) <= window })
+        // 目标状态是动态快照:开场、保留后缀和 pinned 往返里都只留最后一份。
+        val messages = dedupeTargetStates(chosen.messages)
         // 副本:什么都没裁时 chosen 可能就是调用方那份还会追加的历史
-        return View(history.toList(), chosen.messages.toList(), chosen.foldedSteps, aggressive)
+        return View(history.toList(), messages.toList(), chosen.foldedSteps, aggressive)
     }
 
     private fun fold(pruned: List<Message>, keep: Int, aggressive: Boolean): Compressed {
@@ -177,6 +179,7 @@ class ContextCompressor(
         var folded = 0
         var steps: StepSummary? = null
         var stepsAt = 0
+        var latestTargetState: Message? = null
         fun closeBlock() {
             if (!structured) block?.takeIf { it.isNotEmpty() }?.let { out.add(blockAt, summary(it)) }
             block = null
@@ -192,7 +195,9 @@ class ContextCompressor(
                 return@forEachIndexed
             }
             val lines = block ?: mutableListOf<String>().also { block = it; blockAt = out.size }
-            out += round.filter { isPinnedContext(it) || it.author == Author.User }.map(ContextBuilder::withoutRuntimeState)
+            round.filter { isPinnedContext(it) || it.author == Author.User }.map(ContextBuilder::withoutRuntimeState).forEach { kept ->
+                if (ContextBuilder.kindOf(kept) == ContextKind.TargetState) latestTargetState = kept else out += kept
+            }
             if (call != null) {
                 lines += line(k + 1, call, round)
                 folded++
@@ -204,8 +209,15 @@ class ContextCompressor(
         }
         closeBlock()
         steps?.let { out.add(stepsAt, notice(it.render(HEADER))) }
+        latestTargetState?.let { out += it }
         out += pruned.subList(cut, pruned.size)
         return Compressed(out, folded)
+    }
+
+    private fun dedupeTargetStates(messages: List<Message>): List<Message> {
+        val last = messages.indexOfLast { ContextBuilder.kindOf(it) == ContextKind.TargetState }
+        if (last < 0) return messages
+        return messages.filterIndexed { i, m -> i == last || ContextBuilder.kindOf(m) != ContextKind.TargetState }
     }
 
     private enum class ScreenKind { NONE, FULL, DIFF }

@@ -41,6 +41,21 @@ class ScreenTextTest {
         assertEquals(50, o["center"]!!.jsonObject["y"]!!.jsonPrimitive.content.toInt())
     }
 
+    @Test fun jsonElementsExposeActionabilityAndState() {
+        val field = UiElement("@e1", "EditText", "搜索", 540, 120, listOf(0, 0, 999, 99), null, true, true, false,
+            focused = true, searchField = true, states = setOf(UiStates.CHECKED))
+        val pane = UiElement("@e2", "RecyclerView", "", 540, 800, listOf(0, 100, 999, 999), null, false, false, true)
+        val (arr, _) = ScreenJson.elements(snap(field, pane), 10)
+        val a = arr[0].jsonObject
+        val b = arr[1].jsonObject
+        assertEquals("true", a["actionable"]!!.jsonPrimitive.content)
+        assertEquals("true", a["clickable"]!!.jsonPrimitive.content)
+        assertEquals("true", a["editable"]!!.jsonPrimitive.content)
+        assertEquals("true", a["focused"]!!.jsonPrimitive.content)
+        assertEquals("true", a["searchField"]!!.jsonPrimitive.content)
+        assertEquals("true", b["scrollable"]!!.jsonPrimitive.content)
+    }
+
     @Test fun normalizeClampsAndMaps() {
         assertEquals(0, normalize(0, 1080)); assertEquals(999, normalize(1079, 1080))
         assertEquals(0, normalize(-5, 1080)); assertEquals(999, normalize(5000, 1080))

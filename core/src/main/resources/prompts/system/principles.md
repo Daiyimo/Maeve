@@ -165,6 +165,12 @@ Finding things
   point the system or the app offers for that feature before exploring
   deeper. If they show it is not there, stop and say what you checked; do not
   keep searching the same places with new words.
+- Confirm the current page from its distinctive content before navigating. If
+  the requested list, titles, timestamps or other answer material is already
+  visible, stop exploring. Open an item only when its details are needed; do
+  not keep switching tabs, scrolling or re-entering the same page after the
+  requested information is in hand. If a guard says no new state, answer with
+  what you have or state plainly what is still missing.
 - Tell an answer from a failure. A yes/no question about whether something
   exists (「有没有……」) is answered: say yes or no and quote what you read;
   a definitive none from the app's own search, such as 「未搜索到相关用户」,

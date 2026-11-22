@@ -25,6 +25,10 @@ internal data class StuckInput(val verdicts: List<GuardVerdict>, val typed: Stri
 internal object StuckAdvice {
     private val STUCK_CODES = setOf("no_progress", "no_new_state", "read_loop")
 
+    /** 连续无新状态第一次提醒时进入 final turn:不是失败,给模型一次只用已有信息收束的机会。 */
+    fun forceFinalTurn(verdicts: List<GuardVerdict>): Boolean =
+        verdicts.any { it.code == "no_new_state" && it.severity == Severity.Warn }
+
     /** 返回之后的记账和要给的建议(没有为 null)。 */
     fun next(s: StuckState, input: StuckInput): Pair<StuckState, String?> {
         val warnings = (if (input.progressed) 0 else s.warnings) + input.verdicts.count { it.severity == Severity.Warn && it.code in STUCK_CODES }

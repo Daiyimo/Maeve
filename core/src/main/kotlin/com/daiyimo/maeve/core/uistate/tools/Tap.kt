@@ -14,6 +14,7 @@ import com.daiyimo.maeve.core.tool.ToolDef
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.tool.argStr
+import com.daiyimo.maeve.core.tool.fail
 import com.daiyimo.maeve.core.tool.int
 import com.daiyimo.maeve.core.tool.refExpired
 import com.daiyimo.maeve.core.tool.str
@@ -97,10 +98,11 @@ internal class Tap(f: ScreenFamily) : ScreenTool(f, "tap") {
             ctx.action(if (doubleTap) ctx.screen.doubleTapRef(r!!.first, r.second) else ctx.screen.tapRef(r!!.first, r.second))
         }
 
-    /** 按坐标点:像素换算按此刻的一屏(读不到再退回最近一次)。 */
+    /** 按坐标点:视觉优先直接取视口,不为了换算尺寸读树。 */
     private suspend fun tapByPoint(ctx: ToolContext, x: Int, y: Int, doubleTap: Boolean): ToolExecution {
-        val snap = ctx.lastOrSnapshot()
-        return ctx.action(tapAt(ctx, toPx(x, snap.width), toPx(y, snap.height), doubleTap))
+        val viewport = coordinateViewport(ctx)
+            ?: return fail("viewport_unavailable", "The screen viewport is unavailable; wait and retry the coordinate tap.")
+        return ctx.action(tapAt(ctx, toPx(x, viewport.first), toPx(y, viewport.second), doubleTap))
     }
 
     /**
@@ -166,8 +168,18 @@ internal suspend fun locatedPixel(ctx: ToolContext, ref: String, snapshotId: Str
     val device = ctx.screen
     val frame = if (device.isProtected()) null else device.screenshotPng()
     if (frame == null || hamming(ctx.config.vision!!.ops.aHash(frame), seenHash) > LOCATE_SCREEN_CHANGE) return null
+    if (ctx.session.visualFirst()) {
+        val viewport = device.viewport() ?: return null
+        return toPx(point.x, viewport.first) to toPx(point.y, viewport.second)
+    }
     val snap = ctx.session.peek() ?: ctx.lastOrSnapshot()
     return toPx(point.x, snap.width) to toPx(point.y, snap.height)
+}
+
+private suspend fun coordinateViewport(ctx: ToolContext): Pair<Int, Int>? {
+    if (ctx.session.visualFirst()) return ctx.screen.viewport()
+    val snap = ctx.lastOrSnapshot()
+    return snap.width to snap.height
 }
 
 /** 按编号操作时动作清单里写的对象:看图找到的点写它找的是什么,其余写元素的名字,都没有写编号。 */

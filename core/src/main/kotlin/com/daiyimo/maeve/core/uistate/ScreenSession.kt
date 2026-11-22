@@ -22,6 +22,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.math.roundToInt
+import java.util.UUID
 import com.daiyimo.maeve.core.vision.LocateRegistry
 import com.daiyimo.maeve.core.vision.Locator
 import com.daiyimo.maeve.core.vision.ScreenChange
@@ -102,6 +103,13 @@ internal class ScreenSession(
     var visible: Set<String>? = null
     var lastSnapshot: ScreenSnapshot? = null
     private var lastOcr: List<VisibleTextLine> = emptyList()
+    @Volatile private var visualMode = false
+    private data class VisualRead(
+        val snapshot: ScreenSnapshot,
+        val ocr: List<VisibleTextLine>?,
+        val ocrStatus: String?,
+        val png: ByteArray?,
+    )
     val recentSnapshots = ArrayDeque<ScreenSnapshot>()
     val readAt = mutableMapOf<String, Long>()
     /** 这块屏发出过的 snapshotId(比 [RECENT_READS] 长:模型可能拿很早的编号来用)。 */
@@ -130,6 +138,7 @@ internal class ScreenSession(
             readAt.clear()
             handed = null
             diffChain.clear()
+            visualMode = false
             stale = true
             accessSeen = state.revision
         }
@@ -152,33 +161,155 @@ internal class ScreenSession(
     /** Maeve 自己动过这块屏(停留里轻轻滚了几下):模型手里那一屏的位置已不准,标成过时。 */
     fun movedByMaeve() { stale = true }
 
+    /** 包名探针失败时沿用最近一屏,安全上宁可继续视觉优先,也不冒险读树。 */
+    private suspend fun foregroundPackage(): String? =
+        screenAttempt { screen.currentPackage() } ?: lastSnapshot?.packageName
+
+    /** 当前前台包名是否命中视觉优先策略;只问低开销包名探针。 */
+    suspend fun visualFirst(): Boolean = visualModeFor(foregroundPackage())
+
+    private fun visualModeFor(packageName: String?): Boolean =
+        (surface.id == "phone" && VisualFirstPolicy.applies(packageName)).also { visualMode = it }
+
+    private fun visualSnapshotId(): String = surface.family.snapshotPrefix + UUID.randomUUID()
+
+    /** 合成快照没有元素和窗口层级,任何调用方都不能从它退回无障碍树。 */
+    private suspend fun visualSnapshot(packageName: String?): ScreenSnapshot {
+        val size = screenAttempt { screen.viewport() }
+        val prior = lastSnapshot?.takeIf { packageName != null && it.packageName == packageName }
+        val protected = packageName != null && screenAttempt { screen.isProtected() } == true
+        val snap = ScreenSnapshot(
+            snapshotId = visualSnapshotId(),
+            packageName = packageName,
+            elements = emptyList(),
+            width = size?.first ?: prior?.width ?: 0,
+            height = size?.second ?: prior?.height ?: 0,
+            protected = protected,
+            hasWindow = packageName != null,
+        )
+        lastOcr = emptyList()
+        treeVerdict = TreeCheck(if (protected) TreeQuality.Protected else TreeQuality.Unusable, "visual_first")
+        return snap
+    }
+
+    private fun rememberSnapshot(snap: ScreenSnapshot, internal: Boolean) {
+        reads++
+        if (!internal) stale = false
+        lastSnapshot = snap
+        recentSnapshots.addLast(snap)
+        readAt[snap.snapshotId] = System.currentTimeMillis()
+        issuedIds[snap.snapshotId] = Unit
+        while (recentSnapshots.size > RECENT_READS) recentSnapshots.removeFirst().snapshotId.let { id -> readAt.remove(id) }
+    }
+
     /**
      * 读一屏并登记编号。[internal]:不是给模型看的(按描述找目标时),模型手里那屏过没过时照旧;
      * 端口原样的这一屏留作紧接着那个动作的「动作前」([probe] 用它,不再读一次)。
      */
-    suspend fun snapshot(internal: Boolean = false): ScreenSnapshot = screen.snapshot().let { portSnap ->
-        (stabilizer?.next(portSnap)?.screen ?: portSnap).also { primedRead = if (internal) it.snapshotId to portSnap else null }
-    }.also {
-        reads++
-        if (!internal) stale = false
-        lastSnapshot = it
-        recentSnapshots.addLast(it)
-        readAt[it.snapshotId] = System.currentTimeMillis()
-        issuedIds[it.snapshotId] = Unit
-        while (recentSnapshots.size > RECENT_READS) recentSnapshots.removeFirst().snapshotId.let { id -> readAt.remove(id) }
+    suspend fun snapshot(internal: Boolean = false): ScreenSnapshot {
+        val packageName = foregroundPackage()
+        if (visualModeFor(packageName)) {
+            val snap = visualSnapshot(packageName)
+            rememberSnapshot(snap, internal)
+            handed = null; diffChain.clear(); primedRead = null
+            return snap
+        }
+        val portSnap = screen.snapshot()
+        val snap = stabilizer?.next(portSnap)?.screen ?: portSnap
+        primedRead = if (internal) snap.snapshotId to portSnap else null
+        rememberSnapshot(snap, internal)
+        return snap
     }
 
     /** 此刻重新读一屏,不登记编号、也不改模型手里的读屏;读不到为 null。 */
-    suspend fun peek(): ScreenSnapshot? = screenAttempt { screen.peek() }
+    suspend fun peek(): ScreenSnapshot? {
+        val packageName = foregroundPackage()
+        return if (visualModeFor(packageName)) visualSnapshot(packageName) else screenAttempt { screen.peek() }
+    }
+
+    /** 视觉优先的一次读取:合成空树快照 + 截图 + 本机 OCR,绝不调用 snapshot/peek/read。 */
+    private suspend fun captureVisual(
+        withPng: Boolean,
+        withOcr: Boolean,
+        register: Boolean,
+        waitMs: Long = OCR_WAIT_POOR_MS,
+    ): VisualRead {
+        val packageName = foregroundPackage()
+        val snap = visualSnapshot(packageName)
+        val png = if (withPng && snap.hasWindow && !snap.protected) screenAttempt { screen.screenshotPng() } else null
+        val (ocr, status) = if (withOcr && snap.hasWindow && !snap.protected) readScreenText(snap, waitMs) else null to null
+        lastOcr = ocr.orEmpty()
+        if (register) {
+            rememberSnapshot(snap, false)
+            handed = null; diffChain.clear(); primedRead = null
+        }
+        return VisualRead(snap, ocr, status, png)
+    }
+
+    private fun visualText(snap: ScreenSnapshot, ocr: List<VisibleTextLine>?): String =
+        (listOf("当前 App:" + (snap.packageName ?: "未知")) +
+            ocr.orEmpty().map { it.text.replace(Char(10), ' ') })
+            .joinToString(Char(10).toString()).take(MAX_READ_CHARS)
+
+    private fun recordVisualRead(snap: ScreenSnapshot, ocr: List<VisibleTextLine>?): Observation =
+        Observation(ObsKind.Read, visualText(snap, ocr), source = surface.id,
+            place = snap.packageName?.let(Place::app), trust = Trust.Trusted, inputs = InputHints(emptyList()))
+
+    private fun visualHint(visionAvailable: Boolean, png: ByteArray?, ocr: List<VisibleTextLine>?, protected: Boolean): String = when {
+        protected -> HINT_PROTECTED
+        visionAvailable && png != null -> "Visual-first read: the UI tree was intentionally not read. Use the screenshot and visibleText, and tap by coordinates; do not call list_elements or rely on refs."
+        visionAvailable && !ocr.isNullOrEmpty() -> "Visual-first OCR-only read: the screenshot is unavailable. Use visibleText centers and coordinates; the UI tree was intentionally not read, so do not call list_elements."
+        visionAvailable -> "Visual-first read: neither a screenshot nor recognized text is available. The UI tree was intentionally not read; wait and retry observe or hand_to_user, but do not call list_elements."
+        !ocr.isNullOrEmpty() -> "OCR-only read: no vision model is configured. Use visibleText centers and coordinates; the UI tree was intentionally not read, so do not call list_elements."
+        else -> "OCR-only read: no vision model is configured and no screen text was recognized. The UI tree was intentionally not read; wait and retry observe or hand_to_user, but do not call list_elements."
+    }
+
+    private suspend fun observeVisual(recordFrame: Boolean): ToolExecution {
+        val read = captureVisual(withPng = true, withOcr = true, register = true)
+        val snap = read.snapshot
+        val shotId = shots.next()
+        val canSendImage = visionEnabled && textOnlyDepth == 0 && read.png != null
+        val ocrOnly = !visionEnabled || read.png == null
+        val text = visualText(snap, read.ocr)
+        val remembered = read.png.takeIf { visionEnabled }
+        shots.remember(Recall(shotId, shots.step, snap.packageName, remembered, text))
+        val content = okObj {
+            put("currentApp", snap.packageName)
+            put("snapshotId", snap.snapshotId)
+            put("screenshotId", shotId)
+            put("visualOnly", true)
+            put("readMode", "vision")
+            put("treeQuality", "unusable")
+            put("screenChangedDuringRead", false)
+            put("viewport", buildJsonObject { put("width", snap.width); put("height", snap.height) })
+            put("elements", JsonArray(emptyList()))
+            put("truncated", false)
+            if (snap.protected) {
+                put("protected", true)
+                put("hint", HINT_PROTECTED)
+            } else {
+                if (ocrOnly) put("ocrOnly", true)
+                if (read.ocr.isNullOrEmpty() && read.png == null) put("readable", false)
+                read.ocrStatus?.let { put("ocr", it) }
+                read.ocr?.let { put("visibleText", VisibleText.json(it)) }
+                put("hint", visualHint(visionEnabled, read.png, read.ocr, false))
+            }
+        }
+        val sent = read.png.takeIf { canSendImage }
+        return ToolExecution(content, image = sent, frame = read.png.takeIf { recordFrame || canSendImage },
+            imageIds = listOfNotNull(sent?.let { shotId }), observations = listOf(recordVisualRead(snap, read.ocr)))
+    }
 
     suspend fun observe(withImage: Boolean, adaptiveImage: Boolean = false, recordFrame: Boolean = true): ToolExecution {
+        if (visualFirst()) return observeVisual(recordFrame)
         val snap = snapshot()
         val (tree, ocr, ocrStatus) = assessTree(snap)
         val imageReason = if (adaptiveImage && tree.poor) tree.reason else null
         val sendImage = withImage || imageReason != null
         stabilizer?.latest?.let { handed = it; diffChain.clear(); diffChain += it.snapshotId }
         val seen = recordRead(snap, ocr.orEmpty())
-        val (elements, cut) = ScreenJson.elements(snap, modelElementsLimit)
+        val outline = ScreenOutline.from(snap)
+        val (elements, cut) = ScreenJson.elements(snap, modelElementsLimit, outline)
         val shotId = shots.next()
         val content = okObj {
             val w = snap.web
@@ -196,6 +327,7 @@ internal class ScreenSession(
             readFlags(snap, tree, ocr, ocrStatus)
             put("viewport", buildJsonObject { put("width", snap.width); put("height", snap.height) })
             put("elements", elements)
+            if (outline.modules.isNotEmpty()) put("modules", outline.json()["modules"]!!)
             if (surface.id == "phone" && snap.windows.isNotEmpty()) put("tree", UiTreeJson.windows(snap))
             ocr?.let { put("visibleText", VisibleText.json(it)) }
             if (surface.id == "phone") ScreenMap.json(snap, ocr.orEmpty())?.let { put("screenMap", it) }
@@ -240,6 +372,13 @@ internal class ScreenSession(
      */
     suspend fun currentFrame(): Pair<ByteArray, Int>? {
         if (!visionEnabled) return null
+        if (visualFirst()) {
+            val read = captureVisual(withPng = true, withOcr = false, register = false)
+            val raw = read.png ?: return null
+            val shotId = shots.next()
+            shots.remember(Recall(shotId, shots.step, read.snapshot.packageName, raw, visualText(read.snapshot, read.ocr)))
+            return raw to shotId
+        }
         val snap = screenAttempt { screen.peek() } ?: return null
         if (snap.protected) return null
         if (snap.packageName == null && snap.elements.isEmpty() && !snap.hasWindow) return null
@@ -255,6 +394,11 @@ internal class ScreenSession(
      */
     suspend fun currentView(): ToolDispatcher.Glance? {
         if (!visionEnabled && !adaptiveVision) return null
+        if (visualFirst()) {
+            val obs = screenAttempt { observe(withImage = visionEnabled, recordFrame = false) } ?: return null
+            val shotId = (obs.content["screenshotId"] as? JsonPrimitive)?.content?.toIntOrNull() ?: return null
+            return ToolDispatcher.Glance(JsonObject(obs.content - "ok"), obs.image.takeIf { textOnlyDepth == 0 }, shotId, obs.observations)
+        }
         val peeked = screenAttempt { screen.peek() } ?: return null
         if (peeked.packageName == null && peeked.elements.isEmpty() && !peeked.hasWindow) return null
         if (textOnlyDepth > 0) {
@@ -293,6 +437,20 @@ internal class ScreenSession(
      * base 或最近一次全量屏幕模型已看不到时发全量;读不到屏幕,就照原样返回动作结果。
      */
     suspend fun withScreen(r: ToolExecution): ToolExecution {
+        if (visualFirst()) {
+            if (surface.id == "phone" && !r.screenSettled) settle(INLINE_SETTLE_MS)
+            val obs = screenAttempt { observe(withImage = visionEnabled, recordFrame = recordFrames) } ?: return r
+            val shotId = (obs.content["screenshotId"] as? JsonPrimitive)?.content?.toIntOrNull()
+                ?: return r
+            val screen = JsonObject(obs.content - "ok" + ("full" to JsonPrimitive(true)))
+            return r.with(content = JsonObject(r.content + ("screen" to placeRelabeled(screen)) +
+                ("screenshotId" to JsonPrimitive(shotId))),
+                frame = r.frame ?: obs.frame,
+                images = if (r.images.isEmpty()) obs.images else r.images,
+                screenElements = JsonArray(emptyList()),
+                imageIds = if (r.images.isEmpty()) obs.imageIds else r.imageIds,
+                observations = r.observations + obs.observations)
+        }
         val fresh = try {
             if (surface.id != "phone" || !r.screenSettled) screen.waitStable(INLINE_SETTLE_MS)
             snapshot()
@@ -339,9 +497,10 @@ internal class ScreenSession(
         // 旧模式总附画面；分级模式只在元素明显不足时,才附画面。
         val attached = remembered?.takeIf { sendImage && r.images.isEmpty() }
         val screenDiff = if (imageReason == null) diff else JsonObject(diff + ("imageReason" to JsonPrimitive(imageReason)))
+        val outline = ScreenOutline.from(snap)
         return r.with(content = JsonObject(r.content + ("screen" to placeRelabeled(screenDiff))),
             frame = r.frame ?: raw?.takeIf { recordFrames }, images = attached?.let { listOf(it) } ?: r.images,
-            screenElements = ScreenJson.elements(snap, modelElementsLimit).first, imageIds = if (attached != null) listOf(shotId) else r.imageIds).observing(observation)
+            screenElements = ScreenJson.elements(snap, modelElementsLimit, outline).first, imageIds = if (attached != null) listOf(shotId) else r.imageIds).observing(observation)
     }
 
     /** 差异结果里除差异本身之外要附的字段;拼接顺序即结果里的出现顺序。 */
@@ -382,6 +541,15 @@ internal class ScreenSession(
     suspend fun reprobe() {
         val pending = awaitingProbe ?: return
         stale = true
+        val packageName = foregroundPackage()
+        if (visualModeFor(packageName)) {
+            withTimeoutOrNull(EffectTuning.PROBE_MS) {
+                pending.before = lastSnapshot?.takeIf { it.packageName == packageName } ?: visualSnapshot(packageName)
+                pending.frame = gridNow()
+                if (pending.png != null) pending.png = shotNow()
+            }
+            return
+        }
         withTimeoutOrNull(EffectTuning.PROBE_MS) {
             pending.before = peek(); pending.frame = gridNow()
             if (pending.png != null) pending.png = shotNow()
@@ -404,6 +572,12 @@ internal class ScreenSession(
         // 截图复用同一份快照判 protected,不再为截图单独读一遍树:复杂页面 a11y 读会阻塞,少读一次省一半等待
         suspend fun shotFor(snap: ScreenSnapshot?): ByteArray? =
             if (withPng && snap != null && !snap.protected) withTimeoutOrNull(EffectTuning.PROBE_MS) { screenAttempt { screen.screenshotPng() } } else null
+        val packageName = foregroundPackage()
+        if (visualModeFor(packageName)) {
+            val before = lastSnapshot?.takeIf { it.packageName == packageName } ?: visualSnapshot(packageName)
+            val frame = gridNow()
+            return EffectProbe(before, frame, shotFor(before)).also { awaitingProbe = it }
+        }
         if (primedSnap != null) {
             var frameGrid: FrameGrid? = null
             withTimeoutOrNull(EffectTuning.PROBE_MS) { frameGrid = gridNow() }
@@ -424,6 +598,10 @@ internal class ScreenSession(
 
     /** 此刻的一张截图,给点击前后的视觉核查当「之前」「之后」;受保护页面、截不到时为 null。 */
     private suspend fun shotNow(): ByteArray? {
+        if (visualFirst()) {
+            if (screenAttempt { screen.isProtected() } == true) return null
+            return screenAttempt { screen.screenshotPng() }
+        }
         val snap = screenAttempt { screen.peek() } ?: return null
         // snap.protected 已含「有窗口且画面全黑」判断,不再重复读一次树(isProtected 会再读一遍 a11y,复杂页面阻塞翻倍)
         if (snap.protected) return null
@@ -442,6 +620,7 @@ internal class ScreenSession(
     suspend fun withEffect(
         r: ToolExecution, probe: EffectProbe, verb: Verb, readsAtAction: Int, target: UiElement?, region: List<Int>?, typed: String?,
     ): ToolExecution {
+        visualFirst()
         val content = r.content
         val openedInfo = content["opened"] as? JsonObject
         val facts = PortFacts(
@@ -533,17 +712,20 @@ internal class ScreenSession(
      * 最近一次读屏判的树读不出内容(自绘界面,如微信):再读一遍 a11y 是纯阻塞浪费(原生读不响应超时,
      * 复杂页面要 5–8 秒),而画面格子 + 端口事实就是变化信号。判效果时据此跳过 a11y 重读,只读画面格子。
      */
-    fun treeUnusable(): Boolean = treeVerdict?.quality == TreeQuality.Unusable
+    fun treeUnusable(): Boolean = visualMode || VisualFirstPolicy.applies(lastSnapshot?.packageName) ||
+        treeVerdict?.quality == TreeQuality.Unusable
 
     /**
      * 这一屏的树缺了一块或不能用(只在手机上判,和读屏结果里的 treeQuality 同一口径):光看树判不准时按最近一次读屏(读过屏上文字)的判断。
      * 按描述找目标(输入框或要点的东西)在树里找不到时,据此改看图找。
      */
     fun treeBlind(s: ScreenSnapshot): Boolean = surface.id == "phone" &&
-        (TreeAdequacy.ofTree(s).quality ?: treeVerdict?.quality).let { it == TreeQuality.Partial || it == TreeQuality.Unusable }
+        (visualMode || VisualFirstPolicy.applies(s.packageName) ||
+            (TreeAdequacy.ofTree(s).quality ?: treeVerdict?.quality).let { it == TreeQuality.Partial || it == TreeQuality.Unusable })
 
     private suspend fun settle(ms: Long) {
-        screenAttempt { screen.waitStable(ms) }
+        if (visualFirst()) screenAttempt { screen.waitVisualStable(ms) }
+        else screenAttempt { screen.waitStable(ms) }
     }
 
     /** 读屏前刚从用户主屏挪回来的 App:和动作结果里的 opened 同样的字段,另带那句说明。 */
@@ -594,8 +776,12 @@ internal class ScreenSession(
         if (surface.id != "phone" || lastSnapshot?.elements?.isNotEmpty() != false || target == null) return null
         val label = ocrLabel(target) ?: return null
         if (matchTarget(label, lastOcr) == null) return null
-        val fresh = screenAttempt { screen.peek() } ?: return null
-        if (fresh.protected || fresh.packageName != lastSnapshot?.packageName) return null
+        val visual = visualFirst()
+        val fresh = if (visual) lastSnapshot else screenAttempt { screen.peek() }
+        if (fresh == null || fresh.protected) return null
+        if (visual) {
+            if (foregroundPackage() != fresh.packageName) return null
+        } else if (fresh.packageName != lastSnapshot?.packageName) return null
         val (lines, _) = readScreenText(fresh, 2_500)
         val match = matchTarget(label, lines.orEmpty().filter { it.confidence == null || it.confidence >= .6f }) ?: return null
         val b = match.bounds
@@ -687,6 +873,12 @@ internal class ScreenSession(
      * 读到了时再加上能力另给的 [extra](网页正文的开头:读屏只有视口里的元素)。读不到也照样返回(没有观察)。
      */
     suspend fun freshLook(withImage: Boolean, extra: (suspend () -> Observation?)? = null): Look {
+        if (visualFirst()) {
+            val read = captureVisual(withPng = withImage, withOcr = true, register = false)
+            val observation = recordVisualRead(read.snapshot, read.ocr).takeIf { it.text.isNotEmpty() }
+            val moreObs = extra?.invoke()
+            return Look(listOfNotNull(observation, moreObs), read.png, read.snapshot.protected)
+        }
         val snap = screenAttempt { screen.snapshot() }
         val raw = if (withImage && snap != null && !snap.protected) {
             screenAttempt { screen.screenshotPng() }

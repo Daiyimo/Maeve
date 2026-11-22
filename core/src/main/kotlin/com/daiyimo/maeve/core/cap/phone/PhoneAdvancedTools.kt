@@ -46,6 +46,7 @@ internal object PhoneFind : PhoneTool {
     ), listOf("direction"))
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution = ctx.session.textOnly {
+        ctx.visualFirstFailure("phone_find")?.let { return@textOnly it }
         val query = PhoneAutomationEngine.Query(a.str("text", max = 200), a.str("resourceId", max = 200), a.str("role", max = 100))
         if (query.text == null && query.resourceId == null && query.role == null) throw ArgError("text", "give a target")
         val direction = a.str("direction")!!
@@ -164,6 +165,7 @@ internal object PhoneExtract : PhoneTool {
     ), listOf("mode"))
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution = ctx.session.textOnly {
+        ctx.visualFirstFailure("phone_extract")?.let { return@textOnly it }
         val mode = a.str("mode")!!
         val max = a.int("maxItems", 1, 200) ?: 100
         ctx.session.observe(withImage = false, recordFrame = false)
@@ -226,6 +228,7 @@ internal object PhoneDialog : PhoneTool {
     ))
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution = ctx.session.textOnly {
+        ctx.visualFirstFailure("phone_dialog")?.let { return@textOnly it }
         ctx.session.observe(withImage = false, recordFrame = false)
         val screen = ctx.session.lastSnapshot ?: return@textOnly fail("read_failed")
         val windows = screen.windows.sortedByDescending { it.layer }

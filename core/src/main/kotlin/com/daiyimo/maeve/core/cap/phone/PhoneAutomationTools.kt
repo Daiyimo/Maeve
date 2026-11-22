@@ -34,6 +34,7 @@ internal object PhoneQuery : PhoneTool {
     ))
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
+        ctx.visualFirstFailure("phone_query")?.let { return it }
         val read = ctx.session.observe(withImage = false, recordFrame = false)
         val snapshot = ctx.session.lastSnapshot!!
         val query = PhoneAutomationEngine.Query(a.str("text", max = 200), a.str("resourceId", max = 200), a.str("role", max = 100))

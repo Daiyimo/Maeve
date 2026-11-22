@@ -164,8 +164,10 @@ class AccuracyTest {
     }
 
     @Test fun baselineAlreadyTargetAndWriteIgnoredIsNotMatch() {
-        // 清不掉也写不进:前后一样,无从判断
-        assertEquals(Verification.UNKNOWN, type(FakeField("WLAN", accepts = false, clearable = false), "WLAN"))
+        // 清不掉也写不进:前后一样,无从判断;不再盲目写第二遍
+        val unclear = FakeField("WLAN", accepts = false, clearable = false)
+        assertEquals(Verification.UNKNOWN, type(unclear, "WLAN"))
+        assertEquals(1, unclear.writes)
         // 能清空但写不进:清空后读回为空,写入后仍为空
         assertEquals(Verification.MISMATCH, type(FakeField("WLAN", accepts = false), "WLAN"))
         // 能清空也能写:真的写进去了
@@ -181,6 +183,25 @@ class AccuracyTest {
         assertEquals(Verification.MISMATCH, run(FakeField("请输入关键词", accepts = false, writeResult = false), reacted = true))
         // 框里的字变了但不对:不是「读不回」,仍是没打对
         assertEquals(Verification.MISMATCH, run(FakeField("", format = { "${it}设置" }), reacted = true))
+    }
+
+    @Test fun staleReadbackGetsOneMoreSettleBeforeRetry() = runBlocking {
+        var reads = 0
+        var settles = 0
+        val f = object : TextField {
+            var text = ""
+            override fun read(): String = if (++reads <= 2) "" else text
+            override fun write(text: String): Boolean { this.text = text; return true }
+            override fun retry(text: String): Boolean = error("must not retry after the late readback matches")
+        }
+        assertEquals(Verification.MATCH, typeAndVerify(f, "WLAN", settle = { settles++ }))
+        assertEquals(2, settles)
+    }
+
+    @Test fun changedButMismatchedFieldIsNotRetriedThroughAnotherChannel() {
+        val f = FakeField("", format = { "${it}设置" })
+        assertEquals(Verification.MISMATCH, type(f, "WLAN"))
+        assertEquals(1, f.writes)
     }
 
     @Test fun retryUsesTheOtherWriteChannel() {

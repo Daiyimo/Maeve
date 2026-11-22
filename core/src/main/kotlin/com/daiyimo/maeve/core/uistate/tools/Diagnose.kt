@@ -26,10 +26,27 @@ internal class Diagnose(f: ScreenFamily) : ScreenTool(f, "diagnose") {
     override val def by lazy { ToolDef(name, describe()) }
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
+        if (ctx.session.visualFirst()) return reportVisual(ctx)
         // 端口给得出判定就先按它报:现状、能不能用、要不要人接,并附上下一步的提示
         ctx.screen.checkScreen()?.let { return report(it) }
         // 端口判不了(网页一类):按最近一次读屏的元素估「能不能用」
         return reportFromSnapshot(ctx)
+    }
+
+    /** 视觉优先路径只凭截图/OCR 判断,不调用端口 checkScreen(它会读 UI 树)。 */
+    private suspend fun reportVisual(ctx: ToolContext): ToolExecution {
+        val read = ctx.session.observe(withImage = false, recordFrame = false)
+        val protected = read.content["protected"] == kotlinx.serialization.json.JsonPrimitive(true)
+        val readable = read.content["readable"] != kotlinx.serialization.json.JsonPrimitive(false)
+        val state = if (protected) ScreenState.PROTECTED else if (!readable) ScreenState.BLANK else ScreenState.NORMAL
+        val place = family.placeKey
+        return ok {
+            put(place, (read.content["currentApp"] as? kotlinx.serialization.json.JsonPrimitive)?.content)
+            put("state", state.wire)
+            put("usable", state == ScreenState.NORMAL)
+            put("needsHuman", false)
+            (read.content["hint"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.let { put("hint", it) }
+        }
     }
 
     /** 端口判定 [c] 对应的结果;hint 按状态分别给,没有可说的状态就不给这个字段。 */

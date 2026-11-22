@@ -101,6 +101,12 @@ class LoopPoliciesTest {
         assertNull(advice)
     }
 
+    @Test fun noNewStateWarningForcesFinalTurnButHardStopDoesNot() {
+        assertTrue(StuckAdvice.forceFinalTurn(listOf(warn("no_new_state"))))
+        assertFalse(StuckAdvice.forceFinalTurn(listOf(warn("no_progress"))))
+        assertFalse(StuckAdvice.forceFinalTurn(listOf(GuardVerdict("no_new_state", Severity.Stop, JsonObject(emptyMap())))))
+    }
+
     @Test fun revisitingOldStatesSuggestsAQuestionWhenUserChoiceIsMissing() {
         val first = StuckAdvice.next(StuckState(), StuckInput(listOf(warn("no_new_state")), null, "com.x")).first
         val advice = StuckAdvice.next(first, StuckInput(listOf(warn("no_new_state")), null, "com.x")).second

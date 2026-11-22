@@ -1,8 +1,12 @@
 package com.daiyimo.maeve.core.cap.phone
 
 import com.daiyimo.maeve.core.uistate.ScreenFamily
+import com.daiyimo.maeve.core.uistate.session
 import com.daiyimo.maeve.core.uistate.tools.ScreenTool
 import com.daiyimo.maeve.core.tool.AgentTool
+import com.daiyimo.maeve.core.tool.ToolContext
+import com.daiyimo.maeve.core.tool.ToolExecution
+import com.daiyimo.maeve.core.tool.fail
 
 /** 手机能力的 id,也是手机那一套工具名字的前缀。 */
 const val PHONE = "phone"
@@ -18,6 +22,10 @@ internal interface PhoneTool : AgentTool {
     override val capability: String get() = PHONE
     override val sandboxCallable: Boolean get() = true
 }
+
+/** 视觉优先 App 上明确拒绝树专用工具,避免把“没读树”误报成“页面没有目标”。 */
+internal suspend fun ToolContext.visualFirstFailure(tool: String): ToolExecution? =
+    if (session.visualFirst()) fail("visual_first", "$tool requires the accessibility tree, which is intentionally disabled for this app. Use phone_observe, visibleText, phone_find_visually or coordinate taps instead.") else null
 
 /**
  * 手机一组:那一套屏幕工具(读屏、看图、点、滑、输入、按键、诊断屏幕),再加列出、打开 App 与链接,

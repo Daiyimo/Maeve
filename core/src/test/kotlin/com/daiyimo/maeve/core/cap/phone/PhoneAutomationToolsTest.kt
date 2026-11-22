@@ -72,6 +72,19 @@ class PhoneAutomationToolsTest {
         assertEquals(0, screenshots)
     }
 
+    @Test fun treeToolsFailFastOnVisualFirstAppsWithoutReadingTree() = runTest {
+        var reads = 0
+        val screen = object : ScreenPort by FakeScreen() {
+            override suspend fun currentPackage(): String? = "com.xingin.xhs"
+            override suspend fun snapshot(): ScreenSnapshot { reads++; return tree() }
+        }
+        val dispatcher = toolDispatcher(screen)
+        val args = Args(PhoneQuery.def, Json.parseToJsonElement("""{"text":"午餐"}""").jsonObject)
+        val result = PhoneQuery.execute(args, dispatcher.ctx).content
+        assertEquals("visual_first", result["error"]!!.jsonPrimitive.content)
+        assertEquals(0, reads)
+    }
+
     @Test fun collectMergesOverlapAndStopsAfterTwoPagesWithoutNewText() = runTest {
         val dispatcher = toolDispatcher(FakeScreen())
         val pages = listOf(listOf("甲", "乙"), listOf("乙", "丙"), listOf("丙", "丁"), listOf("丙", "丁"), listOf("丙", "丁"))

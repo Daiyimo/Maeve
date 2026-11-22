@@ -80,8 +80,11 @@ class RefStabilizerTest {
         // 一边唯一、另一边重复,也不沿用
         val c = st.next(shot(el("关注", 800, 300)))
         assertTrue(c.ref("关注") !in b.refs("关注"))
-        val d = st.next(shot(el("关注", 800, 300), el("关注", 800, 600)))
-        assertTrue(d.refs("关注").none { it == c.ref("关注") })
+        // 歧义组消失一屏后再次唯一出现,也不沿用:它可能已经是顶部搜索框之类的另一个控件。
+        val d = st.next(shot(el("关注", 800, 300)))
+        assertNotEquals(c.ref("关注"), d.ref("关注"))
+        val e = st.next(shot(el("关注", 800, 300), el("关注", 800, 600)))
+        assertTrue(e.refs("关注").none { it == d.ref("关注") })
     }
 
     @Test fun unnamedElementsWithoutResourceIdNeverKeepRefs() {

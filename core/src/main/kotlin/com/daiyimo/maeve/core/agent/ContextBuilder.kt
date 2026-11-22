@@ -47,6 +47,8 @@ enum class ContextKind(val wire: String, val layer: ContextLayer, val trust: Tru
     /** 用户发来的此刻的屏幕(见 [com.daiyimo.maeve.core.userscreen.UserScreenPrompt]):紧跟在那句话后面,压缩时保留。 */
     UserScreen("user_screen", ContextLayer.Runtime, Trust.Screen, pinned = true),
     RuntimeState("runtime_state", ContextLayer.Runtime, Trust.Runtime, pinned = false),
+    /** 当前任务的目标类型、候选与已打开条目;压缩时只保留最新一份。 */
+    TargetState("target_state", ContextLayer.Task, Trust.Maeve, pinned = true),
     Notice("notice", ContextLayer.Runtime, Trust.Maeve, pinned = false);
 
     companion object {
@@ -135,6 +137,9 @@ class ContextBuilder(
 
     /** 用户发来的一屏的详情(屏上的字、编号);不进预算,和那句话一样留着。 */
     fun userScreen(source: String, body: String): Message = Piece(ContextKind.UserScreen, source, body = body).message()
+
+    /** 当前任务的可执行目标状态;固定保留,压缩旧往返时由压缩器只留最新一份。 */
+    fun targetState(body: String): Message = Piece(ContextKind.TargetState, "task targets", body = body, clip = Int.MAX_VALUE).message()
 
     /** Maeve 给模型的提示(没调工具、步数自查、步数用完……)。 */
     fun notice(source: String, text: String): Message = Piece(ContextKind.Notice, source, body = text).message()

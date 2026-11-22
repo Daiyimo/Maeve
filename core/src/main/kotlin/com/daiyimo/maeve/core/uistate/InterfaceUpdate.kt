@@ -22,19 +22,21 @@ private const val DEFAULT_MAX_ELEMENTS = 200
  */
 object InterfaceUpdate {
     fun between(base: ModelSnapshot?, current: ModelSnapshot, baseVisible: Boolean, maxElements: Int = DEFAULT_MAX_ELEMENTS): JsonObject {
-        val now = ScreenJson.elements(current.screen, Int.MAX_VALUE).first
+        val outline = ScreenOutline.from(current.screen)
+        val now = ScreenJson.elements(current.screen, Int.MAX_VALUE, outline).first
         fun whole() = buildJsonObject {
             put("snapshotId", current.snapshotId)
             put("currentApp", current.port.packageName)
             put("full", true)
             flags(current)
             put("elements", JsonArray(now.take(maxElements)))
+            if (outline.modules.isNotEmpty()) put("modules", outline.json()["modules"]!!)
             put("truncated", now.size > maxElements)
             if (current.screen.windows.isNotEmpty()) put("tree", UiTreeJson.windows(current.screen))
         }
         if (base == null || !baseVisible || base.port.packageName != current.port.packageName) return whole()
         if (current.screen.windows.isNotEmpty() && !UiTreeJson.sameWindows(base.screen, current.screen)) return whole()
-        val prior = ScreenJson.elements(base.screen, Int.MAX_VALUE).first.associateBy(::refOf)
+        val prior = ScreenJson.elements(base.screen, Int.MAX_VALUE, ScreenOutline.from(base.screen)).first.associateBy(::refOf)
         val present = now.associateBy(::refOf)
         val added = now.filter { refOf(it) !in prior }
         val removed = prior.filter { it.key !in present }.values.map(::removedEntry)
@@ -60,6 +62,7 @@ object InterfaceUpdate {
             put("removed", JsonArray(removed))
             put("changed", JsonArray(listedChanged))
             put("unchanged", now.size - added.size - changed.size)
+            if (outline.modules.isNotEmpty()) put("modules", outline.json()["modules"]!!)
             if (listedAdded.size + listedChanged.size < added.size + changed.size) put("truncated", true)
             treeDiff?.let { put("treeChanges", it) }
         }

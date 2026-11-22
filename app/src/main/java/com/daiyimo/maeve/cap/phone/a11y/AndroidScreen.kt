@@ -47,6 +47,7 @@ import com.daiyimo.maeve.core.uistate.WheelOutcome
 import com.daiyimo.maeve.cap.phone.shell.SystemIntents
 import com.daiyimo.maeve.core.visual.FrameGrid
 import com.daiyimo.maeve.core.uistate.Verification
+import com.daiyimo.maeve.core.uistate.VisualFirstPolicy
 import com.daiyimo.maeve.core.uistate.TextField
 import com.daiyimo.maeve.core.uistate.typeAndVerify
 import com.daiyimo.maeve.core.uistate.relocate
@@ -181,6 +182,12 @@ class AndroidScreen(
     // 不进编号登记表:模型手里最新的 ref 仍然有效
     override suspend fun peek(): ScreenSnapshot = capture(register = false)
 
+    /** 只问最上面的任务,不碰无障碍树。 */
+    override suspend fun currentPackage(): String? = withContext(Dispatchers.IO) { foregroundTaskPackage() }
+
+    /** 视口尺寸来自虚拟屏本身,不碰无障碍树。 */
+    override suspend fun viewport(): Pair<Int, Int> = screenWidth to screenHeight
+
     private suspend fun capture(register: Boolean): ScreenSnapshot = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext ScreenSnapshot(snapshotId(), null, emptyList(), screenWidth, screenHeight, hasWindow = false)
         // 上一个动作过了一会儿才开到用户主屏上的:先挪回来再读(只在模型要读的这一屏上做,不在判效果的那一眼里做)
@@ -250,7 +257,7 @@ class AndroidScreen(
     }
 
     override suspend fun isProtected(): Boolean = withContext(Dispatchers.IO) {
-        hasDisplay && read().hasAppWindow && frameBlack() == true
+        hasDisplay && foregroundTaskPackage() != null && frameBlack() == true
     }
 
     override suspend fun checkScreen(): ScreenCheck = withContext(Dispatchers.IO) {
@@ -287,6 +294,27 @@ class AndroidScreen(
         withEventClock { clock -> clock.awaitQuiet(QUIET_MS, timeoutMs) }
     }
 
+    /** 视觉优先时只轮询画面指纹,不订阅或读取无障碍事件。 */
+    override suspend fun waitVisualStable(timeoutMs: Long): Boolean = withContext(Dispatchers.IO) {
+        if (!hasDisplay) return@withContext true
+        val cap = timeoutMs.coerceAtLeast(0)
+        val deadline = SystemClock.uptimeMillis() + cap
+        var previous = frameSignature() ?: return@withContext false
+        var changedAt = SystemClock.uptimeMillis()
+        while (SystemClock.uptimeMillis() < deadline) {
+            val now = SystemClock.uptimeMillis()
+            if (now - changedAt >= QUIET_MS) return@withContext true
+            delay(min(POLL_MS, deadline - now).coerceAtLeast(1))
+            val next = frameSignature() ?: return@withContext false
+            val after = SystemClock.uptimeMillis()
+            if (!previous.contentEquals(next)) {
+                previous = next
+                changedAt = after
+            }
+        }
+        return@withContext false
+    }
+
     /** 这块虚拟屏的下一条界面事件(悬停一类不算);屏还没开时等满时限。 */
     override suspend fun awaitChange(timeoutMs: Long): Boolean = withContext(Dispatchers.IO) {
         if (!hasDisplay) { delay(timeoutMs.coerceAtLeast(0)); return@withContext false }
@@ -307,13 +335,17 @@ class AndroidScreen(
                 }
             }
             try {
-                fun matched(): Boolean = when (condition) {
+                suspend fun matched(): Boolean = when (condition) {
                     "activity" -> runCatching { shell.topActivity(displayId)?.contains(value, true) == true }.getOrDefault(false)
                     else -> {
-                        val r = read()
-                        val exists = r.windows.any { w ->
-                            w.title?.contains(value, true) == true || w.nodes.any { n -> containsText(n, value) }
-                        } || r.texts.any { it.contains(value, true) }
+                        val exists = if (VisualFirstPolicy.applies(foregroundTaskPackage())) {
+                            readVisibleText()?.any { it.text.contains(value, true) } == true
+                        } else {
+                            val r = read()
+                            r.windows.any { w ->
+                                w.title?.contains(value, true) == true || w.nodes.any { n -> containsText(n, value) }
+                            } || r.texts.any { it.contains(value, true) }
+                        }
                         exists == (condition == "appear")
                     }
                 }
@@ -473,7 +505,16 @@ class AndroidScreen(
      * 弹着输入法、输入框拿着焦点、上面盖着别的窗口(弹框、浮层)、没有够大的可滚动内容时不滚。
      */
     override suspend fun idleScroll(fraction: Double): Boolean = withContext(Dispatchers.IO) {
-        if (!hasDisplay || imeBox() != null || focusedEditable() != null) return@withContext false
+        val visual = VisualFirstPolicy.applies(foregroundTaskPackage())
+        if (!hasDisplay || imeBox() != null || (!visual && focusedEditable() != null)) return@withContext false
+        if (visual) {
+            val dist = (screenHeight * kotlin.math.abs(fraction)).roundToInt().coerceAtMost(screenHeight / 2)
+            if (dist < IDLE_MIN_PX) return@withContext false
+            val cx = screenWidth / 2
+            val mid = screenHeight / 2
+            val (from, to) = if (fraction > 0) mid + dist / 2 to mid - dist / 2 else mid - dist / 2 to mid + dist / 2
+            return@withContext drag(listOf(cx to from, cx to to), IDLE_SCROLL_MS, bow = true)
+        }
         if (ScreenReader.contentWindows(windows()).count { it.type == AccessibilityWindowInfo.TYPE_APPLICATION } > 1) return@withContext false
         val area = read().entries.filter { it.element.scrollable }
             .map { e -> android.graphics.Rect().also { e.node.getBoundsInScreen(it) } }
@@ -511,6 +552,7 @@ class AndroidScreen(
 
     override suspend fun typeText(ref: String?, snapshotId: String?, text: String): ActionResult = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext NO_APP_OPEN
+        if (ref == null && VisualFirstPolicy.applies(foregroundTaskPackage())) return@withContext typeUnseen(text)
         val found = when (val f = findField(ref, snapshotId)) {
             is Field.Found -> f
             is Field.Missing -> return@withContext when {
@@ -560,10 +602,17 @@ class AndroidScreen(
             override fun retry(text: String): Boolean {
                 if (web || pasteUnavailable) return write(text)
                 // 原生框第一次 SET_TEXT 没落地时,第二次改走选择加粘贴,让编辑器收到真实输入。
-                return when (val r = inputText(field, text)) {
-                    null -> { pasteUnavailable = true; setText(field, text) }
+                val pasted = when (val r = inputText(field, text)) {
+                    null -> { pasteUnavailable = true; return setText(field, text) }
                     else -> r
                 }
+                if (!pasted) return false
+                // 首次 SET_TEXT 可能已经落地,但无障碍树慢半拍;旧选区没覆盖新内容时粘贴会追加。
+                // 读回不一致就用 SET_TEXT 归一化,不让同一段文字在框里出现两份。
+                val actual = read()
+                return actual == null ||
+                    actual.filterNot { it.isWhitespace() } == text.filterNot { it.isWhitespace() } ||
+                    setText(field, text)
             }
         }
         val textsBefore = read().texts.toSet()
@@ -594,6 +643,7 @@ class AndroidScreen(
 
     override suspend fun clearText(ref: String?, snapshotId: String?): ActionResult = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext NO_APP_OPEN
+        if (ref == null && VisualFirstPolicy.applies(foregroundTaskPackage())) return@withContext clearUnseen()
         val found = when (val f = findField(ref, snapshotId, tapToFocus = false)) {
             is Field.Found -> f
             is Field.Missing -> return@withContext when {
@@ -637,7 +687,7 @@ class AndroidScreen(
         // 点了开出了别的 App(开到用户主屏上又挪回来的也是):不打字,照实报这一下点的结果
         if (tapped.opened != null) return@withContext tapped
         tapped.appSwitched?.takeIf { !tapped.switchedByTarget }?.let { return@withContext UnseenField.tapSwitched(it) }
-        if (focusedEditable() != null) return@withContext typeText(null, null, text)
+        if (!VisualFirstPolicy.applies(foregroundTaskPackage()) && focusedEditable() != null) return@withContext typeText(null, null, text)
         typeUnseen(text, atPoint = true)
     }
 
@@ -649,7 +699,7 @@ class AndroidScreen(
         // 点了开出了别的 App(开到用户主屏上又挪回来的也是):不清空,照实报这一下点的结果
         if (tapped.opened != null) return@withContext tapped
         tapped.appSwitched?.takeIf { !tapped.switchedByTarget }?.let { return@withContext UnseenField.tapSwitched(it) }
-        if (focusedEditable() != null) return@withContext clearText(null, null)
+        if (!VisualFirstPolicy.applies(foregroundTaskPackage()) && focusedEditable() != null) return@withContext clearText(null, null)
         clearUnseen(atPoint = true)
     }
 
@@ -662,7 +712,7 @@ class AndroidScreen(
     private suspend fun typeUnseen(text: String, atPoint: Boolean = false): ActionResult {
         val ime = imeBox()
         val before = readVisibleText()?.let { UnseenField.outside(it, ime) }
-        val beforeTree = treeHash()
+        val beforeTree = if (VisualFirstPolicy.applies(foregroundTaskPackage())) null else treeHash()
         val beforeFrame = frameSignature()
         var pasted: Boolean? = null
         val changed = withEventClock { clock ->
@@ -957,6 +1007,7 @@ class AndroidScreen(
         if (checkOtherTasks && expected != null && !reserve(expected)) return@withContext IN_USE_BY_OTHER
         val before = ScreenReader.topPackage(windows())
         val beforeTree = treeHash()
+        val beforeFrame = frameSignature()
         // 事先知道由谁打开的(指定了 App、设置页、只有一个 App 接的链接):启动前先静上
         val early = expected ?: linkHandler(action, uri)
         early?.let { beforeOpen(it, null) }
@@ -972,7 +1023,10 @@ class AndroidScreen(
         }
         fun landed(): Boolean {
             val top = ScreenReader.topPackage(windows())
-            return if (expected != null) top == expected else top != null && (top != before || treeHash() != beforeTree)
+            if (expected != null) return top == expected
+            if (top == null) return false
+            if (top != before) return true
+            return if (VisualFirstPolicy.applies(top)) FrameMath.differs(beforeFrame, frameSignature()) else treeHash() != beforeTree
         }
         val deadline = SystemClock.uptimeMillis() + LAUNCH_WAIT_MS
         while (!landed() && SystemClock.uptimeMillis() < deadline) delay(POLL_MS)
@@ -1205,7 +1259,7 @@ class AndroidScreen(
      */
     private suspend fun verified(relocatedTo: String? = null, action: suspend () -> Boolean): ActionResult {
         lateSpill()?.let { return ActionResult.Failed("opened_elsewhere", hintLateSpill(it.opened)) }
-        val beforeTree = treeHash()
+        val beforeTree = if (VisualFirstPolicy.applies(foregroundTaskPackage())) null else treeHash()
         val beforeFrame = frameSignature()
         val w = armSpillWatch()
         val change = withEventClock { clock ->
@@ -1576,13 +1630,13 @@ class AndroidScreen(
     }
 
     /** 等界面稳定后比对指纹(规则见 [ChangeWait]);确认变了立即返回 true。 */
-    private suspend fun awaitChange(clock: EventClock, beforeTree: Long, beforeFrame: IntArray?): ChangeWait.Result =
+    private suspend fun awaitChange(clock: EventClock, beforeTree: Long?, beforeFrame: IntArray?): ChangeWait.Result =
         ChangeWait.awaitStableChange(
             now = SystemClock::uptimeMillis,
             sleep = { delay(it) },
             frame = ::frameSignature,
             quietForMs = clock::quietForMs,
-            treeChanged = { treeHash() != beforeTree },
+            treeChanged = { beforeTree != null && treeHash() != beforeTree },
             beforeFrame = beforeFrame,
         )
 

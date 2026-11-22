@@ -7,6 +7,7 @@ import com.daiyimo.maeve.core.uistate.ScreenSnapshot
 import com.daiyimo.maeve.core.uistate.TreeAdequacy
 import com.daiyimo.maeve.core.uistate.TreeQuality
 import com.daiyimo.maeve.core.uistate.UiElement
+import com.daiyimo.maeve.core.uistate.VisualFirstPolicy
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -78,14 +79,17 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
     private val m = LocateMessages(family)
     private class Box(val l: Int, val t: Int, val r: Int, val b: Int, val seen: String?)
 
+    private suspend fun visualFirst(): Boolean = VisualFirstPolicy.applies(screen.currentPackage())
+
     suspend fun locate(target: String, text: String?): LocateResult {
-        // 只有按原文核对元素表时才需要两帧,用来确认读树期间画面没变。
-        val first = if (text == null) null else when (val shot = capture()) {
+        val visual = visualFirst()
+        // 只有非视觉优先且按原文核对元素表时才需要两帧,用来确认读树期间画面没变。
+        val first = if (text == null || visual) null else when (val shot = capture(visual)) {
             is Shot.Ok -> shot
             is Shot.Missing -> return shot.asNotFound()
         }
-        val elements = if (text != null) readElements() else null
-        val second = capture().let { it as? Shot.Ok ?: return (it as Shot.Missing).asNotFound() }
+        val elements = if (text != null && !visual) readElements(visual) else null
+        val second = capture(visual).let { it as? Shot.Ok ?: return (it as Shot.Missing).asNotFound() }
         val synced = first != null && elements != null && hamming(first.hash, second.hash) <= LOCATE_SCREEN_CHANGE
 
         if (text != null && synced) {
@@ -98,7 +102,7 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
             }
         }
 
-        clearForVision()?.let { return it.asNotFound() }
+        clearForVision(visual)?.let { return it.asNotFound() }
         val (locatePrompt, confirmPrompt) = PROMPTS
         val box = try {
             parseBox(vision.ask(locatePrompt, if (text != null) "$target (label: \"$text\")" else target, listOf(second.png)))
@@ -130,7 +134,7 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
         val nameChecked = agreed != null
         // 定位准度没验证过的模型:只靠看图的框要有佐证——框中心的元素就是要找的字(上面已核过名字),或再框一次、复看两次都确认且看到的一致。
         // 树不能用、或缺了一块而要找的不在树里时,没有东西可对照:照样交出去,标明没佐证,点完由效果说话
-        val visionOnly = !vision.groundingVerified && !nameChecked && nothingToCheckAgainst(text)
+        val visionOnly = !vision.groundingVerified && !nameChecked && nothingToCheckAgainst(text, visual)
         if (!vision.groundingVerified && !nameChecked && !visionOnly) {
             val again = try {
                 secondLook(target, text, box, second.png, locatePrompt, confirmPrompt)
@@ -149,7 +153,8 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
      * 这一屏没有能给看图的框作佐证的东西:树不能用;或缺了一块,而要找的字([text])不在树里(没给字时按不在算)。
      * 树够用、判不准、读不到屏时都不算:照旧要佐证。
      */
-    private suspend fun nothingToCheckAgainst(text: String?): Boolean {
+    private suspend fun nothingToCheckAgainst(text: String?, visual: Boolean): Boolean {
+        if (visual) return true
         val s = peekOrNull() ?: return false
         return when (TreeAdequacy.ofTree(s).quality) {
             TreeQuality.Unusable -> true
@@ -175,8 +180,9 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
 
     /** 当前截图和「我现在想做的事」交给视觉模型,原样返回描述。画面拿不到抛 [ScreenUnavailable],模型出错抛 ModelError。 */
     suspend fun describe(task: String): String {
-        val shot = capture().let { it as? Shot.Ok ?: throw (it as Shot.Missing).let { m -> ScreenUnavailable(m.reason, m.message) } }
-        clearForVision()?.let { throw ScreenUnavailable(it.reason, it.message) }
+        val visual = visualFirst()
+        val shot = capture(visual).let { it as? Shot.Ok ?: throw (it as Shot.Missing).let { m -> ScreenUnavailable(m.reason, m.message) } }
+        clearForVision(visual)?.let { throw ScreenUnavailable(it.reason, it.message) }
         return vision.ask(DESCRIBE_PROMPT, "What I want to do now: $task", listOf(shot.png))
     }
 
@@ -197,10 +203,15 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
      * 截一张图。屏上有防截屏窗口时不截(截到的也是黑的,付款页一类不能外传);
      * 截不到时区分「还没开 App」和一时截不到。
      */
-    private suspend fun capture(): Shot {
+    private suspend fun capture(visualOverride: Boolean? = null): Shot {
+        val visual = visualOverride ?: visualFirst()
         if (screen.isProtected()) return Shot.Missing("protected_content", m.protectedScreen)
         val png = screen.screenshotPng()
         if (png == null) {
+            if (visual) {
+                val empty = screen.currentPackage() == null
+                return if (empty) Shot.Missing("no_app_open", m.noApp) else Shot.Missing("screenshot_unavailable", m.noShot)
+            }
             val s = peekOrNull()
             val empty = s != null && s.packageName == null && s.elements.isEmpty() && !s.hasWindow
             return if (empty) Shot.Missing("no_app_open", m.noApp) else Shot.Missing("screenshot_unavailable", m.noShot)
@@ -214,13 +225,20 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
      * 交给视觉模型前再读一次屏:受保护页面不传；读不到屏也不传。
      * 付款页按普通页面处理。可以传时为 null。
      */
-    private suspend fun clearForVision(): Shot.Missing? {
+    private suspend fun clearForVision(visualOverride: Boolean? = null): Shot.Missing? {
+        val visual = visualOverride ?: visualFirst()
+        if (visual) {
+            if (screen.currentPackage() == null) return Shot.Missing("no_app_open", m.noApp)
+            if (screen.isProtected()) return Shot.Missing("protected_content", m.protectedScreen)
+            return null
+        }
         val s = peekOrNull() ?: return Shot.Missing("vision_unavailable", m.unchecked)
         if (s.protected) return Shot.Missing("protected_content", m.protectedScreen)
         return null
     }
 
-    private suspend fun readElements(): List<UiElement>? = peekOrNull()?.takeIf { !it.protected }?.elements
+    private suspend fun readElements(visual: Boolean): List<UiElement>? =
+        if (visual) null else peekOrNull()?.takeIf { !it.protected }?.elements
 
     private suspend fun peekOrNull(): ScreenSnapshot? =
         try { screen.peek() } catch (e: CancellationException) { throw e } catch (e: Exception) { null }

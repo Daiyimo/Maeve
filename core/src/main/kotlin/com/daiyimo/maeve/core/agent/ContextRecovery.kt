@@ -8,6 +8,7 @@ import com.daiyimo.maeve.core.model.Role
 /**
  * 压缩后的确定性兜底:用户原话(含插话)与固定知识/技能规则一条也不能消失。
  * 比对时不看运行时状态(折叠会把它去掉,同一条消息仍算在);真的不见了的放回它在完整历史里的位置,不接到末尾。
+ * 目标状态是动态快照,不是固定规则:压缩器已只保留最新一份,恢复逻辑不再把旧状态补回来。
  */
 internal object ContextRecovery {
     fun ensure(full: List<Message>, compressed: List<Message>): List<Message> {
@@ -58,5 +59,5 @@ internal object ContextRecovery {
     private fun userKey(m: Message): Message = ContextBuilder.withoutRuntimeState(m)
 
     private fun ruleKey(message: Message): Pair<ContextKind, String?>? =
-        ContextBuilder.kindOf(message)?.takeIf { it.pinned }?.let { it to ContextBuilder.sourceOf(message) }
+        ContextBuilder.kindOf(message)?.takeIf { it.pinned && it != ContextKind.TargetState }?.let { it to ContextBuilder.sourceOf(message) }
 }

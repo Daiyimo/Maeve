@@ -349,6 +349,18 @@ class ContextCompressorTest {
         assertEquals(37, folded)
     }
 
+    @Test fun compressionKeepsOnlyLatestTargetState() {
+        val initial = ContextBuilder().targetState("Target: notes\nOpened target items: 0")
+        val old = ContextBuilder().targetState("Target: notes\nOpened target items: 1")
+        val latest = ContextBuilder().targetState("Target: notes\nOpened target items: 2")
+        val final = ContextBuilder().targetState("Target: notes\nOpened target items: 3")
+        val h = head + initial + taps(2) + old + taps(2) + latest + taps(18) + final
+        val compressed = ContextCompressor(TOOLS).compress(h, contextTokens = 1_000).messages
+        val out = ContextRecovery.ensure(h, compressed)
+        assertEquals(listOf(final), out.filter { ContextBuilder.kindOf(it) == ContextKind.TargetState })
+        assertTrue(out.flatMap { it.plainText().lines() }.none { "Opened target items: 0" in it || "Opened target items: 1" in it })
+    }
+
     /** 边界前:30 次点按、全量 s1、两次差异、5 次点按;留下的 12 次:[before]、带 [screen] 的一次返回、其余点按。返回折了几步和留下的工具结果。 */
     private fun compressWithLatest(screen: String, before: List<Message> = emptyList()): Pair<Int, List<String>> {
         val full = round("phone_observe", "{}", """{"ok":true,"snapshotId":"s1","elements":[{"ref":"@e1"}],"pad":"$pad"}""")

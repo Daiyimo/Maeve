@@ -46,20 +46,35 @@ object ScreenText {
 
 object ScreenJson {
     /** observe 的元素数组;center 换成与 tap 坐标相同的 0–999(像素只在端口内部用);返回数组与被截掉的元素数。 */
-    fun elements(s: ScreenSnapshot, maxElements: Int): Pair<JsonArray, Int> {
+    fun elements(s: ScreenSnapshot, maxElements: Int, outline: ScreenOutline = ScreenOutline.from(s)): Pair<JsonArray, Int> {
         val visible = s.elements.filter { it.meaningful }
-        val arr = buildJsonArray { for (e in visible.take(maxElements)) add(element(e, s)) }
+        val arr = buildJsonArray { for (e in visible.take(maxElements)) add(element(e, s, outline)) }
         return arr to (visible.size - arr.size).coerceAtLeast(0)
     }
 
-    /** 一个元素的 JSON:引用、角色、名字、中心点(0–999)、边界;资源 ID 和提示语有才带。 */
-    private fun element(e: UiElement, s: ScreenSnapshot): JsonObject = buildJsonObject {
+    /** 一个元素的 JSON:引用、角色、名字、中心点、边界、可操作性与所属模块。 */
+    private fun element(e: UiElement, s: ScreenSnapshot, outline: ScreenOutline): JsonObject = buildJsonObject {
         put("ref", e.ref)
         put("role", e.role)
         put("name", e.name)
         put("center", buildJsonObject { put("x", normalize(e.centerX, s.width)); put("y", normalize(e.centerY, s.height)) })
         put("bounds", JsonArray(e.bounds.map { JsonPrimitive(it) }))
+        if (e.clickable || e.editable || e.scrollable) put("actionable", true)
+        if (e.clickable) put("clickable", true)
+        if (e.editable) put("editable", true)
+        if (e.scrollable) put("scrollable", true)
+        if (e.focused) put("focused", true)
+        if (e.secret) put("secret", true)
+        if (e.searchField) put("searchField", true)
+        if (e.states.isNotEmpty()) put("states", JsonArray(e.states.map { JsonPrimitive(it) }))
+        e.placeholder?.let { put("placeholder", it) }
         e.resourceId?.let { put("resourceId", it) }
         if (e.hint) put("hint", true)
+        outline.elementMeta(e.ref)?.let { meta ->
+            meta.section?.let { put("section", it) }
+            meta.sectionRef?.let { put("sectionRef", it) }
+            meta.scrollRef?.let { put("scrollRef", it) }
+            if (meta.item) put("item", true)
+        }
     }
 }

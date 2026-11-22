@@ -9,6 +9,7 @@ import com.daiyimo.maeve.core.observation.tag
 import com.daiyimo.maeve.core.prompt.Feedback
 import com.daiyimo.maeve.core.prompt.PromptVersion
 import com.daiyimo.maeve.core.tool.parseArgs
+import com.daiyimo.maeve.core.tool.fail
 import com.daiyimo.maeve.core.action.ActionExecutor
 import com.daiyimo.maeve.core.action.ActionOutcome
 import com.daiyimo.maeve.core.action.ActionRecorder
@@ -185,6 +186,9 @@ class AgentLoop(
     /** 这次的原话给模型时的样子(带着屏幕时换成了说明,见 [UserScreenTurns]);还没开始为 null。判结局、提取记忆按它读。 */
     @Volatile var taskText: String? = null
         private set
+    /** 当前任务的可执行目标状态;与自然语言历史分开,压缩后仍保留。 */
+    private var taskTargets: TaskTargets? = null
+    private var lastTargetState: String? = null
     /**
      * 用户最近一句话(开局原话或插话)里他这次打的字,见 [ownWords];插话里没打字(只发了屏幕、只选了字)时沿用上一句的。
      * 语言提示和回答的语言检查按它;记忆、技能的引文收的是 [UserWords.said](还认他引的自己说过的话)。
@@ -339,6 +343,8 @@ class AgentLoop(
         val opening = shots.render(raw)
         val task = opening?.said ?: raw
         taskText = task
+        taskTargets = TaskTargets(task)
+        lastTargetState = null
         latestWords = ownWords(raw, opening)
         val priorTurns = shots.collapse(rawPrior)
         earlierGoals = priorTurns.map { it.userText }
@@ -545,6 +551,10 @@ class AgentLoop(
                     TurnPolicy.followUp(owed).let { history += ctx.notice(it.source, it.text) }
                     continue
                 }
+                taskTargets?.completionNotice()?.let { reminder ->
+                    history += ctx.notice("task_targets", reminder)
+                    continue
+                }
                 val before = beforeAccept(text)
                 if (before is BeforeAccept.Continue) {
                     history += ctx.notice(Feedback["before_accept_source"], before.note)
@@ -592,6 +602,15 @@ class AgentLoop(
                 }.toString(), isError = true)
             }
             val args = parseArgs(first.argsJson)
+            val verb = tools.verb(first.name)
+            if (verb == Verb.Scroll || verb == Verb.Swipe) taskTargets?.scrollBlockReason(args)?.let { reason ->
+                val content = fail("target_scope", reason, recoverable = true).content
+                history += Message(Role.Tool, listOf(Part.ToolResult(first.id, content.toString(), isError = true)) + skipped, Author.Maeve)
+                recordReply(Redactor.args(verb, first.argsJson, secretField = true))
+                recorder.result(step, first.name, verb, content, JsonObject(emptyMap()), null, null, 0, "model", first.id)
+                track.after(verb, ok = false, guard = false, changed = null, recovery = false, app = null)
+                continue
+            }
 
             // 用户刚同意的那一步要单独做:批里的步不带同意,混进去会被关卡拦下,同意也可能被别的步用掉或作废
             if (((flags.batchSteps && first.name == DO_STEPS_TOOL) || tools.composite(first.name)) && confirmations?.hasGrant == true) {
@@ -617,7 +636,6 @@ class AgentLoop(
                 }
             }
 
-            val verb = tools.verb(first.name)
             val offScreen = tools.offScreen(first.name)
             val running = TaskState.Running(step, note, tool, reason = reason, narration = narration)
             gateState = running
@@ -688,6 +706,8 @@ class AgentLoop(
                 is ActionOutcome.Ran -> action
             }
             val exec = ran.exec
+            taskTargets?.action(verb, args, exec.content, step)
+            taskTargets?.observe(exec.content, step)
             if (verb == Verb.HandToUser && (args["reason"] as? JsonPrimitive)?.contentOrNull == PAYMENT) paymentHandedOver = true
             val isError = (exec.content["ok"] as? JsonPrimitive)?.booleanOrNull == false
             noteResultEvents(verb, exec.content)
@@ -710,6 +730,12 @@ class AgentLoop(
                     continue
                 }
                 return end
+            }
+
+            // 连续无新状态说明正常探索已经在兜圈:立刻收束到 final turn,不再让软提醒被模型忽略。
+            if (StuckAdvice.forceFinalTurn(ran.verdicts)) {
+                emit(RunEvent.State(now(), "loop_finalized", "no_new_state"))
+                return finalTurn(task, history, specs, step + 1, labels, place, recorder, facts(), inbox)
             }
 
             if (exec.images.isNotEmpty()) {
@@ -753,6 +779,10 @@ class AgentLoop(
      * 网页上的版本从浏览器当前标签实际用的版本读。
      */
     private suspend fun appendRuntimeState(history: MutableList<Message>, place: Place?, labels: Map<String, String>, step: Int) {
+        taskTargets?.render()?.takeIf { it != lastTargetState }?.let { state ->
+            lastTargetState = state
+            history += ctx.targetState(state)
+        }
         val mode = if (place?.kind == PlaceKind.Site) tools.placeMode() else null
         val state = ctx.runtimeState(place, place?.name?.let(labels::get), mode, step, maxSteps, now(), latestWords)
         val last = history.lastOrNull()

@@ -224,6 +224,14 @@ interface ScreenPort {
 
     /** 读一屏,但不登记编号(模型手里的 ref 不受影响);不可逆判定用。 */
     suspend fun peek(): ScreenSnapshot = snapshot()
+
+    /** 当前前台包名;只问任务/窗口归属,不读界面内容。默认不支持。 */
+    suspend fun currentPackage(): String? = null
+    /** 当前视口像素尺寸;不读界面内容。默认不支持。 */
+    suspend fun viewport(): Pair<Int, Int>? = null
+    /** 只看画面是否连续安静;默认退回端口的普通稳定等待。 */
+    suspend fun waitVisualStable(timeoutMs: Long): Boolean = waitStable(timeoutMs)
+
     /** 当前画面的 PNG;取不到(受防截屏保护、没有画面)时为 null。 */
     suspend fun screenshotPng(): ByteArray?
     /** 可选的本机文字识别;null 表示当前画面不可读或端口没有 OCR。 */
