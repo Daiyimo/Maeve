@@ -1,6 +1,6 @@
 # Maeve Spec v0.3 — M0 已确认 / M1 完成 / M2 交互层完成 / 源码已发布
 
-> **状态**：**M0 已于 2026-11-06 15:43 确认**（用户「按默认走 开始吧」，Q1/Q4/Q6/Q8 采用 §13.11 默认值）。M1 骨架、M2 第一刀（可见品牌）与 M2 交互层（`HapticEngine` 五级触感、`HoldToConfirm`、连续曲率、动效分档、设置开关）均已构建装机验证。**Q6 已于 2026-11-06 18:08 经用户「提交commit并push吧」单独授权并执行**：`main` 与 tag `amoo-bridge-v1` 已推送到 `Daiyimo/Maeve`，`origin/main` 已设为 upstream。本文件定义的产品与架构约束持续有效。
+> **状态**：**M0 已于 2026-11-06 15:43 确认**（用户「按默认走 开始吧」，Q1/Q4/Q6/Q8 采用 §13.11 默认值）。M1 骨架、M2 第一刀（可见品牌）与 M2 交互层（`HapticEngine` 五级触感、`HoldToConfirm`、连续曲率、动效分档、设置开关）均已构建装机验证。**Q6 已于 2026-11-06 18:08 经用户「提交commit并push吧」单独授权并执行**：`master` 与 tag `amoo-bridge-v1` 已推送到 `Daiyimo/Maeve`，`origin/master` 已设为 upstream。本文件定义的产品与架构约束持续有效。
 > **实现进度**：见 [`docs/spec/migration.md`](docs/spec/migration.md)（M1 完成清单、M2 第一刀、M2 交互层、Q6 发布记录、延后项与验收命令）；决策记录见 `docs/adr/`。
 > **日期**：2026-11-06（v0.2 真机实证与资料校正 → v0.3 一致性修订 + 资料补纳 + 可执行契约）
 > **v0.2 修订摘要**：① 双路线拆成 R1 / R2a(amoo 文件桥) / R2b(电脑 MCP)，两者不可互兜底；② 「隐藏核心」由「零配置」改为「能力隐藏 + 一次性握手」；③ `:18770` 实测仅回环，WorkBuddy 需显式开局域网或 USB forward；④ 「纯本地/内置模型」改为「端侧执行 + 外部 Provider 决策」；⑤ 新增文件桥协议缺陷、StepOS 平台约束、改包名致技能失效的迁移项。详见 §12。
@@ -17,8 +17,8 @@
 | 项 | 内容 |
 |---|---|
 | Spec 版本 | **v0.3**（本文件）；v0.1 首版 → v0.2 真机修订 → v0.3 一致性修订 |
-| 产品名 | **Maeve**（梅芙），仓库名 `maeve-agent`（GitHub remote 已是 `Daiyimo/Maeve`） |
-| 首发版本代号 | **Dolores** → `versionCode = 1` / `versionName = "0.1.0-dolores"` |
+| 产品名 | **Maeve**（梅芙），仓库名 `Maeve`（GitHub remote 为 `Daiyimo/Maeve`） |
+| 首发版本代号 | **Dolores** → `versionCode = 1` / `versionName = "0.1.0"`（代号记录在发布说明） |
 | slogan | *"She runs the loop. You keep your screen."* /「循环她来跑，主屏留给你。」 |
 | 彩蛋 | *"Surviving is just another loop."* — Maeve Millay, *Westworld* S1E7（IMDb 逐字可查） |
 
@@ -134,7 +134,7 @@ DeepSeek Harness 的 Android 客户端（Flutter UI + Android Kotlin 平台层�
 
 - **任何源码 / 资源 / 字体 / 品牌素材**（AGPL-3.0，见 §0.2）。
 - 桌宠、社区、Bot、终端、分享图等与 Maeve 无关的功能与页面。
-- Flutter 技术栈：Maeve 是**原生 Android + Jetpack Compose**，D10/D12 需按 §4.2 与 §3.6 做技术转译，不能照搬 API。
+- Flutter 技术栈：Maeve 当前是 **Android 宿主 + Flutter 唯一应用界面**，少数平台组件仍使用 Compose；D10/D12 需按 §4.2 与 §3.6 做技术转译，不能照搬 API。
 - dsh-Go 的「把引擎装进手机」产品叙事。
 
 ### 2.4 与 Maeve 主题的差异化
@@ -177,7 +177,7 @@ dsh-Go 是「把电脑装进口袋」，视觉是安静的雾蓝玻璃；Maeve �
 
 ### 3.3 材质、形状、动效 token
 
-沿用 §2.2 的 D3、D5–D9、D13、D14 数值作为**目标值**，以 Compose `ColorScheme` + 自定义 `ThemeExtension` 等价物（CompositionLocal）落地：
+沿用 §2.2 的 D3、D5–D9、D13、D14 数值作为**目标值**，以 Flutter 设计 token 与主题体系落地；少数 Android 平台组件仍使用 Compose：
 
 - 四层表面 `MaeveSurfaces { chrome, sheet, card, pill }`，每档含 fill / blurSigma / saturation / hairline / rim / outerShadow。
 - 全屏背景一页一张，`BackdropVeil` 只在 band 内淡出；切页背景不动。
@@ -217,7 +217,7 @@ dsh-Go 是「把电脑装进口袋」，视觉是安静的雾蓝玻璃；Maeve �
 
 ### 4.2 技术转译（重要）
 
-dsh-Go 用 Flutter 的 `selectionClick / lightImpact / mediumImpact / heavyImpact`；**Maeve 是 Compose，不能照搬**。Compose 的 `LocalHapticFeedback` 仅提供 `LongPress` / `TextHandleMove` 两种，不足以表达四级语义。因此自建统一封装 `HapticEngine`（Kotlin），基于 `VibratorManager` + `VibrationEffect`（API 30+），旧版本回退 `HapticFeedbackConstants`：
+dsh-Go 用 Flutter 的 `selectionClick / lightImpact / mediumImpact / heavyImpact`；**Maeve 的应用界面是 Flutter，不能直接照搬这些调用**。触感由 Android 原生 `HapticEngine` 实现并经 `maeve/ui` 桥提供给 Flutter；旧 Compose 宿主的 `LocalHapticFeedback` 仅提供 `LongPress` / `TextHandleMove`，不足以表达四级语义。原生实现基于 `VibratorManager` + `VibrationEffect`（API 30+），旧版本回退 `HapticFeedbackConstants`：
 
 | 语义级 | dsh-Go 对应 | Android 实现 | 降级 |
 |---|---|---|---|
@@ -260,7 +260,7 @@ dsh-Go 用 Flutter 的 `selectionClick / lightImpact / mediumImpact / heavyImpac
 
 | 页面 | 状态 | 说明 |
 |---|---|---|
-| 首页 / 对话 | 改造 | 沿用 Maeve 单 Activity Compose `NavStack`；换成 Maeve 主题、双层母题、新反馈矩阵 |
+| 首页 / 对话 | 改造 | 沿用 Maeve 单 Activity Flutter 导航；换成 Maeve 主题、双层母题、新反馈矩阵 |
 | **连接中枢**（新增） | **新增** | R2 的统一门面，见 §5.3；替代 Maeve 里分散的 `AmooScreen` / `McpScreen` / `McpServersScreen` / `RelaySection` |
 | 任务详情 / 运行记录 | 改造 | 增加「来源」标识（本地 / amoo / MCP:xxx）与 `RunProvenance` 可视化 |
 | 设置 · 外观 | 新增 | 六主题色 + 自定义 + 壁纸取色 + 四款桌面图标 + 三档功能图标风格 + 触感开关 |
@@ -449,14 +449,14 @@ git fetch maeve-local --tags                           # M0 时的做法;该 rem
 git reset --hard maeve-local/main                      # 空仓库首次检出，不会覆盖未跟踪的 SPEC.md
 ```
 
-**Q6 待授权后才执行**（公开、不可逆）：确认目标仓库为空 → `git remote remove maeve-local` → `git push -u origin --all` → `git push origin --tags`。若目标仓库被 GitHub 自动初始化了 README/LICENSE，`--all` 会因历史无关被拒，需先清空远端。完整前置检查见 `docs/spec/migration.md`。
+**Q6 已执行（2026-11-06 18:08，公开且不可逆）**：先确认目标仓库为空，再移除 `maeve-local`、`git push -u origin --all`、`git push origin --tags`。若目标仓库被 GitHub 自动初始化了 README/LICENSE，`--all` 会因历史无关被拒，需先清空远端。完整记录见 `docs/spec/migration.md`。
 
 ### 8.2 包名与版本
 
 - `applicationId` / `namespace`：`com.daiyimo.maeve`（**Q4 已确认，M1 已执行**：9,230 处替换 / 1,442 文件 / 8 个源码目录，脚本已移除，见 git 历史）。数据可重置，这次连 `namespace` 一起改干净。
 - 影响面：约 1419 个文件的 package/import/AIDL/组件相对名，外加 `tools/maeve-cli/scripts/maeve_cli.py` 的 `PHONE_FILES` 与若干 docs/adb 脚本里的写死路径。`AmooSetup` 的 `$pkg` 与 FileProvider 的 `${applicationId}` 自动跟随，无需手改。
 - `MaeveLinks.kt` 五个上游 URL 与 `ApkIntegrity.kt` 的官方更新 URL 白名单必须同步改，否则自更新包全被拒。
-- `versionCode = 1`、`versionName = "0.1.0-dolores"`、`GIT_HASH` / `BETA` 保留但重设。
+- `versionCode = 1`、`versionName = "0.1.0"`、`GIT_HASH` / `BETA` 保留但重设；版本代号 `Dolores` 写在发布说明中。
 
 ### 8.3 目录约定（文档与源码同仓）
 
@@ -528,7 +528,7 @@ release 目前无 `signingConfigs` / 无 minify / 无 shrinkResources，CI 只�
 |---|---|---|
 | **M0 Spec** | 本文件 + §13.11 决策表 | ✅ **2026-11-06 15:43 已确认**：Q1/Q4/Q6/Q8 走默认，其余按默认继续。注意 Q6 的默认值为「否（不 push）」 |
 | **M1 骨架** | 新仓库、包名、`README/FORK/NOTICE/LICENSE`、CI 全绿 | ✅ **已完成并已推送**：`com.daiyimo.maeve`、根合规文档、`NOTICE` 原署名、compliance CI job；`:core:compileKotlin :app:compileDebugKotlin` **BUILD SUCCESSFUL**；Windows 单元测试 59 例失败与上游基线一致（非回归，见 `docs/spec/migration.md`）；历史已重写为单快照，见 `ATTRIBUTION.md` |
-| **M2 视觉** | 主题系统、四款图标、玻璃材质、触感引擎、连接中枢 UI | 六套主题在浅/深下文本对比度 ≥4.5:1、非文本 ≥3:1；四款图标切换不清除已开 task；`HapticEngine` 单一入口、无散落调用；关闭触感后零反馈 |
+| **M2 视觉** | 主题系统、四款图标、玻璃材质、触感引擎 | 六套主题在浅/深下文本对比度 ≥4.5:1、非文本 ≥3:1；四款图标切换不清除已开 task；`HapticEngine` 单一入口、无散落调用；关闭触感后零反馈 |
 | **M3 双路线** | ConnectionHub + amoo 隐藏核心 + MCP `maeve_*` + 状态机 | ① 无 amoo 时本地路线完整可用 ② 写入 `in/` 能自动被消费并写回 `out/` ③ WorkBuddy 通过 `/mcp` 起任务并查到状态 ④ 两来源同时到达按 `request_id` 排队、不并发抢屏 ⑤ 撤无障碍授权后所有入站返回明确错误 ⑥ 产品 `v0.1.0` 内旧 `maeve_*` alias 仍可用 ⑦ `SelfCheck` 扩展版报告全绿（§13.7） |
 | **M4 发布** | 合规补齐、release 签名、P0/P1 修复、v0.1.0 "Dolores" | release 包可安装可自更新；ML Kit 已披露；GPL/LGPL 全文与源码要约就位；P0 全清、P1 有结论 |
 
@@ -905,8 +905,8 @@ adb shell curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18770/api/v1
 ### 13.11 决策阻塞表（当前以本表为准，覆盖 §11 / §12.8）
 
 > **2026-11-06 15:43 决议**：用户「按默认走 开始吧」⇒ 下表**全部默认值生效**，M0 关闭，M1 开工。
-> 其中 **Q6 的默认值为「否（未授权、未执行）」**，因此「按默认走」**不等于**授权公开推送；推送必须再单独确认一次。
-> M1 实际落地范围见 `docs/spec/migration.md`：本地历史镜像、包名迁移、根合规文档、设计分册、ADR 与 CI 模板；**未 push、未改上游、未动设备**。
+> 其中 **Q6 的初始默认值为「否（未授权、未执行）」**，因此「按默认走」**不等于**授权公开推送；该默认值已于当日 18:08 被用户单独授权推翻，推送已执行。
+> M1 实际落地范围见 `docs/spec/migration.md`：本地历史镜像、包名迁移、根合规文档、设计分册、ADR 与 CI 模板；**已 push、未改上游、未动设备**。
 
 | # | 问题 | 默认值 | M0 阻塞 | 说明 |
 |---|---|---|---|---|
@@ -915,7 +915,7 @@ adb shell curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18770/api/v1
 | Q3 | 无 amoo 时模型来源优先级？ | L0 规则 + 外部 Provider 主力；L1 端侧 / 局域网 PC 仅降级或可选后端 | 否 | §13.3 补充「局域网 PC」；§13.4 预留接缝 |
 | Q4 | 包名 `com.daiyimo.maeve`？ | 是 | **是** | 触发 §12.6 技能重注入 + §13.8 v3 协议 |
 | Q5 | 视觉是否全量（四层玻璃 + 六主题 + 四图标 + 三风格）？ | 全量 | 否 | 可先做默认 `reverie` 一套，不阻塞 |
-| Q6 | 授权 `git push --all --tags`（把 Maeve 全部历史推到新仓库）？ | **否，未执行** | **是** | M1 建仓必需；本轮仍未授权、未执行 |
+| Q6 | 授权 `git push --all --tags`（把 Maeve 全部历史推到新仓库）？ | **否（初始默认）** | **是（初始）** | **已执行**：2026-11-06 18:08 经用户单独授权推送 |
 | Q7 | R1 是否要在非 StepOS 普通 Android 完整可用？ | 是，amoo 能力整体隐藏 | 否 | 用 §13.7 扩展版 `SelfCheck` 验收 |
 | Q8 | 接受「一次性握手需切到 amoo 聊天页」吗？ | 暂时接受 | **是** | 若要完全无感，只能改走 AppFunctions / 分享派单，架构另评估 |
 | **Q9**（新） | `v0.1.0` 是否预留 `DecisionBackend` 接缝（不实现端侧模型）？ | 预留，不打包权重 | 否 | §13.4 / ADR-01 |

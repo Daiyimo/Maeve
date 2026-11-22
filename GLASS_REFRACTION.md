@@ -97,17 +97,17 @@ MaeveBackdrop + 滚动内容
 - Flutter 静态检查：`flutter analyze --no-pub --fatal-infos`
 - Android JVM：`./gradlew :app:testDebugUnitTest -PskipFlutterAar`
 - Android 构建：`./gradlew :app:assembleDebug`
-- 参数对齐：`flutter/test/theme/glass_tokens_parity_test.dart` 与 `GlassStyleTest.kt` 都读取共享 JSON。
+- 参数对齐：`flutter/test/theme/glass_tokens_parity_test.dart` 与 `app/src/test/java/com/daiyimo/maeve/ui/theme/GlassStyleMigrationTest.kt` 都读取共享 JSON。
 
 ## 无真机截图
 
 - Flutter 集成测试：`flutter/integration_test/glass_gallery_test.dart`
 - Compose debug Gallery：`app/src/debug/java/com/daiyimo/maeve/ui/GlassGalleryActivity.kt`
 - 总览拼图：`tooling/glass/build_overview.py`
-- 最终图：`G:\vibe-coding\daiyimo\maeve-glass-artifacts\glass\liquid-glass-overview.png`
+- 最终图：`<本地输出目录>/liquid-glass-overview.png`
 - 浅色主题原版/修改版 10 页对比：`flutter/integration_test/light_theme_compare_test.dart`
 - 浅色对比拼图：`tooling/glass/build_light_comparison.py`
-- 浅色对比最终图：`G:\vibe-coding\daiyimo\maeve-glass-artifacts\glass\light-compare/liquid-glass-light-comparison.png`
+- 浅色对比最终图：`<本地输出目录>/light-compare/liquid-glass-light-comparison.png`
 
 截图只在 Android 模拟器上生成；不会安装到已连接的真机。浅色对比使用同一组假数据与页面路径，左侧为原版、右侧为修改版。
 

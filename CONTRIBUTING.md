@@ -34,11 +34,12 @@ Thanks for helping. Maeve is an independent Apache-2.0 project — please read
 | Path | Rule |
 |---|---|
 | `:core` | Pure JVM. No Android imports (invariant 5). Prompts, knowledge and skills are resources here. |
-| `:app` | Android host; source root is `app/src/main/java`. It consumes the Flutter debug AAR, so the Flutter module must be built before `:app` compiles. |
+| `:app` | Android host; source root is `app/src/main/java`. It consumes the Flutter AAR; Gradle builds the matching mode before `:app` compiles. |
 | `flutter/` | Dart UI shell. Not a Gradle subproject. It owns presentation and the `maeve/ui` bridge contracts, never platform work. |
 
-A clean clone has no `flutter/.android/` directory and therefore no AAR. Build the Flutter
-module first; `:app:assembleDebug` alone cannot succeed without it.
+A clean clone does not include the local AAR under `flutter/build/`. Gradle wires
+`flutterBuildDebugAar` into `preDebugBuild`, so `:app:assembleDebug` builds it automatically;
+set `FLUTTER_ROOT` or put Flutter on `PATH` first.
 
 ## Invariants worth knowing
 
@@ -65,8 +66,8 @@ Text is not free-floating. Editing copy can trigger three generated/checked surf
 1. `README.md` has generated blocks produced by the `updateReadme` Gradle task (source in
    `core/src/main/resources/skills/configure-maeve/SKILL.md`). Run `./gradlew :core:updateReadme`
    rather than editing between the markers.
-2. The translated READMEs under `docs/readme/` must be updated in the same change: each keeps
-   a `translated-from` fingerprint of `README.md` and the same number of `##` sections.
+2. The English README at the repository root (`README.en.md`) must be updated in the same
+   change: it keeps a `translated-from` fingerprint of `README.md` and the same number of `##` sections.
 3. 10 locales are verified by `tools/i18n/translations.py check`.
 4. Prompt wording is guarded by golden snapshots — update with `-PupdateSnapshots` only
    when the change is intentional, and include the snapshot diff in the PR.

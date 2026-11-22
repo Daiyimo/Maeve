@@ -1,6 +1,6 @@
 # Maeve 架构
 
-这份文档按代码现状描述 Maeve 的整体结构,方便找代码。还没做的、做了一半的写在 [`roadmap.md`](roadmap.md)。
+这份文档按代码现状描述 Maeve 的整体结构,方便找代码。还没做的、做了一半的写在 [`roadmap.md`](../../dev/roadmap.md)。
 
 路径缩写:`core/…` = `core/src/main/kotlin/com/daiyimo/maeve/core/`,`app/…` = `app/src/main/java/com/daiyimo/maeve/`。
 
@@ -11,7 +11,7 @@
 - `:core`:纯 Kotlin(JVM),不依赖安卓。主循环、工具、能力的平台无关部分、上下文、核查、记忆、知识、触发器、运行记录都在这里,可以在电脑上用单测和假模型跑。提示词、内置知识与技能是它的资源(`core/src/main/resources/`)。
 - `:app`:安卓宿主。界面、前台服务、虚拟屏、无障碍、内置手机助手、WebView、沙箱、文件存储,以及 `:core` 里各个接口的安卓实现。
 
-另有可选的独立 Go 网关 `tools/relay/`,用于单用户、单设备的公网远程 CLI / MCP。它不进入 APK,手机通过出站 WSS 接入;部署和手机鉴权见 [remote-mcp.md](remote-mcp.md)。
+另有可选的独立 Go 网关 `tools/relay/`,用于单用户、单设备的公网远程 CLI / MCP。它不进入 APK,手机通过出站 WSS 接入;部署和手机鉴权见 [remote-mcp.md](../../dev/remote-mcp.md)。
 
 ```
  来源   对话界面 │ 定时/条件触发 │ 父任务(子任务)│ 电脑(CLI / MCP)
@@ -226,14 +226,14 @@
 
 ### 电脑连接:CLI 与 MCP
 
-两个方向。**Maeve 作为 MCP 服务器**(电脑连接)已经接上,两种连法:经 USB(电脑用 adb 打开,只听回环)和经局域网(用户在设置里打开,默认关);**Maeve 作为 MCP 客户端**去连外部服务器(设置 › 高级 › MCP 服务器):`core/cap/mcp/HttpMcpClient.kt` 走 Streamable HTTP(2025-03-26),`LegacySseMcpClient.kt` 走旧版 HTTP+SSE(2024-11-05),`StdioMcpClient.kt` 走沙箱里的本地进程;`McpOAuth.kt` 支持 OAuth 2.1 发现、动态注册、PKCE 与刷新,也可手动填 Bearer;工具按注解定风险、开局冻结,resources/prompts 合成只读工具。对外工具名统一为 `mcp_<服务编号>__<工具名>`，非法字符替换为下划线；超过 64 字符或清洗后撞名的工具使用带 SHA-256 摘要的短名。`mcpToolNames` 先保留无需改名的声明，再按原工具名排序分配短名；短名若与任何最终名字再次冲突，就增加摘要长度并重算，所以注册前已经全局去重，服务端换序也不会改变映射。服务端重复列出同一个原名时只保留第一项并记录降级原因，调用仍使用未清洗的原名。设置在 `app/settings/McpServerStore.kt`,令牌加密保存。任务开头 `McpServerStore.connectionsFor` 并行连接所有启用项,整段最多等 15 秒(`CONNECT_BUDGET_MS`,和单个 server 自己给工具调用的超时分开),到点没连上的这次不接、关掉,记进健康状态(写明超时跳过),任务卡片上提示一句,不算任务失败;连上的当场归任务的 `ResourceScope`,收尾(结束、取消、失败、连到一半被停)时一起关。交给 `toolDispatcher` 的外部端点只有 `mcpServers` 一份列表,由 `TaskRun.mcpEndpoints()` 在一处拼好,以后别的来源也提供这类端点时拼在那里。stdio server 的进程活着时拿的是沙箱树的租约(`SandboxTree.lease`),不是普通的共享许可:要独占的(换根文件系统、重置、清工作区)一来先停掉这些进程、收回许可再动手,不等任务结束,也不怕漏关;之后这个 server 的调用照实报连接已断。低层工具会话(`core/mcp/McpServer.kt`)是另一个方向。用户文档见 [mcp.md](../mcp.md) 与 [cli.md](../cli.md)。电脑 CLI 使用普通 HTTP 任务 API,与 MCP 适配器并列,共用一份任务服务。
+两个方向。**Maeve 作为 MCP 服务器**(电脑连接)已经接上,两种连法:经 USB(电脑用 adb 打开,只听回环)和经局域网(用户在设置里打开,默认关);**Maeve 作为 MCP 客户端**去连外部服务器(设置 › 高级 › MCP 服务器):`core/cap/mcp/HttpMcpClient.kt` 走 Streamable HTTP(2025-03-26),`LegacySseMcpClient.kt` 走旧版 HTTP+SSE(2024-11-05),`StdioMcpClient.kt` 走沙箱里的本地进程;`McpOAuth.kt` 支持 OAuth 2.1 发现、动态注册、PKCE 与刷新,也可手动填 Bearer;工具按注解定风险、开局冻结,resources/prompts 合成只读工具。对外工具名统一为 `mcp_<服务编号>__<工具名>`，非法字符替换为下划线；超过 64 字符或清洗后撞名的工具使用带 SHA-256 摘要的短名。`mcpToolNames` 先保留无需改名的声明，再按原工具名排序分配短名；短名若与任何最终名字再次冲突，就增加摘要长度并重算，所以注册前已经全局去重，服务端换序也不会改变映射。服务端重复列出同一个原名时只保留第一项并记录降级原因，调用仍使用未清洗的原名。设置在 `app/settings/McpServerStore.kt`,令牌加密保存。任务开头 `McpServerStore.connectionsFor` 并行连接所有启用项,整段最多等 15 秒(`CONNECT_BUDGET_MS`,和单个 server 自己给工具调用的超时分开),到点没连上的这次不接、关掉,记进健康状态(写明超时跳过),任务卡片上提示一句,不算任务失败;连上的当场归任务的 `ResourceScope`,收尾(结束、取消、失败、连到一半被停)时一起关。交给 `toolDispatcher` 的外部端点只有 `mcpServers` 一份列表,由 `TaskRun.mcpEndpoints()` 在一处拼好,以后别的来源也提供这类端点时拼在那里。stdio server 的进程活着时拿的是沙箱树的租约(`SandboxTree.lease`),不是普通的共享许可:要独占的(换根文件系统、重置、清工作区)一来先停掉这些进程、收回许可再动手,不等任务结束,也不怕漏关;之后这个 server 的调用照实报连接已断。低层工具会话(`core/mcp/McpServer.kt`)是另一个方向。用户文档见 [mcp.md](../../mcp.md) 与 [cli.md](../../cli.md)。电脑 CLI 使用普通 HTTP 任务 API,与 MCP 适配器并列,共用一份任务服务。
 
 **服务器**的分层都在 `:core`,可以在电脑上整套测:
 
 - `MiniHttpServer`(`core/remote/HttpServer.kt`):共用的极简 HTTP/1.1 监听。每个连接一个线程,连接数、请求头、正文都有上限,认 Content-Length 和 chunked,连接可以复用。保留路径和查询参数供入口校验;不做 TLS,靠只收私有地址和访问令牌把关。
 - `RemoteAccess`(`core/remote/RemoteAccess.kt`):两个入口共用的门口,顺序固定:带 `Origin` 头的 403;同一地址一分钟内认证失败 5 次封一分钟(429,带 `Retry-After`);`Authorization: Bearer` 令牌按常量时间比较,不对 401。路由与错误格式由适配器决定,未知路径也先过认证。`privateAddress` 判定回环、局域网、私有组网和链路本地地址;连接两端有一端不是私有地址就当场断开。局域网令牌认所有允许的连接,USB 令牌只认回环,两个都比、不短路。认证失败计数跨 API 和 MCP 共用。
 - `RemoteTaskService`(`core/remote/RemoteTaskService.kt`):协议无关的启动、查询、列表、等待、回答与取消用例,集中校验输入和任务状态,返回类型化结果与业务错误;不包含 HTTP、MCP 工具名或 JSON-RPC 信封。`RemoteTasks` / `RemoteTask` / `RemoteStatus` 在 `core/remote/RemoteTasks.kt`;状态只从已有的 `TaskState` 映射,两种入口共用字段和同一个任务索引。等待按状态变化返回(进度说明变了不算),最多 50 秒;索引中的任务消失就报不存在。保留 mcp- 前缀以兼容已有远程对话 ID,与手机本地对话隔离。
-- `RemoteTaskApi`(`core/remote/RemoteTaskApi.kt`):普通 HTTP/JSON 入口 `/api/v1`,提供版本、任务生命周期和只读设备状态,无需 MCP 握手或工具发现。业务错误映射为 HTTP 状态和 code/message;未知字段会被拒绝。详细契约见 [CLI 文档](../cli.md#http-契约)。
+- `RemoteTaskApi`(`core/remote/RemoteTaskApi.kt`):普通 HTTP/JSON 入口 `/api/v1`,提供版本、任务生命周期和只读设备状态,无需 MCP 握手或工具发现。业务错误映射为 HTTP 状态和 code/message;未知字段会被拒绝。详细契约见 [CLI 文档](../../cli.md#http-契约)。
 - `McpRpc`(`core/mcp/McpRpc.kt`):Streamable HTTP 上的 JSON-RPC,只回单个 JSON、不开 SSE 流(规范允许),GET / DELETE 回 405,不发会话编号,服务端不发请求。两代协议都认:新一代(2026-07-28)每个请求在 `_meta` 里带版本和客户端能力,HTTP 头里的 `MCP-Protocol-Version`、`Mcp-Method`、`Mcp-Name` 要和正文一致(不一致 -32020),不认的版本回 -32022 并列出认的版本,支持 `server/discover`;老一代(2025-03-26 到 2025-11-25)先 `initialize` 握手,选双方都认的版本。工具参数不对、任务找不到是工具执行出错(`isError`),交回给对面的模型看;工具名不认得是协议错误。
 - `McpTaskTools`(`core/mcp/McpTaskTools.kt`):保留原有工具名、schema、MCP 提示文案与返回格式,把参数转为共用服务调用。`maeve_run_task` / `maeve_task_status` / `maeve_wait_task` / `maeve_answer` / `maeve_cancel_task` / `maeve_list_tasks` 均不另存任务状态。付款、确认和手机接管不能被普通回答放行。
 - `RemoteEndpoints`(`core/remote/RemoteEndpoints.kt`):完成传输认证后的共用协议路由,持有 `RemoteTaskService`,把 `/api/v1` 交给普通 API、`/mcp` 交给 MCP,并记录近期活动。它不认证连接,由调用者先完成对应入口的认证。
@@ -297,7 +297,7 @@
 
 ## 11. 知识与技能
 
-- **内置**(`core/src/main/resources/`):App 知识(`knowledge/apps/<id>/APP.md`)、网站知识(`knowledge/sites/<域名>/SITE.md`)、技能(`skills/<id>/SKILL.md`),一个目录一份,加一份就是加一个目录;现有哪些看这几个目录或构建生成的索引 `knowledge/index.json`,README 里的清单由 `./gradlew updateReadme` 从同一份索引生成。格式见 [`knowledge-format.md`](knowledge-format.md)。构建时 `KnowledgeIndex` 扫描头部、校验并生成索引,校验不过构建失败。
+- **内置**(`core/src/main/resources/`):App 知识(`knowledge/apps/<id>/APP.md`)、网站知识(`knowledge/sites/<域名>/SITE.md`)、技能(`skills/<id>/SKILL.md`),一个目录一份,加一份就是加一个目录;现有哪些看这几个目录或构建生成的索引 `knowledge/index.json`,README 里的清单由 `./gradlew updateReadme` 从同一份索引生成。格式见 [`knowledge-format.md`](../../dev/knowledge-format.md)。构建时 `KnowledgeIndex` 扫描头部、校验并生成索引,校验不过构建失败。
 - **自动补给**:开局按任务文字匹配;进入某个 App(读过它的界面)或某个网站(第一次成功打开或读取)时补上它的知识正文。每份只给一次,每个任务最多 3 份(`KnowledgeStore`、`NoticePolicy`)。
 - **技能分两层给**(`GuideRecommender`、`ContextBuilder.start`):开局的索引里列出全部技能,不按任务文字挑——内置技能在前、个人技能在后,各按名字排,每份一行(id、显示名、描述;试用中的描述前标明还没验证过),停用的和待确认的草稿不列。索引在开局上下文里写一次,中途切换前台也不补、不改,整份给、不受预算裁剪。用不用、用哪份由模型按描述判断,要用时用 `skill_read` 读全文;开头不再塞进任何技能的全文。读了个人技能记一次 `SkillUsed`(`how` = viewed;旧记录里的 injected 照样读,一样算用到),任务结局据此记进那份技能的结果。
 - **查阅工具**(`core/general/LookupTools.kt`):`knowledge_search` / `knowledge_read` 查 App 与网站知识,`skill_search` / `skill_read` 查技能(内置的和个人的一起)。
@@ -361,9 +361,9 @@
 
 ## 15. 界面与可见性
 
-Flutter 外壳(`flutter/lib/main.dart`,迁移说明 [FLUTTER_MIGRATION.md](../../FLUTTER_MIGRATION.md))
+Flutter 外壳(`flutter/lib/main.dart`,迁移说明 [FLUTTER_MIGRATION.md](../../../FLUTTER_MIGRATION.md))
 正在替换 Compose 页面。两者共用 `maeve/ui` 与 `maeve/ui/events` 桥接契约;在 Flutter 等价物有回归覆盖前,
-下面描述的 Compose 页面继续保留。Flutter 侧的目录、命令和原型限制见 [flutter/README.md](../../flutter/README.md)。
+下面描述的 Compose 页面继续保留。Flutter 侧的目录、命令和原型限制见 [flutter/README.md](../../../flutter/README.md)。
 
 - **样式**:颜色(浅色、深色两套,跟随系统)、字号、尺寸、圆角、动效时长都是令牌,在 `app/ui/theme/`(`MaeveTheme.kt` 的 `MaeveTheme`、`MaeveColors.kt`、`MaeveType.kt`);线条图标在 `app/ui/theme/MaeveIcons.kt`;分组卡片、列表行、开关、按钮、顶栏、玻璃输入栏等通用组件在 `app/ui/components/`。页面只从这里取色和取组件,不写死色值。玻璃输入栏在安卓 12 起做背景模糊,更早的系统用不透明底。
 - **导航**(`app/ui/MainActivity.kt`、`app/ui/Navigation.kt`):对话页是根页面,其余页面(设置、模型、记忆与技能、定时任务、浏览器、运行过程、来源、手机操作向导、上手的欢迎与配置模型)压进页面栈 `NavStack`,返回键和页面上的返回按钮都退回上一页(从侧栏进的回到打开着的侧栏,从设置进的回设置)。各页面只通过回调进出。
@@ -390,7 +390,7 @@ Flutter 外壳(`flutter/lib/main.dart`,迁移说明 [FLUTTER_MIGRATION.md](../..
 
 ## 16. 语音输入
 
-原生豆包流式语音识别 2.0 可在语音转文字页单独配置，实时上传 PCM 并返回中间全文；凭据独立加密，不经方舟聊天模型路径。协议、生命周期与测试限制见 [doubao-asr.md](doubao-asr.md)。
+原生豆包流式语音识别 2.0 可在语音转文字页单独配置，实时上传 PCM 并返回中间全文；凭据独立加密，不经方舟聊天模型路径。协议、生命周期与测试限制见 [doubao-asr.md](../../dev/doubao-asr.md)。
 
 按住说话有两处入口:对话页输入框和悬浮胶囊。两处只经 `VoiceSource`(`voice/VoiceInput.kt`,App 里是 `VoiceInput`)拿会话,界面测试换成假的;识别和转写的逻辑都在 `app/voice/`,界面只管手势、画面和接线。
 
@@ -408,7 +408,7 @@ Flutter 外壳(`flutter/lib/main.dart`,迁移说明 [FLUTTER_MIGRATION.md](../..
 
 ## 17. 应用访问
 
-按包名限制标准手机工具可以读取和操作的 App，规则和边界见 [`app-access.md`](app-access.md)。
+按包名限制标准手机工具可以读取和操作的 App，规则和边界见 [`app-access.md`](../../dev/app-access.md)。
 
 - **策略**(`core/access/AppAccess.kt`):没有设置的应用默认允许，分类不决定权限。空阻止列表不因包名缺失而拒绝；非空时归属未知则短暂等待并重读一次，仍未知返回 `app_access_unverified`。文件不可用返回 `app_access_unavailable`，由用户在设置中重置。
 - **门禁**(`core/uistate/AppAccessScreenPort.kt`):包装任务的手机端口，保护读屏结果与显式目标；`ActionExecutor` 在动作前后检查，拒绝以工具结果交回模型。`ScreenPort` 的每个成员都在门禁里显式写出、不用 `by` 委托，测试逐个成员核对「转交给里面的端口」且「除几个不碰 App 界面的之外都被检查」，端口以后加成员不会漏检。Android 端口只提供窗口归属（`AndroidScreen.accessPackages`），自己只在门禁看不到目标的地方看名单：没指定 App 的链接和系统动作由谁接、开到用户主屏上的 App；不向下转型读取设置实现。`ScreenSession` 按权限 revision 清除旧元素引用、截图与定位缓存。

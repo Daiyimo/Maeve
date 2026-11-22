@@ -83,7 +83,7 @@ Verified: command / device / result
 - 文档索引：`docs/README.md` 和 `docs/dev/README.md`。新增文档要同时进索引。
 - 英文配对：用户文档用 `.en.md` 后缀；开发文档除知识格式外暂时只有中文。
 - README 里会变的清单（内置知识、服务商预设）由 `./gradlew :core:updateReadme` 生成，不手改标记之间。
-- `docs/readme/` 下的译文要跟 README 同结构：相同的 `##` 数量、相同的本地图片集合、开头的 `translated-from` 指纹。改 README 必须同一次改完译文。
+- 根目录的 `README.en.md` 要跟 README 同结构：相同的 `##` 数量、相同的本地图片集合、开头的 `translated-from` 指纹。改 README 必须同一次改完译文。
 - 文档里反引号包住的路径、类名、函数名、工具名必须真实存在；`DocsConsistencyTest` 会查。会变的个数不写死，确需写时在行尾加计数豁免注释。
 - 描述历史状态或外部平台 API 的文档，可以在开头用 `<!-- docs-check: spans-off — 原因 -->` 整篇退出符号检查；原因必须写在同一行。当前适用：`docs/adr/`、`docs/spec/migration.md`、`docs/spec/haptic-matrix.md`、`docs/dev/maeve-uiux-refactor.md`、`docs/dev/ios-development-standard.md`。当前状态文档不要用这个标记。
 - 品牌与上游 URL 的清扫已完成，历史记录与 attribution 保留原样；新增文案不要夹带品牌替换，改动范围见 [migration.md](../spec/migration.md)。

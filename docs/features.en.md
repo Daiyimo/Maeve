@@ -4,9 +4,9 @@
 
 Tell Maeve what you want in one sentence, and it gets it done on your phone. This page has the details behind each feature in the [README](../README.en.md).
 
-## Operates any app without taking over your screen
+## Operates most apps without taking over your screen
 
-Any app installed on your phone works, with no per-app integration: Maeve looks at the screen, finds buttons, taps and types like a person would. If it can see it, it can operate it.
+Most apps installed on your phone work, with no per-app integration: Maeve looks at the screen, finds buttons, taps and types like a person would. Payment, banking and brokerage apps, plus password or verification-code pages, are refused or handed back to you under the safety rules.
 
 - Opens apps on a separate background screen and reads, taps, types and scrolls there while you keep using your phone. A small live view in the chat shows what it is doing; you can close it for the current task, leaving a small button at the bottom right that turns orange when Maeve needs you.
 - When several tasks run at once, “Background screens” next to “Running” in the side menu lists which app each task is using and how far it got; open one to watch its live screen, tap to enlarge it and pinch to zoom.
@@ -27,7 +27,7 @@ Any app installed on your phone works, with no per-app integration: Maeve looks 
 
 ## The screen you are looking at
 
-- While you are in another app, a floating Maeve capsule at the screen edge shows background task progress, things that need you, and results. Tap it to add a message, answer, approve or stop. If you don't want it, open it and tap "Turn off capsule" at the bottom; you can turn it back on in Settings › Floating capsule.
+- While you are in another app, a floating Maeve capsule at the screen edge shows background task progress, things that need you, and results. Tap it to add a message, answer, approve or stop. If you don't want it, open it and tap "Turn off capsule" at the bottom; you can turn it back on in Settings › System access › Other settings › Floating capsule.
 - **Double-tap the capsule** to send the screen you are looking at to Maeve, e.g. "how should I reply to this" or "note this down". You can also take a screenshot from the card and add a line before sending.
 
 ## Scheduled and conditional tasks

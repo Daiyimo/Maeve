@@ -4,7 +4,7 @@
 
 <div align="center">
 
-<img src="docs/media/logo.png" alt="Maeve" width="96" />
+<img src="docs/media/logo.png" alt="Maeve 日蚀标志" width="112" />
 
 # Maeve
 
@@ -39,14 +39,14 @@
 </tr>
 </table>
 
-<sub>演示用的是国内常见 App，但 Maeve 不绑定它们：手机上任何 App、任何网站，看得到就能操作。</sub>
+<sub>演示用的是国内常见 App，但 Maeve 不绑定它们：多数 App 和网站看得到就能操作；支付、银行、券商类 App 与密码/验证码页受安全规则保护。</sub>
 
 ## 为什么选 Maeve
 
 | | |
 |---|---|
 | 📱 **不占你的屏幕** | 在一块独立的后台虚拟屏上打开 App、点击、输入、滚动；你继续刷手机，想看时点开实时小窗 |
-| 🧩 **任何 App 都能用** | 像人一样看屏幕、找按钮，不靠 App 接口、不用逐个适配；自绘界面靠自带 OCR 与看图模型 |
+| 🧩 **多数 App 都能用** | 像人一样看屏幕、找按钮，不靠 App 接口、不用逐个适配；自绘界面靠自带 OCR 与看图模型 |
 | 🌐 **浏览器里即问即做** | 内置浏览器打开任何网站，对着正在看的页面说要求就地办；你一碰页面它就停 |
 | 🧠 **越用越懂你** | 记住你说过的偏好，把办成的事沉淀成技能，下次更快更稳 |
 | 🔒 **数据留在手机** | 没有 Maeve 服务器；用你自己的模型 Key，或 ChatGPT / xAI / OpenRouter 账号登录 |
@@ -115,9 +115,9 @@
 | 路线 | 入口 | 典型场景 |
 |---|---|---|
 | **R1 · 本机** | Maeve 自己的聊天界面 | 在手机上直接说；无障碍 + 后台虚拟屏把活干完 |
-| **R2 · 由另一个 Agent 驱动** | `/mcp` 上的入站 MCP，或本机文件桥 | 让电脑上的助手把任务派给手机，再读回结果（[电脑派单](docs/computer.md) · [MCP](docs/mcp.md)） |
+| **R2 · 由另一个 Agent 驱动** | `/mcp` 上的入站 MCP；Amoo 专用文件桥 | 让电脑上的助手把任务派给手机，再读回结果（[电脑派单](docs/computer.md) · [MCP](docs/mcp.md)） |
 
-R1 不需要配套设备。R2 可选、默认关闭。两种远程通道不能互相替代：MCP 是网络服务，文件桥是为连不到手机 loopback 端口的沙箱运行时准备的。
+R1 不需要配套设备。R2 可选、默认关闭。两条远程通道不能互相替代：MCP 是电脑客户端使用的网络服务；Amoo 文件桥只服务 Amoo 的 `/amoo/in|out` 邮箱，不是通用沙箱通道。
 
 ## 技术架构
 
@@ -154,7 +154,7 @@ flowchart TD
 
 | 层 | 技术 | 职责 |
 |---|---|---|
-| `flutter` | Flutter / Dart | 液态玻璃界面：聊天、设置、悬浮胶囊；经 MethodChannel/EventChannel 接宿主 |
+| `flutter` | Flutter / Dart | 唯一的应用界面：液态玻璃聊天、设置、悬浮胶囊；经 MethodChannel/EventChannel 接宿主 |
 | `app` | Kotlin / Android | 无障碍读屏、后台虚拟屏（shell 助手）、WebView、沙箱、前台服务、权限 |
 | `core` | Kotlin / JVM | Agent 循环、工具引擎、上下文压缩、守卫链、确认门、副作用账本、知识/技能/记忆 |
 | `tools/relay` | Go（可选） | 单用户单设备的公网远程 CLI / MCP 网关，不进 APK |
@@ -173,7 +173,7 @@ flowchart TD
 - 安卓 11（API 30）及以上，后台屏在安卓 14+ 上最稳。
 - **一次性授权 ADB 或无线调试**：虚拟屏由 `shell` 身份的助手进程创建，读屏走无障碍服务，没有零权限方案。
 - **你自己的模型服务商**：端侧执行、云端规划，地址和 Key 在设置里配，不内置模型权重。
-- 网络配置目前允许明文 HTTP——请用可信服务商和你能控制的网络；别把确认门当成全面的隐私保证。
+- 模型接口默认仅 HTTPS；只有明确批准“本机或局域网 HTTP 服务”时才允许明文 HTTP，且禁止公网 HTTP 与代理转发。别把确认门当成全面的隐私保证。
 
 ## 从源码构建
 
@@ -187,9 +187,9 @@ cd Maeve
 |---|---|
 | `core` | 纯 JVM Kotlin：Agent 循环、工具、上下文、守卫、知识与技能 |
 | `app` | 安卓宿主：无障碍、虚拟屏、shell 助手、WebView、沙箱、权限 |
-| `flutter` | 正在替换 Compose 的 Flutter 外壳；`app` 消费它构建出的 debug AAR |
+| `flutter` | 唯一的应用界面；`app` 消费 Gradle 自动构建出的对应模式 AAR |
 
-先构建 Flutter 模块再汇编 App（AAR 不存在时宿主编不过）。工具链与缓存、代理的坑见 [FLUTTER_MIGRATION.md](FLUTTER_MIGRATION.md) 与 [tooling/toolchain/README.md](tooling/toolchain/README.md)。
+Gradle 会在 `preBuild` 前自动构建对应模式的 Flutter AAR，干净克隆可直接执行上面的命令。工具链与缓存、代理的坑见 [FLUTTER_MIGRATION.md](FLUTTER_MIGRATION.md) 与 [tooling/toolchain/README.md](tooling/toolchain/README.md)。
 
 <details>
 <summary>内置使用知识的 App 和网站（没写到的照样能用）</summary>
@@ -219,7 +219,7 @@ cd Maeve
 
 ## 当前状态
 
-仓库处于 **M2（交互层）**，界面正从 Compose 迁到 Flutter 外壳：Flutter 直接启动，聊天桥用真实安卓会话状态，宿主注册了 MethodChannel/EventChannel。完整的 M2 视觉系统、连接中枢与 bridge v3（M3）、发布加固（M4）尚未完成，**这里没有任何已发布的二进制**。来龙去脉见 [ATTRIBUTION.md](ATTRIBUTION.md) 与 [SPEC.md](SPEC.md)。
+仓库处于 **M2（交互层）**，Flutter 已是唯一应用界面：Flutter 直接启动，聊天桥用真实安卓会话状态，宿主注册了 MethodChannel/EventChannel。连接中枢与 M3 验收、发布加固（M4）尚未完成，**这里没有任何已发布的二进制**。来龙去脉见 [ATTRIBUTION.md](ATTRIBUTION.md) 与 [SPEC.md](SPEC.md)。
 
 ---
 

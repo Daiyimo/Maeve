@@ -1,11 +1,11 @@
-<!-- translated-from: README.md @ e77a4da7bf23 -->
+<!-- translated-from: README.md @ d06bb8b9aecb -->
 <p align="center">
   <a href="README.md">简体中文</a> · <b>English</b>
 </p>
 
 <div align="center">
 
-<img src="docs/media/logo.png" alt="Maeve" width="96" />
+<img src="docs/media/logo.png" alt="Maeve eclipse mark" width="112" />
 
 # Maeve
 
@@ -40,14 +40,14 @@ Release codename **Dolores** · `v0.1.0` · [SPEC.md](SPEC.md). Maeve is an inde
 </tr>
 </table>
 
-<sub>The demos use apps popular in China, but Maeve isn't tied to them: any app or website on your phone, if it can see it, it can work it.</sub>
+<sub>The demos use apps popular in China, but Maeve isn't tied to them: most apps and websites work if it can see them; payment, banking and brokerage apps, plus password or verification-code pages, remain protected by safety rules.</sub>
 
 ## Why Maeve
 
 | | |
 |---|---|
 | 📱 **Leaves your screen alone** | Opens apps, taps, types and scrolls on a separate background virtual screen; keep using your phone, tap the live view whenever you want to watch |
-| 🧩 **Works with any app** | Looks at the screen and finds buttons the way a person does: no app APIs, no per-app integration; self-drawn UIs via bundled OCR and a vision model |
+| 🧩 **Works with most apps** | Looks at the screen and finds buttons the way a person does: no app APIs, no per-app integration; self-drawn UIs via bundled OCR and a vision model |
 | 🌐 **Ask right on the page** | The built-in browser opens any site; say what you want on the page you're reading and it works right there; touch the page and it stops |
 | 🧠 **Gets better with use** | Remembers the preferences you tell it and turns finished tasks into skills, so next time is faster and steadier |
 | 🔒 **Your data stays on your phone** | There is no Maeve server; use your own model key, or sign in with a ChatGPT / xAI / OpenRouter account |
@@ -116,9 +116,9 @@ One execution kernel, two ways to receive a task, both through the same agent lo
 | Route | Entry | Typical use |
 |---|---|---|
 | **R1 · On-device** | Maeve's own chat UI | Ask directly on the phone; accessibility + background virtual display do the work |
-| **R2 · Driven by another agent** | Inbound MCP over `/mcp`, or the on-device file bridge | Let a desktop assistant delegate a task to the phone, then read back the result ([computer](docs/computer.en.md) · [MCP](docs/mcp.en.md)) |
+| **R2 · Driven by another agent** | Inbound MCP over `/mcp`; the Amoo-only file bridge | Let a desktop assistant delegate a task to the phone, then read back the result ([computer](docs/computer.en.md) · [MCP](docs/mcp.en.md)) |
 
-R1 needs no companion device. R2 is optional and off by default. The two remote transports are not interchangeable: MCP is a network service, while the file bridge exists for sandboxed runtimes that cannot reach the phone's loopback port.
+R1 needs no companion device. R2 is optional and off by default. The two remote transports are not interchangeable: MCP is the network service used by computer clients; the Amoo file bridge only serves Amoo's `/amoo/in|out` mailbox and is not a general sandbox channel.
 
 ## Architecture
 
@@ -155,7 +155,7 @@ flowchart TD
 
 | Layer | Tech | Responsibility |
 |---|---|---|
-| `flutter` | Flutter / Dart | Liquid-glass UI: chat, settings, floating capsule; talks to the host over MethodChannel/EventChannel |
+| `flutter` | Flutter / Dart | The only application UI: liquid-glass chat, settings and floating capsule; talks to the host over MethodChannel/EventChannel |
 | `app` | Kotlin / Android | Accessibility reader, background virtual display (shell helper), WebView, sandbox, foreground service, permissions |
 | `core` | Kotlin / JVM | Agent loop, tool engine, context compression, guard chain, confirm gate, effect ledger, knowledge/skills/memory |
 | `tools/relay` | Go (optional) | Single-user single-device public remote CLI / MCP gateway, not bundled in the APK |
@@ -174,7 +174,7 @@ Finer layering and dependency direction are in [docs/dev/architecture.md](docs/d
 - Android 11 (API 30) or newer; the background screen works best on Android 14+.
 - **One-time ADB or wireless-debugging authorization**: the virtual display is created by a helper running as `shell`, screen access goes through accessibility; there is no zero-permission setup.
 - **Your own model provider**: execution on device, planning in the cloud; configure the endpoint and key in Settings, no model weights bundled.
-- Plaintext HTTP is currently permitted — use a trusted provider and a network you control; don't read the confirmation gate as a blanket privacy guarantee.
+- Model endpoints use HTTPS by default. Plaintext HTTP is allowed only after you explicitly approve a local or LAN service, never for public endpoints or through a proxy; don't read the confirmation gate as a blanket privacy guarantee.
 
 ## Build from source
 
@@ -188,9 +188,9 @@ cd Maeve
 |---|---|
 | `core` | Pure-JVM Kotlin: agent loop, tools, context, guards, knowledge and skills |
 | `app` | Android host: accessibility, virtual display, shell helper, WebView, sandbox, permissions |
-| `flutter` | The Flutter shell replacing Compose; `app` consumes the debug AAR it builds |
+| `flutter` | The only application UI; `app` consumes the matching AAR built automatically by Gradle |
 
-Build the Flutter module first, then assemble the app (the host won't compile without the AAR). Toolchain, cache and proxy traps are in [FLUTTER_MIGRATION.md](FLUTTER_MIGRATION.md) and [tooling/toolchain/README.md](tooling/toolchain/README.md).
+Gradle builds the matching Flutter AAR before `preBuild`, so a clean clone can run the command above directly. Toolchain, cache and proxy traps are in [FLUTTER_MIGRATION.md](FLUTTER_MIGRATION.md) and [tooling/toolchain/README.md](tooling/toolchain/README.md).
 
 <details>
 <summary>Built-in app and website knowledge (unlisted apps still work)</summary>
@@ -220,7 +220,7 @@ You can also sign in without a key: ChatGPT (Plus / Pro), xAI / Grok and OpenRou
 
 ## Status
 
-The repository is at **M2 (interaction layer)**, with the UI moving from Compose to a Flutter shell: Flutter starts directly, the chat bridge uses real Android conversation state, and the host registers MethodChannel/EventChannel handlers. The full M2 visual system, the connection hub and bridge v3 (M3), and release hardening (M4) are not finished; **nothing here is a released binary**. See [ATTRIBUTION.md](ATTRIBUTION.md) and [SPEC.md](SPEC.md).
+The repository is at **M2 (interaction layer)**, and Flutter is now the only application UI: it starts directly, the chat bridge uses real Android conversation state, and the host registers MethodChannel/EventChannel handlers. The connection hub and M3 acceptance, and release hardening (M4) are not finished; **nothing here is a released binary**. See [ATTRIBUTION.md](ATTRIBUTION.md) and [SPEC.md](SPEC.md).
 
 ---
 

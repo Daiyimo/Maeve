@@ -27,7 +27,7 @@
 - License: Apache-2.0
 - Usage: 以 shell 身份取得系统上下文(ActivityThread / 伪装包名的 Context)的做法仿照 scrcpy。
   源文件头部保留出处:
-  - `app/src/main/java/com/daiyimo/maeve/shell/ShellContext.kt`
+  - `app/src/main/java/com/daiyimo/maeve/cap/phone/shell/ShellContext.kt`
 
 ## Apache Commons Compress
 

@@ -7,8 +7,8 @@
 > 这份文档是 `flutter/` 视觉层的**决策记录**：每个 token 一条 rationale，说明它从哪个源头推导而来、
 > 为什么是这个值、以及和 Compose 参考实现怎么对上。
 >
-> 适用规格：[`REWRITE_SPEC.md`](../../flutter/REWRITE_SPEC.md)。上一轮复刻规格
-> [`UI_SPEC_HANDOFF.md`](../../flutter/UI_SPEC_HANDOFF.md) 已作废，只作历史记录。
+> 适用规格：[`REWRITE_SPEC.md`](../../../flutter/REWRITE_SPEC.md)。上一轮复刻规格
+> [`UI_SPEC_HANDOFF.md`](../../../flutter/UI_SPEC_HANDOFF.md) 已作废，只作历史记录。
 >
 > 状态：Phase 0 完成（源摘要 + 命名表 + 硬护栏），Phase 1 起逐项补数值与理由。
 >

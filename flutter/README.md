@@ -37,7 +37,7 @@ Adding `-e maeve_verify_phone_task true` opts into a calculator-only phone task 
 
 Live previews poll the current conversation's access-guarded native frame every 800ms, with an immediate refresh on opening or resuming, downscaled off the main thread. Hidden/background pages stop polling. History uses run identifiers and screenshot identifiers through RunStore's existing path validation; image methods exchange identifiers and bytes rather than filesystem paths. Failed and stopped turns retain their native status instead of being labelled completed.
 
-The live logo uses vector geometry in lib/widgets/eclipse_geometry.dart. After editing it, run dart run tool/export_eclipse_icons.dart from this module to update Android launcher vectors; CI checks the generated files with --check. The idle mark has no continuous animation. Reduced motion and hidden pages freeze the executing mark.
+The live logo uses vector geometry in lib/widgets/eclipse_geometry.dart. After editing it, run dart run tool/export_eclipse_icons.dart from this module to update Android launcher vectors; CI checks the generated files with --check. The README tile at ../docs/media/logo.png composites the dark idle mark from tool/eclipse_preview_test.dart onto the reverie gradient; refresh it with the geometry so the repository logo and launcher do not drift. The idle mark has no continuous animation. Reduced motion and hidden pages freeze the executing mark.
 
 For local visual review, run tool/preview_test.dart with MAEVE_PREVIEW_FONT pointing to a local CJK font. It renders actual widgets and captures themes, all current pages and their scrolled ends under build/. The local font and screenshots are not packaged.
 

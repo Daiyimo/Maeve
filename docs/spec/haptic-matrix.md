@@ -2,9 +2,11 @@
 # Haptic engine — M2 implementation contract
 
 > Source of truth: [SPEC.md](../../SPEC.md) §4. dsh-Go is a Flutter app using
-> `selectionClick / lightImpact / mediumImpact / heavyImpact`. Maeve is native Compose, so
-> those APIs do not exist here. **Do not wrap `LocalHapticFeedback` and call it done** —
-> Compose exposes only `LongPress` and `TextHandleMove`, which cannot express the semantics.
+> `selectionClick / lightImpact / mediumImpact / heavyImpact`. Maeve's application UI is also
+> Flutter, but haptics are provided by the native Android `HapticEngine` through the
+> `maeve/ui` bridge, so those calls cannot be copied directly. **Do not wrap
+> `LocalHapticFeedback` and call it done** — the retired Compose host exposed only
+> `LongPress` and `TextHandleMove`, which cannot express the semantics.
 
 ## 1. Single entry point
 

@@ -88,7 +88,7 @@ powershell -NoProfile -File tooling/toolchain/verify.ps1
 - `actions/setup-java` 固定 `temurin 17`
 - `gradle/actions/setup-gradle` 使用 wrapper，Gradle 版本由 `gradle-wrapper.properties` 固定为 9.3.1
 - `subosito/flutter-action` 固定 `3.47.7`
-- Android job 先构建 Flutter AAR，再 `./gradlew :app:assembleDebug`
+- Android job 先执行 `flutter build aar --debug --no-profile --no-release`，再运行 `./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace -PskipFlutterAar`
 
 CI 不读本机的 `_env`，所以仓库里不能出现绝对路径；这正是 `env.example.*` 只写变量、不写盘符的原因。
 
@@ -112,7 +112,7 @@ CI 不读本机的 `_env`，所以仓库里不能出现绝对路径；这正是 
 
 ## Flutter 模式
 
-Android `debug/perf/release` 分别消费 `flutter_debug/flutter_profile/flutter_release`。Gradle 的对应 `flutterBuildDebugAar/flutterBuildPerfAar/flutterBuildReleaseAar` 任务自动生成 AAR；输出分别为 `flutter/build/host`、`host-profile`、`host-release`。perf 包名后缀为 `.perf`，使用开发签名，不能当作发行候选包。`-PskipFlutterAar` 仅供已有相同源码、相同模式 AAR 的验证环境使用。
+Android `debug/perf/release` 分别消费 `flutter_debug/flutter_profile/flutter_release`。Gradle 的对应 `flutterBuildDebugAar/flutterBuildPerfAar/flutterBuildReleaseAar` 任务自动生成 AAR；输出根分别为 `flutter/build`、`flutter/build/host-profile`、`flutter/build/host-release`，对应 Maven 仓库为 `flutter/build/host/outputs/repo`、`flutter/build/host-profile/host/outputs/repo`、`flutter/build/host-release/host/outputs/repo`。perf 包名后缀为 `.perf`，使用开发签名，不能当作发行候选包。`-PskipFlutterAar` 仅供已有相同源码、相同模式 AAR 的验证环境使用。
 
 版本清单以 `versions.json` 为源；发行签名、递增 versionCode、同 hash 安装升级和真机验收仍是发行前独立门禁。
 
