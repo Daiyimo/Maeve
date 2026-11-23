@@ -103,4 +103,16 @@
     <string name="timeline_running">Выполняется</string>
     <string name="timeline_step_limit">Шаги</string>
     <string name="timeline_step_limit_value">%1$d / %2$d</string>
+    <string name="local_review_verified">Доказательства проверены</string>
+    <string name="local_review_partial">Проверено частично</string>
+    <string name="local_review_insufficient">Недостаточно доказательств</string>
+    <string name="local_review_not_applicable">Проверка не требуется</string>
+    <string name="local_review_details">Подтверждены сведения по %1$d из %2$d запрошенных позиций.</string>
+    <string name="local_review_claims">Данные выполнения подтверждают %1$d из %2$d проверяемых фактов.</string>
+    <string name="local_review_no_receipt">Нет проверяемого подтверждения результата внешнего действия.</string>
+    <string name="local_review_unread">Результат последнего действия не был считан.</string>
+    <string name="local_review_truncated">Часть записанных данных обрезана.</string>
+    <string name="local_review_no_evidence">В этой записи нет читаемых данных для проверки.</string>
+    <string name="local_review_unanchored">Для некоторых значений нет соответствующего поля или подтверждающей цитаты.</string>
+    <string name="local_review_no_claims">В ответе нет фактов, которые можно проверить по локальным правилам.</string>
 </resources>

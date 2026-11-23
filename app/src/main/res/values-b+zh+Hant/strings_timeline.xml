@@ -91,4 +91,16 @@
     <string name="timeline_running">進行中</string>
     <string name="timeline_step_limit">步數</string>
     <string name="timeline_step_limit_value">%1$d / %2$d</string>
+    <string name="local_review_verified">證據已核實</string>
+    <string name="local_review_partial">部分核實</string>
+    <string name="local_review_insufficient">證據不足</string>
+    <string name="local_review_not_applicable">無需複核</string>
+    <string name="local_review_details">已核實 %1$d/%2$d 項詳情。</string>
+    <string name="local_review_claims">回答中可核對的事實有 %1$d/%2$d 項與記錄對上。</string>
+    <string name="local_review_no_receipt">對外操作缺少已核驗的結果憑證。</string>
+    <string name="local_review_unread">最後一次操作後未讀回結果。</string>
+    <string name="local_review_truncated">部分證據文字遭截斷。</string>
+    <string name="local_review_no_evidence">本次執行缺少可複核的實讀證據。</string>
+    <string name="local_review_unanchored">部分數值缺少對應欄位或引文佐證。</string>
+    <string name="local_review_no_claims">回答裡沒有本地規則能核對的具體事實。</string>
 </resources>

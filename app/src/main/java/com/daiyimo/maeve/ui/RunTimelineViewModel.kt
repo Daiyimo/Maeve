@@ -2,6 +2,7 @@ package com.daiyimo.maeve.ui
 
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
+import com.daiyimo.maeve.core.record.LocalReview
 import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.core.record.RunMetrics
 import com.daiyimo.maeve.record.RunStore
@@ -79,6 +80,7 @@ data class TimelineHeader(
     /** 这次运行的小结;记录里没有开始事件时为 null(只显示用时)。 */
     val metrics: RunMetrics? = null,
     val tokens: RunTokens? = null,
+    val reviewDetail: String? = null,
 )
 
 sealed interface TimelineUi {
@@ -113,6 +115,8 @@ class RunTimelineViewModel(
         val endMs = summary?.endedAtMs ?: ended?.atMs
         val metrics = RunMetrics.of(events, runId)
         val isRunning = ended == null && summary?.endedAtMs == null && alive(runId)
+        val localReview = summary?.localReview ?: events.filterIsInstance<RunEvent.LocalReviewCompleted>().lastOrNull()?.review
+        val legacyVerdict = summary?.verdict ?: events.filterIsInstance<RunEvent.Verifier>().lastOrNull()?.verdict
         val header = TimelineHeader(
             goal = summary?.goal ?: started?.goal.orEmpty(),
             criteria = summary?.criteria?.takeIf { it.isNotEmpty() }
@@ -121,7 +125,8 @@ class RunTimelineViewModel(
                 summary?.judged ?: events.filterIsInstance<RunEvent.OutcomeJudged>().lastOrNull()?.outcome),
             // 结束事件或结束时间只要有一个就算跑完了;都没有时还要任务真在跑,界面据此决定要不要按秒重读
             running = isRunning,
-            verdict = verdictLabel(summary?.verdict ?: events.filterIsInstance<RunEvent.Verifier>().lastOrNull()?.verdict),
+            verdict = localReview?.let(::localReviewLabel) ?: if (isRunning) "" else verdictLabel(legacyVerdict),
+            reviewDetail = localReview?.let(::localReviewDetail),
             duration = endMs?.let { duration(it - startMs) },
             modelCalls = events.count { it is RunEvent.ModelReply },
             stepLimit = started?.stepLimit,
@@ -341,6 +346,29 @@ class RunTimelineViewModel(
             "fail" -> Tag(tr(R.string.verify_failed), TagTone.Bad)
             else -> Tag(tr(R.string.verify_unverified), TagTone.Warn)
         }
+
+        private fun localReviewLabel(review: LocalReview) = tr(when (review.status) {
+            LocalReview.Status.Verified -> R.string.local_review_verified
+            LocalReview.Status.Partial -> R.string.local_review_partial
+            LocalReview.Status.Insufficient -> R.string.local_review_insufficient
+            LocalReview.Status.NotApplicable -> R.string.local_review_not_applicable
+        })
+
+        private fun localReviewDetail(review: LocalReview): String? = listOfNotNull(
+            review.details?.let { tr(R.string.local_review_details, it.matched, it.total) },
+            review.claims?.let { tr(R.string.local_review_claims, it.matched, it.total) },
+            review.limit?.let { limit -> tr(when (limit) {
+                LocalReview.Limit.NoReceipt -> R.string.local_review_no_receipt
+                LocalReview.Limit.UnreadChange -> R.string.local_review_unread
+                LocalReview.Limit.Truncated -> R.string.local_review_truncated
+                LocalReview.Limit.NoEvidence -> R.string.local_review_no_evidence
+                LocalReview.Limit.Unanchored -> R.string.local_review_unanchored
+                LocalReview.Limit.NoCheckableClaims -> R.string.local_review_no_claims
+            }) },
+            review.missing.takeIf { it.isNotEmpty() }?.let {
+                tr(R.string.verify_unverified) + " · " + it.joinToString(" / ")
+            },
+        ).joinToString("\n").takeIf { it.isNotBlank() }
 
         private fun verdictLabel(verdict: String?) = if (verdict == null) tr(R.string.verify_none) else verifierTag(verdict).text
 

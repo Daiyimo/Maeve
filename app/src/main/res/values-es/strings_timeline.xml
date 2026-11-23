@@ -99,4 +99,16 @@
     <string name="timeline_running">En ejecución</string>
     <string name="timeline_step_limit">Pasos</string>
     <string name="timeline_step_limit_value">%1$d / %2$d</string>
+    <string name="local_review_verified">Evidencia verificada</string>
+    <string name="local_review_partial">Verificación parcial</string>
+    <string name="local_review_insufficient">Evidencia insuficiente</string>
+    <string name="local_review_not_applicable">No requiere revisión</string>
+    <string name="local_review_details">Se verificaron los detalles de %1$d de los %2$d elementos solicitados.</string>
+    <string name="local_review_claims">Se cotejaron %1$d de %2$d datos verificables con la evidencia de la ejecución.</string>
+    <string name="local_review_no_receipt">Falta un comprobante verificable del resultado de la acción externa.</string>
+    <string name="local_review_unread">No se leyó el resultado después de la última acción.</string>
+    <string name="local_review_truncated">Parte de la evidencia registrada está truncada.</string>
+    <string name="local_review_no_evidence">La ejecución no contiene evidencia legible para revisar.</string>
+    <string name="local_review_unanchored">Algunos valores carecen de un campo correspondiente o una cita que los respalde.</string>
+    <string name="local_review_no_claims">La respuesta no contiene hechos que puedan comprobarse con las reglas locales.</string>
 </resources>

@@ -10,6 +10,7 @@ import com.daiyimo.maeve.core.model.Role
 import com.daiyimo.maeve.core.model.StopReason
 import com.daiyimo.maeve.core.model.ToolSpec
 import com.daiyimo.maeve.core.prompt.Feedback
+import com.daiyimo.maeve.core.record.LocalReview
 import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.core.record.RunSink
 import com.daiyimo.maeve.core.uistate.ActionResult
@@ -128,6 +129,70 @@ class AgentLoopVerifyTest {
         assertTrue(main.lastNotice(2).contains("Look at the current screen"))
         assertTrue(sink.events.any { it is RunEvent.Sources })
         assertFalse(sink.events.any { it is RunEvent.AnswerCheck || it is RunEvent.Verifier })
+    }
+
+    @Test fun productLocalReviewRecordsOnlyTheDeliveredAnswerWithoutExtraModelCalls() = runTest {
+        val checker = FakeModel()
+        val fixtures = listOf(
+            Triple(GROUNDED, 1, LocalReview.Status.Verified),
+            Triple(GROUNDED + "，价格是 ¥89", 1, LocalReview.Status.Partial),
+            Triple(UNGROUNDED, 0, LocalReview.Status.Insufficient),
+        )
+        for ((answer, matched, status) in fixtures) {
+            val main = FakeModel(observe(), text(answer))
+            val sink = ListSink()
+            val result = AgentLoop(main, toolDispatcher(FakeScreen()), "BASE", sink = sink,
+                verifier = Verifier(checker, null), reviewFinalAnswer = false, localAnswerReview = true)
+                .run("看看首页") as TaskState.Succeeded
+            val event = sink.events.filterIsInstance<RunEvent.LocalReviewCompleted>().single()
+            assertEquals(status, event.review.status)
+            assertEquals(matched, event.review.claims?.matched)
+            assertEquals(answer, result.answer)
+            assertEquals(event, RunEvent.decode(RunEvent.encode(event)))
+            assertEquals(event, sink.events[sink.events.lastIndex - 1])
+            assertEquals(2, main.requests.size)
+        }
+        assertTrue(checker.requests.isEmpty())
+    }
+
+    @Test fun productLocalReviewSkipsChatAndRequiresAPaymentReceipt() = runTest {
+        val chatSink = ListSink()
+        AgentLoop(FakeModel(text("你好")), toolDispatcher(FakeScreen()), "BASE", sink = chatSink,
+            reviewFinalAnswer = false, localAnswerReview = true).run("你好")
+        assertEquals(LocalReview.Status.NotApplicable, chatSink.events.filterIsInstance<RunEvent.LocalReviewCompleted>().single().review.status)
+
+        val main = FakeModel(tools(call("hand_to_user", """{"reason":"payment","message":"请付款"}""")), observe(), text(GROUNDED))
+        val paymentSink = ListSink()
+        val loop = AgentLoop(main, toolDispatcher(FakeScreen()), "BASE", sink = paymentSink,
+            reviewFinalAnswer = false, localAnswerReview = true)
+        val run = async { loop.run("请付款") }
+        advanceUntilIdle()
+        loop.resumeAfterTakeover(AgentLoop.USER_FINISHED_NOTE)
+        assertTrue(run.await() is TaskState.Succeeded)
+        val payment = paymentSink.events.filterIsInstance<RunEvent.LocalReviewCompleted>().single().review
+        assertEquals(LocalReview.Status.Partial, payment.status)
+        assertEquals(LocalReview.Limit.NoReceipt, payment.limit)
+    }
+
+    @Test fun productLocalReviewDoesNotVerifyAnUnanchoredMatchingNumber() = runTest {
+        val base = FakeScreen()
+        val screen = object : com.daiyimo.maeve.core.uistate.ScreenPort by base {
+            override suspend fun snapshot(): com.daiyimo.maeve.core.uistate.ScreenSnapshot =
+                base.snapshot().let { s -> s.copy(elements = s.elements.map { it.copy(name = "订单数量 128") }) }
+        }
+        suspend fun review(answer: String): LocalReview {
+            val main = FakeModel(observe(), text(answer))
+            val sink = ListSink()
+            AgentLoop(main, toolDispatcher(screen), "BASE", sink = sink,
+                reviewFinalAnswer = false, localAnswerReview = true).run("查看页面")
+            return sink.events.filterIsInstance<RunEvent.LocalReviewCompleted>().single().review
+        }
+        val wrongField = review("余额 128 元")
+        assertEquals(LocalReview.Coverage(0, 1), wrongField.claims)
+        assertEquals(LocalReview.Limit.Unanchored, wrongField.limit)
+        assertEquals(LocalReview.Status.Insufficient, wrongField.status)
+        assertEquals(LocalReview.Status.Partial, review("页面有「订单数量」。余额 128 元").status)
+        assertEquals(LocalReview.Status.Verified, review("订单数量 128").status)
     }
 
     // 报了失败的动作什么也没改成:回答前不为它要求再读一遍

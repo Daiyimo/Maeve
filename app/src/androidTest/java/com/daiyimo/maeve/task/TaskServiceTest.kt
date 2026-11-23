@@ -24,7 +24,10 @@ import com.daiyimo.maeve.core.model.ModelReply
 import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.model.StopReason
 import com.daiyimo.maeve.core.model.ToolSpec
+import com.daiyimo.maeve.core.record.LocalReview
 import com.daiyimo.maeve.core.verify.Verifier
+import com.daiyimo.maeve.record.RunStore
+import com.daiyimo.maeve.ui.TaskReportViewModel
 import com.daiyimo.maeve.shell.IMaeveShell
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -121,12 +124,9 @@ class TaskServiceTest {
     private fun maeveScreenLock(): String? =
         sh("dumpsys power").lines().map { it.trim() }.firstOrNull { "'Maeve:task'" in it }
 
-    /**
-     * 产品路径上回答不另请核查(任务以 reviewFinalAnswer = false 运行):模型给的回答原样交出,结局是办成、未经核查;
-     * 主模型和轻量模型都收不到核查请求。核查本身的规则由核心的单元测试管。
-     */
+    /** 本地复核随正式报告保存，无需额外调用核查模型。 */
     @Test
-    fun answerHandedOverWithoutReview() {
+    fun answerHandedOverWithLocalReview() {
         val lightChecks = AtomicInteger()
         testTasks.lightModelFactory = { _, _ ->
             object : ChatModel {
@@ -145,9 +145,14 @@ class TaskServiceTest {
         assertEquals(1, model.awaitCall().number)
         model.feed("phone_observe")
         assertEquals(2, model.awaitCall().number)
+        val conversation = DeviceTaskState.conversationId.value!!
         model.answer("电量是 9731 毫安时")
         val end = pollUntil(15_000) { DeviceTaskState.state.value.takeIf { !it.running() } }
-        assertTrue("$end", end is TaskState.Succeeded && end.answer == "电量是 9731 毫安时" && !end.reviewed && end.unconfirmed.isEmpty())
+        assertTrue("$end", end is TaskState.Succeeded && end.answer == "电量是 9731 毫安时" && !end.reviewed)
+        val runId = pollUntil(5_000) { DeviceTaskState.endedRunIds.value[conversation] }!!
+        val store = RunStore(context)
+        assertEquals(LocalReview.Status.Insufficient, store.summary(runId)?.localReview?.status)
+        assertEquals("证据不足", TaskReportViewModel(store, runId).load()?.header?.verdict)
         assertEquals(0, lightChecks.get())
         assertEquals(0, model.verifierRequests.get())
         pollUntil(10_000) { DeviceTaskState.busy.value.takeIf { !it } }

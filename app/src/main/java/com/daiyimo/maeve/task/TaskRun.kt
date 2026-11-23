@@ -813,7 +813,7 @@ class TaskRun(
                         effects = com.daiyimo.maeve.core.action.ActionEffects((service.application as MaeveApp).actionEffects, conversationId, childSpec.id.value),
                         // 子任务跟着询问 / 自主;询问时它也过关卡,子任务里花钱的一步一律不做
                         confirmations = runApproval.gate(), approvals = runApproval, autonomous = runApproval.autonomous(),
-                        reviewFinalAnswer = false, flags = speed, outwardPacing = OutwardPacing.human(), budget = budget)
+                        reviewFinalAnswer = false, localAnswerReview = true, flags = speed, outwardPacing = OutwardPacing.human(), budget = budget)
                 },
                 store = (service.application as MaeveApp).childRuns,
                 ownerAlive = { job?.isActive == true },
@@ -879,6 +879,7 @@ class TaskRun(
                 budget = budget,
                 effects = com.daiyimo.maeve.core.action.ActionEffects((service.application as MaeveApp).actionEffects, conversationId, key),
                 reviewFinalAnswer = false,
+                localAnswerReview = true,
                 inputTimeoutMs = TaskService.INPUT_TIMEOUT_MS,
                 // 询问 / 自主:两种模式都拦对外、不可逆、工具申报风险与付款;自主只豁免微信每步写确认和自绘盲点限制。
                 // 开工后中途切换从下一个动作边界生效,已经弹出的确认仍要回答

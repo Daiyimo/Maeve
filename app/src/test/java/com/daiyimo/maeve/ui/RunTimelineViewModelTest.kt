@@ -4,6 +4,7 @@ import com.daiyimo.maeve.i18n.ChineseTexts
 import com.daiyimo.maeve.core.guard.GuardVerdict
 import com.daiyimo.maeve.core.guard.Severity
 import com.daiyimo.maeve.core.record.Redactor
+import com.daiyimo.maeve.core.record.LocalReview
 import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.record.RunHandle
 import com.daiyimo.maeve.record.RunStore
@@ -66,6 +67,27 @@ class RunTimelineViewModelTest {
         val id = run("总结") { event(RunEvent.MemoryUsed(clock, listOf("m1", "m2"))) }
         val ui = RunTimelineViewModel(store, id, resolveMemory = { ids -> ids.map { "记忆 $it" } }).load() as TimelineUi.Ready
         assertEquals(listOf("记忆 m1", "记忆 m2"), ui.header.usedMemory)
+    }
+
+    @Test fun localReviewSurvivesPersistenceAndAppearsInReportAndExport() {
+        val review = LocalReview(
+            LocalReview.Status.Partial, details = LocalReview.Coverage(2, 3), missing = listOf("第二张表 (胜率)"),
+        )
+        val id = run("阅读三篇笔记") {
+            event(RunEvent.LocalReviewCompleted(clock, review))
+            event(RunEvent.TaskEnded(clock + 1, "succeeded", "已整理。"))
+            event(RunEvent.OutcomeJudged(clock + 2, "done"))
+        }
+        assertEquals(review, store.summary(id)?.localReview)
+        val report = TaskReportViewModel(store, id).load()!!
+        assertEquals("办成了", report.header.outcome)
+        assertEquals("部分核实", report.header.verdict)
+        assertEquals("已核实 2/3 项详情。\n没能核实 · 第二张表 (胜率)", report.header.reviewDetail)
+        val bridge = FlutterTaskDetails.report(report)
+        assertEquals("部分核实", bridge["verdict"])
+        assertEquals(report.header.reviewDetail, bridge["reviewDetail"])
+        assertTrue("部分核实" in TaskReportExport.markdown(report))
+        assertTrue("已核实 2/3 项详情。" in TaskReportExport.markdown(report))
     }
 
     @Test fun headerCarriesRunMetrics() {

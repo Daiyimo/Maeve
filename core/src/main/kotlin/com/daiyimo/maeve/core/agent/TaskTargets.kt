@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.core.agent
 
+import com.daiyimo.maeve.core.record.LocalReview
 import com.daiyimo.maeve.core.tool.Verb
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -25,6 +26,10 @@ internal class TaskTargets(goal: String) {
     private var sawTargetModule = false
     private var viewingDetail = false
     private var completionNudged = false
+    private var pending: TargetItem? = null
+    private var lastScreenPackage: String? = null
+    private var lastLabels = emptySet<String>()
+    private var labelsBeforeTap = emptySet<String>()
 
     data class TargetItem(
         val title: String,
@@ -32,14 +37,41 @@ internal class TaskTargets(goal: String) {
         val ref: String?,
         val source: String,
         val seenAt: Int,
+        val author: String? = null,
     )
 
     /** 看过一次工具结果后更新当前屏候选与当前模块;动作结果里的 screen 与顶层读屏结果都认。 */
-    fun observe(content: JsonObject, step: Int) {
+    fun observe(content: JsonObject, step: Int, fullElements: JsonArray? = null) {
         val target = profile ?: return
-        clearCurrentScreen()
         val screen = content["screen"] as? JsonObject ?: content
+        if (screen.bool("protected") == true || content["app_switched"] != null || content["opened"] != null) {
+            pending = null
+            viewingDetail = false
+            clearCurrentScreen()
+            return
+        }
+        if (fullElements == null && "modules" !in screen && "visibleText" !in screen && "elements" !in screen) return
+        val pkg = screen.str("currentApp")
+        if (pkg != null && lastScreenPackage != null && pkg != lastScreenPackage) {
+            pending = null
+            viewingDetail = false
+        }
+        if (pkg != null) lastScreenPackage = pkg
+        val labels = screenLabels(screen, fullElements)
         val modules = screen["modules"] as? JsonArray
+        val isList = modules?.any { (it as? JsonObject)?.get("items") is JsonArray } == true ||
+            labels.any { it.contains("已选定") }
+        clearCurrentScreen()
+        pending?.let { item ->
+            if (!isList && provesDetail(item, labels)) {
+                opened[item.title.key()] = item
+                viewingDetail = matches(item)
+                if (viewingDetail) sawTargetModule = true
+                pending = null
+            }
+        }
+        if (isList) viewingDetail = false
+        lastLabels = labels.map { it.key() }.toSet()
         if (modules != null) {
             observeModules(target, modules, step)
         } else {
@@ -47,7 +79,29 @@ internal class TaskTargets(goal: String) {
         }
     }
 
-    /** 点击成功后把“点了什么”记入已打开条目;无变化的点击不算读到一个条目。 */
+    private fun screenLabels(screen: JsonObject, fullElements: JsonArray?): List<String> {
+        val elements = fullElements ?: screen["elements"] as? JsonArray
+        val ocr = screen["visibleText"] as? JsonArray
+        return elements.orEmpty().mapNotNull { (it as? JsonObject)?.takeUnless { item ->
+            item.bool("secret") == true || item.bool("editable") == true
+        }?.str("name") } + ocr.orEmpty().mapNotNull { (it as? JsonObject)?.str("text") }
+    }
+
+    private fun provesDetail(item: TargetItem, labels: List<String>): Boolean {
+        val title = item.title.key()
+        val titleSeen = labels.any { it.key() == title }
+        val authorSeen = item.author?.let { name -> labels.any { name.key() in it.key() } } ?: true
+        val bodySeen = labels.any { text ->
+            val key = text.key()
+            key.length >= 12 && key != title && key !in labelsBeforeTap &&
+                visibleCandidates.values.none { it.title.key() == key } &&
+                !knownSection(text) && !isRecency(text) &&
+                listOf("评论", "分享", "关注", "加载", "搜索", "loading", "comment").none { text.startsWith(it, ignoreCase = true) }
+        }
+        return titleSeen && authorSeen && bodySeen
+    }
+
+    /** Stage the item after a click. Only a later read of the matching detail can count it. */
     fun action(verb: Verb?, args: JsonObject, content: JsonObject, step: Int) {
         if (profile == null) return
         if (content.bool("ok") == false) return
@@ -59,9 +113,11 @@ internal class TaskTargets(goal: String) {
         if (verb == Verb.Back || (verb == Verb.Tap && changed && described?.let { isBackLabel(it) } == true)) {
             clearCurrentScreen()
             viewingDetail = false
+            pending = null
             return
         }
         if (verb != Verb.Tap || !changed) return
+        pending = null
         val known = ref?.let { value ->
             visibleCandidates.values.firstOrNull { it.ref == value }
                 ?: seenCandidates.values.firstOrNull { it.ref == value }
@@ -79,12 +135,11 @@ internal class TaskTargets(goal: String) {
             ref ?: known?.ref,
             known?.source ?: "action",
             step,
+            known?.author,
         )
         remember(item, visible = false)
-        opened[item.title.key()] = item
-        visibleCandidates.remove(item.title.key())
-        viewingDetail = matches(item)
-        if (viewingDetail) sawTargetModule = true
+        pending = item
+        labelsBeforeTap = lastLabels + visibleCandidates.keys
     }
 
     /** 当前状态接到每一步运行时上下文里;没有可执行目标时不注入。 */
@@ -112,8 +167,9 @@ internal class TaskTargets(goal: String) {
             out.appendLine("- Visible text candidates (verify in the screenshot; soft hints only):")
             visualCandidates.take(8).forEach { out.appendLine("  - " + it) }
         }
+        pending?.let { out.appendLine("- Verify this detail before counting it: " + it.title) }
         val read = opened.values.filter(::matches).takeLast(8)
-        out.appendLine("- Opened target items: " + read.size)
+        out.appendLine("- Opened target items: " + opened.values.count(::matches))
         read.forEach { out.appendLine("  - " + it.title + it.sectionSuffix()) }
         val other = opened.values.filterNot(::matches).takeLast(4)
         if (other.isNotEmpty()) {
@@ -130,7 +186,7 @@ internal class TaskTargets(goal: String) {
     /** 明确要求点开/阅读目标项时,当前屏还有候选就不允许无目标滚动;详情内部滚动始终允许。 */
     fun scrollBlockReason(args: JsonObject): String? {
         val target = profile ?: return null
-        if (!target.hardGuards || viewingDetail) return null
+        if (!target.hardGuards || viewingDetail || pending != null && visibleTargets().isEmpty()) return null
         if (args.has("ref") || args.has("x") || args.has("y")) return null
         val remaining = visibleTargets().isNotEmpty() && opened.values.count(::matches) < target.desired
         if (remaining) {
@@ -149,7 +205,7 @@ internal class TaskTargets(goal: String) {
         val read = opened.values.count(::matches)
         if (read >= target.desired) return null
         val pending = visibleTargets().isNotEmpty()
-        if (!pending && !viewingDetail && !leftTargetSection()) return null
+        if (!pending && this.pending == null && !viewingDetail && !leftTargetSection()) return null
         completionNudged = true
         return "The task target is " + target.label + ", but only " + read + " of about " + target.desired +
             " target items have been opened. Return to or continue reading the target items before answering; do not substitute cards from other sections."
@@ -238,9 +294,23 @@ internal class TaskTargets(goal: String) {
                 }
                 .maxByOrNull { it.y }
                 ?: continue
-            hard += TargetItem(title.text.clean(), section.title, null, "ocr", step)
+            val author = region.firstOrNull {
+                it.y in title.y..time.y && it.horizontallyClose(title, horizontalLimit) &&
+                    (it.text.startsWith("来自") || it.text.startsWith("作者"))
+            }?.text?.removePrefix("来自")?.removePrefix("作者")?.trim(' ', ':', '：')?.takeIf(String::isNotBlank)
+            hard += TargetItem(title.text.clean(), section.title, null, "ocr", step, author)
         }
         return OcrPick(section, hard.distinctBy { it.title.key() }, soft)
+    }
+
+    /** 列表卡片不能作数：只计已读到详情、且在最终回答正文中列出的目标。 */
+    fun reviewCoverage(answer: String): LocalReview.Coverage? {
+        val target = profile?.takeIf { it.hardGuards } ?: return null
+        val requested = target.explicitCount ?: return null
+        val body = answer.split(Regex("(?im)^\\s*\\**(?:依据|来源|sources?|evidence)\\**\\s*[:：]"), limit = 2).first()
+        val lines = body.lines().map { it.key() }
+        val matched = opened.values.count { item -> matches(item) && lines.any { item.title.key() in it } }
+        return LocalReview.Coverage(minOf(matched, requested), requested)
     }
 
     private fun visibleTargets(): List<TargetItem> =
@@ -271,6 +341,7 @@ internal class TaskTargets(goal: String) {
         val aliases: List<String>,
         val desired: Int,
         val hardGuards: Boolean,
+        val explicitCount: Int?,
     ) {
         fun matches(title: String): Boolean {
             val norm = title.norm()
@@ -280,46 +351,48 @@ internal class TaskTargets(goal: String) {
         companion object {
             fun of(goal: String): TargetProfile? {
                 val g = goal.lowercase()
-                val desired = count(goal)
+                val explicitCount = explicitCount(goal)?.takeIf { it > 0 }
+                val desired = explicitCount ?: if ("几" in goal || "最近" in goal || "最新" in goal || "recent" in g || "latest" in g) 3 else 1
                 val hard = hardGuards(goal)
                 return when {
                     "笔记" in g || Regex("\b(notes?|posts?|articles?)\b").containsMatchIn(g) ->
-                        TargetProfile("notes/posts", listOf("笔记", "note", "post", "article"), desired, hard)
+                        TargetProfile("notes/posts", listOf("笔记", "note", "post", "article"), desired, hard, explicitCount)
                     "视频" in g || "video" in g ->
-                        TargetProfile("videos", listOf("视频", "video"), desired, hard)
+                        TargetProfile("videos", listOf("视频", "video"), desired, hard, explicitCount)
                     "商品" in g || "product" in g ->
-                        TargetProfile("products", listOf("商品", "product"), desired, hard)
+                        TargetProfile("products", listOf("商品", "product"), desired, hard, explicitCount)
                     "文章" in g || "article" in g ->
-                        TargetProfile("articles", listOf("文章", "article"), desired, hard)
+                        TargetProfile("articles", listOf("文章", "article"), desired, hard, explicitCount)
                     "帖子" in g || "post" in g ->
-                        TargetProfile("posts", listOf("帖子", "动态", "post"), desired, hard)
+                        TargetProfile("posts", listOf("帖子", "动态", "post"), desired, hard, explicitCount)
                     "文件" in g || "文档" in g || "file" in g || "document" in g ->
-                        TargetProfile("files/documents", listOf("文件", "文档", "file", "document"), desired, hard)
+                        TargetProfile("files/documents", listOf("文件", "文档", "file", "document"), desired, hard, explicitCount)
                     "邮件" in g || "email" in g ->
-                        TargetProfile("emails", listOf("邮件", "email", "mail"), desired, hard)
+                        TargetProfile("emails", listOf("邮件", "email", "mail"), desired, hard, explicitCount)
                     "用户" in g || "联系人" in g || "profile" in g || "user" in g ->
-                        TargetProfile("users/profiles", listOf("用户", "联系人", "user", "profile"), desired, hard)
+                        TargetProfile("users/profiles", listOf("用户", "联系人", "user", "profile"), desired, hard, explicitCount)
                     "最近" in g && listOf("发了什么", "内容", "动态", "作品").any { it in g } ->
                         TargetProfile(
                             "recent content",
                             listOf("笔记", "动态", "帖子", "文章", "作品", "视频", "note", "post", "article", "update", "video"),
                             desired,
                             hard,
+                            explicitCount,
                         )
                     else -> null
                 }
             }
 
-            private fun count(goal: String): Int {
-                if (Regex("(最新|最近)(的)?(一|1)(篇|条|个)?").containsMatchIn(goal) ||
+            private fun explicitCount(goal: String): Int? {
+                if (Regex("(最新|最近)(的)?(一|1)(篇|条|个)").containsMatchIn(goal) ||
                     Regex("\\b(?:latest|recent)\\s+(?:one|1)\\b", RegexOption.IGNORE_CASE).containsMatchIn(goal)
                 ) return 1
                 Regex("([0-9]+|[一二两三四五六七八九十百]+)\\s*[篇条个]").find(goal)?.groupValues?.get(1)?.let {
-                    return it.toIntOrNull() ?: chineseNumber(it) ?: 1
+                    return it.toIntOrNull() ?: chineseNumber(it)
                 }
                 Regex("\\b([0-9]+)\\s+(notes?|posts?|articles?|videos?)\\b", RegexOption.IGNORE_CASE)
                     .find(goal)?.groupValues?.get(1)?.toIntOrNull()?.let { return it }
-                return if ("几" in goal || "最近" in goal || "最新" in goal || "recent" in goal.lowercase() || "latest" in goal.lowercase()) 3 else 1
+                return null
             }
 
             private fun chineseNumber(raw: String): Int? {

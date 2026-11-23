@@ -5,6 +5,7 @@ import com.daiyimo.maeve.core.observation.ObsKind
 import com.daiyimo.maeve.core.observation.Observation
 import com.daiyimo.maeve.core.observation.Place
 import com.daiyimo.maeve.core.observation.PlaceKind
+import com.daiyimo.maeve.core.observation.ReadRegion
 import com.daiyimo.maeve.core.observation.Trust
 import com.daiyimo.maeve.core.replay.Anchors
 import com.daiyimo.maeve.core.replay.Selector
@@ -203,6 +204,7 @@ sealed interface RunEvent {
         val inputs: List<String>? = null,
         val focused: String? = null,
         val untrusted: Boolean = false,
+        val regions: List<ReadRegion> = emptyList(),
     ) : RunEvent {
         /** 还原成运行时使用的观察对象。 */
         fun observation(): Observation = Observation(
@@ -216,6 +218,7 @@ sealed interface RunEvent {
             step = step,
             atMs = atMs,
             id = id,
+            regions = regions,
         )
 
         companion object {
@@ -232,6 +235,7 @@ sealed interface RunEvent {
                 inputs = o.inputs?.names,
                 focused = o.inputs?.focused,
                 untrusted = o.trust == Trust.Untrusted,
+                regions = o.regions,
             )
         }
     }
@@ -324,6 +328,13 @@ sealed interface RunEvent {
         val claims: Int,
         val unmatched: List<String>,
         val outward: Boolean = false,
+    ) : RunEvent
+
+    @Serializable
+    @SerialName("local_review")
+    data class LocalReviewCompleted(
+        override val atMs: Long,
+        val review: LocalReview,
     ) : RunEvent
 
     /** 交出的回答里退回一次后仍未对上、标为未确认的几处。 */
@@ -486,6 +497,7 @@ data class RunSummary(
     val cachedTokens: Int = 0,
     /** 发起方;手机界面发起为空。 */
     val origin: String? = null,
+    val localReview: LocalReview? = null,
 ) {
     /** 把一个事件并入概要。 */
     fun with(e: RunEvent): RunSummary = when (e) {
@@ -502,6 +514,7 @@ data class RunSummary(
             cachedTokens = cachedTokens + (e.cachedTokens ?: 0),
         )
         is RunEvent.Verifier -> copy(verdict = e.verdict)
+        is RunEvent.LocalReviewCompleted -> copy(localReview = e.review)
         is RunEvent.TaskEnded -> copy(
             endedAtMs = e.atMs,
             outcome = e.outcome,

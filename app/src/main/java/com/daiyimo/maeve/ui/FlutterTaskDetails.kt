@@ -58,6 +58,7 @@ internal object FlutterTaskDetails {
             "goal" to report.header.goal,
             "outcome" to report.header.outcome,
             "verdict" to report.header.verdict,
+            "reviewDetail" to report.header.reviewDetail,
             "duration" to report.header.duration,
             "criteria" to report.header.criteria,
             "answer" to report.answer,

@@ -1,5 +1,9 @@
 package com.daiyimo.maeve.core.agent
 
+import com.daiyimo.maeve.core.record.LocalReview
+import com.daiyimo.maeve.core.record.LocalReview.Coverage
+import com.daiyimo.maeve.core.record.LocalReview.Limit
+import com.daiyimo.maeve.core.record.LocalReview.Status
 import com.daiyimo.maeve.core.record.Redactor
 import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.core.tool.ToolDispatcher
@@ -7,6 +11,7 @@ import com.daiyimo.maeve.core.verify.AnswerSource
 import com.daiyimo.maeve.core.verify.AnswerSources
 import com.daiyimo.maeve.core.verify.Criteria
 import com.daiyimo.maeve.core.verify.Grounding
+import com.daiyimo.maeve.core.verify.StructuredEvidence
 import com.daiyimo.maeve.core.verify.Verdict
 import com.daiyimo.maeve.core.verify.Verification
 import com.daiyimo.maeve.core.verify.Verifier
@@ -25,6 +30,7 @@ internal data class ReviewFacts(
     val unreadChange: Boolean,
     /** 本任务点过、滚过、划过屏:回答建立在这些导航上,点歪了也可能看着像做完了。 */
     val navigated: Boolean = false,
+    val changeMark: Int? = null,
 )
 
 /**
@@ -42,9 +48,43 @@ internal class AnswerReview(
     private val emit: (RunEvent) -> Unit,
     private val now: () -> Long,
 ) {
-    /** 产品路径只整理出处，不再为收尾答复发起另一轮核查。 */
-    suspend fun sourcesOnly(goal: String, answer: String, media: Map<Int, List<Int>>): List<AnswerSource> =
-        AnswerSources.of(tools.evidence(fresh = false).ledger, goal, answer, media)
+    /** 只用现成的账本，和来源共用一次快照。 */
+    suspend fun local(
+        goal: String, answer: String, media: Map<Int, List<Int>>, facts: ReviewFacts, targets: TaskTargets?, enabled: Boolean,
+    ): Pair<List<AnswerSource>, LocalReview?> {
+        val read = tools.evidence(fresh = false)
+        val sources = AnswerSources.of(read.ledger, goal, answer, media)
+        if (!enabled) return sources to null
+        if (!facts.acted) return sources to LocalReview(Status.NotApplicable)
+
+        val reads = read.ledger.localReviewReads()
+        val texts = reads.map { it.text }
+        val structured = StructuredEvidence.check(answer, reads)
+        val grounding = Grounding.check(goal, structured.prose, texts, read.today, requireValueContext = true)
+        val total = structured.total + grounding.claims.size
+        val matched = structured.matched + grounding.claims.size - grounding.unmatched.size - grounding.unboundValues.size
+        val details = targets?.reviewCoverage(answer)
+        val claims = total.takeIf { it > 0 }?.let { Coverage(matched, it) }
+        val noResultRead = facts.changeMark?.let { mark -> reads.none { it.id > mark } } == true
+        val limit = when {
+            facts.outward -> Limit.NoReceipt
+            noResultRead -> Limit.UnreadChange
+            texts.isEmpty() && (details?.matched ?: 0) == 0 -> Limit.NoEvidence
+            Grounding.builtOnTruncated(answer, texts) -> Limit.Truncated
+            structured.unbound || grounding.unboundValues.isNotEmpty() -> Limit.Unanchored
+            details == null && claims == null -> Limit.NoCheckableClaims
+            else -> null
+        }
+        val hasSupport = details?.let { it.matched > 0 } ?: (matched > 0)
+        val complete = (details == null || details.matched == details.total) && matched == total
+        val status = when {
+            hasSupport && complete && limit == null -> Status.Verified
+            hasSupport -> Status.Partial
+            else -> Status.Insufficient
+        }
+        val missing = structured.missing.take(3).map { Redactor.evidence(it).take(100) }
+        return sources to LocalReview(status, details, claims, limit, missing)
+    }
 
     /**
      * [gaps] 是回答里在读到的材料里找不到的那几处,[objections] 是核查模型判没做成的理由;两者合起来是 [unconfirmed]。

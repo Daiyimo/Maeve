@@ -66,8 +66,10 @@ object TaskReportExport {
     fun markdown(report: TaskReport): String = buildString {
         append("# ").append(report.header.goal.replace('\n', ' ')).append("\n\n")
         append(report.header.outcome)
+        report.header.verdict.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
         report.header.duration?.let { append(" · ").append(it) }
         append("\n\n")
+        report.header.reviewDetail?.let { append(it).append("\n\n") }
         if (report.header.criteria.isNotEmpty()) {
             report.header.criteria.forEach { append("- ").append(it).append('\n') }
             append('\n')

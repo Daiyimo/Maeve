@@ -259,6 +259,10 @@ class _ReportCard extends StatelessWidget {
               ),
             ),
           ],
+          if (report.reviewDetail case final String detail) ...[
+            const SizedBox(height: MaeveSpace.s8),
+            Text(detail, style: MaeveType.body.copyWith(color: c.ink2)),
+          ],
           if (report.criteria.isNotEmpty) ...[
             const SizedBox(height: MaeveSpace.s16),
             Text('做成的标准', style: MaeveType.label.copyWith(color: c.ink3)),

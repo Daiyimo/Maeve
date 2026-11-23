@@ -91,4 +91,16 @@
     <string name="timeline_running">実行中</string>
     <string name="timeline_step_limit">ステップ</string>
     <string name="timeline_step_limit_value">%1$d / %2$d</string>
+    <string name="local_review_verified">証拠を確認済み</string>
+    <string name="local_review_partial">一部確認済み</string>
+    <string name="local_review_insufficient">証拠不足</string>
+    <string name="local_review_not_applicable">確認不要</string>
+    <string name="local_review_details">指定された %2$d 件のうち %1$d 件の詳細を確認しました。</string>
+    <string name="local_review_claims">回答内の確認可能な %2$d 件のうち %1$d 件が実行記録と一致しました。</string>
+    <string name="local_review_no_receipt">外部操作の結果を確認できる証明がありません。</string>
+    <string name="local_review_unread">最後の操作後に結果を読み取っていません。</string>
+    <string name="local_review_truncated">記録された証拠の一部が途中で切れています。</string>
+    <string name="local_review_no_evidence">今回の実行には確認できる読み取り済みの証拠がありません。</string>
+    <string name="local_review_unanchored">一部の値に対応する項目や裏付けとなる引用がありません。</string>
+    <string name="local_review_no_claims">ローカルルールで照合できる具体的な事実が回答にありません。</string>
 </resources>

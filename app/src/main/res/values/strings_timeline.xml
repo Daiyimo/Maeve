@@ -95,4 +95,16 @@
     <string name="timeline_running">Running</string>
     <string name="timeline_step_limit">Steps</string>
     <string name="timeline_step_limit_value">%1$d / %2$d</string>
+    <string name="local_review_verified">Evidence verified</string>
+    <string name="local_review_partial">Partially verified</string>
+    <string name="local_review_insufficient">Insufficient evidence</string>
+    <string name="local_review_not_applicable">No review needed</string>
+    <string name="local_review_details">Confirmed details for %1$d of %2$d requested items.</string>
+    <string name="local_review_claims">Matched %1$d of %2$d checkable claims against the run evidence.</string>
+    <string name="local_review_no_receipt">The outcome of the external action has no verified receipt.</string>
+    <string name="local_review_unread">The result of the last action was not read back.</string>
+    <string name="local_review_truncated">Some of the recorded evidence is truncated.</string>
+    <string name="local_review_no_evidence">The run has no readable evidence for review.</string>
+    <string name="local_review_unanchored">Some values lack a corresponding field or quote in the evidence.</string>
+    <string name="local_review_no_claims">The answer contains no claims the local rules can check.</string>
 </resources>

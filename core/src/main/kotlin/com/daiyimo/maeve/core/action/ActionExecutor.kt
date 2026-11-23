@@ -62,6 +62,7 @@ class ActionExecutor(
     /** 同一网站、App 里连着做对外动作(发送、提交)时两次之间的间隔(见 [OutwardPacing]);默认不等。 */
     private val pacing: OutwardPacing = OutwardPacing.Off,
     private val effects: ActionEffects? = null,
+    private val onActionResult: (Verb?, JsonObject, ToolExecution, Int) -> Unit = { _, _, _, _ -> },
 ) {
     private val decision = ConfirmDecision(tools, confirmations, approvals, recorder = recorder, provenance = provenance, selfPackage = selfPackage, autonomous = autonomous)
     private val pass = ActionPass()
@@ -175,7 +176,8 @@ class ActionExecutor(
             decision.noteWrite(call.name)
         }
         val step = Step(call, args, origin, before, writing, offScreen, verb, (d as? Decision.Traced)?.detail, followUp, reads, note = note,
-            pacedMs = paced + dwelt.waitMs, idleScrolls = dwelt.idleScrolls, outward = site != null, approvalDigest = decision.approvalDigest)
+            pacedMs = paced + dwelt.waitMs, idleScrolls = dwelt.idleScrolls, outward = site != null, approvalDigest = decision.approvalDigest,
+            requestedArgs = givenArgs)
         // 动作一旦开始就做完并记下:脚本超时、任务取消都不能把它掐在半中间、漏掉记录
         // 对外动作告诉这块屏的能力(网页的页数上限只管浏览,见 PageDwell)
         site?.let(tools::outwardStart)
@@ -207,6 +209,7 @@ class ActionExecutor(
         /** 不可逆判定认出是对外动作(发送、提交);记进这次的活动。 */
         val outward: Boolean = false,
         val approvalDigest: String? = null,
+        val requestedArgs: JsonObject = args,
     )
 
     private suspend fun ran(s: Step): ActionOutcome {
@@ -268,6 +271,7 @@ class ActionExecutor(
             }
         }
         val (exec, content) = s.followUp.present(resolved, s.before + after)
+        onActionResult(s.verb, s.requestedArgs, exec, n)
 
         // 画面:模型单步交给调用方按它的顺序存;子步界面变了才当场存;回放不存
         val picture = if (policy.frames == Frames.Caller && s.verb != Verb.ViewPastScreens && !s.offScreen) exec.image ?: exec.frame else null

@@ -22,7 +22,8 @@ TaskReport _report({int frames = 3}) => TaskReport.fromMap({
   'available': true,
   'goal': '查一下账户余额',
   'outcome': '办成了',
-  'verdict': '核查通过',
+  'verdict': '部分核实',
+  'reviewDetail': '已核实 2/3 项详情。',
   'duration': '12 秒',
   'criteria': ['看到余额数字'],
   'answer': '账户余额 **128 元**。',
@@ -101,7 +102,8 @@ void main() {
     );
     expect(bridge.reportRequests, ['run-1']);
     expect(find.text('查一下账户余额'), findsOneWidget);
-    expect(find.text('办成了 · 核查通过 · 12 秒'), findsOneWidget);
+    expect(find.text('办成了 · 部分核实 · 12 秒'), findsOneWidget);
+    expect(find.text('已核实 2/3 项详情。'), findsOneWidget);
     expect(find.text('看到余额数字'), findsOneWidget);
     expect(find.text('账户余额 128 元'), findsOneWidget);
     expect(find.text('已跳过 1 张不可用画面。'), findsOneWidget);

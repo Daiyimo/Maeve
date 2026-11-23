@@ -77,6 +77,7 @@ class TaskReport {
     this.goal = '',
     this.outcome = '',
     this.verdict = '',
+    this.reviewDetail,
     this.duration,
     this.answer = '',
     this.criteria = const [],
@@ -87,7 +88,7 @@ class TaskReport {
   });
   final bool available, running;
   final String goal, outcome, verdict, answer;
-  final String? duration;
+  final String? duration, reviewDetail;
   final List<String> criteria;
   final List<ReportPage> pages;
   final List<PlaybackStage> stages;
@@ -102,6 +103,7 @@ class TaskReport {
     goal: map['goal'] as String? ?? '',
     outcome: map['outcome'] as String? ?? '',
     verdict: map['verdict'] as String? ?? '',
+    reviewDetail: map['reviewDetail'] as String?,
     duration: map['duration'] as String?,
     answer: map['answer'] as String? ?? '',
     missingFrames: (map['missingFrames'] as num?)?.toInt() ?? 0,

@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -44,6 +45,8 @@ class TaskTargetsTest {
     private fun visual(vararg lines: String): JsonObject =
         visualLines(*lines.mapIndexed { index, text -> ocr(text, 100 + index * 40) }.toTypedArray())
 
+    private fun detail(title: String) = visual(title, "这是详情页独有的正文内容，包含本次读到的信息。")
+
     private val scroll = buildJsonObject { put("direction", "down") }
     private val changed = buildJsonObject { put("ok", true); put("changed", true) }
 
@@ -75,6 +78,12 @@ class TaskTargetsTest {
         val targets = TaskTargets("阅读两篇笔记")
         targets.observe(modules("笔记" to listOf("第一篇笔记", "第二篇笔记")), 1)
         targets.action(Verb.Tap, buildJsonObject { put("target", "第一篇笔记") }, changed, 2)
+        assertTrue(targets.render().orEmpty().contains("Opened target items: 0"))
+        targets.observe(visual("第一篇笔记", "加载中"), 2)
+        assertTrue(targets.render().orEmpty().contains("Opened target items: 0"))
+        targets.observe(detail("第二篇笔记"), 2)
+        assertTrue(targets.render().orEmpty().contains("Opened target items: 0"))
+        targets.observe(detail("第一篇笔记"), 2)
         val state = targets.render().orEmpty()
         assertTrue(state, "Opened target items: 1" in state)
         assertTrue(state, "第一篇笔记" in state)
@@ -82,6 +91,28 @@ class TaskTargetsTest {
         targets.action(Verb.Back, buildJsonObject { }, changed, 3)
         targets.observe(modules("笔记" to listOf("第一篇笔记", "第二篇笔记")), 4)
         assertNotNull(targets.scrollBlockReason(scroll))
+    }
+
+    @Test fun reviewCountsOnlyOpenedDetailsNamedInTheAnswerBody() {
+        val targets = TaskTargets("阅读两篇笔记")
+        val first = "周末徒步计划"
+        val second = "下雨天的活动安排"
+        val listing = modules("笔记" to listOf(first, second))
+        targets.observe(listing, 1)
+        assertEquals(0, targets.reviewCoverage(first)?.matched)
+        targets.action(Verb.Tap, buildJsonObject { put("target", first) }, changed, 2)
+        targets.observe(detail(first), 2)
+        assertEquals(1, targets.reviewCoverage(first + "、" + second)?.matched)
+        assertEquals(2, targets.reviewCoverage(first)?.total)
+        assertEquals(0, targets.reviewCoverage("已完成。\n依据：$first")?.matched)
+
+        targets.action(Verb.Back, buildJsonObject { }, changed, 3)
+        targets.observe(listing, 4)
+        targets.action(Verb.Tap, buildJsonObject { put("target", second) }, changed, 5)
+        targets.observe(detail(second), 5)
+        assertEquals(2, targets.reviewCoverage(first + "、" + second)?.matched)
+        assertEquals(1, targets.reviewCoverage(second)?.matched)
+        assertNull(TaskTargets("阅读几篇笔记").reviewCoverage(first))
     }
 
     @Test fun skillSectionIsNotTreatedAsNotesAndOldVisibleCandidatesAreCleared() {
@@ -159,7 +190,10 @@ class TaskTargetsTest {
         targets.observe(screen, 1)
         assertTrue(targets.render().orEmpty().contains("Current section: 笔记"))
         targets.action(Verb.Tap, buildJsonObject { put("ref", "@e1-1") }, changed, 2)
+        targets.observe(detail("第一篇笔记"), 2)
+        targets.observe(screen, 3)
         targets.action(Verb.Tap, buildJsonObject { put("ref", "@e1-2") }, changed, 3)
+        targets.observe(detail("第二篇笔记"), 3)
         targets.action(Verb.Back, buildJsonObject { }, changed, 4)
         targets.observe(screen, 5)
         assertTrue(targets.render().orEmpty().contains("Current section: Skill 5"))
@@ -174,6 +208,7 @@ class TaskTargetsTest {
             changed,
             2,
         )
+        targets.observe(detail("真实笔记标题"), 2)
         val state = targets.render().orEmpty()
         assertTrue(state, "Opened target items: 1" in state)
         assertTrue(state, "真实笔记标题" in state)

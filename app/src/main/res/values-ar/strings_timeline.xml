@@ -111,4 +111,16 @@
     <string name="timeline_exported">حُفظت سجلات الاستخدام</string>
     <string name="timeline_export_failed">تعذّر تصدير سجلات الاستخدام. تحقق من توفر السجل وإمكانية الكتابة إلى الوجهة.</string>
     <string name="timeline_running">قيد التشغيل</string>
+    <string name="local_review_verified">تم التحقق من الأدلة</string>
+    <string name="local_review_partial">تم التحقق جزئيًا</string>
+    <string name="local_review_insufficient">الأدلة غير كافية</string>
+    <string name="local_review_not_applicable">لا حاجة إلى المراجعة</string>
+    <string name="local_review_details">تم التحقق من تفاصيل %1$d من أصل %2$d من العناصر المطلوبة.</string>
+    <string name="local_review_claims">تطابقت %1$d من أصل %2$d من الحقائق القابلة للتحقق مع أدلة التنفيذ.</string>
+    <string name="local_review_no_receipt">لا يوجد إيصال موثّق بنتيجة الإجراء الخارجي.</string>
+    <string name="local_review_unread">لم تُقرأ نتيجة الإجراء الأخير بعد تنفيذه.</string>
+    <string name="local_review_truncated">بعض الأدلة المسجلة مقتطعة.</string>
+    <string name="local_review_no_evidence">لا توجد أدلة مقروءة يمكن مراجعتها في هذا التنفيذ.</string>
+    <string name="local_review_unanchored">بعض القيم لا يدعمها حقل مقابل أو اقتباس في الأدلة.</string>
+    <string name="local_review_no_claims">لا تتضمن الإجابة حقائق يمكن للقواعد المحلية التحقق منها.</string>
 </resources>

@@ -91,4 +91,16 @@
     <string name="timeline_running">Berjalan</string>
     <string name="timeline_step_limit">Langkah</string>
     <string name="timeline_step_limit_value">%1$d / %2$d</string>
+    <string name="local_review_verified">Bukti terverifikasi</string>
+    <string name="local_review_partial">Terverifikasi sebagian</string>
+    <string name="local_review_insufficient">Bukti tidak cukup</string>
+    <string name="local_review_not_applicable">Tidak perlu ditinjau</string>
+    <string name="local_review_details">Detail %1$d dari %2$d item yang diminta telah diverifikasi.</string>
+    <string name="local_review_claims">%1$d dari %2$d fakta yang dapat diperiksa cocok dengan bukti pelaksanaan.</string>
+    <string name="local_review_no_receipt">Hasil tindakan eksternal belum memiliki bukti penerimaan yang terverifikasi.</string>
+    <string name="local_review_unread">Hasil tindakan terakhir belum dibaca ulang.</string>
+    <string name="local_review_truncated">Sebagian bukti yang tercatat terpotong.</string>
+    <string name="local_review_no_evidence">Tidak ada bukti yang dapat dibaca untuk ditinjau.</string>
+    <string name="local_review_unanchored">Beberapa nilai tidak memiliki kolom atau kutipan pendukung dalam bukti.</string>
+    <string name="local_review_no_claims">Jawaban tidak memuat fakta yang dapat diperiksa dengan aturan lokal.</string>
 </resources>

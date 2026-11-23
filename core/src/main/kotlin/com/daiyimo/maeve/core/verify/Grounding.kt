@@ -91,6 +91,7 @@ internal object Grounding {
      */
     class Result(
         val found: Boolean?, val claims: List<Claim>, val unmatched: List<Claim>, val anchored: Boolean, val located: Boolean = false, val items: Int = 0,
+        val unboundValues: List<Claim> = emptyList(),
     )
 
     /** NFKC 之后 … 已是 ...。 */
@@ -427,7 +428,9 @@ internal object Grounding {
     /** 一个条目至少要有几个字(单字、标点哪屏都有,不能拿来凑数)。 */
     private const val MIN_ITEM = 2
 
-    fun check(goal: String, answer: String, screens: List<String>, today: java.time.LocalDate? = null): Result {
+    fun check(
+        goal: String, answer: String, screens: List<String>, today: java.time.LocalDate? = null, requireValueContext: Boolean = false,
+    ): Result {
         val a = canon(answer)
         val entries = screens.map { lines(listOf(it)) }
         val ls = entries.flatten()
@@ -528,6 +531,16 @@ internal object Grounding {
         }
         val okInBody = (bodyQuotes.map { Claim(Kind.Quote, it) } + lineClaims.flatten()).filter { it in okClaims }.toSet()
         val items = maxOf(rows.size, okInBody.size) + bare.size
-        return Result(found, claims, unmatched, anchored = located || claims.size > unmatched.size, located = located, items = items)
+        // 本地报告不能用另一条引文为这些值背书。值和它在答复中的描述须在同一条实读文字里对上。
+        val unboundValues = if (requireValueContext) {
+            val bound = bodyLines.flatMap { it.split('。', '；', '！', '？', '!', '?', ';', '，') }.flatMap { statement ->
+                val text = LIST_MARK.replace(statement, "")
+                val phrase = norm(text).lowercase()
+                if (phrase.count(Char::isLetter) >= 2 && ls.any { phrase in it.text.lowercase() }) values(text) else emptyList()
+            }.toSet()
+            okClaims.filter { it.kind != Kind.Quote && it !in bound }
+        } else emptyList()
+        return Result(found, claims, unmatched, anchored = located || claims.size > unmatched.size, located = located, items = items,
+            unboundValues = unboundValues)
     }
 }

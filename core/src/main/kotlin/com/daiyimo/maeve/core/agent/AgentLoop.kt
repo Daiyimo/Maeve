@@ -42,6 +42,7 @@ import com.daiyimo.maeve.core.model.Role
 import com.daiyimo.maeve.core.model.StopReason
 import com.daiyimo.maeve.core.model.ToolSpec
 import com.daiyimo.maeve.core.record.Redactor
+import com.daiyimo.maeve.core.record.LocalReview
 import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.core.record.RunSink
 import com.daiyimo.maeve.core.run.RunEventBus
@@ -152,13 +153,14 @@ class AgentLoop(
     private val streamReplies: Boolean = false,
     /** 这个对话里用户发来的屏幕(见 [UserScreenTurns]);没有时带屏幕的那一行原样给模型。 */
     private val userScreens: UserScreenSource? = null,
-    /** 评测可保留旧收尾核查；交互产品由执行过程观察结果，收尾只整理来源。 */
+    /** 旧收尾核查可在评测用；产品使用本地证据复核。 */
     private val reviewFinalAnswer: Boolean = true,
     /** 同一网站、App 里连着做对外动作(发送、提交)时两次之间的间隔;默认不等。 */
     private val outwardPacing: OutwardPacing = OutwardPacing.Off,
     private val trace: RunTrace? = null,
     private val budget: com.daiyimo.maeve.core.run.RunBudget? = null,
     private val effects: com.daiyimo.maeve.core.action.ActionEffects? = null,
+    private val localAnswerReview: Boolean = false,
 ) {
     init {
         require(maxSteps > 0) { "maxSteps must be positive" }
@@ -390,7 +392,11 @@ class AgentLoop(
         val recorder = ActionRecorder(sink, clock, saveScreen = { id, png -> sink.media(id, png) })
         val executor = ActionExecutor(tools, guards, confirmations, gate = ::awaitGate, recorder = recorder, offScreen = tools.offScreenGuard(), approvals = approvals,
             provenance = provenance,
-            selfPackage = selfPackage, autonomous = autonomous, pacing = outwardPacing, budget = budget, effects = effects)
+            selfPackage = selfPackage, autonomous = autonomous, pacing = outwardPacing, budget = budget, effects = effects,
+            onActionResult = { verb, args, exec, step ->
+                taskTargets?.action(verb, args, exec.content, step)
+                taskTargets?.observe(exec.content, step, exec.screenElements)
+            })
         var emptyNudged = false
         // 调过工具才有可核对的材料;交给用户付款和放行过对外动作一样,回答要另请核查
         var acted = false
@@ -402,7 +408,10 @@ class AgentLoop(
         var languageNudged = false
         // 工具调用漏成文字的回复刚退回过一次(见 [LeakedToolCall]);正常调了工具就重新算
         var leakNudged = false
-        fun facts() = ReviewFacts(acted, paymentHandedOver || recorder.outwardActs > 0, recorder.lastChangeMark?.let { !tools.readSince(it) } == true, recorder.navActs > 0)
+        fun facts() = ReviewFacts(
+            acted, paymentHandedOver || recorder.outwardActs > 0,
+            recorder.lastChangeMark?.let { !tools.readSince(it) } == true, recorder.navActs > 0, recorder.lastChangeMark,
+        )
         media.clear()
         gapsNudged = false
         interruptedStep = 0
@@ -575,12 +584,12 @@ class AgentLoop(
                         continue
                     }
                 }
-                // 不带调用的回复就是最终回答；产品路径只整理来源。
+                // 不带调用的回复就是最终回答；本地复核不发起新调用。
                 val result = conclude(task, text, step, currentFacts, history)
                 if (result != null) {
                     // 交出之前还有插话(核对、整理来源时到的):不收尾,带着它接着做;没有就关上收件箱,之后的话才是下一件事
                     if (inbox?.closeUnlessSteered() == false) { keepFinished(history, inbox); continue }
-                    return result
+                    return deliver(result)
                 }
                 continue
             }
@@ -706,8 +715,6 @@ class AgentLoop(
                 is ActionOutcome.Ran -> action
             }
             val exec = ran.exec
-            taskTargets?.action(verb, args, exec.content, step)
-            taskTargets?.observe(exec.content, step)
             if (verb == Verb.HandToUser && (args["reason"] as? JsonPrimitive)?.contentOrNull == PAYMENT) paymentHandedOver = true
             val isError = (exec.content["ok"] as? JsonPrimitive)?.booleanOrNull == false
             noteResultEvents(verb, exec.content)
@@ -955,16 +962,23 @@ class AgentLoop(
         return answered?.let { Feedback.format("followup_answered", "prompt" to it.take(200)) }
     }
 
+    private data class Conclusion(val state: TaskState.Succeeded, val localReview: LocalReview? = null)
+
+    private fun deliver(conclusion: Conclusion): TaskState.Succeeded {
+        conclusion.localReview?.let { emit(RunEvent.LocalReviewCompleted(now(), it)) }
+        return conclusion.state
+    }
+
     /**
      * 第 [step] 步的回复没调工具,文字 [answer] 就是最终回答:按风险核对([AnswerReview]),来源由代码找。
      * 核对没对上:能退回([history] 不为 null,而且本任务还没退回过)就提醒模型一次、返回 null 接着做;
      * 否则照样交出,没对上的几处标成未确认。[facts] 是核对要看的任务情况(见 [ReviewFacts])。
      */
-    private suspend fun conclude(task: String, answer: String, step: Int, facts: ReviewFacts, history: MutableList<Message>?): TaskState? {
+    private suspend fun conclude(task: String, answer: String, step: Int, facts: ReviewFacts, history: MutableList<Message>?): Conclusion? {
         if (!reviewFinalAnswer) {
-            val sources = review.sourcesOnly(task, answer, media)
+            val (sources, local) = review.local(task, answer, media, facts, taskTargets, localAnswerReview)
             if (sources.isNotEmpty()) emit(RunEvent.Sources(now(), sources))
-            return TaskState.Succeeded(answer, verified = false, sources = sources, reviewed = false)
+            return Conclusion(TaskState.Succeeded(answer, verified = false, sources = sources, reviewed = false), local)
         }
         val r = review.review(task, answer, step, facts, earlierGoals, media) {
             _state.value = TaskState.Running(step, VERIFYING_NOTE, reason = VERIFYING_NOTE,
@@ -978,8 +992,9 @@ class AgentLoop(
         }
         if (missing.isNotEmpty()) emit(RunEvent.Unconfirmed(now(), step, missing.map(::detail)))
         if (r.sources.isNotEmpty()) emit(RunEvent.Sources(now(), r.sources))
-        return if (missing.isEmpty()) TaskState.Succeeded(answer, r.verified, r.note, r.sources, reviewed = r.reviewed)
+        val result = if (missing.isEmpty()) TaskState.Succeeded(answer, r.verified, r.note, r.sources, reviewed = r.reviewed)
         else TaskState.Succeeded(answer, verified = false, note = UNCONFIRMED_NOTE + missing.joinToString("、"), sources = r.sources, unconfirmed = missing)
+        return Conclusion(result)
     }
 
     /**
@@ -1019,7 +1034,7 @@ class AgentLoop(
             if (attempt < 2 && keepFinished(history, inbox)) return@repeat
             if (call == null) {
                 if (calls.isNotEmpty() || text.isEmpty() || reply.stopReason == StopReason.MaxTokens) return StopRules.stepLimit(maxSteps)
-                return conclude(task, text, step, facts, history = null)!!
+                return deliver(conclude(task, text, step, facts, history = null)!!)
             }
             val started = now()
             // 只剩放弃,不改变手机

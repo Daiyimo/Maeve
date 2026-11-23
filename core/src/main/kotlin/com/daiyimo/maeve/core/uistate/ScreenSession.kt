@@ -33,6 +33,7 @@ import com.daiyimo.maeve.core.observation.Look
 import com.daiyimo.maeve.core.observation.ObsKind
 import com.daiyimo.maeve.core.observation.Observation
 import com.daiyimo.maeve.core.observation.Place
+import com.daiyimo.maeve.core.observation.ReadRegion
 import com.daiyimo.maeve.core.observation.Trust
 import com.daiyimo.maeve.core.prompt.Feedback
 import com.daiyimo.maeve.core.tool.HINT_PROTECTED
@@ -253,7 +254,8 @@ internal class ScreenSession(
 
     private fun recordVisualRead(snap: ScreenSnapshot, ocr: List<VisibleTextLine>?): Observation =
         Observation(ObsKind.Read, visualText(snap, ocr), source = surface.id,
-            place = snap.packageName?.let(Place::app), trust = Trust.Trusted, inputs = InputHints(emptyList()))
+            place = snap.packageName?.let(Place::app), trust = Trust.Trusted, inputs = InputHints(emptyList()),
+            regions = ocr.orEmpty().map { ReadRegion(it.text.replace('\n', ' '), it.bounds) })
 
     private fun visualHint(visionAvailable: Boolean, png: ByteArray?, ocr: List<VisibleTextLine>?, protected: Boolean): String = when {
         protected -> HINT_PROTECTED
@@ -751,7 +753,8 @@ internal class ScreenSession(
         val fields = inputFields(s)
         val where = s.web?.url?.let(Place::page) ?: s.packageName?.let(Place::app)
         return Observation(ObsKind.Read, observationText(s, ocr), source = surface.id, place = where, title = s.web?.title,
-            trust = if (s.web != null) Trust.Untrusted else Trust.Trusted, inputs = InputHints(fields.names, fields.focused))
+            trust = if (s.web != null) Trust.Untrusted else Trust.Trusted, inputs = InputHints(fields.names, fields.focused),
+            regions = ocr.map { ReadRegion(it.text, it.bounds) })
     }
 
     /**

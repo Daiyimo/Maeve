@@ -68,6 +68,10 @@ data class Place(val kind: PlaceKind, val name: String) {
 /** 读取界面时输入框里的内容：[names] 是各输入框的现有文字（去空白后比较），[focused] 是有焦点那个。 */
 data class InputHints(val names: List<String>, val focused: String? = null)
 
+/** 读屏时识别出的文字及其屏幕边界，供本地复核判断同一行和同一列。 */
+@Serializable
+data class ReadRegion(val text: String, val bounds: List<Int>)
+
 /**
  * 带出处的一条观察，是核心消费的唯一单位。
  *
@@ -95,6 +99,7 @@ data class Observation(
     val step: Int = 0,
     val atMs: Long = 0,
     val id: Int = 0,
+    val regions: List<ReadRegion> = emptyList(),
 ) {
     /** 在哪里的原始写法；没有为 null。 */
     val where: String?

@@ -42,8 +42,11 @@ class EvidenceLedger(private val capChars: Int = STORE_CHARS) {
         val t = clip(o.kind, lines.joinToString("\n"))
         if (t.isBlank()) return null
         val place = o.place?.let { it.copy(name = Redactor.evidence(it.name)) }
+        val readLines = if (o.regions.isEmpty()) emptySet() else t.lineSequence().toSet()
+        val regions = o.regions.map { it.copy(text = Redactor.evidence(it.text)) }
+            .filter { it.text in readLines && ins?.none { input -> input.isNotEmpty() && input in norm(it.text) } != false }
         // 回显已经去掉了,记下的这条不再带着助手自己写的东西
-        return insert(o.copy(text = t, place = place, step = step, atMs = atMs, id = ++seq, authored = null,
+        return insert(o.copy(text = t, place = place, step = step, atMs = atMs, id = ++seq, authored = null, regions = regions,
             inputs = ins?.let { InputHints(it, o.inputs.focused?.let(::norm)?.takeIf { f -> f.isNotEmpty() }) },
             title = o.title?.let(Redactor::evidence)?.takeIf { it.isNotBlank() }))
     }
@@ -94,6 +97,10 @@ class EvidenceLedger(private val capChars: Int = STORE_CHARS) {
         return (holds + latest + recent).distinct().sorted().map { cands[it] }
     }
 
+    /** 本地复核只看实际读到的资料。网页等不可信来源也只按文字数据比对。 */
+    internal fun localReviewReads(): List<Observation> =
+        entries.filter { it.kind == ObsKind.Read || it.kind == ObsKind.Output }.mapNotNull(::withoutEcho)
+
     /** 最近进账的那一条的编号(还没进账为 0);和 [readSince] 一起判断某个时刻之后有没有重新读过。 */
     val lastId: Int get() = seq
 
@@ -119,7 +126,10 @@ class EvidenceLedger(private val capChars: Int = STORE_CHARS) {
                 if (k > 0) { left[n] = k - 1; true } else n !in ins && suggesting.any { n.startsWith(it) && n.length > it.length }
             }
         }
-        return if (kept.size == lines.size) e else kept.joinToString("\n").takeIf { it.isNotBlank() }?.let { e.copy(text = it) }
+        return if (kept.size == lines.size) e else kept.joinToString("\n").takeIf { it.isNotBlank() }?.let {
+            val retained = kept.toSet()
+            e.copy(text = it, regions = e.regions.filter { region -> region.text in retained })
+        }
     }
 
     companion object {
