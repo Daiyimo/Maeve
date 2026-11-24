@@ -1,3 +1,4 @@
+import 'duration_format.dart';
 import 'execution.dart';
 
 /// 从宿主会话快照映射的一条消息与过程摘要。
@@ -19,6 +20,9 @@ class Message {
     this.resumable = false,
     this.waitingForModel = false,
     this.elapsedMs,
+    this.planTitle,
+    this.planCurrentStep,
+    this.planSteps = const [],
   });
 
   final String text;
@@ -29,13 +33,12 @@ class Message {
   final bool resumable;
   final bool waitingForModel;
   final int? elapsedMs;
+  final String? planTitle;
+  final int? planCurrentStep;
+  final List<PlanStepView> planSteps;
   String? get elapsedLabel {
     if (elapsedMs == null || elapsedMs! < 0) return null;
-    if (elapsedMs! < 1000) return '${(elapsedMs! / 1000).toStringAsFixed(1)} 秒';
-    final seconds = (elapsedMs! / 1000).round();
-    if (seconds < 60) return '$seconds 秒';
-    if (seconds < 3600) return '${seconds ~/ 60} 分 ${seconds % 60} 秒';
-    return '${seconds ~/ 3600} 小时 ${seconds ~/ 60 % 60} 分 ${seconds % 60} 秒';
+    return durationLabel(elapsedMs);
   }
 
   bool get active => !const ['done', 'failed', 'cancelled'].contains(status);

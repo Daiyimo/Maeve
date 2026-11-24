@@ -28,7 +28,7 @@ class TokenUsage {
   }
 }
 
-String tokenNumber(int value) => value.toString().replaceAllMapped(
-  RegExp(r'\B(?=(\d{3})+(?!\d))'),
-  (_) => ',',
-);
+String tokenNumber(int value) {
+  final pattern = RegExp(r'\B(?=(\d{3})+(?!\d))');
+  return value.toString().replaceAllMapped(pattern, (_) => ',');
+}

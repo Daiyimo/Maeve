@@ -184,7 +184,7 @@ void main() {
     // 话真的转给了宿主(不再是本地假回复)
     expect(bridge.sent, ['帮我理一下这件事']);
 
-    // 宿主回报在跑:气泡 + 过程行
+    // 宿主回报在跑:气泡 + 过程区,阶段小字等结算后再汇总
     bridge.emitUi(
       conversationId: 'c1',
       composer: 'busy',
@@ -200,7 +200,7 @@ void main() {
     );
     await tester.pump();
     expect(find.text('帮我理一下这件事'), findsOneWidget);
-    expect(find.text('正在走这一步'), findsWidgets);
+    expect(find.text('正在走这一步'), findsNothing);
     expect(
       tester
           .widgetList<MaeveMark>(find.byType(MaeveMark))
@@ -245,7 +245,7 @@ void main() {
     await tester.pump();
     expect(bridge.sent, ['请停下']);
 
-    // 宿主回报在跑:过程行 + 停止键
+    // 宿主回报在跑:过程区 + 停止键,阶段小字不单独弹出
     bridge.emitUi(
       conversationId: 'c1',
       composer: 'busy',
@@ -260,7 +260,7 @@ void main() {
       ],
     );
     await tester.pump();
-    expect(find.text('正在走这一步'), findsWidgets);
+    expect(find.text('正在走这一步'), findsNothing);
 
     await tester.tap(find.byTooltip('停止任务'));
     await tester.pump();

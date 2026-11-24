@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'maeve_controller.dart';
+import 'session_drawer_empty.dart';
 import '../design/maeve_shapes.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
@@ -150,6 +151,9 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
       tier: MaeveGlassTier.sheet,
       grouped: false,
       settled: widget.settled,
+      // 合成后约 50% 不透明；打开时由 shell 淡出底层页面，避免徽标透成黑点。
+      tint: c.bg,
+      tintAlpha: c.isDark ? .39 : .42,
       shape: RoundedRectangleBorder(
         borderRadius: const BorderRadius.only(
           topRight: Radius.circular(MaeveRadius.xl),
@@ -217,6 +221,8 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                         label: '新对话',
                         icon: Icons.add_rounded,
                         prominent: true,
+                        fill: c.accentContainer,
+                        foreground: c.onAccentContainer,
                         haptic: MaeveHaptic.light,
                         key: const ValueKey('new-conversation'),
                         onPressed: () {
@@ -235,7 +241,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                 decoration: InputDecoration(
                   hintText: '搜索标题',
                   filled: true,
-                  fillColor: c.surface,
+                  fillColor: c.isDark ? c.surfaceHigh : c.surfaceLowest,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -264,8 +270,13 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
                     MaeveGlassTextButton(
                       label: item.$2,
                       compact: true,
-                      prominent: controller.listFilter == item.$1,
                       selected: controller.listFilter == item.$1,
+                      fill: controller.listFilter == item.$1
+                          ? c.accentContainer
+                          : null,
+                      foreground: controller.listFilter == item.$1
+                          ? c.onAccentContainer
+                          : null,
                       haptic: MaeveHaptic.tick,
                       onPressed: () => controller.setFilter(item.$1),
                     ),
@@ -276,30 +287,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
             ),
             Expanded(
               child: conversations.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 24),
-                          Icon(
-                            Icons.chat_bubble_outline_rounded,
-                            color: c.accent,
-                            size: 25,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            controller.search.isEmpty ? '还没有对话' : '没有匹配的对话',
-                            style: MaeveType.bodyStrong.copyWith(color: c.ink),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '每一次新的想法，都可以从这里开始。',
-                            style: MaeveType.caption.copyWith(color: c.ink3),
-                          ),
-                        ],
-                      ),
-                    )
+                  ? DrawerEmptyState(searching: controller.search.isNotEmpty)
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       itemCount: conversations.length,

@@ -1,5 +1,29 @@
 import 'token_usage.dart';
 
+class PlanStepView {
+  const PlanStepView(this.text, this.status);
+  final String text, status;
+  factory PlanStepView.fromMap(Map map) => PlanStepView(
+    map['text'] as String? ?? '',
+    map['status'] as String? ?? 'pending',
+  );
+}
+
+class TaskPlanView {
+  const TaskPlanView(this.title, this.currentStep, this.steps);
+  final String title;
+  final int currentStep;
+  final List<PlanStepView> steps;
+  factory TaskPlanView.fromMap(Map map) => TaskPlanView(
+    map['title'] as String? ?? '',
+    (map['currentStep'] as num?)?.toInt() ?? 0,
+    [
+      for (final row in map['steps'] as List? ?? const [])
+        if (row is Map) PlanStepView.fromMap(row),
+    ],
+  );
+}
+
 class ExecutionAction {
   const ExecutionAction({
     required this.label,

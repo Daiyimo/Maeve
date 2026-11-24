@@ -182,17 +182,17 @@ class _ChatPageState extends State<ChatPage> {
     }
     final padding = MediaQuery.viewPaddingOf(context);
     final bottomSafe = padding.bottom;
-    // 列表底部让出输入条与实际出现的引用、前置条件提示。
     final reserve =
         MaeveSize.composer +
-        MaeveSpace.s12 +
-        MaeveSpace.s24 +
+        (MediaQuery.sizeOf(context).width < 600 ? 4 : MaeveSpace.s12) +
+        (MediaQuery.sizeOf(context).width < 600 ? 4 : MaeveSpace.s24) +
         (_quote != null ? 56 : 0) +
         (controller.blockedNotice != null ? 40 : 0);
-    final topInset = padding.top + MaeveSize.topBarBrand + 10;
+    final topInset =
+        padding.top +
+        MaeveSize.topBarBrand +
+        (MediaQuery.sizeOf(context).width < 600 ? 4 : 10);
     final bottomInset = bottomSafe + reserve;
-    // 空状态的可用高度:整屏减去顶栏与输入条。用它把问候语**垂直居中** ——
-    // 上一版贴着顶栏排,中间空出半屏黑,读作"页面没加载完"。
     final emptyHeight =
         (MediaQuery.sizeOf(context).height - topInset - bottomInset).clamp(
           0.0,
@@ -204,7 +204,6 @@ class _ChatPageState extends State<ChatPage> {
         Positioned.fill(
           child: NotificationListener<ScrollMetricsNotification>(
             onNotification: (notice) {
-              // 预览图异步到达也可能增加高度，即使还没有下一条记录也要跟上。
               if (notice.depth == 0 &&
                   _followLatest &&
                   notice.metrics.extentAfter > 1) {
@@ -214,7 +213,6 @@ class _ChatPageState extends State<ChatPage> {
             },
             child: NotificationListener<ScrollNotification>(
               onNotification: (notice) {
-                // 内容变高不代表用户离开底部；只让外层的真实手势改变跟随状态。
                 if (notice.depth != 0) return false;
                 if (notice is ScrollStartNotification &&
                     notice.dragDetails != null) {
@@ -238,8 +236,10 @@ class _ChatPageState extends State<ChatPage> {
                         maxWidth: MaeveSpace.readingWidth,
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: MaeveSpace.s24,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: MediaQuery.sizeOf(context).width < 600
+                              ? MaeveSpace.s8
+                              : MaeveSpace.s24,
                         ),
                         child: conversation.isEmpty
                             ? _EmptyHome(minHeight: emptyHeight)
@@ -252,8 +252,8 @@ class _ChatPageState extends State<ChatPage> {
                                   }
                                 }),
                                 onRetry: controller.sendQueued,
-                                onLongPress: (message) =>
-                                    _messageSheet(context, controller, message),
+                                onLongPress: (m) =>
+                                    _messageSheet(context, controller, m),
                               ),
                       ),
                     ),
@@ -338,7 +338,6 @@ class _ChatPageState extends State<ChatPage> {
     MaeveController controller,
     Message message,
   ) {
-    // 长按弹菜单前振一下,和系统长按同一语义。
     unawaited(MaeveHaptics.play(MaeveHaptic.medium));
     final summary = message.text.length > 60
         ? '${message.text.substring(0, 60)}…'
@@ -708,8 +707,9 @@ class _AssistantTurn extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ExecutionPanel(message: message, isLatest: isLatest),
-            // 回答:左侧一条竖线 + 全宽正文,没有填充卡片。
-            if (message.text.isNotEmpty)
+            if (message.text.isNotEmpty &&
+                (!message.active || message.detail?.isNotEmpty == true) &&
+                !(isLatest && !message.active && message.runId != null))
               Container(
                 decoration: BoxDecoration(
                   border: Border(

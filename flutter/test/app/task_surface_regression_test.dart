@@ -732,6 +732,47 @@ void main() {
     expect(find.textContaining('点击没有生效'), findsWidgets);
   });
 
+  testWidgets(
+    'Explicit plans render visible steps and settle the current state',
+    (tester) async {
+      final bridge = FakeChatBridge();
+      await mount(tester, bridge);
+      Map<String, dynamic> exchange(String status) => {
+        ...FakeChatBridge.exchange('整理资料', status: status, steps: 2),
+        'plan': {
+          'title': '资料整理计划',
+          'currentStep': 2,
+          'steps': [
+            {'text': '打开文件', 'status': 'done'},
+            {'text': '读取内容', 'status': 'current'},
+          ],
+        },
+      };
+      bridge.emitUi(
+        conversationId: 'c1',
+        composer: 'busy',
+        exchanges: [exchange('working')],
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('资料整理计划'), findsOneWidget);
+      expect(find.text('打开文件'), findsOneWidget);
+      expect(find.text('读取内容'), findsOneWidget);
+      expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
+
+      bridge.emitUi(
+        conversationId: 'c1',
+        composer: 'idle',
+        exchanges: [exchange('failed')],
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byIcon(Icons.error_outline), findsWidgets);
+      expect(find.byIcon(Icons.radio_button_checked), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Previous failed turns are not labelled completed', (
     tester,
   ) async {

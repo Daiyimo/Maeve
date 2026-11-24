@@ -122,6 +122,23 @@ void main() {
     await tester.tap(find.text('Word · .docx'));
     await tester.pumpAndSettle();
     expect(bridge.exportRequests, ['run-1:word']);
+    expect(bridge.exportRedactions, ['secrets']);
+    expect(find.text('报告已保存'), findsOneWidget);
+  });
+
+  testWidgets('导出可选择额外隐藏手机号、邮箱和私有路径', (tester) async {
+    final bridge = await mount(
+      tester,
+      (b) => TaskReportPage(bridge: b, runId: 'run-1'),
+    );
+    await tester.tap(find.text('导出'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Markdown · .md'));
+    await tester.pumpAndSettle();
+    expect(bridge.exportRequests, ['run-1:markdown']);
+    expect(bridge.exportRedactions, ['secretsAndPii']);
     expect(find.text('报告已保存'), findsOneWidget);
   });
 

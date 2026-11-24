@@ -35,6 +35,7 @@ class FakeChatBridge extends MaeveChatBridge {
   TaskReport report = const TaskReport();
   final reportRequests = <String>[];
   final exportRequests = <String>[];
+  final exportRedactions = <String>[];
 
   /// 导出的返回状态;测失败/取消时改它。
   String exportState = 'saved';
@@ -46,8 +47,13 @@ class FakeChatBridge extends MaeveChatBridge {
   }
 
   @override
-  Future<String> exportRunReport(String runId, ReportFormat format) async {
+  Future<String> exportRunReport(
+    String runId,
+    ReportFormat format, {
+    String redaction = 'secrets',
+  }) async {
     exportRequests.add('$runId:${format.wire}');
+    exportRedactions.add(redaction);
     return exportState;
   }
 

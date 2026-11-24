@@ -15,7 +15,6 @@ void main() {
       detail: '操作已送达',
     ),
   );
-
   testWidgets('Live records stay bounded and follow the newest step', (
     tester,
   ) async {
@@ -34,13 +33,14 @@ void main() {
     expect(find.text('正在跟随最新'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
-
   testWidgets('Reading older records keeps position until return to latest', (
     tester,
   ) async {
     await tester.pumpWidget(host(LiveExecutionFeed(steps: steps(20))));
-    final list = find.byKey(const ValueKey('live-execution-list'));
-    final scroll = find.descendant(of: list, matching: find.byType(Scrollable));
+    final scroll = find.descendant(
+      of: find.byType(ListView),
+      matching: find.byType(Scrollable),
+    );
     final position = tester.state<ScrollableState>(scroll).position;
     position.jumpTo(460);
     await tester.pump();
@@ -48,13 +48,13 @@ void main() {
     final old = position.pixels;
     await tester.pumpWidget(host(LiveExecutionFeed(steps: steps(23))));
     await tester.pump();
-    expect(position.pixels, closeTo(old + 3 * 92, .1));
+    final current = tester.state<ScrollableState>(scroll).position;
+    expect(current.pixels, closeTo(old, .1));
     await tester.tap(find.text('回到最新'));
     await tester.pumpAndSettle();
-    expect(position.pixels, 0);
+    expect(current.pixels, current.maxScrollExtent);
     expect(find.text('23  正在执行第 23 步').hitTestable(), findsOneWidget);
   });
-
   testWidgets('Long records fit large text without overflowing', (
     tester,
   ) async {

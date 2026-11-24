@@ -78,7 +78,11 @@ abstract class MaeveChatBridge {
   Future<TaskReport> runReport(String runId);
 
   /// 导出报告到用户自选位置(系统文件选择器)。返回 saved / failed / cancelled。
-  Future<String> exportRunReport(String runId, ReportFormat format);
+  Future<String> exportRunReport(
+    String runId,
+    ReportFormat format, {
+    String redaction = 'secrets',
+  });
   Future<List<Map<String, dynamic>>> runs();
   Future<Uint8List?> runScreen(String runId, int screenId);
   Future<bool> taskAction(String conversationId, String action, {int? key});
@@ -171,10 +175,15 @@ class HostChatBridge extends MaeveChatBridge {
         const {},
   );
   @override
-  Future<String> exportRunReport(String runId, ReportFormat format) async {
+  Future<String> exportRunReport(
+    String runId,
+    ReportFormat format, {
+    String redaction = 'secrets',
+  }) async {
     final reply = await MaeveBridge.methods.invokeMapMethod('exportRunReport', {
       'runId': runId,
       'format': format.wire,
+      'redaction': redaction,
     });
     return reply?['state'] as String? ?? 'failed';
   }

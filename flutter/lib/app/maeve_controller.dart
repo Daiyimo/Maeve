@@ -612,6 +612,9 @@ class MaeveController extends ChangeNotifier {
       for (final row in exchange['executionSteps'] as List? ?? const [])
         if (row is Map) ExecutionStep.fromMap(row),
     ];
+    final plan = exchange['plan'] is Map
+        ? TaskPlanView.fromMap(exchange['plan'] as Map)
+        : null;
     if (text.isEmpty &&
         line.isEmpty &&
         steps == 0 &&
@@ -631,6 +634,9 @@ class MaeveController extends ChangeNotifier {
       confirmationKey: (exchange['confirmationKey'] as num?)?.toInt(),
       resumable: exchange['resumable'] == true,
       waitingForModel: exchange['waitingForModel'] == true,
+      planTitle: plan?.title,
+      planCurrentStep: plan?.currentStep,
+      planSteps: plan?.steps ?? const [],
     );
   }
 

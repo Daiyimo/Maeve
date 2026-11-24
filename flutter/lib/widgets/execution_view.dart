@@ -6,15 +6,25 @@ import 'package:flutter/material.dart';
 import '../app/maeve_controller.dart';
 import '../bridge/maeve_chat_bridge.dart';
 import '../models/conversation.dart';
+import '../models/duration_format.dart';
 import '../models/execution.dart';
+import '../models/task_report.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../ui/common/app_page.dart';
 import '../ui/common/haptics.dart';
+import 'execution_token_usage_view.dart';
 import 'glass_surface.dart';
-import 'token_usage_view.dart';
+import 'live_elapsed_text.dart';
+import 'live_execution_feed.dart';
 import 'maeve_markdown.dart';
+import 'adaptive_execution_layout.dart';
+import 'completed_execution_panel.dart';
+import 'pointer_evidence.dart';
 import 'task_report_view.dart';
+
+export 'live_execution_feed.dart' show LiveExecutionFeed;
+export 'pointer_evidence.dart' show PointerEvidencePainter;
 
 class ExecutionPanel extends StatefulWidget {
   const ExecutionPanel({
@@ -137,15 +147,38 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
     final message = widget.message;
     final colors = MaeveTheme.of(context).colors;
     final controller = MaeveScope.of(context);
-    final expanded = _expanded ?? (message.active || message.failed);
+    final expanded =
+        _expanded ??
+        (message.active ||
+            message.failed ||
+            (widget.isLatest && message.runId != null));
     final rows = message.executionSteps;
+    final showLive =
+        widget.isLatest &&
+        message.active &&
+        controller.hostConversationId != null;
+    final showCompleted =
+        widget.isLatest && !message.active && message.runId != null;
+    MaeveGlassTextButton executionAction({
+      required String label,
+      required IconData icon,
+      required VoidCallback? onPressed,
+      bool enabled = true,
+      MaeveHaptic haptic = MaeveHaptic.tick,
+    }) => MaeveGlassTextButton(
+      label: label,
+      icon: icon,
+      compact: true,
+      shape: const StadiumBorder(),
+      enabled: enabled,
+      haptic: haptic,
+      onPressed: onPressed,
+    );
     final recordButton = message.runId == null
         ? null
-        : MaeveGlassTextButton(
+        : executionAction(
             label: '查看过程',
             icon: Icons.receipt_long_outlined,
-            compact: true,
-            haptic: MaeveHaptic.tick,
             onPressed: () => AppPage.open(
               context,
               RunDetailsPage(
@@ -158,11 +191,9 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
     // 任务跑完才有报告可看:结局、完整回答、关键画面与导出。
     final reportButton = message.runId == null || message.active
         ? null
-        : MaeveGlassTextButton(
+        : executionAction(
             label: '任务报告',
             icon: Icons.assignment_outlined,
-            compact: true,
-            haptic: MaeveHaptic.tick,
             onPressed: () => AppPage.open(
               context,
               TaskReportPage(
@@ -174,6 +205,68 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (message.planSteps.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message.planTitle ?? '任务计划',
+                  style: MaeveType.caption.copyWith(color: colors.ink2),
+                ),
+                const SizedBox(height: 4),
+                for (var i = 0; i < message.planSteps.length; i++)
+                  Builder(
+                    builder: (context) {
+                      final step = message.planSteps[i];
+                      final current = i + 1 == message.planCurrentStep;
+                      final status = !message.active && current
+                          ? (message.status == 'done'
+                                ? 'done'
+                                : message.status == 'cancelled'
+                                ? 'stopped'
+                                : message.status == 'failed'
+                                ? 'failed'
+                                : step.status)
+                          : step.status;
+                      final icon = switch (status) {
+                        'done' => Icons.check_circle_outline,
+                        'failed' => Icons.error_outline,
+                        'stopped' => Icons.stop_circle_outlined,
+                        'waiting' => Icons.hourglass_empty_rounded,
+                        'current' => Icons.radio_button_checked,
+                        _ => Icons.radio_button_unchecked,
+                      };
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              icon,
+                              size: 14,
+                              color: status == 'failed'
+                                  ? colors.bad
+                                  : colors.ink3,
+                            ),
+                            const SizedBox(width: 7),
+                            Expanded(
+                              child: Text(
+                                step.text,
+                                style: MaeveType.caption.copyWith(
+                                  color: current ? colors.ink : colors.ink3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+              ],
+            ),
+          ),
         InkWell(
           onTap: rows.isEmpty
               ? null
@@ -219,10 +312,18 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
                           '${message.steps} 步',
                           style: MaeveType.hint.copyWith(color: colors.ink3),
                         ),
-                      if (message.elapsedLabel != null)
+                      if (message.waitingForModel && message.active)
+                        LiveElapsedText(
+                          elapsedMs: message.elapsedMs ?? 0,
+                          style: MaeveType.mono,
+                        )
+                      else if (message.elapsedLabel != null)
                         Text(
                           message.elapsedLabel!,
-                          style: MaeveType.hint.copyWith(color: colors.ink3),
+                          style: MaeveType.mono.copyWith(
+                            color: colors.ink3,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                     ],
                   ),
@@ -237,24 +338,81 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
             ),
           ),
         ),
-        if (widget.isLatest &&
-            message.active &&
-            controller.hostConversationId != null)
-          TaskPreview(
-            key: ValueKey(
-              'preview-${controller.hostConversationId}-${message.runId}',
+        if (showLive) ...[
+          if (expanded)
+            AdaptiveExecutionLayout(
+              wideHeight: 340,
+              compactHeight: 280,
+              left: TaskPreview(
+                key: ValueKey(
+                  'preview-${controller.hostConversationId}-${message.runId}',
+                ),
+                bridge: controller.chatBridge,
+                conversationId: controller.hostConversationId!,
+                imageHeight: 300,
+              ),
+              right: LiveExecutionFeed(
+                key: ValueKey(
+                  'live-feed-${message.runId ?? controller.hostConversationId}',
+                ),
+                steps: rows,
+                height: 275,
+              ),
+              compactLeft: TaskPreview(
+                key: ValueKey(
+                  'preview-${controller.hostConversationId}-${message.runId}',
+                ),
+                bridge: controller.chatBridge,
+                conversationId: controller.hostConversationId!,
+                imageHeight: 200,
+              ),
+              compactRight: LiveExecutionFeed(
+                key: ValueKey(
+                  'live-feed-${message.runId ?? controller.hostConversationId}',
+                ),
+                steps: rows,
+                height: 275,
+                compact: true,
+              ),
+            )
+          else
+            TaskPreview(
+              key: ValueKey(
+                'preview-${controller.hostConversationId}-${message.runId}',
+              ),
+              bridge: controller.chatBridge,
+              conversationId: controller.hostConversationId!,
             ),
+        ],
+        if (expanded && showCompleted)
+          CompletedExecutionPanel(
+            key: ValueKey('completed-${message.runId}'),
             bridge: controller.chatBridge,
-            conversationId: controller.hostConversationId!,
-          ),
-        if (expanded && widget.isLatest && message.active)
+            runId: message.runId!,
+            detail: message.detail,
+            fallbackReport: TaskReport(
+              available: true,
+              goal: message.planTitle ?? '任务结果',
+              outcome: message.statusLabel,
+              duration: message.elapsedLabel,
+              answer: message.text,
+            ),
+            onOpenFullReport: () => AppPage.open(
+              context,
+              TaskReportPage(
+                bridge: controller.chatBridge,
+                runId: message.runId!,
+              ),
+            ),
+          )
+        else if (expanded && widget.isLatest && message.active && !showLive)
           LiveExecutionFeed(
             key: ValueKey(
               'live-feed-${message.runId ?? controller.hostConversationId}',
             ),
             steps: rows,
           )
-        else if (expanded)
+        else if (expanded && !showLive)
           for (final step in rows) ExecutionStepView(step: step),
         if (widget.isLatest &&
             message.failed &&
@@ -274,7 +432,7 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
           Wrap(
             spacing: 8,
             children: [
-              MaeveGlassTextButton(
+              executionAction(
                 label: controller.cancelRequested ? '正在停止…' : '停止任务',
                 icon: Icons.stop_circle_outlined,
                 enabled: !controller.cancelRequested,
@@ -285,16 +443,6 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
               ?reportButton,
             ],
           ),
-          if (message.detail != null &&
-              message.detail!.isNotEmpty &&
-              message.detail != message.text)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                message.detail!,
-                style: MaeveType.caption.copyWith(color: colors.ink2),
-              ),
-            ),
           Wrap(
             spacing: 8,
             runSpacing: 4,
@@ -354,166 +502,6 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
           ),
         const SizedBox(height: 6),
       ],
-    );
-  }
-}
-
-/// 画面下方的固定记录窗口：新记录从底部进入，旧记录向上移。
-class LiveExecutionFeed extends StatefulWidget {
-  const LiveExecutionFeed({super.key, required this.steps});
-  final List<ExecutionStep> steps;
-  @override
-  State<LiveExecutionFeed> createState() => _LiveExecutionFeedState();
-}
-
-class _LiveExecutionFeedState extends State<LiveExecutionFeed> {
-  final _scroll = ScrollController();
-  bool _following = true;
-  double _extent = 92;
-  @override
-  void initState() {
-    super.initState();
-    _scroll.addListener(() {
-      final follow = _scroll.position.pixels < 24;
-      if (follow != _following && mounted) setState(() => _following = follow);
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant LiveExecutionFeed oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final count = widget.steps.length - oldWidget.steps.length;
-    final offset = _scroll.hasClients ? _scroll.offset : 0.0;
-    final follow = _following;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients) return;
-      if (follow) {
-        _scroll.jumpTo(0);
-      } else if (count > 0) {
-        _scroll.jumpTo(
-          (offset + count * _extent).clamp(0, _scroll.position.maxScrollExtent),
-        );
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _scroll.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = MaeveTheme.of(context).colors;
-    _extent = (92 * MediaQuery.textScalerOf(context).scale(14) / 14).clamp(
-      92,
-      180,
-    );
-    return Container(
-      key: const ValueKey('live-execution-feed'),
-      margin: const EdgeInsets.only(top: 8, bottom: 4),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: c.rule),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 8, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '实时执行记录',
-                    style: MaeveType.caption.copyWith(color: c.ink2),
-                  ),
-                ),
-                MaeveGlassTextButton(
-                  label: _following ? '正在跟随最新' : '回到最新',
-                  compact: true,
-                  enabled: !_following,
-                  haptic: MaeveHaptic.tick,
-                  onPressed: _following ? null : () => _scroll.jumpTo(0),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: (_extent * 1.8).clamp(160, 230),
-            child: widget.steps.isEmpty
-                ? Center(
-                    child: Text(
-                      '等待第一条执行记录',
-                      style: MaeveType.caption.copyWith(color: c.ink3),
-                    ),
-                  )
-                : ListView.builder(
-                    key: const ValueKey('live-execution-list'),
-                    controller: _scroll,
-                    reverse: true,
-                    itemExtent: _extent,
-                    itemCount: widget.steps.length,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    itemBuilder: (context, index) {
-                      final step =
-                          widget.steps[widget.steps.length - 1 - index];
-                      final detail = step.detail.isNotEmpty
-                          ? step.detail
-                          : step.actions.map((a) => a.label).join(' · ');
-                      return Container(
-                        key: ValueKey('live-step-${step.step}'),
-                        margin: const EdgeInsets.only(bottom: 8),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: index == 0 ? c.accentSoft : c.fill,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${step.step.toString().padLeft(2, '0')}  ${step.title}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: MaeveType.caption.copyWith(
-                                color: step.failed ? c.bad : c.ink,
-                                fontWeight: index == 0
-                                    ? FontWeight.w600
-                                    : FontWeight.w500,
-                              ),
-                            ),
-                            if (step.reason.isNotEmpty &&
-                                step.reason != step.title)
-                              Text(
-                                step.reason,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: MaeveType.hint.copyWith(color: c.ink2),
-                              ),
-                            if (detail.isNotEmpty)
-                              Text(
-                                detail,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: MaeveType.hint.copyWith(
-                                  color: step.failed ? c.bad : c.ink3,
-                                ),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -586,7 +574,10 @@ class ExecutionStepView extends StatelessWidget {
                 if (step.tokens != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
-                    child: TokenUsageView(usage: step.tokens!, compact: true),
+                    child: ExecutionTokenUsageView(
+                      usage: step.tokens!,
+                      compact: true,
+                    ),
                   ),
                 if (step.timingLabel.isNotEmpty)
                   Padding(
@@ -624,9 +615,11 @@ class TaskPreview extends StatefulWidget {
     super.key,
     required this.bridge,
     required this.conversationId,
+    this.imageHeight = 190,
   });
   final MaeveChatBridge bridge;
   final String conversationId;
+  final double imageHeight;
   @override
   State<TaskPreview> createState() => _TaskPreviewState();
 }
@@ -691,14 +684,20 @@ class _TaskPreviewState extends State<TaskPreview> with WidgetsBindingObserver {
             ),
           ),
         )
-      : _Frame(bytes: _bytes!, title: '实时执行画面');
+      : _Frame(bytes: _bytes!, title: '实时执行画面', height: widget.imageHeight);
 }
 
 class _Frame extends StatelessWidget {
-  const _Frame({required this.bytes, required this.title, this.pointer});
+  const _Frame({
+    required this.bytes,
+    required this.title,
+    this.pointer,
+    this.height = 190,
+  });
   final Uint8List bytes;
   final String title;
   final ExecutionPointer? pointer;
+  final double height;
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -746,7 +745,7 @@ class _Frame extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(12),
             child: SizedBox(
-              height: 190,
+              height: height,
               width: double.infinity,
               child: ColoredBox(
                 color: MaeveTheme.of(context).colors.fill,
@@ -846,13 +845,21 @@ class _RunDetailsPageState extends State<RunDetailsPage> {
             style: MaeveType.bodyStrong.copyWith(color: c.ink),
           ),
           const SizedBox(height: 10),
-          Text(
-            [
-              record.outcome,
-              record.verdict,
-              if (record.duration != null) record.duration!,
-            ].where((s) => s.isNotEmpty).join(' · '),
-            style: MaeveType.caption.copyWith(color: c.ink2),
+          Text.rich(
+            TextSpan(
+              style: MaeveType.caption.copyWith(color: c.ink2),
+              children: [
+                TextSpan(text: record.outcome),
+                if (record.verdict.isNotEmpty)
+                  TextSpan(text: ' · ${record.verdict}'),
+                if (record.duration != null)
+                  TextSpan(
+                    text:
+                        ' · ${durationLabel(null, fallback: record.duration)}',
+                    style: MaeveType.mono.copyWith(fontWeight: FontWeight.w600),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: MaeveSpace.s12),
           Align(
@@ -876,7 +883,7 @@ class _RunDetailsPageState extends State<RunDetailsPage> {
               style: MaeveType.bodyStrong.copyWith(color: c.ink),
             ),
             const SizedBox(height: 10),
-            TokenUsageView(usage: record.tokens!),
+            ExecutionTokenUsageView(usage: record.tokens!),
             const SizedBox(height: 8),
             Text(
               record.tokens!.scope == 'loop'
@@ -977,87 +984,4 @@ class _PointerImage extends StatelessWidget {
       errorBuilder: (_, _, _) => const Center(child: Text('画面暂不可用')),
     ),
   );
-}
-
-/// Input pixels map through BoxFit.contain, including the letterboxed preview.
-class PointerEvidencePainter extends CustomPainter {
-  const PointerEvidencePainter(this.pointer);
-  final ExecutionPointer pointer;
-  Rect imageRect(Size canvas) {
-    final fitted = applyBoxFit(
-      BoxFit.contain,
-      Size(pointer.width.toDouble(), pointer.height.toDouble()),
-      canvas,
-    );
-    return Alignment.center.inscribe(fitted.destination, Offset.zero & canvas);
-  }
-
-  Offset position(Size canvas, double x, double y) {
-    final image = imageRect(canvas);
-    return Offset(
-      image.left + x / pointer.width * image.width,
-      image.top + y / pointer.height * image.height,
-    );
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (!pointer.valid) return;
-    const purple = Color(0xff7654c5);
-    canvas.save();
-    canvas.clipRect(imageRect(size));
-    if (pointer.method == 'touch') {
-      final p = position(size, pointer.x!.toDouble(), pointer.y!.toDouble());
-      canvas.drawCircle(
-        p,
-        11,
-        Paint()
-          ..color = Colors.white.withValues(alpha: .9)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4,
-      );
-      canvas.drawCircle(
-        p,
-        11,
-        Paint()
-          ..color = purple
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-      canvas.drawCircle(p, 3, Paint()..color = purple);
-      canvas.drawLine(
-        p + const Offset(-16, 0),
-        p + const Offset(16, 0),
-        Paint()
-          ..color = purple
-          ..strokeWidth = 1,
-      );
-      canvas.drawLine(
-        p + const Offset(0, -16),
-        p + const Offset(0, 16),
-        Paint()
-          ..color = purple
-          ..strokeWidth = 1,
-      );
-    } else {
-      final b = pointer.bounds;
-      final rect = Rect.fromPoints(
-        position(size, b[0].toDouble(), b[1].toDouble()),
-        position(size, b[2].toDouble(), b[3].toDouble()),
-      );
-      canvas.drawRect(rect, Paint()..color = purple.withValues(alpha: .12));
-      canvas.drawRect(
-        rect,
-        Paint()
-          ..color = purple
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2,
-      );
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(PointerEvidencePainter oldDelegate) =>
-      oldDelegate.pointer != pointer;
 }

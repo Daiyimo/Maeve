@@ -4,8 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 
-import 'chat_page.dart';
 import 'sessions_drawer.dart';
+import 'shell_page.dart';
 import '../ui/common/haptics.dart';
 import '../design/maeve_motion.dart';
 import '../design/maeve_surfaces.dart';
@@ -33,7 +33,6 @@ class _MaeveShellState extends State<MaeveShell>
     300 + MediaQuery.viewPaddingOf(context).left,
     MediaQuery.sizeOf(context).width - 56,
   );
-
   @override
   void dispose() {
     _drawer.dispose();
@@ -161,7 +160,7 @@ class _MaeveShellState extends State<MaeveShell>
                               ),
                             ),
                           ),
-                        Expanded(child: ChatPage(onMenu: _toggle)),
+                        Expanded(child: ShellPage(_drawer.value, _toggle)),
                       ],
                     ),
                   ),
