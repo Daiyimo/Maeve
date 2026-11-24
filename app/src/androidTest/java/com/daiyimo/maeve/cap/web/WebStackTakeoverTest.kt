@@ -74,7 +74,7 @@ class WebStackTakeoverTest {
             override suspend fun handoverActivity(): HandoverActivity? = null
             override fun stopWatching() {}
             override suspend fun resume(result: HandBack) { results += result }
-            override fun cancel() {}
+            override fun cancel(source: String) {}
             override suspend fun showWeb(reason: String, key: Int): Boolean? = withContext(Dispatchers.Main) {
                 stack.showForTakeover(reason, "请登录示例商城\n金额:9.90", key, actions = { a ->
                     scope.launch {
@@ -120,7 +120,6 @@ class WebStackTakeoverTest {
         assertNotNull("no button $label", target)
         instr.runOnMainSync { target!!.performClick() }
     }
-
     @Test
     fun realTakeoverPathLocksMovesAndReturnsTheSamePage() = runBlocking<Unit> {
         val s = stack.screen
@@ -140,6 +139,7 @@ class WebStackTakeoverTest {
         assertEquals("\"填了一半\"", js(tab, "document.getElementById('plain').value"))
 
         DeviceSupport.pollUntil(3_000) { WebHandover.session.value?.url }
+        js(tab, "document.getElementById('pwform').innerHTML='<button>我的账号</button>'")
         click(tab, "处理好了")
         assertNotNull(DeviceSupport.pollUntil(5_000) { results.firstOrNull() })
         assertNotNull(DeviceSupport.pollUntil(5_000) { displayOf(tab)?.takeIf { it == stack.host.displayId } })

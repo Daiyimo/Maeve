@@ -1,11 +1,13 @@
 package com.daiyimo.maeve.core.cap.web
 
+import okhttp3.Dns
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.InetAddress
 
 class WebUrlPolicyTest {
     @Test fun onlyHttpAndHttps() {
@@ -91,6 +93,26 @@ class WebUrlPolicyTest {
         assertNotNull(WebUrlPolicy.checkNavigable("ｈttp://example.com"))
         assertTrue(WebUrlPolicy.checkNavigable("weixin://dl/scan")!!.contains("open it on the phone"))
         assertTrue(WebUrlPolicy.checkNavigable("file:///a")!!.contains("http/https"))
+    }
+
+    @Test fun resolvedNavigationChecksEveryDnsAddress() {
+        val dns = object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> = when (hostname) {
+                "mixed.example" -> listOf(InetAddress.getByName("93.184.216.34"), InetAddress.getByName("192.168.1.2"))
+                else -> listOf(InetAddress.getByName("93.184.216.34"))
+            }
+        }
+        assertNull(WebUrlPolicy.checkNavigableResolved("https://public.example/", dns))
+        assertNotNull(WebUrlPolicy.checkNavigableResolved("https://mixed.example/", dns))
+        assertNotNull(WebUrlPolicy.checkNavigableResolved("http://127.1/", dns))
+        var lookups = 0
+        val fixtureDns = object : Dns {
+            override fun lookup(hostname: String): List<InetAddress> { lookups++; return emptyList() }
+        }
+        assertNull(WebUrlPolicy.checkNavigableResolved(
+            "https://appassets.androidplatform.net/assets/web-fixtures/host.html", fixtureDns,
+        ) { it == "appassets.androidplatform.net" })
+        assertEquals(0, lookups)
     }
 
     @Test fun idnHostsAsAscii() {

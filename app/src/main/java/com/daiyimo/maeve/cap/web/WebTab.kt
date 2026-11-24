@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.http.SslError
+import android.os.Handler
+import android.os.Looper
 import android.os.Message
 import android.util.Log
 import android.view.ViewGroup
@@ -39,6 +41,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.ByteArrayInputStream
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * 一个网页标签:一个 WebView 加它的加载状态。默认打开桌面版网页,按站点可换回手机版(见 [WebDevtools])。
@@ -91,6 +96,7 @@ class WebTab(
     var ownerTaskId: String = ownerTaskId
         internal set
 
+    private val appContext = context.applicationContext
     val view: WebView = WebView(context)
 
     /** 这个标签上等回话的页面弹框。 */
@@ -151,8 +157,12 @@ class WebTab(
     private var armed = false
     private var mainFrameFailed = false
     private var mainUrl: String? = null
+    private val main = Handler(Looper.getMainLooper())
+    private val navigationIo: ExecutorService = Executors.newSingleThreadExecutor()
+    private var navigationGeneration = 0
 
     init {
+        WebProxyInstaller.ensureInstalled(appContext)
         // 配置要在 WebView 做任何别的事之前设定
         if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
             ProfileStore.getInstance().getOrCreateProfile(PROFILE)
@@ -180,8 +190,21 @@ class WebTab(
         // 第三方 Cookie 关闭(裁定);后续确有站点需要再单独定
         cookieManager().setAcceptThirdPartyCookies(view, false)
         view.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest(v: WebView, request: WebResourceRequest): WebResourceResponse? =
-                assetLoaders.firstNotNullOfOrNull { it.shouldInterceptRequest(request.url) }
+            override fun shouldInterceptRequest(v: WebView, request: WebResourceRequest): WebResourceResponse? {
+                assetLoaders.firstNotNullOfOrNull { it.shouldInterceptRequest(request.url) }?.let { return it }
+                val url = request.url.toString()
+                if (request.isForMainFrame && isWebNavigation(url)) {
+                    val refusal = WebUrlPolicy.checkNavigableResolved(url)
+                    if (refusal != null) {
+                        val generation = navigationGeneration
+                        main.post { refuseNavigation(url, refusal, generation) }
+                        return WebResourceResponse("text/plain", "utf-8", ByteArrayInputStream("blocked address".toByteArray())).apply {
+                            setStatusCodeAndReasonPhrase(403, "Blocked address")
+                        }
+                    }
+                }
+                return null
+            }
 
             override fun shouldOverrideUrlLoading(v: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
@@ -194,6 +217,13 @@ class WebTab(
                     }
                     return true
                 }
+                if (request.isForMainFrame && isWebNavigation(url)) {
+                    val generation = navigationGeneration
+                    checkNavigation(url, generation, onAllowed = { v.loadUrl(url) })
+                    // 先取消本次跳转,DNS 全地址检查通过后再由 WebView 重新发起;
+                    // 不在主线程做网络解析,也不让重定向绕过与初次导航相同的规则。
+                    return true
+                }
                 return false
             }
 
@@ -203,12 +233,19 @@ class WebTab(
                     v.stopLoading()
                     return
                 }
+                val generation = ++navigationGeneration
+                if (url != null && isWebNavigation(url)) {
+                    val refusal = WebUrlPolicy.checkNavigable(url)
+                    if (refusal != null) {
+                        refuseNavigation(url, refusal, generation)
+                        return
+                    }
+                    checkNavigation(url, generation)
+                }
                 proxyAuth.onPageStarted()
                 loading = true
                 armed = true
-                mainFrameFailed = false
-                mainFrameError = null
-                httpErrorStatus = null
+                // 错误属于当前这次显式 load;重定向后的迟到 onPageStarted 不能把它清掉。
                 mainUrl = url
                 devtools.onPageStarted(this@WebTab, url)
                 listener?.onPageChanged(this@WebTab)
@@ -221,6 +258,7 @@ class WebTab(
             // 页面开始显示时再核对一次弹出窗口的网站(前两处都可能被绕过时的最后一道)
             override fun onPageCommitVisible(v: WebView, url: String?) {
                 if (url != null && refusePopup(url)) v.stopLoading()
+                if (url != null && isWebNavigation(url)) checkNavigation(url, navigationGeneration)
             }
 
             override fun onPageFinished(v: WebView, url: String?) {
@@ -368,6 +406,45 @@ class WebTab(
         return true
     }
 
+    private fun isWebNavigation(url: String): Boolean = url.startsWith("http://", true) || url.startsWith("https://", true)
+    /** App 资产夹具由 WebViewAssetLoader 直接提供,不经过 DNS,保持既有测试路径。 */
+    private fun isAppAsset(url: String): Boolean = runCatching {
+        assetLoaders.any { loader ->
+            loader.shouldInterceptRequest(Uri.parse(url))?.also { it.data?.close() } != null
+        }
+    }.getOrDefault(false)
+    /** 初次加载、重定向、开始显示与提交显示共用的 SSRF 检查。 */
+    private fun checkNavigation(url: String, generation: Int, onAllowed: () -> Unit = {}) {
+        if (destroyed) return
+        val literalRefusal = WebUrlPolicy.checkNavigable(url)
+        if (literalRefusal != null) {
+            refuseNavigation(url, literalRefusal, generation)
+            return
+        }
+        if (isAppAsset(url)) {
+            onAllowed()
+            return
+        }
+        navigationIo.execute {
+            val refusal = WebUrlPolicy.checkNavigableResolved(url)
+            main.post {
+                if (destroyed || generation != navigationGeneration) return@post
+                if (refusal != null) refuseNavigation(url, refusal, generation) else onAllowed()
+            }
+        }
+    }
+
+    private fun refuseNavigation(url: String, reason: String, generation: Int) {
+        if (destroyed || generation != navigationGeneration) return
+        Log.w(TAG, "refused navigation on tab $id: $reason: ${url.take(80)}")
+        mainFrameFailed = true
+        mainFrameError = "blocked_address"
+        loading = false
+        view.stopLoading()
+        finish(false)
+        listener?.onPageChanged(this)
+    }
+
     /**
      * 弹出的标签要导航到和打开它的页面不同的网站(about:blank 除外):拦下。还没在同站页面上加载过时交标签池关掉它,
      * 之后只拦这次导航。
@@ -390,38 +467,47 @@ class WebTab(
     }
 
     /** 打开网址并等主文档加载完;超时、主文档出错或 HTTP 4xx/5xx 返回 false。只接受 http/https 网址。 */
-    suspend fun load(url: String, timeoutMs: Long = 20_000): Boolean = withContext(Dispatchers.Main) {
+    suspend fun load(url: String, timeoutMs: Long = 20_000): Boolean = withContext(Dispatchers.IO) {
         if (crashed) return@withContext false
-        WebUrlPolicy.checkNavigable(url)?.let {
-            Log.w(TAG, "refused to load a non-web address on tab $id: $it")
+        if (!WebProxyInstaller.awaitInstalled(appContext)) Log.w(TAG, "DNS-pinning WebView proxy unavailable; using navigation checks only")
+        val refusal = if (isAppAsset(url)) WebUrlPolicy.checkNavigable(url) else WebUrlPolicy.checkNavigableResolved(url)
+        if (refusal != null) {
+            Log.w(TAG, "refused to load a non-web address on tab $id: $refusal")
             lastLoadFinished = false
             return@withContext false
         }
-        // 第一次导航前把桌面版仿真设好(连不上时至多等一小会儿,照常打开)
-        devtools.beforeLoad(this@WebTab, url)
-        if (crashed || destroyed) return@withContext false
-        finish(false)
-        lastExternalLink = null
-        lastLoadFinished = false
-        mainFrameError = null
-        loadBecameDownload = false
-        val done = CompletableDeferred<Boolean>()
-        pending = done
-        loading = true
-        view.loadUrl(url)
-        val ok = withTimeoutOrNull(timeoutMs) { done.await() }
-        lastLoadFinished = ok != null
-        if (ok == null) {
-            if (pending === done) finish(false)
-            view.stopLoading()
-            loading = false
+        withContext(Dispatchers.Main) {
+            if (crashed || destroyed) return@withContext false
+            navigationGeneration++
+            // 第一次导航前把桌面版仿真设好(连不上时至多等一小会儿,照常打开)
+            devtools.beforeLoad(this@WebTab, url)
+            if (crashed || destroyed) return@withContext false
+            finish(false)
+            lastExternalLink = null
+            lastLoadFinished = false
+            mainFrameError = null
+            loadBecameDownload = false
+            val done = CompletableDeferred<Boolean>()
+            pending = done
+            loading = true
+            view.loadUrl(url)
+            val ok = withTimeoutOrNull(timeoutMs) { done.await() }
+            lastLoadFinished = ok != null
+            if (ok == null) {
+                if (pending === done) finish(false)
+                view.stopLoading()
+                loading = false
+            }
+            ok ?: false
         }
-        ok ?: false
     }
 
     fun destroy() {
         if (destroyed) return
         destroyed = true
+        navigationGeneration++
+        navigationIo.shutdownNow()
+        main.removeCallbacksAndMessages(null)
         dialogs.close()
         devtools.release(this)
         listener = null

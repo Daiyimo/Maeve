@@ -414,8 +414,8 @@ class ToolDispatcherWebTest {
                 }
             })
         loop.run("t")
-        // 第 0 步 navigate、第 5 步 tabs、第 6 步 upload 过关卡;读页、执行脚本、下载列表不过
-        assertEquals(listOf(0, 5, 6), gated)
+        // 第 0 步 navigate、第 5 步 tabs、第 6 步 upload 在目标解析前和投递前各过关卡;读页、执行脚本、下载列表不过
+        assertEquals(listOf(0, 0, 5, 5, 6, 6), gated)
         for (name in listOf("web_navigate", "web_tabs", "web_upload")) assertTrue(name, isWritingTool(name, JsonObject(emptyMap())))
         for (name in listOf("web_read_page", "web_evaluate_js", "web_downloads")) assertFalse(name, isWritingTool(name, JsonObject(emptyMap())))
     }

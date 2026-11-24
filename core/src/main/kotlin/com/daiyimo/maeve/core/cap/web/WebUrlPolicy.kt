@@ -1,6 +1,7 @@
 package com.daiyimo.maeve.core.cap.web
 
 import com.daiyimo.maeve.core.tool.PACKAGE_NAME_RE
+import okhttp3.Dns
 import java.net.URI
 import java.net.URLDecoder
 import com.daiyimo.maeve.core.net.UrlHost
@@ -32,11 +33,15 @@ object WebUrlPolicy {
         if (scheme != "http" && scheme != "https") return "only http/https URLs can be opened, not $scheme:"
         val h = host(u) ?: return "the URL has no domain"
         // 主文档导航也拦内网/回环:否则攻击者页面把 location 跳到 192.168.x.x 就能把 LAN 拓扑读进任务答案(SSRF)。
-        // 与下载侧 [DownloadAddressPolicy.blockedHost] 同一条规则;字面内网 IP 与 localhost 类后缀在此拦,
-        // 普通域名解析到内网的由 WebView 自身解析,这里只挡字面地址。
+        // 与下载侧 [DownloadAddressPolicy.blockedHost] 同一条规则;这里先挡字面地址,
+        // 普通域名的 DNS 全地址检查由 [checkNavigableResolved] 完成。
         if (DownloadAddressPolicy.blockedHost(h)) return "the URL points to a local or private network address"
         return null
     }
+
+    /** 主文档导航的完整 SSRF 规则:在 [checkNavigable] 之上检查 DNS 返回的全部地址。 */
+    fun checkNavigableResolved(url: String, dns: Dns = Dns.SYSTEM, skipDns: (String) -> Boolean = { false }): String? =
+        DownloadAddressPolicy.resolvedRefusal(url, dns, skipDns)
 
     /** intent:、自定义协议、应用商店链接(含商店网页) → 跳 App 的链接;普通网页与浏览器自身协议为 null。 */
     fun external(url: String): ExternalLink? {
