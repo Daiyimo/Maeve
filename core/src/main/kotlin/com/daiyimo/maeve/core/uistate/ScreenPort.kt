@@ -137,6 +137,8 @@ data class ScreenEvent(val type: String, val packageName: String?, val text: Str
 /** 本机 OCR 从当前画面读出的文字行;bounds 与无障碍元素一致,也是 0–999 坐标;[confidence] 为识别给出的 0–1 置信度,没有为 null。 */
 data class VisibleTextLine(val text: String, val bounds: List<Int>, val confidence: Float? = null)
 
+data class VisualFrame(val png: ByteArray?, val text: List<VisibleTextLine>?, val width: Int? = null, val height: Int? = null)
+
 /** 内置助手以 Android shell 身份运行命令的产出。 */
 data class SystemCommandResult(val exitCode: Int, val output: String)
 
@@ -236,6 +238,11 @@ interface ScreenPort {
     suspend fun screenshotPng(): ByteArray?
     /** 可选的本机文字识别;null 表示当前画面不可读或端口没有 OCR。 */
     suspend fun readVisibleText(): List<VisibleTextLine>? = null
+
+    /** Adapters with direct frame access provide both observations from the same capture. */
+    suspend fun visualFrame(withImage: Boolean, timeoutMs: Long): VisualFrame =
+        VisualFrame(if (withImage) screenshotPng() else null,
+            kotlinx.coroutines.withTimeoutOrNull(timeoutMs) { readVisibleText() })
     /** 点 [snapshotId] 那一屏里 [ref] 那个元素。 */
     suspend fun tapRef(ref: String, snapshotId: String): ActionResult
     /** 点屏幕上(像素坐标)这一点。 */
@@ -286,7 +293,7 @@ interface ScreenPort {
      */
     suspend fun idleScroll(fraction: Double): Boolean = false
     /** 多点手势;每条路径是按时间先后排列的像素点,所有手指同时移动。 */
-    suspend fun gesture(paths: List<List<Pair<Int, Int>>>, durationMs: Long): ActionResult = unsupported()
+    suspend fun gesture(paths: List<List<Pair<Int, Int>>>, durationMs: Long, holdMs: Long = 0, restMs: Long = 0): ActionResult = unsupported()
     /** 收起键盘(输入法)。键盘没弹着时什么都不做。默认不支持。 */
     suspend fun hideKeyboard(): ActionResult = unsupported()
     /** 系统返回键。 */

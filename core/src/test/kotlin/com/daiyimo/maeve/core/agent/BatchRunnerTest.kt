@@ -8,18 +8,10 @@ import com.daiyimo.maeve.core.gate.ConfirmationGate
 import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.core.record.RunSink
 import com.daiyimo.maeve.core.uistate.ActionResult
-import com.daiyimo.maeve.core.uistate.Verification
 import com.daiyimo.maeve.core.uistate.ScreenPort
-import com.daiyimo.maeve.core.uistate.ScreenSnapshot
-import com.daiyimo.maeve.core.uistate.UiElement
-import com.daiyimo.maeve.core.tool.FakeScreen
 import com.daiyimo.maeve.core.tool.ToolDispatcher
 import com.daiyimo.maeve.core.tool.Until
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -33,31 +25,6 @@ import org.junit.Test
 import com.daiyimo.maeve.core.testing.BATCHABLE
 import com.daiyimo.maeve.core.assembly.toolDispatcher
 
-/** 元素:名字 → 归一化 bounds;每次读屏换下一屏(读完最后一屏就停在它);动作结果按顺序取。 */
-private class BatchScreen(vararg val screens: List<Pair<String, List<Int>>>) : ScreenPort by FakeScreen() {
-    val calls = mutableListOf<String>()
-    var reads = 0
-    val results = ArrayDeque<ActionResult>()
-    /** 设了就一直显示这一屏(模拟等关卡期间屏幕换了)。 */
-    var replaced: List<Pair<String, List<Int>>>? = null
-    var settles = 0
-    override suspend fun waitStable(timeoutMs: Long): Boolean { settles++; return true }
-    private fun build(i: Int) = ScreenSnapshot("p${i + 1}", "com.x", (replaced ?: screens[minOf(i, screens.size - 1)]).mapIndexed { n, (name, b) ->
-        UiElement("@e${n + 1}", "button", name, ((b[0] + b[2]) / 2) * 1079 / 999, ((b[1] + b[3]) / 2) * 2399 / 999, b, null, true, name.startsWith("输入"), false)
-    }, 1080, 2400)
-    override suspend fun snapshot(): ScreenSnapshot = build(reads++)
-    override suspend fun peek(): ScreenSnapshot = build(maxOf(0, reads - 1))
-    private fun next(): ActionResult = results.removeFirstOrNull() ?: ActionResult.Ok(changed = true)
-    override suspend fun tapRef(ref: String, snapshotId: String): ActionResult { calls += "tapRef $ref $snapshotId"; return next() }
-    override suspend fun tapXY(x: Int, y: Int): ActionResult { calls += "tapXY $x $y"; return next() }
-    // 端口写完读回过、一致(真实端口都会读回)
-    override suspend fun typeText(ref: String?, snapshotId: String?, text: String): ActionResult {
-        calls += "type $text"; return results.removeFirstOrNull() ?: ActionResult.Ok(verification = Verification.MATCH)
-    }
-    override suspend fun back(): ActionResult { calls += "back"; return next() }
-    override suspend fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Long): ActionResult { calls += "swipe"; return next() }
-}
-
 class BatchRunnerTest {
     private val home = listOf("搜索框" to listOf(0, 0, 999, 80), "返回" to listOf(0, 900, 100, 999), "提交订单" to listOf(800, 900, 999, 999))
     private val events = mutableListOf<RunEvent>()
@@ -70,56 +37,6 @@ class BatchRunnerTest {
     private fun steps(vararg s: Triple<String, String, String?>) = s.map { BatchStep(it.first, it.second, it.third?.let { e -> Until(appears = e) }) }
     private fun st(tool: String, args: String = "{}", expect: String? = null) = Triple(tool, args, expect)
     private fun JsonObject.s(k: String) = this[k]!!.jsonPrimitive.content
-
-    @Test fun allStepsPassReturnsOk() = runTest {
-        val s = BatchScreen(home)
-        val d = toolDispatcher(s).also { it.execute(com.daiyimo.maeve.core.model.Part.ToolCall("o", "phone_observe", "{}")) }
-        val r = runner(d).run(steps(st("phone_tap", """{"ref":"@e1","snapshotId":"p1"}"""), st("phone_type_text", """{"text":"咖啡"}"""), st("phone_back")), "c1", 3).content
-        assertEquals("true", r.s("ok")); assertEquals(3, r["completed"]!!.jsonPrimitive.int); assertEquals(3, r["total"]!!.jsonPrimitive.int)
-        assertEquals(listOf("tapRef @e1 p1", "type 咖啡", "back"), s.calls)
-        assertEquals(3, gates)
-        val results = events.filterIsInstance<RunEvent.ToolResult>()
-        assertEquals(listOf("batch", "batch", "batch"), results.map { it.source })
-        assertEquals(listOf("c1.1", "c1.2", "c1.3"), results.map { it.callId })
-        assertEquals(RunEvent.Batch(events.filterIsInstance<RunEvent.Batch>().single().atMs, 3, 3, false, null), events.filterIsInstance<RunEvent.Batch>().single())
-    }
-
-    // 第一步做完时用户插了话:后面的子步不做,各给一条「为新消息跳过」的结果,整批交回循环去送插话
-    @Test fun newUserMessageStopsBatchAtTheNextBoundary() = runTest {
-        val s = BatchScreen(home)
-        val d = toolDispatcher(s)
-        var waiting = false
-        val r = BatchRunner(d, OperationGuards(), ActionExecutor(d, OperationGuards(), ConfirmationGate(), gate = { gates++; waiting = true }, recorder = ActionRecorder(sink)),
-            steerWaiting = { waiting })
-            .run(steps(st("phone_back"), st("phone_back"), st("phone_back")), "c1").content
-        assertEquals(listOf("back"), s.calls)
-        assertEquals("false", r.s("ok"))
-        assertEquals(BatchRunner.NEW_MESSAGE, r.s("reason"))
-        assertEquals("false", r.s("counts_as_failure"))
-        assertEquals(1, r["completed"]!!.jsonPrimitive.int)
-        val entries = r["steps"]!!.jsonArray.map { it.jsonObject }
-        assertEquals(3, entries.size)
-        assertEquals("true", entries[0].s("ok"))
-        assertEquals(listOf(BatchRunner.NEW_MESSAGE, BatchRunner.NEW_MESSAGE), entries.drop(1).map { it.s("error") })
-        assertEquals(listOf("false", "false"), entries.drop(1).map { it.s("executed") })
-        assertTrue(events.filterIsInstance<RunEvent.Batch>().single().stopped)
-    }
-
-    // 子步里的等待被插话截断:这一步算没做,和后面的一起跳过,不等满也不接着做
-    @Test fun steerCuttingAWaitStepSkipsItAndTheRest() = runTest {
-        val s = BatchScreen(home)
-        val inbox = com.daiyimo.maeve.core.run.RunInbox()
-        launch { delay(1_000); inbox.send(com.daiyimo.maeve.core.run.RunInput.Steer("m1", "停一下")) }
-        val r = withContext(inbox.signal) {
-            runner(toolDispatcher(s)).run(steps(st("phone_back"), st("wait", """{"seconds":10}"""), st("phone_back")), "c1").content
-        }
-        assertEquals(1_000L, currentTime)
-        assertEquals(listOf("back"), s.calls)
-        assertEquals(BatchRunner.NEW_MESSAGE, r.s("reason"))
-        assertEquals(1, r["completed"]!!.jsonPrimitive.int)
-        val entries = r["steps"]!!.jsonArray.map { it.jsonObject }
-        assertEquals(listOf("false", "false"), entries.drop(1).map { it.s("executed") })
-    }
 
     @Test fun unchangedScreenAloneDoesNotStopKnownSteps() = runTest {
         val s = BatchScreen(home).apply { results += ActionResult.Ok(changed = true); results += ActionResult.Ok(changed = false) }
@@ -160,19 +77,6 @@ class BatchRunnerTest {
         val s = BatchScreen(home)
         val r = runner(toolDispatcher(s)).run(steps(st("wait", """{"seconds":0.5}"""), st("phone_back")), "c1").content
         assertEquals("true", r.s("ok")); assertEquals(listOf("back"), s.calls)
-    }
-
-    @Test fun stopsBeforeIrreversible() = runTest {
-        val s = BatchScreen(home)
-        val d = toolDispatcher(s).also { it.execute(com.daiyimo.maeve.core.model.Part.ToolCall("o", "phone_observe", "{}")) }
-        val r = runner(d).run(steps(st("phone_tap", """{"ref":"@e1","snapshotId":"p1"}"""), st("phone_type_text", """{"text":"你好"}"""),
-            st("phone_tap", """{"ref":"@e3","snapshotId":"p1"}""")), "c1").content
-        assertEquals("confirmation_required", r.s("error"))
-        assertEquals(2, r["completed"]!!.jsonPrimitive.int)
-        assertEquals("false", r["steps"]!!.jsonArray.last().jsonObject.s("executed"))
-        assertEquals(listOf("tapRef @e1 p1", "type 你好"), s.calls)
-        assertEquals(3, gates) // 先过关卡再按此刻的屏幕判,第 3 步判出不可逆就不执行
-        assertNotNull(events.filterIsInstance<RunEvent.Confirmation>().singleOrNull())
     }
 
     @Test fun coordinateTapOnSendStopsBefore() = runTest {

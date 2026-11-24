@@ -1,15 +1,15 @@
 ### unknown tool
-{"ok":false,"error":"unknown_tool","tool":"phone_fly","message":"Unknown tool 'phone_fly'. Use one of: wait, view_past_screens, ask_user, request_confirmation, hand_to_user, handle_obstacle, end_not_done, phone_observe, phone_list_elements, phone_tap, phone_scroll, phone_swipe, phone_type_text, phone_clear_text, phone_back, phone_press_key, phone_diagnose, phone_query, phone_find, phone_extract, phone_collect, phone_wait, phone_event, phone_dialog, phone_gesture, phone_set_wheel, phone_run, phone_list_apps, phone_launch_app, phone_app_after_task, phone_share_text, phone_set_alarm, phone_set_timer, phone_show_alarms, phone_add_calendar_event.","recoverable":true}
+{"ok":false,"error":"unknown_tool","tool":"phone_fly","message":"Unknown tool 'phone_fly'. Use one of: wait, report_plan, view_past_screens, ask_user, request_confirmation, hand_to_user, handle_obstacle, end_not_done, phone_observe, phone_list_elements, phone_tap, phone_scroll, phone_swipe, phone_type_text, phone_clear_text, phone_back, phone_press_key, phone_diagnose, phone_query, phone_find, phone_extract, phone_collect, phone_wait, phone_event, phone_dialog, phone_gesture, phone_long_press, phone_drag, phone_set_wheel, phone_run, phone_list_apps, phone_launch_app, phone_app_after_task, phone_share_text, phone_set_alarm, phone_set_timer, phone_show_alarms, phone_add_calendar_event.","recoverable":true}
 ### invalid: unknown argument
-{"ok":false,"error":"invalid_arguments","message":"bogus: unknown argument for phone_tap; allowed: ref, snapshotId, x, y, target, element, role, clicks. To act on an element, use its ref and snapshotId from the elements of the latest screen read or of the screen in the last action result.","recoverable":true,"moreTools":"From your next call on you also have the full phone tools (phone_observe, phone_list_elements, phone_tap, phone_scroll and the rest), with their descriptions and how to use them."}
+{"ok":false,"error":"invalid_arguments","message":"bogus: unknown argument for phone_tap; allowed: ref, snapshotId, x, y, target, element, role, clicks. To act on an element, use its ref and snapshotId from the elements of the latest screen read or of the screen in the last action result.","recoverable":true,"executed":false,"delivery":"not_sent","moreTools":"From your next call on you also have the full phone tools (phone_observe, phone_list_elements, phone_tap, phone_scroll and the rest), with their descriptions and how to use them."}
 ### invalid: unknown argument (no refs)
-{"ok":false,"error":"invalid_arguments","message":"bogus: unknown argument for phone_launch_app; allowed: package, cold, user, wait.","recoverable":true}
+{"ok":false,"error":"invalid_arguments","message":"bogus: unknown argument for phone_launch_app; allowed: package, cold, user, wait.","recoverable":true,"executed":false,"delivery":"not_sent"}
 ### invalid: not json
-{"ok":false,"error":"invalid_arguments","message":"arguments: not valid JSON","recoverable":true}
+{"ok":false,"error":"invalid_arguments","message":"arguments: not valid JSON","recoverable":true,"executed":false,"delivery":"not_sent"}
 ### invalid: not an object
-{"ok":false,"error":"invalid_arguments","message":"arguments: must be a JSON object","recoverable":true}
+{"ok":false,"error":"invalid_arguments","message":"arguments: must be a JSON object","recoverable":true,"executed":false,"delivery":"not_sent"}
 ### invalid: required
-{"ok":false,"error":"invalid_arguments","message":"text: required","recoverable":true}
+{"ok":false,"error":"invalid_arguments","message":"text: required","recoverable":true,"executed":false,"delivery":"not_sent"}
 ### invalid: located ref elsewhere
 {"ok":false,"error":"ref_expired","message":"ref_expired: the screen has changed since it was located, or this located reference is unknown or expired. Locate it on the screen again.","recoverable":true,"cause":"located_stale"}
 ### finish without evidence
@@ -17,7 +17,7 @@
 ### pay via confirmation
 {"ok":false,"error":"payment_requires_takeover","message":"Payment is not confirmed here: the user pays with their own hands. Open the payment page, then call hand_to_user with reason payment, giving the item, the amount shown and the address; afterwards check the order status.","recoverable":true}
 ### order without amount
-{"ok":false,"error":"invalid_arguments","message":"amount: required for orders: the total the user will pay, as shown on screen","recoverable":true}
+{"ok":false,"error":"invalid_arguments","message":"amount: required for orders: the total the user will pay, as shown on screen","recoverable":true,"executed":false,"delivery":"not_sent"}
 ### barrier popup
 {"ok":true,"kind":"popup","hint":"A promotion, guide or update dialog that can be closed is not a blocker. Close it with its own close control (×, 跳过, 以后再说, Skip, Later), then observe again. Do not call hand_to_user for it."}
 ### barrier login
@@ -33,7 +33,7 @@
 ### phone_open_link not listed
 {"ok":false,"error":"invalid_link","message":"Only links from the reference notes can be opened, exactly as listed (with the same package). Use phone_launch_app and navigate instead.","recoverable":true,"moreTools":"From your next call on you also have the full phone tools (phone_observe, phone_list_elements, phone_tap, phone_scroll and the rest), with their descriptions and how to use them."}
 ### phone_launch_app bad package
-{"ok":false,"error":"invalid_arguments","message":"package: must be an Android package name","recoverable":true}
+{"ok":false,"error":"invalid_arguments","message":"package: must be an Android package name","recoverable":true,"executed":false,"delivery":"not_sent"}
 ### tap failed app_in_use_by_user
 {"ok":false,"error":"app_in_use_by_user","message":"The user is using this app on their own screen right now, so it was not opened here. Do not retry immediately: call hand_to_user with reason other to ask the user, or wait and try again later.","recoverable":true,"moreTools":"From your next call on you also have the full phone tools (phone_observe, phone_list_elements, phone_tap, phone_scroll and the rest), with their descriptions and how to use them."}
 ### tap failed app_in_use_by_other_task

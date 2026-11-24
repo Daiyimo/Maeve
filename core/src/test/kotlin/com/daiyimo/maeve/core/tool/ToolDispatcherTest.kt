@@ -10,6 +10,7 @@ import com.daiyimo.maeve.core.uistate.UiElement
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.int
@@ -93,6 +94,9 @@ class ToolDispatcherTest {
             assertEquals(a, "invalid_arguments", r.content.s("error"))
             assertFalse(r.content["ok"]!!.jsonPrimitive.boolean)
             assertTrue(r.content.containsKey("message")); assertTrue(r.content.containsKey("recoverable"))
+            assertEquals(JsonPrimitive(false), r.content["executed"])
+            assertEquals(JsonPrimitive("not_sent"), r.content["delivery"])
+            assertEquals(ActionDelivery.NotSent, r.delivery)
         }
         val m = d.execute(call("phone_type_text", """{"text":""}""")).content.s("message")
         assertTrue("text" in m)
@@ -262,11 +266,19 @@ class ToolDispatcherTest {
     }
 
     @Test fun typeTextPressEnterAndLaunchApp() = runTest {
-        val s = FakeScreen(); val d = toolDispatcher(s)
+        val s = FakeScreen().apply { result = ActionResult.Ok(verification = Verification.MATCH) }
+        val d = toolDispatcher(s)
         d.execute(call("phone_type_text", """{"text":"hi","pressEnter":true}"""))
         d.execute(call("phone_launch_app", """{"package":"com.x","cold":true}"""))
         d.execute(call("phone_press_key", """{"key":"KEYCODE_ENTER"}"""))
         assertEquals(listOf("type null null hi", "key 66", "open com.x true", "key 66"), s.calls)
+    }
+
+    @Test fun typeTextWithUnknownReadbackDoesNotPressEnter() = runTest {
+        val screen = FakeScreen()
+        val result = toolDispatcher(screen).execute(call("phone_type_text", """{"text":"hi","pressEnter":true}"""))
+        assertEquals(listOf("type null null hi"), screen.calls)
+        assertTrue(result.content["enterSkipped"]!!.jsonPrimitive.boolean)
     }
 
     @Test fun notEditableExplainsWhatToDo() = runTest {

@@ -67,16 +67,16 @@ class RefStabilizerTest {
         val b = st.next(shot(el("确定"), rid = { "a:id/other" }))
         assertNotEquals(a.ref("确定"), b.ref("确定"))
     }
-
-    @Test fun duplicateKeysNeverKeepRefs() {
+    @Test fun unchangedDuplicateKeysKeepOneToOneRefs() {
         val st = RefStabilizer()
         val a = st.next(shot(el("关注", 800, 300), el("关注", 800, 600), el("标题", 500, 50)))
-        // 滚动一行之后同一位置已经是另一行的「关注」
         val b = st.next(shot(el("关注", 800, 300), el("关注", 800, 600), el("标题", 500, 50)))
-        val old = a.refs("关注").toSet()
-        assertTrue(b.refs("关注").none { it in old })
+        assertEquals(a.refs("关注"), b.refs("关注"))
         assertEquals(2, b.refs("关注").toSet().size)
         assertEquals(a.ref("标题"), b.ref("标题"))
+        // 顺序变化时按中心一对一配对,编号跟着原控件,不跟着遍历位置。
+        val reordered = st.next(shot(el("关注", 800, 600), el("关注", 800, 300), el("标题", 500, 50)))
+        assertEquals(a.refs("关注").reversed(), reordered.refs("关注"))
         // 一边唯一、另一边重复,也不沿用
         val c = st.next(shot(el("关注", 800, 300)))
         assertTrue(c.ref("关注") !in b.refs("关注"))

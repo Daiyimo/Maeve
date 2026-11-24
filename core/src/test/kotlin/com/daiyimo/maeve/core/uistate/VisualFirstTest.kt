@@ -67,6 +67,9 @@ class VisualFirstTest {
             ocrReads++
             return ocr
         }
+        override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long): VisualFrame =
+            VisualFrame(if (withImage) screenshotPng() else null, readVisibleText(), 1080, 2400)
+
         override suspend fun frameGrid(): FrameGrid? {
             frameGrids++
             return null
@@ -135,6 +138,31 @@ class VisualFirstTest {
         assertTrue(state.treeUnusable())
         assertTrue(state.lastSnapshot!!.elements.isEmpty())
         assertTrue(state.lastSnapshot!!.windows.isEmpty())
+    }
+
+    @Test fun visualFrameIsDiscardedIfTheForegroundChangesDuringCapture() = runTest {
+        val screen = object : ScreenPort by FakeScreen() {
+            private var pkg = "com.xingin.xhs"
+            override suspend fun currentPackage() = pkg
+            override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long): VisualFrame {
+                pkg = "com.tencent.mm"
+                return VisualFrame(byteArrayOf(1), listOf(VisibleTextLine("旧页面", listOf(0, 0, 500, 100))), 100, 200)
+            }
+        }
+        val result = session(screen, visionEnabled = true).observe(withImage = true)
+        assertEquals("com.tencent.mm", result.content.text("currentApp"))
+        assertNull(result.image)
+        assertNull(result.content["visibleText"])
+    }
+
+    @Test fun automaticObservationDoesNotResendAnIdenticalFrameWithReadableText() = runTest {
+        val screen = CountingScreen()
+        val state = session(screen, visionEnabled = true)
+        assertNotNull(state.observe(withImage = true).image)
+        val after = state.withScreen(ToolExecution(okObj { put("ok", true) }))
+        assertNull(after.image)
+        assertTrue((after.content["screen"] as JsonObject).flag("imageUnchanged"))
+        assertNotNull(state.observe(withImage = true).image)
     }
 
     @Test fun noVisionModelReturnsExplicitOcrOnlyWithoutTreeFallback() = runTest {

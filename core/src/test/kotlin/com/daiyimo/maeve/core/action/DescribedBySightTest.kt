@@ -71,6 +71,23 @@ class DescribedBySightTest {
         assertEquals(2, vision.requests.size)
     }
 
+    @Test fun roleSurvivesVisualFallbackAndPreflightTimingIsRecorded() = runTest {
+        val screen = Blind()
+        val vision = model("null")
+        val events = mutableListOf<RunEvent>()
+        val recorder = ActionRecorder(object : RunSink { override fun event(e: RunEvent) { events += e } })
+        val executor = ActionExecutor(toolDispatcher(screen, vision = VisionService(vision, JvmTestImageOps)),
+            OperationGuards(), null, gate = {}, recorder = recorder)
+        val result = content(tap(executor, """{"element":"结果","role":"Button"}"""))
+        assertEquals("element_not_found", result.s("error"))
+        val request = vision.requests.single().last().parts.filterIsInstance<Part.Text>().single().text
+        assertTrue(request.contains("required role: Button"))
+        val timing = events.filterIsInstance<RunEvent.ActionTiming>().single()
+        assertTrue("resolveTarget" in timing.phasesMs)
+        assertTrue("visionModel" in timing.phasesMs)
+        assertTrue(screen.taps.isEmpty())
+    }
+
     @Test fun notSeenIsReportedAndNothingIsTyped() = runTest {
         val screen = Blind()
         val c = content(type(executor(screen, model("null"), backgroundScope), """{"element":"底部的消息输入框","text":"明天见"}"""))

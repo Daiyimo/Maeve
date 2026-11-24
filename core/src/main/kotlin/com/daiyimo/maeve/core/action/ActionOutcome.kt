@@ -5,6 +5,7 @@ import com.daiyimo.maeve.core.guard.GuardVerdict
 import com.daiyimo.maeve.core.risk.IrrevAction
 import com.daiyimo.maeve.core.gate.Irreversible
 import com.daiyimo.maeve.core.uistate.ScreenSnapshot
+import com.daiyimo.maeve.core.tool.ActionDelivery
 import com.daiyimo.maeve.core.tool.ToolExecution
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -45,8 +46,8 @@ sealed interface ActionOutcome {
 /** 这次调用对调用方的结果:执行了就是执行结果,没执行就是拒绝说明。 */
 fun ActionOutcome.execution(): ToolExecution = when (this) {
     is ActionOutcome.Ran -> exec
-    is ActionOutcome.Refused -> ToolExecution(content)
-    is ActionOutcome.Cancelled -> ToolExecution(buildJsonObject { put("ok", false); put("error", "cancelled"); put("executed", false) })
+    is ActionOutcome.Refused -> ToolExecution(content, delivery = ActionDelivery.NotSent)
+    is ActionOutcome.Cancelled -> ToolExecution(buildJsonObject { put("ok", false); put("error", "cancelled"); put("executed", false); put("delivery", "unknown") }, delivery = ActionDelivery.Unknown)
 }
 
 /** 被拦下时交给调用方的说明,按来源的说法写。 */
@@ -98,7 +99,7 @@ internal object Refusals {
     /** 要用户同意的一步(不在屏上、工具声明要问的),这次运行却问不到人。 */
     fun unavailable(): JsonObject = buildJsonObject {
         put("ok", false); put("error", "approval_unavailable"); put("message", Feedback["approval.unavailable"])
-        put("executed", false); put("recoverable", false); put("counts_as_failure", false)
+        put("executed", false); put("delivery", "not_sent"); put("recoverable", false); put("counts_as_failure", false)
     }
 
     private fun required(hit: Irreversible, everyWrite: Boolean = false) = buildJsonObject {
@@ -110,7 +111,7 @@ internal object Refusals {
             hit.action == IrrevAction.pay -> "This step is a payment, so it was not run. $PAYMENT_TAKEOVER"
             else -> "This external or irreversible step (${hit.action.name}) was not run. First call request_confirmation with its exact target and content (and the amount for an order), then do it only after local approval. $SINGLE_USE"
         })
-        put("recoverable", true); put("counts_as_failure", false)
+        put("executed", false); put("delivery", "not_sent"); put("recoverable", true); put("counts_as_failure", false)
     }
 
     private fun mismatch(hit: Irreversible, reason: String) = buildJsonObject {
@@ -118,11 +119,11 @@ internal object Refusals {
         put("action", hit.action.name); put("matched", hit.matched); put("reason", reason)
         put("message", "This step does not match the action the user approved ($reason). That approval is void, and this step was not run. " +
             "If it still needs doing, call request_confirmation again describing this step truthfully, and do it right after the user approves.")
-        put("recoverable", true); put("counts_as_failure", false)
+        put("executed", false); put("delivery", "not_sent"); put("recoverable", true); put("counts_as_failure", false)
     }
 
     private fun notRun(error: String, message: String, extra: JsonObjectBuilder.() -> Unit = {}) = buildJsonObject {
-        put("ok", false); put("error", error); put("message", message); put("executed", false)
+        put("ok", false); put("error", error); put("message", message); put("executed", false); put("delivery", "not_sent")
         extra()
     }
 }

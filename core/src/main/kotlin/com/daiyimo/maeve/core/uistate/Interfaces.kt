@@ -1,5 +1,9 @@
 package com.daiyimo.maeve.core.uistate
 
+import com.daiyimo.maeve.core.action.timedActionPhase
+import com.daiyimo.maeve.core.run.SKIPPED_FOR_NEW_MESSAGE
+import com.daiyimo.maeve.core.run.waitOrSteer
+import kotlinx.coroutines.withTimeoutOrNull
 import com.daiyimo.maeve.core.prompt.Feedback
 import com.daiyimo.maeve.core.replay.Anchors
 import com.daiyimo.maeve.core.replay.Selector
@@ -100,7 +104,7 @@ internal class Interfaces(
     val sessions: Map<String, ScreenSession> = focus.surfaces.associate { s ->
         s.id to ScreenSession(s, stableRefs, config.visionEnabled, config.recordFrames, lastRead, shots, config.vision, config.adaptiveVision,
             config.vision?.takeIf { config.tapVisionCheck }?.let { TapVisionCheck(it) },
-            config.visionScope ?: kotlinx.coroutines.GlobalScope)
+            config.visionScope ?: kotlinx.coroutines.GlobalScope, frameOps = config.imageOps ?: config.vision?.ops)
     }
     private val gate = GateView()
 
@@ -163,11 +167,12 @@ internal class Interfaces(
         // 按目标启动得以离开受限应用;这时不采集旧页面,只在启动之后附上放行的页面。
         if (tool.verb in APP_TARGET_VERBS) {
             val raw = body(false)
-            return finishCall(tool, args, CallPrep(session, null, null), raw, inlineScreen)
+            return timedActionPhase("screenAfter") { finishCall(tool, args, CallPrep(session, null, null), raw, inlineScreen) }
         }
-        val prep = prepareCall(tool, args)
-        preTapAudit(tool, args, prep)?.let { return it }
-        return finishCall(tool, args, prep, body(prep.reportsEffect), inlineScreen)
+        val prep = timedActionPhase("screenBefore") { prepareCall(tool, args) }
+        timedActionPhase("targetAudit") { preTapAudit(tool, args, prep) }?.let { return it }
+        val raw = body(prep.reportsEffect)
+        return timedActionPhase("screenAfter") { finishCall(tool, args, prep, raw, inlineScreen) }
     }
 
     /**
@@ -338,7 +343,7 @@ internal class Interfaces(
             DescribedMatch.None -> {
                 // 点击、打字偏偏这一屏的树缺了一块或不能用:树里对不上,不等于屏上没有,改看图找(输入框或要点的那个)
                 val vision = session.locator
-                if (verb in SIGHT_FALLBACK_VERBS && vision != null && session.treeBlind(fresh)) resolveBySight(session, vision, args, shownText)
+                if (verb in SIGHT_FALLBACK_VERBS && session.treeBlind(fresh) && (vision != null || session.visualFirst())) resolveBySight(session, vision, args, shownText, roleFilter, verb == Verb.TypeText)
                 else Described.Failed(fail("element_not_found", Feedback.format("described.none",
                     "text" to shownText, "role" to (roleFilter?.let { " with role $it" } ?: ""), "observe" to observeTool)))
             }
@@ -356,10 +361,19 @@ internal class Interfaces(
      * 看图找按描述指的目标(输入框或要点的那个;与 find_visually 同一套核对:红框复看,没佐证的标出来),参数换成找到的 @vN:
      * 往后与模型自己传 @vN 一样:先核对画面没变,那一下点击要过不可逆判定,打字后按屏上文字核对点没点中。
      */
-    private suspend fun resolveBySight(session: ScreenSession, locator: Locator, args: JsonObject, shown: String): Described =
-        when (val r = locator.locate(shown, null)) {
+    private suspend fun resolveBySight(
+        session: ScreenSession, locator: Locator?, args: JsonObject, shown: String, role: String?, field: Boolean,
+    ): Described {
+        val result = waitOrSteer {
+            withTimeoutOrNull(12_000L) {
+                val local = if (role == null && !field && session.visualFirst()) session.locateVisualText(shown) else null
+                local ?: locator?.locate(shown, null, role, field)
+                    ?: LocateResult.NotFound("vision_unavailable", "Use a current on-screen label or ask the user to review the screen.")
+            } ?: LocateResult.NotFound("vision_timeout", "Target resolution exceeded its time limit. Read the current screen again.")
+        } ?: return Described.Failed(failCode(SKIPPED_FOR_NEW_MESSAGE))
+        return when (val r = result) {
             // 看了却没找到(或看图这一下出错):换个说法,或给个坐标;画面拿不到、不能看(受保护、还没开 App)时,说明与 find_visually 一致
-            is LocateResult.NotFound -> Described.Failed(fail("element_not_found", Feedback.format("described.not_seen",
+            is LocateResult.NotFound -> Described.Failed(fail(if (r.reason == "element_ambiguous") r.reason else "element_not_found", Feedback.format("described.not_seen",
                 "text" to shown, "reason" to r.reason,
                 "next" to if (r.reason in SIGHT_MISSED) Feedback["described.not_seen.retry"] else r.message)))
             is LocateResult.Found -> {
@@ -373,6 +387,7 @@ internal class Interfaces(
                 )
             }
         }
+    }
 
     /** 给执行入口看的这一步的目标(见 [ActionTarget]);只读,不执行任何动作。 */
     fun actionTarget(tool: AgentTool?, args: JsonObject): ActionTarget {

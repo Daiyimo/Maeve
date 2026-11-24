@@ -36,7 +36,7 @@ class ToolGroupsTest {
 
     /** 只聊天时发给模型的:通用工具(接管、报障碍、回看画面不在内)加五个入口。 */
     private val chatOnly = listOf(
-        "wait", "ask_user", "request_confirmation", "end_not_done",
+        "wait", "report_plan", "ask_user", "request_confirmation", "end_not_done",
         "phone_list_apps", "phone_launch_app", "phone_set_alarm", "phone_set_timer", "phone_add_calendar_event",
         "web_navigate", "web_read_page", "run_command",
     )

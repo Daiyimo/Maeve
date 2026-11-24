@@ -1,0 +1,1 @@
+Hold one finger on a point without lifting until the duration elapses. Coordinates are 0-999. Use for context menus or press-and-hold controls; the result includes the same-call screen and actual effect. Do not imitate a long press with repeated taps.

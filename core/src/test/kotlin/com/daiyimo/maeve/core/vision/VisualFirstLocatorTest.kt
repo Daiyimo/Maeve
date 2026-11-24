@@ -10,6 +10,18 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VisualFirstLocatorTest {
+    @Test fun exactOcrTargetKeepsRoleAmbiguityAndSurfaceEvidence() {
+        fun text(y: Int) = com.daiyimo.maeve.core.uistate.VisibleTextLine("搜索", listOf(100, y, 300, y + 40))
+        val registry = LocateRegistry()
+        val result = registry.locateTextFrame("搜索", 11L, listOf(text(80)), "com.xingin.xhs", 720 to 1600) as LocateResult.Found
+        org.junit.Assert.assertEquals("ocr", result.source)
+        org.junit.Assert.assertTrue(registry.matchesSurface(result.ref, result.snapshotId, "com.xingin.xhs", 720 to 1600))
+        org.junit.Assert.assertFalse(registry.matchesSurface(result.ref, result.snapshotId, "com.tencent.mm", 720 to 1600))
+        org.junit.Assert.assertFalse(registry.matchesSurface(result.ref, result.snapshotId, "com.xingin.xhs", 1600 to 720))
+        val ambiguous = registry.locateTextFrame("搜索", 11L, listOf(text(80), text(250)), "com.xingin.xhs", 720 to 1600) as LocateResult.NotFound
+        org.junit.Assert.assertEquals("element_ambiguous", ambiguous.reason)
+    }
+
     private fun locator(screen: ScreenPort, model: FakeModel) =
         Locator(screen, VisionService(model, JvmTestImageOps), LocateRegistry(), ScreenFamily("phone", "p"))
 

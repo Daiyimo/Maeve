@@ -110,6 +110,19 @@ sealed interface RunEvent {
         val callId: String? = null,
     ) : RunEvent
 
+    /** End-to-end timing, also emitted for actions refused or cancelled before dispatch. */
+    @Serializable
+    @SerialName("action_timing")
+    data class ActionTiming(
+        override val atMs: Long,
+        val step: Int,
+        val tool: String,
+        val callId: String,
+        val source: String,
+        val elapsedMs: Long,
+        val phasesMs: Map<String, Long>,
+    ) : RunEvent
+
     /** 回放路线走到第 [step]/[total] 步;[matched] 为 false 表示在此交还给模型。 */
     @Serializable
     @SerialName("replay")
@@ -409,6 +422,7 @@ sealed interface RunEvent {
         val outcome: String,
         val answerOrReason: String,
         val kind: String? = null,
+        val cancellationSource: String? = null,
     ) : RunEvent
 
     /**

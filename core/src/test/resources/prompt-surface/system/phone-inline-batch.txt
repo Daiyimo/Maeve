@@ -409,15 +409,16 @@ phone on the main screen at the same time.
 - If back does not change the page, use the page's own back control instead
   of pressing back again.
 
-==== tools (37) ====
+==== tools (40) ====
 wait #8ed080dc3f35
+report_plan #4ac0899d8c38
 ask_user #9aba9bc58f9e
 request_confirmation #0191561e8e04
 end_not_done #cbdad9decd9e
 view_past_screens #ffbc0c2b9665
 hand_to_user #8af7d38230f9
 handle_obstacle #1a00c1e71b3c
-do_steps #7f1b35d10b31
+do_steps #8b327326c565
 phone_observe #4afaedb18d15
 phone_list_elements #25a7cf83dc2b
 phone_tap #2f363f525e2b
@@ -436,8 +437,10 @@ phone_wait #b5b318409c0a
 phone_event #45093cbd4ca1
 phone_dialog #ffdf9f3048b0
 phone_gesture #b4c09a3789c3
+phone_long_press #7ed1068d19b6
+phone_drag #2c0ff2665e0e
 phone_set_wheel #90671f37593d
-phone_run #3c97e8a25ed9
+phone_run #be96c90d8b97
 phone_system_command #02c411ea091d
 phone_list_apps #701826b59e30
 phone_launch_app #858a22609fed

@@ -81,7 +81,12 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
 
     private suspend fun visualFirst(): Boolean = VisualFirstPolicy.applies(screen.currentPackage())
 
-    suspend fun locate(target: String, text: String?): LocateResult {
+    suspend fun locate(target: String, text: String?, role: String? = null, field: Boolean = false): LocateResult {
+        val description = buildString {
+            append(target)
+            if (role != null) append(" (required role: ").append(role.take(80)).append(')')
+            if (field) append(" (must be an editable text field)")
+        }
         val visual = visualFirst()
         // 只有非视觉优先且按原文核对元素表时才需要两帧,用来确认读树期间画面没变。
         val first = if (text == null || visual) null else when (val shot = capture(visual)) {
@@ -89,15 +94,19 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
             is Shot.Missing -> return shot.asNotFound()
         }
         val elements = if (text != null && !visual) readElements(visual) else null
+        val packageName = screen.currentPackage()
+        val viewport = screen.viewport()
         val second = capture(visual).let { it as? Shot.Ok ?: return (it as Shot.Missing).asNotFound() }
         val synced = first != null && elements != null && hamming(first.hash, second.hash) <= LOCATE_SCREEN_CHANGE
 
         if (text != null && synced) {
-            val hit = exactMatch(elements, text)
+            val hit = exactMatch(elements.filter { e ->
+                (!field || e.editable) && (role == null || e.role.equals(role, ignoreCase = true))
+            }, text)
             if (hit != null) {
                 val b = hit.bounds
                 val x = mid(b[0], b[2]); val y = mid(b[1], b[3])
-                val (ref, sid) = registry.put(x, y, second.hash)
+                val (ref, sid) = registry.put(x, y, second.hash, packageName, viewport)
                 return LocateResult.Found(ref, sid, x, y, intArrayOf(b[0], b[1], b[2], b[3]), null, "elements", null)
             }
         }
@@ -105,7 +114,7 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
         clearForVision(visual)?.let { return it.asNotFound() }
         val (locatePrompt, confirmPrompt) = PROMPTS
         val box = try {
-            parseBox(vision.ask(locatePrompt, if (text != null) "$target (label: \"$text\")" else target, listOf(second.png)))
+            parseBox(vision.ask(locatePrompt, if (text != null) "$description (label: \"$text\")" else description, listOf(second.png)))
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
             return LocateResult.NotFound("vision_unavailable", "Locating by sight failed this time. ${m.notFoundNext}")
         } ?: return LocateResult.NotFound("not_found", "The described element was not found on the screen. ${m.notFoundNext}")
@@ -125,7 +134,7 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
         val boxArr = intArrayOf(box.l, box.t, box.r, box.b)
         val confirmed = try {
             val framed = vision.ops.drawFrame(second.png, boxArr)
-            YES.containsMatchIn(vision.ask(confirmPrompt.replace("{target}", target), "Yes or no?", listOf(framed)).trim())
+            YES.containsMatchIn(vision.ask(confirmPrompt.replace("{target}", description), "Yes or no?", listOf(framed)).trim())
         } catch (e: CancellationException) { throw e } catch (e: Exception) {
             return LocateResult.NotFound("vision_unavailable", "Locating by sight failed this time. ${m.notFoundNext}")
         }
@@ -137,14 +146,17 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
         val visionOnly = !vision.groundingVerified && !nameChecked && nothingToCheckAgainst(text, visual)
         if (!vision.groundingVerified && !nameChecked && !visionOnly) {
             val again = try {
-                secondLook(target, text, box, second.png, locatePrompt, confirmPrompt)
+                secondLook(description, text, box, second.png, locatePrompt, confirmPrompt)
             } catch (e: CancellationException) { throw e } catch (e: Exception) {
                 return LocateResult.NotFound("vision_unavailable", "Locating by sight failed this time. ${m.notFoundNext}")
             }
             if (!again) return LocateResult.NotFound("unverified_grounding", m.uncorroborated)
         }
 
-        val (ref, sid) = registry.put(x, y, second.hash)
+        if (screen.currentPackage() != packageName || screen.viewport() != viewport) {
+            return LocateResult.NotFound("screen_changed", "The foreground app or orientation changed during target resolution.")
+        }
+        val (ref, sid) = registry.put(x, y, second.hash, packageName, viewport)
         if (visionOnly) return LocateResult.Found(ref, sid, x, y, boxArr, box.seen, "vision", m.visionOnly, unverified = true)
         return LocateResult.Found(ref, sid, x, y, boxArr, box.seen, "vision", m.checkSeen.takeUnless { nameChecked && box.seen != null })
     }

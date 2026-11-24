@@ -48,6 +48,8 @@ class ToolExecution(
     val recordFrame: ByteArray? = null,
     /** The screen port already confirmed that the screen settled after the action. */
     val screenSettled: Boolean = false,
+    /** 端口明确报告的投递状态;null 表示旧工具未报告,由执行入口按保守规则补。 */
+    val delivery: ActionDelivery? = null,
 ) {
     val image: ByteArray? get() = images.firstOrNull()
 
@@ -57,9 +59,10 @@ class ToolExecution(
         record: JsonObject = this.record, screenElements: JsonArray? = this.screenElements, imageIds: List<Int?> = this.imageIds,
         observations: List<Observation> = this.observations, place: Place? = this.place, waitMs: Long = this.waitMs,
         recordFrame: ByteArray? = this.recordFrame, screenSettled: Boolean = this.screenSettled,
+        delivery: ActionDelivery? = this.delivery,
     ) = ToolExecution(content, changed = changed, outcome = outcome, frame = frame, images = images, record = record,
         screenElements = screenElements, imageIds = imageIds, observations = observations, place = place, waitMs = waitMs,
-        recordFrame = recordFrame, screenSettled = screenSettled)
+        recordFrame = recordFrame, screenSettled = screenSettled, delivery = delivery)
 
     /** 另读到了 [more]。 */
     fun observing(vararg more: Observation?): ToolExecution = more.filterNotNull().let { if (it.isEmpty()) this else with(observations = observations + it) }

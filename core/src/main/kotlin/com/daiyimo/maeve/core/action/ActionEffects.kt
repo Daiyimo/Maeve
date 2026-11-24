@@ -2,6 +2,7 @@ package com.daiyimo.maeve.core.action
 
 import com.daiyimo.maeve.core.io.AtomicFiles
 import com.daiyimo.maeve.core.model.Part
+import com.daiyimo.maeve.core.tool.ActionDelivery
 import com.daiyimo.maeve.core.tool.ToolExecution
 import java.io.File
 import java.security.MessageDigest
@@ -119,7 +120,10 @@ class ActionEffects(
         if (unknown) throw Blocked("effect_unknown")
     }
 
-    suspend fun execute(call: Part.ToolCall, origin: Origin, approvalDigest: String? = null, action: suspend () -> ToolExecution): ToolExecution = store.lock(scope).withLock {
+    suspend fun execute(
+        call: Part.ToolCall, origin: Origin, approvalDigest: String? = null,
+        outward: Boolean = false, action: suspend () -> ToolExecution,
+    ): ToolExecution = store.lock(scope).withLock {
         val invocation = ActionEffectStore.digest(Json.encodeToString(listOf(runId, origin.policy.source, origin.step.toString(), call.id)))
         val receipt = try {
             withContext(Dispatchers.IO) { store.begin(scope, runId, invocation, call, executionSession, approvalDigest) }
@@ -132,12 +136,16 @@ class ActionEffects(
             if (failure is CancellationException) throw failure
             throw Blocked("effect_unknown").apply { initCause(failure) }
         }
+        val content = result.content
+        val effect = (content["effect"] as? JsonObject)?.get("kind")
+        val uncertain = result.delivery == ActionDelivery.Unknown || content["delivery"] == JsonPrimitive("unknown") ||
+            content["submissionUnconfirmed"] == JsonPrimitive(true) || content["error"] == JsonPrimitive("action_timeout") ||
+            outward && effect == JsonPrimitive("no_effect")
         val state = when {
-            result.content["executed"] == JsonPrimitive(false) -> ActionEffectStore.State.NotApplied
-            result.content["ok"] == JsonPrimitive(true) -> ActionEffectStore.State.Applied
-            // 干净地报了失败(ok=false):动作确定没生效,记成 NotApplied,不再卡住后面的写动作;
-            // 只有既没说成功、也没说没执行、连 ok 都没有的畸形结果才算 Unknown(真不知道有没有生效)
-            result.content["ok"] == JsonPrimitive(false) -> ActionEffectStore.State.NotApplied
+            // 只有明确未投递/未执行才能证明 NotApplied;sent + ok=false 仍可能已经产生副作用。
+            result.delivery == ActionDelivery.NotSent || content["delivery"] == JsonPrimitive("not_sent") || content["executed"] == JsonPrimitive(false) -> ActionEffectStore.State.NotApplied
+            uncertain -> ActionEffectStore.State.Unknown
+            content["ok"] == JsonPrimitive(true) -> ActionEffectStore.State.Applied
             else -> ActionEffectStore.State.Unknown
         }
         try {

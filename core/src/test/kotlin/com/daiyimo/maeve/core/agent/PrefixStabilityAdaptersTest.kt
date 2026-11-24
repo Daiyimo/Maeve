@@ -137,7 +137,7 @@ class PrefixStabilityAdaptersTest {
         override val replay = "TS"
         // 请求字节比另外三种略少,离触发点只差一点:提示词或工具说明长短一变,越过触发点的那一步就可能和另外三种差一步
         // (曾经是 13、24);现在和另外三种同一步越过
-        override val compactions = listOf(12, 22)
+        override val compactions = listOf(12, 21, 30)
         override fun zone0(body: JsonObject) = body["systemInstruction"].toString() + body["tools"]
         override fun messages(body: JsonObject) = body["contents"]!!.jsonArray.map { it.toString() }
         override fun tools(body: JsonObject) = body["tools"]!!.jsonArray.flatMap { t ->

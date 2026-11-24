@@ -98,13 +98,16 @@ internal class TypeText(f: ScreenFamily) : ScreenTool(f, "type_text") {
         val typed = type()
         if (typed !is ActionResult.Ok) return ctx.action(typed)
         val readback = typed.verification
-        if (readback == Verification.MISMATCH) return notApplied(readback)
+        if (readback == Verification.MISMATCH) return notApplied(readback, typed.changed)
         val movedTo = typed.appSwitched
         // 读不回来就不按回车:可能把没打进去的内容提交出去;前台被切走时回车会打到别的 App 上
-        val sendEnter = withEnter && readback != Verification.UNKNOWN && movedTo == null
+        val sendEnter = withEnter && readback == Verification.MATCH && movedTo == null
         if (sendEnter) {
             val k = ctx.screen.pressKey(ENTER_KEY)
-            if (k !is ActionResult.Ok) return ctx.action(k)
+            if (k !is ActionResult.Ok) {
+                val failed = ctx.action(k)
+                return failed.with(content = JsonObject(failed.content + ("submissionUnconfirmed" to JsonPrimitive(true))))
+            }
         }
         return ToolExecution(typedResult(typed, input, readback, sendEnter, withEnter), changed = typed.changed)
     }
@@ -170,11 +173,11 @@ private fun annotateLocated(ctx: ToolContext, field: FieldAim?, r: ToolExecution
 }
 
 /** 读回来和打进去的不一致:没算打进去,标记可恢复,让模型换个办法。 */
-private fun notApplied(v: Verification) = ToolExecution(buildJsonObject {
+private fun notApplied(v: Verification, changed: Boolean?) = ToolExecution(buildJsonObject {
     put("ok", false); put("error", "action_not_applied"); put("verification", v.wire)
     put("message", Feedback["type.not_applied"])
     put("recoverable", true)
-})
+}, changed = changed)
 
 /** 输入成功的结果:打了多少字、按没按回车、是不是密码框,外加该提示的话。 */
 private fun typedResult(typed: ActionResult.Ok, input: String, readback: Verification?, sendEnter: Boolean, withEnter: Boolean) = okObj {
@@ -193,7 +196,7 @@ private fun typedResult(typed: ActionResult.Ok, input: String, readback: Verific
 private fun typeHints(typed: ActionResult.Ok, readback: Verification?, withEnter: Boolean): List<String> = listOfNotNull(
     typed.hint,
     (if (withEnter) Feedback.format("type.unverified_enter", "unverified" to Feedback["type.unverified"]) else Feedback["type.unverified"])
-        .takeIf { readback == Verification.UNKNOWN },
+        .takeIf { readback == null || readback == Verification.UNKNOWN },
     typed.appSwitched?.let { switchHint(it, typed.switchedByTarget).let { h -> if (withEnter) Feedback.format("type.switched_enter", "switch" to h) else h } },
 )
 

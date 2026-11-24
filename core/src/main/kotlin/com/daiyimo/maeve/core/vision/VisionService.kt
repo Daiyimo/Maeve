@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.core.vision
 
+import com.daiyimo.maeve.core.action.timedActionPhase
 import com.daiyimo.maeve.core.model.Author
 import com.daiyimo.maeve.core.model.ChatModel
 import com.daiyimo.maeve.core.model.Message
@@ -18,7 +19,7 @@ class VisionService(private val model: ChatModel, val ops: ImageOps) {
     /** 不带工具的一次调用;失败抛 [ModelError]。 */
     suspend fun ask(system: String, text: String, images: List<ByteArray>): String {
         val parts = listOf(Part.Text(text)) + images.map { ModelImage.part(it, ops) }
-        val reply = model.complete(system, listOf(Message(Role.User, parts, Author.Maeve)), emptyList())
+        val reply = timedActionPhase("visionModel") { model.complete(system, listOf(Message(Role.User, parts, Author.Maeve)), emptyList()) }
         val answer = reply.parts.filterIsInstance<Part.Text>().joinToString("") { it.text }
         if (answer.isBlank()) throw ModelError.BadResponse("视觉模型没有给出回答")
         return answer

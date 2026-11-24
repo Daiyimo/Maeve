@@ -34,6 +34,17 @@ class HistoryPrunerTest {
     private val cut = HistoryPruner.Cut(2)
     private fun full(ms: List<Message>) = results(ms).filter { "@e1" in it.content }.map { it.callId }
 
+    @Test fun denseInlinePhoneScreenKeepsActionableRefsAndDropsDuplicateTree() {
+        val long = "x".repeat(9_000)
+        val result = Part.ToolResult("c", """{"ok":true,"screen":{"currentApp":"com.test","snapshotId":"p1","elements":[{"ref":"@e1"}],"tree":["$long"]}}""", false)
+        val input = listOf(Message(Role.Tool, listOf(result), Author.Maeve), shot(1), shot(2), shot(3))
+        val projected = HistoryPruner.compactPhoneEvidence(input)
+        val content = results(projected).single().content
+        assertTrue("treeOmitted" in content && "@e1" in content && long !in content)
+        assertEquals(input.drop(1), projected.drop(1))
+        assertEquals(result, results(input).single())
+    }
+
     @Test fun cutLineKeepsTheLastWindowRounds() {
         assertEquals(listOf(0, 0, 1, 2, 3), (1..5).map { cut.before(it) })
         assertEquals(listOf(0, 1, 2), (1..3).map { HistoryPruner.LAST.before(it) })

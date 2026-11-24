@@ -13,6 +13,7 @@ import com.daiyimo.maeve.core.prompt.Feedback
 import com.daiyimo.maeve.core.prompt.Prompts
 import com.daiyimo.maeve.core.record.Redactor
 import com.daiyimo.maeve.core.record.RunEvent
+import com.daiyimo.maeve.core.tool.ActionDelivery
 import com.daiyimo.maeve.core.tool.ToolDispatcher
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.Until
@@ -67,13 +68,6 @@ class BatchRunner(
     /** 用户此刻有没有新插话在等(只看内存里的收件箱);有就在两个子步之间停下,交给循环去送。 */
     private val steerWaiting: () -> Boolean = { false },
 ) {
-    private class Stop(
-        val index: Int, val reason: String, val entry: JsonObject, val executed: Boolean, val extra: JsonObject = JsonObject(emptyMap()),
-        /** 停下之后没做的那些子步也各给一条结果(新插话时),子步和结果一一对上。 */
-        val rest: List<JsonElement> = emptyList(),
-    )
-
-    /** 所有子步里出现过的守卫结论;循环据此判断这一步有没有守卫提醒。 */
     val verdicts = mutableListOf<GuardVerdict>()
     private var advice: String? = null
 
@@ -86,10 +80,13 @@ class BatchRunner(
         var last: ToolExecution? = null
         // 各子步读到的观察(已记进账本);整批的结果带着它们,裁剪时按它们的形态缩短
         val seen = mutableListOf<Observation>()
-        var stop: Stop? = null
-        fun skipFrom(i: Int): Stop {
-            val skipped = steps.drop(i).map { entry(it.tool) { put("ok", false); put("error", NEW_MESSAGE); put("executed", false) } }
-            return Stop(i, NEW_MESSAGE, skipped.first(), executed = false, rest = skipped.drop(1))
+        var stop: BatchStop? = null
+        fun skipFrom(i: Int): BatchStop {
+            val skipped = steps.drop(i).map { entry(it.tool) {
+                put("ok", false); put("error", NEW_MESSAGE)
+                put("delivery", ActionDelivery.NotSent.wire); put("executed", false)
+            } }
+            return BatchStop(i, NEW_MESSAGE, skipped.first(), executed = false, rest = skipped.drop(1))
         }
         for ((i, s) in steps.withIndex()) {
             if (i > 0 && steerWaiting()) {
@@ -101,11 +98,15 @@ class BatchRunner(
             val out = executor.run(Part.ToolCall("$callId.${i + 1}", s.tool, s.argsJson), Origin.Batch(step))
             val before = out.before
             note(s, null, before)
-            fun notRun(reason: String, extra: JsonObject = JsonObject(emptyMap()), message: String? = null) = Stop(i, reason, entry(s.tool) {
-                put("ok", false); put("error", reason); put("executed", false)
+            fun notRun(
+                reason: String, extra: JsonObject = JsonObject(emptyMap()), message: String? = null,
+                delivery: ActionDelivery = ActionDelivery.NotSent, executed: Boolean = delivery != ActionDelivery.NotSent,
+            ) = BatchStop(i, reason, entry(s.tool) {
+                put("ok", false); put("error", reason)
+                put("delivery", delivery.wire); put("executed", executed)
                 message?.let { put("message", it) }
                 if (before.isNotEmpty()) put("guard", JsonArray(before.map { it.toJson() }))
-            }, executed = false, extra = extra)
+            }, executed = executed, extra = extra)
             val exec = when (out) {
                 is ActionOutcome.Ran -> out.exec
                 is ActionOutcome.Refused -> {
@@ -116,7 +117,8 @@ class BatchRunner(
                     else notRun(out.code, buildJsonObject { put("action", hit.action.name); put("matched", hit.matched) }, message)
                     break
                 }
-                is ActionOutcome.Cancelled -> { stop = notRun("cancelled"); break }
+                // Cancelled is returned only after the tool result reached follow-up; the action may already have been dispatched.
+                is ActionOutcome.Cancelled -> { stop = notRun("cancelled", delivery = ActionDelivery.Unknown); break }
             }
             // 这一步之前的停留、间隔或这次等待被用户插话截断:这一步什么也没做,和后面的一起跳过,交给循环去送那句话
             if (exec.content["error"] == JsonPrimitive(NEW_MESSAGE)) {
@@ -160,8 +162,11 @@ class BatchRunner(
                 review && waited?.met != true -> "screen_needs_review"
                 else -> null
             }
+            val delivery = deliveryOf(exec)
+            val executed = delivery != ActionDelivery.NotSent
             val e = entry(s.tool) {
                 put("ok", reason == null)
+                put("delivery", delivery.wire); put("executed", executed)
                 exec.changed?.let { put("changed", it) }
                 effectKind(c)?.let { put("effect", it) }
                 (c["verification"] as? JsonPrimitive)?.let { put("verification", it) }
@@ -176,14 +181,17 @@ class BatchRunner(
                 (c["limitReached"] as? JsonPrimitive)?.let { put("limitReached", it); (c["hint"] as? JsonPrimitive)?.let { h -> put("hint", h) } }
                 if (all.isNotEmpty()) put("guard", JsonArray(all.map { it.toJson() }))
             }
-            if (reason != null) { stop = Stop(i, reason, JsonObject(e + ("executed" to JsonPrimitive(true))), executed = true); break }
+            if (reason != null) { stop = BatchStop(i, reason, e, executed = executed); break }
             // 等的时候用户插了话:后面的子步在下一轮开头照常跳过;这已是最后一步时就停在它这里
             if (waited?.stopped == UntilOutcome.NEW_MESSAGE && i == steps.lastIndex) {
-                stop = Stop(i, NEW_MESSAGE, JsonObject(e + ("executed" to JsonPrimitive(true))), executed = true); break
+                stop = BatchStop(i, NEW_MESSAGE, e, executed = executed); break
             }
             entries += e
             if (guards.stop != null && i < steps.size - 1) {
-                stop = Stop(i + 1, "guard_stopped", entry(steps[i + 1].tool) { put("ok", false); put("error", "guard_stopped"); put("executed", false) }, executed = false)
+                stop = BatchStop(i + 1, "guard_stopped", entry(steps[i + 1].tool) {
+                    put("ok", false); put("error", "guard_stopped")
+                    put("delivery", ActionDelivery.NotSent.wire); put("executed", false)
+                }, executed = false)
                 break
             }
         }
@@ -191,52 +199,27 @@ class BatchRunner(
     }
 
     private fun finish(
-        steps: List<BatchStep>, done: List<JsonElement>, stop: Stop?, last: ToolExecution?, callId: String, step: Int, seen: List<Observation>,
+        steps: List<BatchStep>, done: List<JsonElement>, stop: BatchStop?, last: ToolExecution?, callId: String, step: Int, seen: List<Observation>,
     ): ToolExecution {
         val completed = stop?.index ?: steps.size
         executor.recorder.event(RunEvent.Batch(executor.recorder.now(), completed, steps.size, stop != null, stop?.reason))
         val screen = last?.content?.get("screen")
+        val stepEntries = done + listOfNotNull(stop?.entry) + stop?.rest.orEmpty()
+        val delivery = stepEntries.fold(ActionDelivery.NotSent) { acc, raw ->
+            val current = deliveryOf((raw as? JsonObject) ?: return@fold ActionDelivery.Unknown)
+            when {
+                acc == ActionDelivery.Unknown || current == ActionDelivery.Unknown -> ActionDelivery.Unknown
+                acc == ActionDelivery.Sent || current == ActionDelivery.Sent -> ActionDelivery.Sent
+                else -> ActionDelivery.NotSent
+            }
+        }
         val content = buildJsonObject {
             put("ok", stop == null)
-            when (stop?.reason) {
-                null -> Unit
-                "confirmation_required" -> {
-                    put("error", "confirmation_required")
-                    stop.extra.forEach { (k, v) -> put(k, v) }
-                    val what = stop.extra["matched"]?.let { (it as JsonPrimitive).content }
-                    put("message", "Step ${stop.index + 1} of ${steps.size} spends money ($what). " +
-                        "It was not run, and the steps after it were not run either. Payment steps never go in do_steps: " +
-                        if (executor.confirms) "follow the step's message (request_confirmation, or hand_to_user for a payment), then do that step on its own as a single tool call."
-                        else "do it on its own as a single tool call, not as part of a batch.")
-                    put("counts_as_failure", false)
-                }
-                NEW_MESSAGE -> {
-                    put("error", "batch_stopped")
-                    put("reason", NEW_MESSAGE)
-                    put("message", (if (stop.executed) "Step ${stop.index + 1} of ${steps.size} was run, but waiting for its condition was cut short"
-                        else "Steps ${stop.index + 1}-${steps.size} of ${steps.size} were skipped") + " to handle a new message from the user. " +
-                        "Read the message first, then decide what to do next.")
-                    put("counts_as_failure", false)
-                }
-                else -> {
-                    put("error", "batch_stopped")
-                    put("reason", stop.reason)
-                    val n = "Step ${stop.index + 1} of ${steps.size}"
-                    if (appAccessDenied(stop.reason)) {
-                        // 权限拒绝不是普通的操作失败:不要建议「换个批继续」,把下一步该怎么做说清楚
-                        val detail = (stop.entry["message"] as? JsonPrimitive)?.contentOrNull
-                            ?: "Step ${stop.index + 1} of ${steps.size} was not run (${stop.reason})."
-                        put("message", "$detail The remaining steps in this batch were not run.")
-                        put("retryable", false)
-                    } else {
-                        put("message", (if (stop.executed) "$n was run but did not pass its check (${stop.reason})" else "$n was not run (${stop.reason})") +
-                            "; the steps after it were not run. Check the screen, then continue one step at a time or with a new batch.")
-                    }
-                }
-            }
+            putBatchStop(stop, steps.size, executor.confirms)
             advice?.let { put("advice", it) }
             put("completed", completed); put("total", steps.size)
-            put("steps", JsonArray(done + listOfNotNull(stop?.entry) + stop?.rest.orEmpty()))
+            put("delivery", delivery.wire)
+            put("steps", JsonArray(stepEntries))
             screen?.let { put("screen", it) }
             if (stop != null) put("recoverable", true)
         }
@@ -244,7 +227,7 @@ class BatchRunner(
         // 最后一个子步发给模型的画面(能看图的主模型才有)留给循环,接在整批结果后面
         return ToolExecution(content, changed = last?.changed, frame = if (!executor.recorder.savesScreens) last?.frame ?: last?.image else null,
             screenElements = last?.screenElements, images = last?.images.orEmpty(), imageIds = last?.imageIds.orEmpty(), place = last?.place,
-            observations = seen)
+            observations = seen, delivery = delivery)
     }
 
     private fun note(s: BatchStep, exec: ToolExecution?, v: List<GuardVerdict>) {
@@ -253,6 +236,21 @@ class BatchRunner(
     }
 
     private fun entry(tool: String, b: JsonObjectBuilder.() -> Unit) = buildJsonObject { put("tool", tool); b() }
+
+    /** Ran results normally carry typed delivery; older/read-only tools use the same conservative facts as the executor. */
+    private fun deliveryOf(exec: ToolExecution): ActionDelivery = exec.delivery
+        ?: (exec.content["delivery"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { wire -> ActionDelivery.entries.firstOrNull { it.wire == wire } }
+        ?: when {
+            exec.content["executed"] == JsonPrimitive(false) -> ActionDelivery.NotSent
+            exec.content["submissionUnconfirmed"] == JsonPrimitive(true) || exec.content["error"] == JsonPrimitive("action_timeout") -> ActionDelivery.Unknown
+            exec.content["effect"] is JsonObject || exec.changed != null || exec.content["ok"] == JsonPrimitive(true) -> ActionDelivery.Sent
+            exec.content["ok"] == JsonPrimitive(false) -> ActionDelivery.Unknown
+            else -> ActionDelivery.Unknown
+        }
+
+    private fun deliveryOf(entry: JsonObject): ActionDelivery =
+        (entry["delivery"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { wire -> ActionDelivery.entries.firstOrNull { it.wire == wire } }
+            ?: ActionDelivery.Unknown
 
     companion object {
         /** 子步因用户新插话没做时的停止原因。 */

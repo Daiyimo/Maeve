@@ -34,7 +34,7 @@ internal suspend fun ToolContext.visualFirstFailure(tool: String): ToolExecution
 internal object PhoneGroup {
     val tools: List<AgentTool> = ScreenTool.of(PHONE_FAMILY) + listOf(
         PhoneQuery, PhoneFind, PhoneExtract, PhoneCollect, PhoneWait, PhoneEventTool,
-        PhoneDialog, PhoneGesture, SetWheel, PhoneRun, PhoneCommand, ListApps, LaunchApp, AppAfterTask, ShareText, OpenLink,
+        PhoneDialog, PhoneGesture, PhoneLongPress, PhoneDrag, SetWheel, PhoneRun, PhoneCommand, ListApps, LaunchApp, AppAfterTask, ShareText, OpenLink,
         SetAlarm, SetTimer, ShowAlarms, AddCalendarEvent,
     )
 }

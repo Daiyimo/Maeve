@@ -3,7 +3,6 @@ package com.daiyimo.maeve.core.cap.phone
 import com.daiyimo.maeve.core.uistate.DOUBLE_TAP_GAP_MS
 import com.daiyimo.maeve.core.uistate.Pace
 import kotlin.math.ceil
-import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.random.Random
@@ -98,18 +97,26 @@ class GesturePacing(private val random: Random?, val limits: Limits = Limits()) 
      * 起终点几乎重合时是原地按住:只有起点和终点,时长只加长不缩短(长按仍然够长)。
      * [Instant]:点就是 [path],按路径长短匀速分配时间,时长正是 [durationMs]。
      */
-    fun stroke(path: List<Pair<Double, Double>>, durationMs: Long, bow: Boolean = false, bounds: Pair<Int, Int>? = null): Stroke {
+    fun stroke(
+        path: List<Pair<Double, Double>>, durationMs: Long, bow: Boolean = false, bounds: Pair<Int, Int>? = null,
+        holdMs: Long = 0, restMs: Long = 0,
+    ): Stroke {
         require(path.size >= 2) { "a stroke needs at least two points" }
         val total = durationMs.coerceAtLeast(1)
-        val r = random ?: return Stroke(uniform(path, total))
+        val hold = holdMs.coerceIn(0, total - 1)
+        val rest = restMs.coerceIn(0, total - hold - 1)
+        val travel = (total - hold - rest).coerceAtLeast(1)
+        val r = random ?: return Stroke(GestureTimeline.withHoldAndRest(GestureTimeline.uniform(path, travel), hold, rest, total))
         val start = path.first()
         val end = path.last()
-        val length = lengthOf(path)
+        val length = GestureTimeline.lengthOf(path)
         if (length < limits.stillPx) {
-            val hold = (total * (1 + r.nextDouble(0.0, limits.holdStretch))).roundToLong()
-            return Stroke(listOf(Point(start.first, start.second, 0), Point(end.first, end.second, hold)))
+            val held = (travel * (1 + r.nextDouble(0.0, limits.holdStretch))).roundToLong()
+            return Stroke(GestureTimeline.withHoldAndRest(listOf(Point(start.first, start.second, 0), Point(end.first, end.second, held)), hold, rest, total))
         }
-        val t = (total * (1 + r.nextDouble(-limits.durationJitter, limits.durationJitter))).roundToLong().coerceAtLeast(1)
+        // hold/rest 是调用方明确分配的总时间;移动段不能再抖动侵占它们,否则最后一个点会越过抬手时刻。
+        val t = if (hold != 0L || rest != 0L) travel
+            else (travel * (1 + r.nextDouble(-limits.durationJitter, limits.durationJitter))).roundToLong().coerceAtLeast(1)
         val shape = if (bow && path.size == 2) {
             val c = Pace.control(start, end, Pace.bow(r, length, limits.bowFraction, limits.maxBowPx))
             (0..CURVE_SEGMENTS).map { Pace.bezier(start, c, end, it.toDouble() / CURVE_SEGMENTS) }
@@ -117,17 +124,18 @@ class GesturePacing(private val random: Random?, val limits: Limits = Limits()) 
         val endSpeed = if (t >= limits.dragMs) 0.0 else r.nextDouble(limits.flingEndSpeed.start, limits.flingEndSpeed.endInclusive)
         val step = Pace.pick(r, limits.sampleMs).coerceAtLeast(1)
         val n = ceil(t.toDouble() / step).toInt().coerceIn(1, limits.maxPoints - 1)
-        val cum = cumulative(shape)
+        val cum = GestureTimeline.cumulative(shape)
         val points = (0..n).map { i ->
             val tm = if (i == n) t else (t * i.toDouble() / n).roundToLong()
             val (x, y) = when (i) {
                 0 -> start
                 n -> end
-                else -> at(shape, cum, cum.last() * progress(i.toDouble() / n, endSpeed))
+                else -> GestureTimeline.at(shape, cum, cum.last() * GestureTimeline.progress(i.toDouble() / n, endSpeed))
             }
             Point(x, y, tm)
         }
-        return Stroke(if (bounds == null) points else points.map { it.copy(x = it.x.coerceIn(0.0, bounds.first - 1.0), y = it.y.coerceIn(0.0, bounds.second - 1.0)) })
+        val bounded = if (bounds == null) points else points.map { it.copy(x = it.x.coerceIn(0.0, bounds.first - 1.0), y = it.y.coerceIn(0.0, bounds.second - 1.0)) }
+        return Stroke(GestureTimeline.withHoldAndRest(bounded, hold, rest, total))
     }
 
     companion object {
@@ -143,47 +151,6 @@ class GesturePacing(private val random: Random?, val limits: Limits = Limits()) 
         /** 像人手的节奏;[random] 可换成固定种子(测试)。 */
         fun human(random: Random = Random.Default, limits: Limits = Limits()) = GesturePacing(random, limits)
 
-        /**
-         * 时间走到 [u](0..1)时走过的路程比例:三次 Hermite,起步速度 0,收尾速度为平均速度的 [endSpeed] 倍(0..3 之间单调)。
-         * [endSpeed] 为 0 时两头慢中间快、停稳再抬手;为 1 时松手速度和匀速一样。
-         */
-        internal fun progress(u: Double, endSpeed: Double): Double {
-            val u2 = u * u
-            val u3 = u2 * u
-            return (-2 * u3 + 3 * u2) + endSpeed * (u3 - u2)
-        }
-
-        private fun lengthOf(path: List<Pair<Double, Double>>): Double = cumulative(path).last()
-
-        private fun cumulative(path: List<Pair<Double, Double>>): DoubleArray {
-            val out = DoubleArray(path.size)
-            for (i in 1 until path.size) out[i] = out[i - 1] + hypot(path[i].first - path[i - 1].first, path[i].second - path[i - 1].second)
-            return out
-        }
-
-        /** 沿折线走过 [s] 时的位置。 */
-        private fun at(path: List<Pair<Double, Double>>, cum: DoubleArray, s: Double): Pair<Double, Double> {
-            var i = 1
-            while (i < path.size - 1 && cum[i] < s) i++
-            val seg = cum[i] - cum[i - 1]
-            val f = if (seg <= 0) 1.0 else ((s - cum[i - 1]) / seg).coerceIn(0.0, 1.0)
-            val (x0, y0) = path[i - 1]
-            val (x1, y1) = path[i]
-            return x0 + (x1 - x0) * f to y0 + (y1 - y0) * f
-        }
-
-        /** 不加节奏时的一笔:就是给定的点,时间按路程匀速分配(和系统按一条路径匀速走的一样)。 */
-        private fun uniform(path: List<Pair<Double, Double>>, total: Long): List<Point> {
-            val cum = cumulative(path)
-            val length = cum.last()
-            return path.mapIndexed { i, (x, y) ->
-                val t = when {
-                    i == path.lastIndex -> total
-                    length <= 0 -> 0L
-                    else -> (total * cum[i] / length).roundToLong()
-                }
-                Point(x, y, t)
-            }
-        }
+        internal fun progress(u: Double, endSpeed: Double): Double = GestureTimeline.progress(u, endSpeed)
     }
 }

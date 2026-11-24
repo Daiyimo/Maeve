@@ -21,6 +21,8 @@ class RunInbox {
     @Volatile private var handler: Handler? = null
     @Volatile private var closed = false
     @Volatile private var stopRequested = false
+    @Volatile var cancellationSource: String? = null
+        private set
     private var remaining: List<UserSteer> = emptyList()
     /** 每句插话都唤醒正在等待的模型请求(撤掉它,带着这句话重问);正在执行的工具不受影响。 */
     internal val redirects = Channel<Unit>(Channel.CONFLATED)
@@ -35,9 +37,10 @@ class RunInbox {
 
     val wasCancelled: Boolean get() = stopRequested
 
-    fun cancel(): InputReceipt {
+    fun cancel(source: String = "request"): InputReceipt {
         val to = synchronized(lock) {
             if (closed) return InputReceipt.Closed
+            if (cancellationSource == null) cancellationSource = source
             stopRequested = true
             handler
         }

@@ -125,6 +125,26 @@ object HistoryPruner {
         }
     }
 
+    /** Project duplicated inline tree data consistently, including on the first request that sees it. */
+    internal fun compactPhoneEvidence(messages: List<Message>): List<Message> = messages.map { message ->
+        if (message.author == Author.User) return@map message
+        val parts = message.parts.map { part -> if (part is Part.ToolResult) compactScreenTree(part) else part }
+        if (parts == message.parts) message else message.copy(parts = parts)
+    }
+
+    /** For dense phone screens the element table already carries the actionable refs. Keep explicit tree queries intact. */
+    private fun compactScreenTree(part: Part.ToolResult): Part.ToolResult {
+        val content = part.content
+        if (content.length < 8_000 || "\"tree\"" !in content) return part
+        val obj = parse(content) ?: return part
+        val screen = obj[SCREEN] as? JsonObject ?: return part
+        val elements = screen["elements"] as? JsonArray ?: return part
+        if ("currentApp" !in screen || screen["tree"] == null || elements.isEmpty() ||
+            screen["truncated"] == JsonPrimitive(true) || screen["full"] == JsonPrimitive(false)) return part
+        val compact = JsonObject(screen - "tree" + ("treeOmitted" to JsonPrimitive(true)))
+        return part.copy(content = JsonObject(obj + (SCREEN to compact)).toString())
+    }
+
     private fun shrinkMessage(m: Message, names: Map<String, Verb?>, screens: Map<String, Boolean>): Message {
         val parts = m.parts.map { p ->
             when (p) {

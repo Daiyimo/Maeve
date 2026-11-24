@@ -2,15 +2,11 @@ package com.daiyimo.maeve.core.guard
 
 import com.daiyimo.maeve.core.prompt.Feedback
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.put
-import kotlin.math.abs
-import kotlin.math.floor
 
 enum class Severity(val wire: String) { Warn("warn"), Stop("stop") }
 
@@ -24,39 +20,11 @@ data class GuardVerdict(val code: String, val severity: Severity, val evidence: 
     }
 }
 
-/** 键排序后的稳定序列化,使参数顺序不影响签名。 */
-private fun stable(e: JsonElement): String = when (e) {
-    is JsonObject -> e.keys.sorted().joinToString(",", "{", "}") { "${JsonPrimitive(it)}:${stable(e[it]!!)}" }
-    is JsonArray -> e.joinToString(",", "[", "]") { stable(it) }
-    else -> e.toString()
-}
 
-private fun num(e: JsonElement?): Double? = (e as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull
-
-private val SWIPE_KEYS = listOf("startX", "startY", "endX", "endY")
-
-/** 动作签名:忽略 reason,坐标按 50 取整,滑动只记方向。 */
-fun actionSignature(tool: String, args: JsonObject): String {
-    val n = args.toMutableMap()
-    n.remove("reason")
-    val x = num(n["x"]); val y = num(n["y"])
-    if (x != null && y != null) {
-        n["x"] = JsonPrimitive(floor(x / 50).toLong())
-        n["y"] = JsonPrimitive(floor(y / 50).toLong())
-    }
-    val s = SWIPE_KEYS.map { num(n[it]) }
-    if (s.all { it != null }) {
-        val dx = s[2]!! - s[0]!!; val dy = s[3]!! - s[1]!!
-        val vertical = abs(dy) >= abs(dx)
-        n["swipeDirection"] = JsonPrimitive("${if (vertical) "V" else "H"}${if ((if (vertical) dy else dx) < 0) "-" else "+"}")
-        SWIPE_KEYS.forEach { n.remove(it) }
-    }
-    return "$tool|${stable(JsonObject(n))}"
-}
 
 /**
- * 每次任务一份的操作守卫。只有动作确实没有效果、重复读取没有新内容或工具连续失败时才提醒并最终叫停。
- * 相同的点击/滚动和已见过的界面指纹本身不代表停滞；新的页面或读取内容会清掉无进展计数。
+ * 每次任务一份的操作守卫。动作没有效果、重复读取没有新内容、回到旧状态或工具连续失败时提醒并最终叫停。
+ * 相同的点击/滚动只有在同一屏幕上连续重复(或 ABAB)才算停滞；新的页面或读取内容会清掉对应窗口。
  */
 class OperationGuards(private val stepBudget: Int? = null) {
 
@@ -69,6 +37,8 @@ class OperationGuards(private val stepBudget: Int? = null) {
     /** 连续没有效果的动作数。 */
     private var unchanged = 0
     private var unchangedWarnedAt = 0
+    /** 同一轮无效果里,树读不出落点的次数;不借用无关的普通无效果提前叫停。 */
+    private var treeBlindActions = 0
 
     /** 到过的每个界面状态(元素表指纹)。 */
     private val seenStates = HashSet<Long>()
@@ -81,6 +51,11 @@ class OperationGuards(private val stepBudget: Int? = null) {
     /** 自上次到过新状态起做了几个动作。 */
     private var sinceNewState = 0
     private var sinceNewWarnedAt = 0
+
+    private data class CallObservation(val signature: String, val tool: String, val screen: Long? = null)
+    /** poki 的最近调用窗口:调用在 beforeAction 记下,frame 回填它之后的屏幕。 */
+    private val recentCalls = ArrayDeque<CallObservation>()
+    private var pendingCall: CallObservation? = null
 
     /** 任务的计数;画面每变一次 [epoch] 加一,各段读的计数据此作废。 */
     private val reads = GuardScope(canStop = true)
@@ -111,9 +86,18 @@ class OperationGuards(private val stepBudget: Int? = null) {
 
     private fun <T> ArrayDeque<T>.pushCapped(v: T, cap: Int = 10) { addLast(v); if (size > cap) removeFirst() }
 
-    /** 保留调用入口；动作签名不参与停滞判定。 */
-    fun beforeAction(tool: String, args: JsonObject, diagnostic: Boolean = false, scope: GuardScope = reads): List<GuardVerdict> {
-        // 相同动作可以逐页读取新内容；仅凭动作签名不能判断任务停滞。
+    /**
+     * 记下这次调用,等它之后的 [frame] 回填屏幕再判断 poki 的同调用/ABAB 窗口。
+     * [trackCall] 为 false 用于普通页面读取:不观察这次调用,但不清掉已有窗口;用户交回后调 [noteOwnerWait]。
+     */
+    fun beforeAction(
+        tool: String,
+        args: JsonObject,
+        diagnostic: Boolean = false,
+        scope: GuardScope = reads,
+        trackCall: Boolean = true,
+    ): List<GuardVerdict> {
+        pendingCall = if (trackCall) CallObservation(exactCallSignature(tool, args), tool) else null
         return emptyList()
     }
 
@@ -132,23 +116,27 @@ class OperationGuards(private val stepBudget: Int? = null) {
     fun effect(kind: String, treeBlind: Boolean = false): List<GuardVerdict> {
         effectNoted = true
         when (kind) {
-            NO_EFFECT -> unchanged += 1
-            else -> { unchanged = 0; unchangedWarnedAt = 0; return emptyList() }
-        }
-        if (treeBlind) {
-            val severity = when {
-                unchanged == 2 -> Severity.Warn
-                unchanged >= 3 -> Severity.Stop
-                else -> return emptyList()
+            NO_EFFECT -> {
+                unchanged += 1
+                if (treeBlind) treeBlindActions += 1
             }
-            return verdict("no_progress", severity, buildJsonObject {
-                put("unchanged", unchanged); put("treeBlind", true)
-            }, unchanged)
+            else -> { resetNoEffect(); return emptyList() }
         }
         return noProgress()
     }
 
+    private fun resetNoEffect() {
+        unchanged = 0
+        unchangedWarnedAt = 0
+        treeBlindActions = 0
+    }
+
     private fun noProgress(): List<GuardVerdict> {
+        if (treeBlindActions >= 2) {
+            return verdict("no_progress", if (unchanged >= 3) Severity.Stop else Severity.Warn, buildJsonObject {
+                put("unchanged", unchanged); put("treeBlind", true); put("treeBlindActions", treeBlindActions)
+            }, unchanged)
+        }
         val rung = GuardRules.climb(unchanged, GuardRules.NO_EFFECT_LADDER, unchangedWarnedAt, canStop = true) ?: return emptyList()
         unchangedWarnedAt = rung.threshold
         return verdict("no_progress", rung.severity, buildJsonObject { put("unchanged", unchanged) }, unchanged)
@@ -158,26 +146,59 @@ class OperationGuards(private val stepBudget: Int? = null) {
      * 模型拿到了一份界面(读界面,或动作结果里带的),[hash] 是它的指纹。只有「动过之后界面仍一样」才算没有效果
      * (动作已报过效果的不再重复记);单纯反复看不算。动作之后到了哪个状态还用来看回到同一状态、兜圈、一直没到新状态。
      */
-    fun frame(id: String, hash: Long): List<GuardVerdict> {
-        if (frameId == id) return emptyList()
-        val same = frameHash == hash
+    fun frame(id: String, hash: Long?): List<GuardVerdict> {
+        if (frameId == id) {
+            pendingCall = null
+            return emptyList()
+        }
+        val call = pendingCall
+        pendingCall = null
+        // 等待只读屏幕、不附带元素表时,用最近一次实际读到的屏幕判断同屏;从未读过屏时用固定未知桶。
+        val observedHash = hash ?: frameHash ?: NO_SCREEN_HASH
+        val same = frameHash == observedHash
         val didAct = acted
         val noted = effectNoted
         acted = false
         effectNoted = false
         frameId = id
-        frameHash = hash
+        frameHash = observedHash
         val out = mutableListOf<GuardVerdict>()
         if (!same) {
-            pageChanged()
-            if (seenStates.add(hash)) progress()
+            pageChanged(resetCalls = true)
+            if (trail.lastOrNull() != observedHash) {
+                trail.addLast(observedHash)
+                while (trail.size > TRAIL_KEEP) trail.removeFirst()
+            }
+            if (seenStates.add(observedHash)) progress() else out += arrived(observedHash)
+            out += cycle()
         }
         if (didAct && !noted) {
-            if (same) { unchanged += 1; out += noProgress() } else { unchanged = 0; unchangedWarnedAt = 0 }
+            if (same) { unchanged += 1; out += noProgress() } else resetNoEffect()
         }
         // 旧界面本身不能证明失败，只提醒模型评估是否有新内容或换路线。
         if (didAct) out += noNewState()
+        if (call != null) out += callStall(call, observedHash)
         return out
+    }
+
+    /** poki:最近 6 条同调用同屏,或最近 8 条同屏且调用按 ABAB 重复。 */
+    private fun callStall(call: CallObservation, hash: Long): List<GuardVerdict> {
+        recentCalls.addLast(call.copy(screen = hash))
+        while (recentCalls.size > CALL_WINDOW) recentCalls.removeFirst()
+        val repeated = recentCalls.takeLast(SAME_CALL_STEPS)
+        if (repeated.size == SAME_CALL_STEPS && repeated.all { it.signature == call.signature && it.screen == hash }) {
+            return verdict("repeating_action", Severity.Stop, buildJsonObject {
+                put("tool", call.tool); put("repeats", SAME_CALL_STEPS); put("sameScreen", true)
+            }, SAME_CALL_STEPS)
+        }
+        val alternating = recentCalls.takeLast(ABAB_STEPS)
+        if (alternating.size == ABAB_STEPS && alternating.all { it.screen == hash } &&
+            (0 until (ABAB_STEPS - 2)).all { alternating[it].signature == alternating[it + 2].signature }) {
+            return verdict("repeating_action", Severity.Stop, buildJsonObject {
+                put("pattern", "abab"); put("steps", ABAB_STEPS); put("sameScreen", true)
+            }, ABAB_STEPS)
+        }
+        return emptyList()
     }
 
     /** 动作之后回到一个已到过的状态。正在兜圈时由 [cycle] 说,这里不重复。 */
@@ -210,9 +231,17 @@ class OperationGuards(private val stepBudget: Int? = null) {
      * 换着工具、换着脚本读也算:页面没变,答案就是页面上现有的这些。
      * [window] 给了就在它里面单独计数(页面脚本一次调用里的读),不动任务的计数。
      */
-    fun read(tool: String, fresh: Boolean, window: GuardScope = reads, fingerprint: Long? = null): List<GuardVerdict> {
+    fun read(
+        tool: String,
+        fresh: Boolean,
+        window: GuardScope = reads,
+        fingerprint: Long? = null,
+        noteProgress: Boolean = true,
+    ): List<GuardVerdict> {
         if (fresh) {
-            if (fingerprint == null || taskReads.add(fingerprint)) progress()
+            if (fingerprint == null || taskReads.add(fingerprint)) {
+                if (noteProgress) progress()
+            }
             return emptyList()
         }
         window.sync(epoch)
@@ -231,18 +260,36 @@ class OperationGuards(private val stepBudget: Int? = null) {
         return window.seen.add(fingerprint)
     }
 
-    /** 画面变了(或做了有效的操作):之前读到的不再作数(所有读的计数一起作废)。 */
-    fun pageChanged() {
+    /**
+     * 画面变了(或做了有效的操作):之前读到的不再作数(所有读的计数一起作废)。
+     * [resetCalls] 只在指纹实际变化或工具明确报告 changed=true 时开启;旧工具的 changed=null 不能当作 poki 的进展。
+     */
+    fun pageChanged(resetCalls: Boolean = false) {
         epoch += 1
+        if (resetCalls) {
+            resetCallHistory()
+            if (stop?.code == "repeating_action") stop = null
+        }
+    }
+
+    /** 只清 poki 的同调用/ABAB 观察历史,不动状态轨迹、无进展和读循环计数。 */
+    fun resetCallHistory() {
+        recentCalls.clear()
+        pendingCall = null
+    }
+
+    /** 用户回答、接管或确认交回后调:等待不算卡死,之前的调用窗口也不再作数。 */
+    fun noteOwnerWait() {
+        resetCallHistory()
     }
 
     private fun progress() {
         progressVersion += 1
-        unchanged = 0
-        unchangedWarnedAt = 0
+        resetCallHistory()
+        resetNoEffect()
         sinceNewState = 0
         sinceNewWarnedAt = 0
-        if (stop?.code == "no_progress" || stop?.code == "read_loop") stop = null
+        if (stop?.code == "no_progress" || stop?.code == "read_loop" || stop?.code == "repeating_action") stop = null
     }
 
     fun result(tool: String, content: JsonObject, neutral: Boolean = false): List<GuardVerdict> {
@@ -272,6 +319,10 @@ class OperationGuards(private val stepBudget: Int? = null) {
         const val NO_EFFECT = "no_effect"
         /** 记最近多少个状态(够看出最长的兜圈安全网)。 */
         const val TRAIL_KEEP = 64
+        const val CALL_WINDOW = 8
+        const val SAME_CALL_STEPS = 6
+        const val ABAB_STEPS = 8
+        const val NO_SCREEN_HASH = Long.MIN_VALUE
 
         /** 各条提醒开头说卡在哪的那句(prompts/feedback/tools.md)。 */
         val LEADS = mapOf(

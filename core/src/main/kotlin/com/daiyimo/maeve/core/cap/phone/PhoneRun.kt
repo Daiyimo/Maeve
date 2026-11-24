@@ -21,9 +21,11 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 import com.daiyimo.maeve.core.uistate.screen
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import com.daiyimo.maeve.core.uistate.session
 
-/** 根据每一步读到的当前无障碍树重新定位目标,然后把动作交回统一执行入口。 */
+/** 根据每一步的当前画面重新定位目标,然后把动作交回统一执行入口。 */
 internal object PhoneRun : PhoneTool {
     override val verb = Verb.PhoneRun
     override val risk = Risk.Write
@@ -52,7 +54,6 @@ internal object PhoneRun : PhoneTool {
     ), listOf("commands"))
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution = ctx.session.textOnly {
-        ctx.visualFirstFailure("phone_run")?.let { return@textOnly it }
         runCommands(a, ctx)
     }
 
@@ -61,6 +62,8 @@ internal object PhoneRun : PhoneTool {
         if (commands.size !in 1..30) throw ArgError("commands", "must have 1-30 items")
         val sub = ctx.sub ?: return failed("actions_unavailable")
         val steps = mutableListOf<JsonObject>()
+        val callId = ctx.callId
+        var expectedPackage = ctx.screen.currentPackage()
         var stop: String? = null
         var finalScreen: JsonObject? = null
         for ((index, raw) in commands.withIndex()) {
@@ -68,8 +71,15 @@ internal object PhoneRun : PhoneTool {
             val op = command.string("op") ?: throw ArgError("commands[$index].op", "required")
             if (op !in setOf("launch", "tap", "type", "clear", "scroll", "swipe", "key", "back", "wait", "assert", "observe"))
                 throw ArgError("commands[$index].op", "unknown operation")
+            val currentPackage = ctx.screen.currentPackage()
+            val visual = ctx.session.visualFirst()
+            if (expectedPackage != null && currentPackage != expectedPackage && (currentPackage != null || visual)) {
+                stop = "app_switched"
+                steps += row(index, op, false, stop, executed = false)
+                break
+            }
             val whenText = command.string("whenText")
-            if (whenText != null && !hasText(ctx, whenText)) {
+            if (whenText != null && hasText(ctx, whenText) != true) {
                 stop = "condition_unmet"
                 steps += row(index, op, false, stop, executed = false)
                 break
@@ -77,10 +87,17 @@ internal object PhoneRun : PhoneTool {
             val result = when (op) {
                 "launch" -> {
                     val pkg = command.string("packageName") ?: throw ArgError("commands[$index].packageName", "required")
-                    run(sub, ctx, index, "phone_launch_app", buildJsonObject { put("package", pkg); if (command.boolean("cold") == true) put("cold", true) })
+                    run(sub, callId, index, "phone_launch_app", buildJsonObject { put("package", pkg); if (command.boolean("cold") == true) put("cold", true) })
                 }
                 "tap", "type", "clear" -> {
-                    val target = select(sub, ctx, index, command, op != "tap")
+                    val description = command.string("targetText")
+                    val described = description != null && op != "clear" && command.string("resourceId") == null
+                    val target = when {
+                        described -> Target()
+                        visual && (description != null || command.string("resourceId") != null || command.string("role") != null) ->
+                            Target(error = "target_not_supported_on_visual_screen")
+                        else -> select(sub, callId, index, command, op != "tap")
+                    }
                     if (target.error != null) {
                         stop = target.error
                         steps += row(index, op, false, stop, executed = false)
@@ -88,35 +105,41 @@ internal object PhoneRun : PhoneTool {
                     }
                     val args = if (op == "tap") buildJsonObject {
                         target.ref?.let { put("ref", it); put("snapshotId", target.snapshotId!!) }
-                        if (target.ref == null) {
+                        if (described) {
+                            put("element", description)
+                            command.string("role")?.let { put("role", it) }
+                        } else if (target.ref == null) {
                             put("x", command.integer("x")!!); put("y", command.integer("y")!!)
-                            command.string("targetText")?.let { put("target", it) }
                         }
                     } else buildJsonObject {
                         if (op == "type") {
                             put("text", command.string("text") ?: throw ArgError("commands[$index].text", "required"))
                             if (command.boolean("pressEnter") == true) put("pressEnter", true)
                         }
+                        if (described) {
+                            put("element", description)
+                            command.string("role")?.let { put("role", it) }
+                        }
                         target.ref?.let { put("ref", it); put("snapshotId", target.snapshotId!!) }
                     }
-                    run(sub, ctx, index, when (op) { "tap" -> "phone_tap"; "type" -> "phone_type_text"; else -> "phone_clear_text" }, args)
+                    run(sub, callId, index, when (op) { "tap" -> "phone_tap"; "type" -> "phone_type_text"; else -> "phone_clear_text" }, args)
                 }
                 "scroll" -> {
                     val dir = command.string("direction") ?: throw ArgError("commands[$index].direction", "required")
                     if (dir !in setOf("up", "down", "left", "right")) throw ArgError("commands[$index].direction", "invalid")
                     val amount = command.integer("amount") ?: 3
                     if (amount !in 1..20) throw ArgError("commands[$index].amount", "must be 1-20")
-                    run(sub, ctx, index, "phone_scroll", buildJsonObject { put("direction", dir); put("amount", amount) })
+                    run(sub, callId, index, "phone_scroll", buildJsonObject { put("direction", dir); put("amount", amount) })
                 }
-                "back" -> run(sub, ctx, index, "phone_back", JsonObject(emptyMap()))
+                "back" -> run(sub, callId, index, "phone_back", JsonObject(emptyMap()))
                 "key" -> {
                     val key = command.string("key") ?: throw ArgError("commands[$index].key", "required")
-                    run(sub, ctx, index, "phone_press_key", buildJsonObject { put("key", key) })
+                    run(sub, callId, index, "phone_press_key", buildJsonObject { put("key", key) })
                 }
                 "swipe" -> {
                     val coordinates = listOf("startX", "startY", "endX", "endY")
                     if (coordinates.any { command.integer(it) !in 0..999 }) throw ArgError("commands[$index]", "swipe coordinates must be 0-999")
-                    run(sub, ctx, index, "phone_swipe", buildJsonObject {
+                    run(sub, callId, index, "phone_swipe", buildJsonObject {
                         coordinates.forEach { put(it, command.integer(it)!!) }
                         command.integer("durationMs")?.let { put("durationMs", it) }
                     })
@@ -131,22 +154,36 @@ internal object PhoneRun : PhoneTool {
                     if (found == null) failCode(SKIPPED_FOR_NEW_MESSAGE)
                     else ToolExecution(buildJsonObject { put("ok", found); if (!found) put("error", "condition_unmet") })
                 }
-                else -> run(sub, ctx, index, "phone_list_elements", JsonObject(emptyMap()))
+                else -> run(sub, callId, index, if (visual) "phone_observe" else "phone_list_elements", JsonObject(emptyMap()))
             }
             val content = result.content
-            val ok = content["ok"] == JsonPrimitive(true)
-            val error = (content["error"] as? JsonPrimitive)?.contentOrNull
-            steps += row(index, op, ok, error, content["executed"] != JsonPrimitive(false))
+            val accepted = content["ok"] == JsonPrimitive(true)
+            val inputUnverified = accepted && visual && op == "type" && content["verification"] != JsonPrimitive("match")
+            val ok = accepted && !inputUnverified
+            val reportedError = (content["error"] as? JsonPrimitive)?.contentOrNull
+            val error = when {
+                inputUnverified -> "input_unverified"
+                reportedError == "element_ambiguous" -> "ambiguous_target"
+                else -> reportedError
+            }
+            val executed = content["executed"] != JsonPrimitive(false) && reportedError !in
+                setOf("element_ambiguous", "element_not_found", "target_unresolved")
+            steps += row(index, op, ok, error, executed, (content["message"] as? JsonPrimitive)?.contentOrNull)
             (content["screen"] as? JsonObject)?.let { finalScreen = it }
             if (op == "observe") finalScreen = content
             if (!ok) { stop = error ?: "failed"; break }
+            if (op == "launch") expectedPackage = command.string("packageName")
+            else if (expectedPackage == null) expectedPackage = currentPackage
             if (content["app_switched"] != null) { stop = "app_switched"; break }
             if (content["opened"] != null) { stop = "opened_elsewhere"; break }
             if ((content["screen"] as? JsonObject)?.get("imageReason") != null) { stop = "screen_needs_review"; break }
         }
-        val last = run(sub, ctx, commands.size, "phone_list_elements", JsonObject(emptyMap()))
-        if (last.content["ok"] == JsonPrimitive(true)) finalScreen = last.content
-        else if (stop == null) stop = "final_read_failed"
+        if (stop !in setOf(SKIPPED_FOR_NEW_MESSAGE, "app_switched", "opened_elsewhere")) {
+            val readTool = if (ctx.session.visualFirst()) "phone_observe" else "phone_list_elements"
+            val last = run(sub, callId, commands.size, readTool, JsonObject(emptyMap()))
+            if (last.content["ok"] == JsonPrimitive(true)) finalScreen = last.content
+            else if (stop == null) stop = "final_read_failed"
+        }
         return ToolExecution(buildJsonObject {
             put("ok", stop == null)
             stop?.let { put("error", "phone_run_stopped"); put("reason", it); put("recoverable", true) }
@@ -159,7 +196,7 @@ internal object PhoneRun : PhoneTool {
 
     private data class Target(val ref: String? = null, val snapshotId: String? = null, val error: String? = null)
 
-    private suspend fun select(sub: SubActions, ctx: ToolContext, index: Int, command: JsonObject, editable: Boolean): Target {
+    private suspend fun select(sub: SubActions, callId: String, index: Int, command: JsonObject, editable: Boolean): Target {
         val text = command.string("targetText")
         val id = command.string("resourceId")
         val role = command.string("role")
@@ -168,7 +205,7 @@ internal object PhoneRun : PhoneTool {
             val x = command.integer("x"); val y = command.integer("y")
             return if (x in 0..999 && y in 0..999) Target() else Target(error = "target_required")
         }
-        val query = run(sub, ctx, index, "phone_query", buildJsonObject {
+        val query = run(sub, callId, index, "phone_query", buildJsonObject {
             text?.let { put("text", it) }; id?.let { put("resourceId", it) }; role?.let { put("role", it) }; put("limit", 100)
         })
         if (query.content["ok"] != JsonPrimitive(true)) return Target(error = "query_failed")
@@ -186,25 +223,36 @@ internal object PhoneRun : PhoneTool {
         return Target(((candidates.single()[refKey] ?: candidates.single()["ref"]) as JsonPrimitive).content, sid)
     }
 
-    private suspend fun run(sub: SubActions, ctx: ToolContext, index: Int, name: String, args: JsonObject): ToolExecution =
-        sub.run(Part.ToolCall("${ctx.callId}.${index + 1}.$name", name, args.toString()))
+    private suspend fun run(sub: SubActions, callId: String, index: Int, name: String, args: JsonObject): ToolExecution =
+        sub.run(Part.ToolCall("$callId.${index + 1}.$name", name, args.toString()))
 
     /** 等到文字出现(或消失);用户插话撤掉了这次等待时为 null。 */
     private suspend fun awaitText(ctx: ToolContext, text: String, present: Boolean, timeoutMs: Int): Boolean? {
-        if (hasText(ctx, text) == present) return true
-        if (timeoutMs == 0) return false
-        return waitOrSteer { ctx.screen.waitFor(if (present) "appear" else "disappear", text, timeoutMs.toLong()) }
+        return waitOrSteer {
+            if (ctx.session.visualFirst()) {
+                // OCR can establish presence. An unreadable or missing label does not establish absence.
+                present && if (timeoutMs == 0) hasText(ctx, text) == true else withTimeoutOrNull(timeoutMs.toLong()) {
+                    while (hasText(ctx, text) != true) delay(250)
+                    true
+                } == true
+            } else if (hasText(ctx, text) == present) true
+            else timeoutMs > 0 && ctx.screen.waitFor(if (present) "appear" else "disappear", text, timeoutMs.toLong())
+        }
     }
 
-    private suspend fun hasText(ctx: ToolContext, text: String): Boolean {
-        val snapshot = ctx.session.peek() ?: return false
+    private suspend fun hasText(ctx: ToolContext, text: String): Boolean? {
+        if (ctx.session.visualFirst()) {
+            return ctx.session.currentVisualText()?.any { it.text.contains(text, ignoreCase = true) }?.takeIf { it }
+        }
+        val snapshot = ctx.session.peek() ?: return null
         return PhoneAutomationEngine.find(snapshot, PhoneAutomationEngine.Query(text = text), 1)["total"] != JsonPrimitive(0)
     }
 
-    private fun row(index: Int, op: String, ok: Boolean, error: String?, executed: Boolean) = buildJsonObject {
+    private fun row(index: Int, op: String, ok: Boolean, error: String?, executed: Boolean, message: String? = null) = buildJsonObject {
         put("n", index + 1); put("op", op); put("ok", ok)
         if (!executed) put("executed", false)
         error?.let { put("error", it) }
+        if (!ok) message?.take(320)?.let { put("message", it) }
     }
 
     private fun failed(error: String) = ToolExecution(buildJsonObject { put("ok", false); put("error", error) })

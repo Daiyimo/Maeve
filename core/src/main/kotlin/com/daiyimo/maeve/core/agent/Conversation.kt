@@ -4,6 +4,7 @@ import com.daiyimo.maeve.core.model.Author
 import com.daiyimo.maeve.core.model.Message
 import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.model.Role
+import com.daiyimo.maeve.core.tool.TaskPlan
 
 /**
  * 一轮对话:用户说了什么、结果如何。[outcome] 是成功时的答案或失败原因;
@@ -33,6 +34,8 @@ data class Turn(
     val keptPage: String? = null,
     /** 留下的那一页后来关掉的原因([com.daiyimo.maeve.core.cap.web.KeptPageClose.wire]);还开着或没留为 null。 */
     val keptPageClosed: String? = null,
+    /** 模型显式报告的计划与当前步骤;重开对话仍可展示,旧记录为 null。 */
+    val plan: TaskPlan? = null,
 )
 
 object Conversation {

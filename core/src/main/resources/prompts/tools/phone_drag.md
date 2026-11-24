@@ -1,0 +1,1 @@
+Drag continuously from start to end on one finger path. Coordinates are 0-999. durationMs is the total timeline (default 800 ms); holdMs pauses at the start before movement and restMs pauses at the end before lifting, useful for pickup/drop or precise reordering. The result includes the same-call screen and actual effect.

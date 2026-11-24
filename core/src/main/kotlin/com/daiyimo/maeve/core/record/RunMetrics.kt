@@ -60,6 +60,10 @@ data class RunMetrics(
     val outcome: String = UNFINISHED,
     val failKind: String? = null,
     val judged: String? = null,
+    val cancellationSource: String? = null,
+    /** Per-tool elapsed distribution. Composite parent times already include their children. */
+    val actionP95Ms: Long? = null,
+    val actionPhasesMs: Map<String, Long> = emptyMap(),
 ) {
     /** 既不属于模型、观察,也不属于操作的时间;不会为负。 */
     val otherMs: Long get() = (totalMs - modelMs - observeMs - actMs).coerceAtLeast(0)
@@ -102,6 +106,8 @@ data class RunMetrics(
         private var retryTime = 0L
         private var highestStep = 0
         private var judgedOutcome: String? = null
+        private val actionTimes = mutableListOf<Long>()
+        private val actionPhases = linkedMapOf<String, Long>()
         private val toolSpans = mutableListOf<ToolSpan>()
         private val activityKinds = HashMap<CallKey, String>()
 
@@ -117,6 +123,12 @@ data class RunMetrics(
                     durationMs = e.durationMs.coerceAtLeast(0),
                     waitMs = e.waitMs.coerceAtLeast(0),
                 )
+                is RunEvent.ActionTiming -> if (e.source !in NESTED_SOURCES) {
+                    actionTimes += e.elapsedMs
+                    e.phasesMs.forEach { (phase, elapsed) ->
+                        actionPhases[phase] = (actionPhases[phase] ?: 0) + elapsed
+                    }
+                }
                 is RunEvent.Activity -> onActivity(e)
                 is RunEvent.TaskEnded -> if (finished == null) finished = e
                 is RunEvent.ModelCalls -> allCallsEvent = e
@@ -213,6 +225,10 @@ data class RunMetrics(
                 outcome = end?.outcome ?: UNFINISHED,
                 failKind = end?.kind,
                 judged = judgedOutcome,
+                cancellationSource = end?.cancellationSource,
+                actionP95Ms = if (actionTimes.isEmpty()) null else
+                    actionTimes.sorted()[kotlin.math.ceil(actionTimes.size * .95).toInt() - 1],
+                actionPhasesMs = actionPhases.toMap(),
             )
         }
     }

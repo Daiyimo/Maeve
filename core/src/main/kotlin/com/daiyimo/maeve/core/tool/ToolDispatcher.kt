@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.core.tool
 
+import com.daiyimo.maeve.core.action.timedActionPhase
 import com.daiyimo.maeve.core.knowledge.Link
 import com.daiyimo.maeve.core.observation.CORE_SOURCE
 import com.daiyimo.maeve.core.observation.ObsKind
@@ -132,6 +133,10 @@ class ToolDispatcher internal constructor(
     internal val skillCatalog: GuideCatalog? get() = ctx.config.skills
     /** 最近在用的那个有界面的能力的 id;任务开始时是第一个(手机)。 */
     val surface: String get() = surfaces.current
+    /** 模型显式报告的计划;任务开始时清空。 */
+    var taskPlan: TaskPlan?
+        get() = ctx.taskPlan
+        set(value) { ctx.taskPlan = value }
 
     /** 运行状态里写的此刻那个地方的版本(网页的手机版、电脑版);没有或读不到为 null。 */
     suspend fun placeMode(): String? = surfaces.mode()
@@ -278,8 +283,10 @@ class ToolDispatcher internal constructor(
         val result = surfaces.around(tool, args.o, inlineScreen) { reportsEffect ->
             ctx.reportsEffect = reportsEffect
             try {
-                if (!tool.yieldsToSteer) tool.execute(args, ctx)
-                else waitOrSteer { tool.execute(args, ctx) } ?: failCode(SKIPPED_FOR_NEW_MESSAGE)
+                timedActionPhase("toolBody") {
+                    if (!tool.yieldsToSteer) tool.execute(args, ctx)
+                    else waitOrSteer { tool.execute(args, ctx) } ?: failCode(SKIPPED_FOR_NEW_MESSAGE)
+                }
             } catch (e: com.daiyimo.maeve.core.access.AppAccessDenied) {
                 throw e
             } catch (e: ArgError) {

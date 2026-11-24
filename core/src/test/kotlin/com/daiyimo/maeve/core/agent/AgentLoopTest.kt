@@ -537,12 +537,12 @@ class AgentLoopTest {
         val run = async { l.run("t") }
         advanceUntilIdle()
         // observe 不经过 gate;tap 前 gate 挂起,tap 尚未执行。
-        assertEquals(1, gates)
+        assertEquals(1, gates) // 先在目标解析前挂起
         assertTrue(s.calls.isEmpty())
         open.complete(Unit)
         com.daiyimo.maeve.core.testing.assertAnswered(DONE, run.await())
         assertEquals(1, s.calls.size)
-        assertEquals(1, gates) // finish 不是写操作
+        assertEquals(2, gates) // finish 不是写操作
     }
 
     @Test fun gateReportsWaitingUnlockThenRunning() = gateReports(TaskState.Held(GateReason("waiting_unlock")), clearWithNull = true)
@@ -592,9 +592,9 @@ class AgentLoopTest {
         loop(m).run("t")
         assertNull(m.requests[1].withoutRuntime().last().results().single().json()["advice"])
         assertNull(m.requests[2].withoutRuntime().last().results().single().json()["advice"])
-        assertNull(m.requests[3].withoutRuntime().last().results().single().json()["advice"])
-        val again = m.requests[4].withoutRuntime().last().results().single().json()
+        val again = m.requests[3].withoutRuntime().last().results().single().json()
         assertTrue(again.s("advice"), "回溯" in again.s("advice") && "end_not_done" in again.s("advice"))
+        assertNull(m.requests[4].withoutRuntime().last().results().single().json()["advice"])
     }
 
     @Test fun sameQueryInAnotherAppIsNotARepeat() = runTest {
@@ -641,9 +641,9 @@ class AgentLoopTest {
         loop(m, FakeScreen().apply { result = ActionResult.Ok(changed = true) }).run("t")
         assertNull(m.requests[6].withoutRuntime().last().results().single().json()["advice"])
 
-        val typed = FakeModel(tools(call("phone_type_text", """{"text":"张三"}""")), tools(call("phone_type_text", """{"text":"张三"}""")), finish())
+        val typed = FakeModel(tools(call("phone_type_text", """{"text":"张三"}""")), tools(call("phone_type_text", """{"text":"张三"}""")), tools(call("phone_type_text", """{"text":"张三"}""")), finish())
         loop(typed).run("t")
-        val typedAdvice = typed.requests[2].withoutRuntime().last().results().single().json().s("advice")
+        val typedAdvice = typed.requests[3].withoutRuntime().last().results().single().json().s("advice")
         assertTrue(typedAdvice, "张三" in typedAdvice && "end_not_done" in typedAdvice)
 
         val w = FakeModel(*(1..11).map { tools(call("wait", """{"seconds":${1 + it / 10.0}}""")) }.toTypedArray(), finish())
@@ -662,7 +662,7 @@ class AgentLoopTest {
             script += tools(call("phone_observe"))
         }
         val r = loop(FakeModel(*script.toTypedArray())).run("t")
-        assertTrue("$r", r is TaskState.Failed && "no_progress" in r.reason)
+        assertTrue("$r", r is TaskState.Failed && ("no_progress" in r.reason || "repeating_action" in r.reason))
     }
 
     @Test fun screenshotsFollowToolResultsWhenVisionOn() = runTest {

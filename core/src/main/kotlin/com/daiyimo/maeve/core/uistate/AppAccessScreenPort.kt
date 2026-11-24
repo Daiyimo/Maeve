@@ -101,6 +101,8 @@ class AppAccessScreenPort(
     override suspend fun waitVisualStable(timeoutMs: Long) = betweenChecks { inner.waitVisualStable(timeoutMs) }
     override suspend fun screenshotPng() = betweenChecks { inner.screenshotPng() }
     override suspend fun readVisibleText() = betweenChecks { inner.readVisibleText() }
+    override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long) =
+        betweenChecks { inner.visualFrame(withImage, timeoutMs) }
     override suspend fun frameGrid() = betweenChecks { inner.frameGrid() }
     override suspend fun isProtected() = betweenChecks { inner.isProtected() }
     override suspend fun checkScreen() = betweenChecks { inner.checkScreen() }
@@ -117,7 +119,7 @@ class AppAccessScreenPort(
     override suspend fun scroll(ref: String?, snapshotId: String?, down: Boolean) = betweenChecks { inner.scroll(ref, snapshotId, down) }
     override suspend fun swipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Long) = betweenChecks { inner.swipe(x1, y1, x2, y2, durationMs) }
     override suspend fun idleScroll(fraction: Double) = betweenChecks { inner.idleScroll(fraction) }
-    override suspend fun gesture(paths: List<List<Pair<Int, Int>>>, durationMs: Long) = betweenChecks { inner.gesture(paths, durationMs) }
+    override suspend fun gesture(paths: List<List<Pair<Int, Int>>>, durationMs: Long, holdMs: Long, restMs: Long) = betweenChecks { inner.gesture(paths, durationMs, holdMs, restMs) }
     override suspend fun back() = betweenChecks { inner.back() }
     override suspend fun pressKey(keyCode: Int) = betweenChecks { inner.pressKey(keyCode) }
     override suspend fun hideKeyboard() = betweenChecks { inner.hideKeyboard() }

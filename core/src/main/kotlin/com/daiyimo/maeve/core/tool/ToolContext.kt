@@ -74,6 +74,8 @@ internal class ToolContext(
 
     operator fun <T : Any> set(key: CapabilityKey<T>, value: T) { parts[key] = value }
 
+    /** 模型显式报告的任务计划;当前步骤由代码校验,界面只展示到当前步骤。 */
+    var taskPlan: TaskPlan? = null
     /** 最近一次被拒的付款申报;接管付款时补上模型没写的商品和金额。 */
     var refusedPay: ConfirmationRequest? = null
     /** 本次任务有没有成功打开过 App;没有时核查器知道没有屏幕可对照。 */

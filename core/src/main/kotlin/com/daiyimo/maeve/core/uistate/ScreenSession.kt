@@ -24,6 +24,7 @@ import kotlinx.serialization.json.put
 import kotlin.math.roundToInt
 import java.util.UUID
 import com.daiyimo.maeve.core.vision.LocateRegistry
+import com.daiyimo.maeve.core.vision.LocateResult
 import com.daiyimo.maeve.core.vision.Locator
 import com.daiyimo.maeve.core.vision.ScreenChange
 import com.daiyimo.maeve.core.vision.TapVisionCheck
@@ -81,6 +82,7 @@ internal class ScreenSession(
     private val tapVisionCheck: TapVisionCheck? = null,
     /** 点后视觉核对异步跑在这个 scope 上,不阻塞执行;默认全局 scope(.fire-and-forget,核对很快)。 */
     private val visionScope: CoroutineScope = GlobalScope,
+    private val frameOps: com.daiyimo.maeve.core.vision.ImageOps? = vision?.ops,
 ) {
     /** 上一次点击的异步视觉核对结论(可能晚于点击结果到达);下一步结果里带给模型,据此知道上一步到底变没变。 */
     @Volatile private var pendingVisionNote: String? = null
@@ -104,6 +106,8 @@ internal class ScreenSession(
     var visible: Set<String>? = null
     var lastSnapshot: ScreenSnapshot? = null
     private var lastOcr: List<VisibleTextLine> = emptyList()
+    private var visualImagePackage: String? = null
+    private var visualImageDigest: ByteArray? = null
     @Volatile private var visualMode = false
     private data class VisualRead(
         val snapshot: ScreenSnapshot,
@@ -236,9 +240,16 @@ internal class ScreenSession(
         waitMs: Long = OCR_WAIT_POOR_MS,
     ): VisualRead {
         val packageName = foregroundPackage()
-        val snap = visualSnapshot(packageName)
-        val png = if (withPng && snap.hasWindow && !snap.protected) screenAttempt { screen.screenshotPng() } else null
-        val (ocr, status) = if (withOcr && snap.hasWindow && !snap.protected) readScreenText(snap, waitMs) else null to null
+        val initial = visualSnapshot(packageName)
+        val available = initial.hasWindow && !initial.protected
+        val frame = if (available && withOcr) screenAttempt { screen.visualFrame(withPng, waitMs) } else null
+        val image = if (available && withPng && !withOcr) screenAttempt { screen.screenshotPng() } else frame?.png
+        val currentPackage = screenAttempt { screen.currentPackage() }
+        val stillCurrent = available && currentPackage == packageName && screenAttempt { screen.isProtected() } == false
+        val snap = if (stillCurrent) initial.copy(width = frame?.width ?: initial.width, height = frame?.height ?: initial.height)
+            else visualSnapshot(currentPackage)
+        val png = image.takeIf { stillCurrent }
+        val (ocr, status) = if (withOcr && stillCurrent) screenTextResult(snap, frame?.text) else null to null
         lastOcr = ocr.orEmpty()
         if (register) {
             rememberSnapshot(snap, false)
@@ -246,6 +257,19 @@ internal class ScreenSession(
         }
         return VisualRead(snap, ocr, status, png)
     }
+
+    /** The frame used for exact-text location also supplies the dispatch-time frame check. */
+    suspend fun locateVisualText(wanted: String): LocateResult? {
+        val ops = frameOps ?: return null
+        val read = captureVisual(withPng = true, withOcr = true, register = false, waitMs = OCR_WAIT_MS)
+        val frame = read.png ?: return null
+        val snap = read.snapshot
+        val viewport = (snap.width to snap.height).takeIf { it.first > 0 && it.second > 0 }
+        return located.locateTextFrame(wanted, ops.aHash(frame), read.ocr.orEmpty(), snap.packageName, viewport)
+    }
+
+    suspend fun currentVisualText(timeoutMs: Long = OCR_WAIT_MS): List<VisibleTextLine>? =
+        captureVisual(withPng = false, withOcr = true, register = false, waitMs = timeoutMs).ocr
 
     private fun visualText(snap: ScreenSnapshot, ocr: List<VisibleTextLine>?): String =
         (listOf("当前 App:" + (snap.packageName ?: "未知")) +
@@ -266,11 +290,21 @@ internal class ScreenSession(
         else -> "OCR-only read: no vision model is configured and no screen text was recognized. The UI tree was intentionally not read; wait and retry observe or hand_to_user, but do not call list_elements."
     }
 
-    private suspend fun observeVisual(recordFrame: Boolean): ToolExecution {
-        val read = captureVisual(withPng = true, withOcr = true, register = true)
+    private suspend fun observeVisual(recordFrame: Boolean, automatic: Boolean = false): ToolExecution {
+        val includeFrame = textOnlyDepth == 0 && (visionEnabled || recordFrame)
+        val read = captureVisual(withPng = includeFrame, withOcr = true, register = true)
         val snap = read.snapshot
         val shotId = shots.next()
-        val canSendImage = visionEnabled && textOnlyDepth == 0 && read.png != null
+        val offered = read.png.takeIf { visionEnabled && textOnlyDepth == 0 }
+        val digest = offered?.let { java.security.MessageDigest.getInstance("SHA-256").digest(it) }
+        val samePicture = digest != null && snap.packageName == visualImagePackage &&
+            digest.contentEquals(visualImageDigest)
+        val reusePicture = automatic && samePicture && !read.ocr.isNullOrEmpty()
+        val sent = offered.takeUnless { reusePicture }
+        if (sent != null) {
+            visualImagePackage = snap.packageName
+            visualImageDigest = digest
+        }
         val ocrOnly = !visionEnabled || read.png == null
         val text = visualText(snap, read.ocr)
         val remembered = read.png.takeIf { visionEnabled }
@@ -294,11 +328,11 @@ internal class ScreenSession(
                 if (read.ocr.isNullOrEmpty() && read.png == null) put("readable", false)
                 read.ocrStatus?.let { put("ocr", it) }
                 read.ocr?.let { put("visibleText", VisibleText.json(it)) }
+                if (reusePicture) put("imageUnchanged", true)
                 put("hint", visualHint(visionEnabled, read.png, read.ocr, false))
             }
         }
-        val sent = read.png.takeIf { canSendImage }
-        return ToolExecution(content, image = sent, frame = read.png.takeIf { recordFrame || canSendImage },
+        return ToolExecution(content, image = sent, frame = read.png.takeIf { recordFrame || sent != null },
             imageIds = listOfNotNull(sent?.let { shotId }), observations = listOf(recordVisualRead(snap, read.ocr)))
     }
 
@@ -441,7 +475,7 @@ internal class ScreenSession(
     suspend fun withScreen(r: ToolExecution): ToolExecution {
         if (visualFirst()) {
             if (surface.id == "phone" && !r.screenSettled) settle(INLINE_SETTLE_MS)
-            val obs = screenAttempt { observe(withImage = visionEnabled, recordFrame = recordFrames) } ?: return r
+            val obs = screenAttempt { observeVisual(recordFrames, automatic = true) } ?: return r
             val shotId = (obs.content["screenshotId"] as? JsonPrimitive)?.content?.toIntOrNull()
                 ?: return r
             val screen = JsonObject(obs.content - "ok" + ("full" to JsonPrimitive(true)))
@@ -851,7 +885,12 @@ internal class ScreenSession(
         val lines = try {
             withTimeoutOrNull(waitMs) { screen.readVisibleText().also { deadlineHit = false } }
         } catch (e: CancellationException) { throw e } catch (e: Exception) { e.rethrowAppAccess(); return null to "failed" }
-        if (lines == null) return null to if (deadlineHit) "timeout" else "unavailable"
+        if (deadlineHit) return null to "timeout"
+        return screenTextResult(s, lines)
+    }
+
+    private fun screenTextResult(s: ScreenSnapshot, lines: List<VisibleTextLine>?): Pair<List<VisibleTextLine>?, String?> {
+        if (lines == null) return null to "unavailable"
         if (lines.isEmpty()) return lines to "empty"
         val readable = VisibleText.legible(lines)
         if (readable.isEmpty()) return readable to "illegible"

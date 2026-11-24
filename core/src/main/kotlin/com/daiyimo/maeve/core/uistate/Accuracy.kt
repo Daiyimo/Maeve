@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.core.uistate
 
+import com.daiyimo.maeve.core.action.timedActionPhase
 import kotlin.math.hypot
 
 /**
@@ -136,27 +137,27 @@ suspend fun typeAndVerify(
 ): Verification {
     if (secret) return blindWrite(field, text)
     val want = withoutSpaces(text)
-    var baseline = field.read() ?: return blindWrite(field, text)
+    var baseline = timedActionPhase("inputReadback") { field.read() } ?: return blindWrite(field, text)
     if (want.isNotEmpty() && withoutSpaces(baseline) == want) {
-        val cleared = field.write("")
+        val cleared = timedActionPhase("inputDispatch") { field.write("") }
         settle()
-        baseline = field.read() ?: return if (cleared) Verification.UNKNOWN else Verification.MISMATCH
+        baseline = timedActionPhase("inputReadback") { field.read() } ?: return if (cleared) Verification.UNKNOWN else Verification.MISMATCH
         if (withoutSpaces(baseline) == want) return Verification.UNKNOWN
     }
     var stuck = true
     var wrote = false
     repeat(attempts) { round ->
-        val accepted = field.attemptWrite(text, round)
+        val accepted = timedActionPhase("inputDispatch") { field.attemptWrite(text, round) }
         if (!accepted) return@repeat
         wrote = true
         settle()
-        val actual = field.read() ?: return Verification.UNKNOWN
+        val actual = timedActionPhase("inputReadback") { field.read() } ?: return Verification.UNKNOWN
         if (withoutSpaces(actual) == want) return Verification.MATCH
         if (actual != baseline) return Verification.MISMATCH
         // 无障碍树可能比界面慢半拍。再安静一次后复核;仍没变才换通道,避免首次已落地时粘贴追加成两份。
         if (round < attempts - 1) {
             settle()
-            val late = field.read() ?: return Verification.UNKNOWN
+            val late = timedActionPhase("inputReadback") { field.read() } ?: return Verification.UNKNOWN
             if (withoutSpaces(late) == want) return Verification.MATCH
             if (late != baseline) return Verification.MISMATCH
         }
@@ -165,8 +166,8 @@ suspend fun typeAndVerify(
 }
 
 /** 只写一次、无从核对:写入被接受算 UNKNOWN,被拒绝算 MISMATCH。 */
-private fun blindWrite(field: TextField, text: String): Verification =
-    if (field.write(text)) Verification.UNKNOWN else Verification.MISMATCH
+private suspend fun blindWrite(field: TextField, text: String): Verification =
+    if (timedActionPhase("inputDispatch") { field.write(text) }) Verification.UNKNOWN else Verification.MISMATCH
 
 /** 第 [round] 次写入:第一次直接写,之后走换通道重试。 */
 private fun TextField.attemptWrite(text: String, round: Int): Boolean =

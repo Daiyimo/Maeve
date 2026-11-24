@@ -55,8 +55,8 @@ private const val KEEP_GENERATIONS = 20
  * 沿用旧编号的条件不比端口的找回([relocate])宽:键(角色 + 名字 + 资源 ID)在新旧两屏里都唯一、
  * 前台 App 没换、遍历顺序里前一个有名字的元素(上下文)相同,或页面整体没动且它还在原地、
  * 中心位移不超过短边的 [STABLE_REF_MAX_SHIFT];列表里的元素(落在可滚动容器里)还要页面没滚动、它没挪窝。
- * 列表里重复的同名元素(一排「关注」)永远拿新编号:滚动之后,同一位置已经是另一行。
- * 曾在同名歧义组里出现过的编号也永远不再跨屏携带,避免用户条目在列表消失后被顶部搜索框顶替。
+ * 列表里重复的同名元素只有边界完全没动且页面没滚时才一对一沿用;滚动后仍拿新编号。
+ * 同名歧义组里的编号不做松散沿用,避免用户条目消失后被顶部搜索框顶替。
  * 没名字也没资源 ID 的元素,认不出是不是同一个,也拿新编号。编号在任务内单调递增,退役的不再复用。
  *
  * snapshotId 是 [prefix] 加序号:每块屏一个前缀,看编号就知道是哪块屏的。
@@ -77,24 +77,38 @@ class RefStabilizer(private val prefix: String = "s") {
         val n = ++generation
         val previous = latest?.takeIf { it.port.packageName == port.packageName }
         val shortEdge = min(port.width, port.height)
-        val priorLocators = previous?.let { locators(it.screen) }.orEmpty()
-        val currentLocators = locators(port)
+        val priorLocators = previous?.let { RefLocators.locators(it.screen) }.orEmpty()
+        val currentLocators = RefLocators.locators(port)
         val pageStill by lazy { stationary(priorLocators, currentLocators, shortEdge * SAME_SPOT_SHIFT) }
-        val previousByKey = previous?.elements?.withIndex()?.groupBy { key(it.value) }.orEmpty()
-        val keyCounts = port.elements.groupingBy(::key).eachCount()
+        val previousByKey = previous?.elements?.withIndex()?.groupBy { RefLocators.key(it.value) }.orEmpty()
+        val keyCounts = port.elements.groupingBy(RefLocators::key).eachCount()
         val toPort = LinkedHashMap<String, String>()
         val seenNow = HashMap<String, Int>()
         val ambiguousNow = mutableSetOf<String>()
+        val used = mutableSetOf<String>()
         val elements = port.elements.mapIndexed { i, e ->
-            val k = key(e)
-            val carried = previousByKey[k]?.singleOrNull()?.takeIf { (j, previous) ->
-                previous.ref !in ambiguous && identifiable(e) && keyCounts[k] == 1 &&
-                    relocate(priorLocators[j], priorLocators, currentLocators, shortEdge) == Relocation.Found(i) &&
-                    // 列表项会复用:只有页面没滚、它还在原地,才算同一个
-                    (!(priorLocators[j].inList || currentLocators[i].inList) || (pageStill && shift(priorLocators[j], currentLocators[i]) <= shortEdge * SAME_SPOT_SHIFT))
-            }?.value
+            val k = RefLocators.key(e)
+            val candidates = previousByKey[k].orEmpty()
+            // 同名控件先按完全相同的边界一对一配对;精确帧不依赖唯一性/上下文,列表滚动后仍可能换行。
+            val exact = if (candidates.size > 1 && (keyCounts[k] ?: 0) > 1) {
+                candidates.firstOrNull { (_, previous) ->
+                    previous.ref !in used && identifiable(e) && previous.bounds.isNotEmpty() &&
+                        previous.bounds == e.bounds && previous.centerX == e.centerX && previous.centerY == e.centerY
+                }
+            } else null
+            // 唯一键才走带上下文、位移和列表静止检查的松散沿用。
+            val loose = if (candidates.size == 1 && keyCounts[k] == 1) {
+                candidates.firstOrNull { (j, previous) ->
+                    previous.ref !in used && previous.ref !in ambiguous && identifiable(e) &&
+                        relocate(priorLocators[j], priorLocators, currentLocators, shortEdge) == Relocation.Found(i) &&
+                        (!(priorLocators[j].inList || currentLocators[i].inList) ||
+                            (pageStill && RefLocators.shift(priorLocators[j], currentLocators[i]) <= shortEdge * SAME_SPOT_SHIFT))
+                }
+            } else null
+            val carried = (exact ?: loose)?.value
+            carried?.let { used += it.ref }
             val ref = carried?.ref ?: "@e${nextIndex++}"
-            if ((previousByKey[k]?.size ?: 0) > 1 || (keyCounts[k] ?: 0) > 1) ambiguousNow += ref
+            if (candidates.size > 1 || (keyCounts[k] ?: 0) > 1) ambiguousNow += ref
             seenNow[ref] = firstSeen[ref] ?: n
             toPort[ref] = e.ref
             e.copy(ref = ref)
@@ -132,31 +146,9 @@ class RefStabilizer(private val prefix: String = "s") {
         return Resolved.Current(portRef, current.port.snapshotId, relocated = n != generation)
     }
 
-    /** 累计位移上限:这块屏的短边乘比例。 */
-    private fun shiftLimit(s: ScreenSnapshot) = min(s.width, s.height) * STABLE_REF_MAX_SHIFT
-
     /** 有名字或资源 ID,才认得出是不是同一个元素。 */
     private fun identifiable(e: UiElement) = e.name.isNotBlank() || !e.resourceId.isNullOrBlank()
 
-    /** 配对用的键:角色、名字、资源 ID 合起来,分隔符用 \0 隔开,免得拼撞。 */
-    private fun key(e: UiElement) = e.role + "\u0000" + e.name + "\u0000" + (e.resourceId ?: "")
-
-    /** 两个元素中心点的直线距离。 */
-    private fun shift(a: ElementLocator, b: ElementLocator) =
-        hypot((a.centerX - b.centerX).toDouble(), (a.centerY - b.centerY).toDouble())
-
-    /**
-     * 和端口读屏时一样的特征:上下文是遍历顺序里前一个有名字的元素;
-     * 中心落在别的可滚动元素范围里的,算在列表里(端口快照里没有父子关系,按范围推断)。
-     */
-    private fun locators(s: ScreenSnapshot): List<ElementLocator> {
-        val panes = s.elements.filter { it.scrollable && it.bounds.size == 4 }
-        var last: String? = null
-        return s.elements.map { e ->
-            val x = normalize(e.centerX, s.width); val y = normalize(e.centerY, s.height)
-            val inList = panes.any { p -> p !== e && x in p.bounds[0]..p.bounds[2] && y in p.bounds[1]..p.bounds[3] }
-            ElementLocator(e.role, e.name, e.resourceId, e.centerX, e.centerY, last, e.hint, inList)
-                .also { if (e.name.isNotBlank()) last = e.name }
-        }
-    }
+    /** 累计位移上限:这块屏的短边乘比例。 */
+    private fun shiftLimit(s: ScreenSnapshot) = min(s.width, s.height) * STABLE_REF_MAX_SHIFT
 }

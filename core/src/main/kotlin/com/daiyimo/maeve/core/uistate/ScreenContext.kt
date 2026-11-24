@@ -2,6 +2,7 @@ package com.daiyimo.maeve.core.uistate
 
 import com.daiyimo.maeve.core.capability.CapabilityKey
 import com.daiyimo.maeve.core.prompt.Feedback
+import com.daiyimo.maeve.core.tool.ActionDelivery
 import com.daiyimo.maeve.core.tool.FAILURE_MESSAGES
 import com.daiyimo.maeve.core.tool.HINT_NOT_SETTLED
 import com.daiyimo.maeve.core.tool.HINT_TAP_UNCHANGED
@@ -80,7 +81,7 @@ internal fun ToolContext.action(r: ActionResult): ToolExecution = when (r) {
             r.profileUser?.let { put("profileUser", it) }
             r.requestedUser?.let { wanted -> r.profileUser?.let { put("requestedCopy", it == wanted) } }
             if (notes.isNotEmpty()) put("hint", notes.joinToString(" "))
-        }, changed = r.changed, recordFrame = r.pointer?.beforePng, screenSettled = r.settled == true, record = buildJsonObject {
+        }, changed = r.changed, recordFrame = r.pointer?.beforePng, screenSettled = r.settled == true, delivery = ActionDelivery.Sent, record = buildJsonObject {
             r.pointer?.let { p -> put("pointer", buildJsonObject {
                 put("width", p.width); put("height", p.height); put("method", p.method); put("clicks", p.clicks)
                 p.x?.let { put("x", it) }; p.y?.let { put("y", it) }
@@ -105,12 +106,11 @@ private fun ToolContext.notesOf(r: ActionResult.Ok): List<String> = listOfNotNul
 
 /** 端口报的失败翻成工具失败:reason 是 ref_expired 按编号退役办,形如错误码的当错误码用,其余统一 action_failed。 */
 private fun ToolContext.failWith(r: ActionResult.Failed): ToolExecution {
-    if (r.reason == "ref_expired") return refExpired(Feedback["ref_expired"], "element_lost")
+    if (r.reason == "ref_expired") return refExpired(Feedback["ref_expired"], "element_lost").with(delivery = ActionDelivery.NotSent)
     val code = r.reason.takeIf { Regex("^[a-z][a-z0-9_]*$").matches(it) } ?: "action_failed"
     val message = FAILURE_MESSAGES[code] ?: Feedback.format("action_failed", "reason" to r.reason)
-    return fail(code, r.hint?.let { "$message $it" } ?: message)
+    return fail(code, r.hint?.let { "$message $it" } ?: message).with(delivery = ActionDeliveryPolicy.of(r.reason))
 }
-
 /** 分身、工作资料那一份的说明:开出的正是要的那份,不必再提;开出的不是要的那份,照实说。 */
 private fun profileNotes(r: ActionResult.Ok): List<String> = listOfNotNull(
     (r.opened?.inProfile ?: r.inProfile)?.takeIf { it == OpenedElsewhere.OTHER_PROFILE && r.requestedUser == null }?.let { Feedback["profile.other"] },

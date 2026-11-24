@@ -21,7 +21,9 @@ internal fun fail(error: String, message: String, recoverable: Boolean = true) =
 internal fun refExpired(message: String, cause: String) =
     ToolExecution(JsonObject(fail("ref_expired", message).content + ("cause" to JsonPrimitive(cause))))
 
-internal fun invalid(e: ArgError) = fail("invalid_arguments", e.message ?: "invalid arguments")
+internal fun invalid(e: ArgError) = ToolExecution(JsonObject(fail("invalid_arguments", e.message ?: "invalid arguments").content + mapOf(
+    "executed" to JsonPrimitive(false), "delivery" to JsonPrimitive(ActionDelivery.NotSent.wire),
+)), delivery = ActionDelivery.NotSent)
 
 /** 按错误码给的现成说明。 */
 internal fun failCode(code: String) = fail(code, FAILURE_MESSAGES.getValue(code))

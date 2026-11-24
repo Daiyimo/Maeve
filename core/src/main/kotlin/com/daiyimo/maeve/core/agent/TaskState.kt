@@ -2,6 +2,7 @@ package com.daiyimo.maeve.core.agent
 
 import com.daiyimo.maeve.core.gate.ConfirmationRequest
 import com.daiyimo.maeve.core.verify.AnswerSource
+import com.daiyimo.maeve.core.tool.TaskPlan
 
 /** 不经模型、一下做好几步时的进度,任务卡片和通知据此写明在干什么。 */
 sealed interface RunProgress {
@@ -33,6 +34,7 @@ sealed interface TaskState {
         val step: Int, val note: String, val tool: String? = null, val progress: RunProgress? = null, val reason: String? = null,
         val narration: String? = null,
         val preview: String? = null,
+        val plan: TaskPlan? = null,
     ) : TaskState
     /** 一个能力的前置条件此刻不满足,停在这里等(见 [GateReason]);条件满足或用户点了继续后恢复 Running。 */
     data class Held(val reason: GateReason) : TaskState

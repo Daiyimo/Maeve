@@ -72,7 +72,7 @@ class ScriptStepsTest {
         val sid = snap["snapshotId"]!!.jsonPrimitive.content
         val tap = s.run(Part.ToolCall("c1.2", "web_tap", """{"ref":"@e1","snapshotId":"$sid"}""")).content
         assertEquals(JsonPrimitive(true), tap["ok"])
-        assertEquals(1, gates) // 只有写操作过锁屏关卡
+        assertEquals(2, gates) // 写动作投递前后各过锁屏关卡
         assertTrue(web.calls.any { it.startsWith("tapRef @e1") })
         val results = events.filterIsInstance<RunEvent.ToolResult>()
         assertEquals(listOf("script", "script"), results.map { it.source })

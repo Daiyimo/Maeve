@@ -167,9 +167,13 @@ internal suspend fun locatedPixel(ctx: ToolContext, ref: String, snapshotId: Str
     val (point, seenHash) = ctx.located.get(ref, snapshotId) ?: return null
     val device = ctx.screen
     val frame = if (device.isProtected()) null else device.screenshotPng()
-    if (frame == null || hamming(ctx.config.vision!!.ops.aHash(frame), seenHash) > LOCATE_SCREEN_CHANGE) return null
+    val pkg = device.currentPackage()
+    val viewport = device.viewport()
+    val ops = ctx.config.imageOps ?: ctx.config.vision?.ops ?: return null
+    if (frame == null || !ctx.located.matchesSurface(ref, snapshotId, pkg, viewport) ||
+        hamming(ops.aHash(frame), seenHash) > LOCATE_SCREEN_CHANGE) return null
     if (ctx.session.visualFirst()) {
-        val viewport = device.viewport() ?: return null
+        viewport ?: return null
         return toPx(point.x, viewport.first) to toPx(point.y, viewport.second)
     }
     val snap = ctx.session.peek() ?: ctx.lastOrSnapshot()

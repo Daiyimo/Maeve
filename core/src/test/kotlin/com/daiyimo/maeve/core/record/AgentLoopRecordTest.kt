@@ -47,7 +47,9 @@ class AgentLoopRecordTest {
             reply(call("phone_tap", """{"x":500,"y":50}""")),
             com.daiyimo.maeve.core.testing.answerReply("好了"),
         )
-        val ev = run(m).events
+        val events = run(m).events
+        assertEquals(listOf("phone_observe", "phone_tap"), events.filterIsInstance<RunEvent.ActionTiming>().map { it.tool })
+        val ev = events.filterNot { it is RunEvent.ActionTiming }
         assertEquals(
             // 使用真实命名控件内的坐标，执行成功后保留因果记录。
             // 最后一条不带调用的回复是回答:先字面核对,再记下代码找到的来源
@@ -280,7 +282,7 @@ class AgentLoopRecordTest {
             reply(call("handle_obstacle", """{"kind":"bogus"}""")),
             com.daiyimo.maeve.core.testing.answerReply("x"),
         )
-        val ev = run(m).events
+        val ev = run(m).events.filterNot { it is RunEvent.ActionTiming }
         // 只有合法的上报记一条障碍,且紧跟它的工具结果
         val b = ev.filterIsInstance<RunEvent.Barrier>()
         assertEquals(listOf("access_blocked"), b.map { it.kind })

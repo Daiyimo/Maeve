@@ -159,13 +159,11 @@ class PhoneAutomationToolsTest {
         dispatcher.ctx.sub = SubActions { call ->
             calls += call.name
             when (call.name) {
-                "phone_query" -> {
-                    val target = Json.parseToJsonElement(call.argsJson).jsonObject["text"]!!.jsonPrimitive.content
+                "phone_tap" -> {
+                    val target = Json.parseToJsonElement(call.argsJson).jsonObject["element"]!!.jsonPrimitive.content
                     ToolExecution(buildJsonObject {
-                        put("ok", true); put("snapshotId", "p${calls.size}")
-                        put("matches", JsonArray((if (target == "重复") listOf("@e1", "@e2") else listOf("@e1")).map { ref ->
-                            buildJsonObject { put("ref", ref); put("name", target); put("clickable", true) }
-                        }))
+                        put("ok", target != "重复")
+                        if (target == "重复") { put("error", "element_ambiguous"); put("executed", false) }
                     })
                 }
                 "phone_list_elements" -> ToolExecution(buildJsonObject { put("ok", true); put("snapshotId", "p-final") })
@@ -177,8 +175,31 @@ class PhoneAutomationToolsTest {
         assertEquals("phone_run_stopped", result["error"]!!.jsonPrimitive.content)
         assertEquals("ambiguous_target", result["reason"]!!.jsonPrimitive.content)
         assertEquals(2, result["completed"]!!.jsonPrimitive.content.toInt())
-        assertEquals(2, calls.count { it == "phone_tap" })
-        assertEquals(3, calls.count { it == "phone_query" })
+        assertEquals(3, calls.count { it == "phone_tap" })
+        assertEquals(0, calls.count { it == "phone_query" })
+    }
+
+    @Test fun visualRunStopsBeforeTheNextCommandWhenInputCannotBeVerified() = runTest {
+        val screen = object : ScreenPort by FakeScreen() {
+            override suspend fun currentPackage() = "com.xingin.xhs"
+        }
+        val dispatcher = toolDispatcher(screen)
+        val calls = mutableListOf<Part.ToolCall>()
+        dispatcher.ctx.sub = SubActions { call ->
+            calls += call
+            ToolExecution(buildJsonObject {
+                put("ok", true)
+                if (call.name == "phone_type_text") put("verification", "unknown")
+            })
+        }
+        val json = """{"commands":[{"op":"type","targetText":"搜索","role":"EditText","text":"测试"},{"op":"key","key":"enter"}]}"""
+        val result = PhoneRun.execute(Args(PhoneRun.def, Json.parseToJsonElement(json).jsonObject), dispatcher.ctx).content
+        assertEquals("input_unverified", result["reason"]!!.jsonPrimitive.content)
+        assertEquals("0", result["completed"]!!.jsonPrimitive.content)
+        assertEquals(listOf("phone_type_text", "phone_observe"), calls.map { it.name })
+        val args = Json.parseToJsonElement(calls.first().argsJson).jsonObject
+        assertEquals("搜索", args["element"]!!.jsonPrimitive.content)
+        assertEquals("EditText", args["role"]!!.jsonPrimitive.content)
     }
 
     @Test fun runHidesNestedTypedTextInRecord() {
@@ -253,7 +274,7 @@ class PhoneAutomationToolsTest {
         var paths: List<List<Pair<Int, Int>>> = emptyList()
         val screen = object : ScreenPort by FakeScreen() {
             override suspend fun snapshot(): ScreenSnapshot = tree()
-            override suspend fun gesture(p: List<List<Pair<Int, Int>>>, durationMs: Long): ActionResult {
+            override suspend fun gesture(p: List<List<Pair<Int, Int>>>, durationMs: Long, holdMs: Long, restMs: Long): ActionResult {
                 paths = p; return ActionResult.Ok(changed = true)
             }
         }

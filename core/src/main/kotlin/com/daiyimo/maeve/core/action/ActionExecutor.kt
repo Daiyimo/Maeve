@@ -8,8 +8,8 @@ import com.daiyimo.maeve.core.guard.GuardVerdict
 import com.daiyimo.maeve.core.guard.OperationGuards
 import com.daiyimo.maeve.core.guard.PAGE_READ_VERBS
 import com.daiyimo.maeve.core.guard.GuardScope
-import com.daiyimo.maeve.core.guard.elementsHash
-import com.daiyimo.maeve.core.guard.resultFingerprint
+import com.daiyimo.maeve.core.guard.readFingerprint
+import com.daiyimo.maeve.core.guard.screenFingerprint
 import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.record.Redactor
 import com.daiyimo.maeve.core.record.RunEvent
@@ -18,6 +18,7 @@ import com.daiyimo.maeve.core.replay.effectiveWrite
 import com.daiyimo.maeve.core.uistate.Described
 import com.daiyimo.maeve.core.uistate.ScreenSnapshot
 import com.daiyimo.maeve.core.uistate.interfaces
+import com.daiyimo.maeve.core.tool.ActionDelivery
 import com.daiyimo.maeve.core.tool.ActionPass
 import com.daiyimo.maeve.core.tool.ToolDispatcher
 import com.daiyimo.maeve.core.tool.ToolExecution
@@ -63,6 +64,8 @@ class ActionExecutor(
     private val pacing: OutwardPacing = OutwardPacing.Off,
     private val effects: ActionEffects? = null,
     private val onActionResult: (Verb?, JsonObject, ToolExecution, Int) -> Unit = { _, _, _, _ -> },
+    /** 主屏锁屏代次;等待后代次变化说明按旧屏幕准备的目标必须作废。 */
+    private val screenGeneration: () -> Long = { 0L },
 ) {
     private val decision = ConfirmDecision(tools, confirmations, approvals, recorder = recorder, provenance = provenance, selfPackage = selfPackage, autonomous = autonomous)
     private val pass = ActionPass()
@@ -78,9 +81,19 @@ class ActionExecutor(
 
     /** [reads]:页面脚本一次调用里的读单独计数的范围(来源要求隔离时);那里的动作仍按任务计。 */
     private suspend fun run(call: Part.ToolCall, origin: Origin, followUp: FollowUp, reads: GuardScope?): ActionOutcome {
+        val timing = ActionTiming { System.nanoTime() / 1_000_000 }
+        try {
+            return withContext(timing) { runMeasured(call, origin, followUp, reads) }
+        } finally {
+            recorder.event(RunEvent.ActionTiming(recorder.now(), origin.step, call.name, call.id,
+                origin.policy.source, timing.elapsed(), timing.phases()))
+        }
+    }
+
+    private suspend fun runMeasured(call: Part.ToolCall, origin: Origin, followUp: FollowUp, reads: GuardScope?): ActionOutcome {
         if (!runCatching { kotlinx.serialization.json.Json.parseToJsonElement(call.argsJson) is JsonObject }.getOrDefault(false)) {
             return ran(Step(call, JsonObject(emptyMap()), origin, emptyList(), writing = false, tools.offScreen(call.name), tools.verb(call.name), null, followUp, reads,
-                preset = ToolExecution(buildJsonObject { put("ok", false); put("error", "invalid_arguments"); put("message", "arguments: not valid JSON object"); put("recoverable", true); put("executed", false) })))
+                preset = ToolExecution(buildJsonObject { put("ok", false); put("error", "invalid_arguments"); put("message", "arguments: not valid JSON object"); put("recoverable", true); put("executed", false); put("delivery", "not_sent") }, delivery = ActionDelivery.NotSent)))
         }
         val args = parseArgs(call.argsJson)
         // 不动屏幕的工具(沙箱一类):不进屏幕守卫,由各自的守卫另管
@@ -116,35 +129,38 @@ class ActionExecutor(
         var call = given
         var args = givenArgs
         var note: JsonObject? = null
-        tools.interfaces.checkAppAccess(tools.declared(call.name))
-        when (val d = tools.interfaces.described(tools.declared(call.name), args)) {
+        val policy = origin.policy
+        timedActionPhase("appAccess") { tools.interfaces.checkAppAccess(tools.declared(call.name)) }
+        val writing = tools.writesScreen(call.name)
+        val preparedGeneration = screenGeneration()
+        // 先过门禁再解析目标:开局解锁/恢复后,ref、坐标和按描述找到的控件都必须是新屏幕上的。
+        if (writing && !policy.gatedByCaller) timedActionPhase("runGate") { gate() }
+        val described = timedActionPhase("resolveTarget") { tools.interfaces.described(tools.declared(call.name), args) }
+        when (val d = described) {
             is Described.Failed -> return ran(Step(call, args, origin, emptyList(), writing = false, offScreen, verb, null, followUp, reads, preset = d.result))
             is Described.Resolved -> { args = d.args; call = call.copy(argsJson = d.args.toString()); note = d.note }
             null -> Unit
         }
-        val policy = origin.policy
         val readScope = reads?.takeIf { verb in PAGE_READ_VERBS }
         val before = when {
             offScreen -> emptyList()
-            readScope != null -> guards.beforeAction(call.name, args, verb in DIAGNOSTIC_VERBS, readScope)
-            else -> guards.beforeAction(call.name, args, verb in DIAGNOSTIC_VERBS)
+            readScope != null -> guards.beforeAction(call.name, givenArgs, verb in DIAGNOSTIC_VERBS, readScope, trackCall = false)
+            else -> guards.beforeAction(call.name, givenArgs, verb in DIAGNOSTIC_VERBS, trackCall = reads == null || verb == Verb.WaitFor || verb == Verb.Wait)
         }
         if (guards.stop != null) return refuse("guard_stopped", origin, before)
         if (policy.stopOnGuardWarning && before.isNotEmpty()) return refuse("guard_warning", origin, before)
-        val writing = tools.writesScreen(call.name)
-        if (writing && !policy.gatedByCaller) gate()
         // 没有可用的同意就不执行,也不计入失败熔断
         val approvalRevision = approvals.revision()
-        var d = decision.judge(call.name, args, origin)
+        var d = timedActionPhase("policy") { decision.judge(call.name, args, origin) }
         // 不在屏上、工具声明要问的一步(会改动东西的 root 命令):调用方问得到人就当场问,同意了按这次同意再判一次;
         // 问不到人(这次运行不能问、调用方不是模型单步)就不做,照被拦下记
         val ask = if (d is Decision.Required || d is Decision.Denied) tools.approvalRisk(call.name, args)?.ask else null
         if (ask != null) {
             val hit = Irreversible(ask.action, ask.content)
-            val answer = (if (d is Decision.Required) followUp.approve(ask) else null)
+            val answer = (if (d is Decision.Required) timedActionPhase("approvalWait") { followUp.approve(ask) } else null)
                 ?: return declined(call, args, origin, before, hit, ToolExecution(Refusals.unavailable()), followUp, "approval_unavailable")
             if (answer.content["ok"] != JsonPrimitive(true)) return declined(call, args, origin, before, hit, answer, followUp, "confirmation_declined")
-            d = decision.judge(call.name, args, origin)
+            d = timedActionPhase("policy") { decision.judge(call.name, args, origin) }
         }
         when (d) {
             is Decision.Required -> return blocked(call, args, origin, before, d.hit, null, followUp, d.everyWrite)
@@ -160,17 +176,21 @@ class ActionExecutor(
         val site = decision.outwardSite
         val paced = site?.let { pacing.waitBefore(it, recorder.now()) }?.takeIf { it > 0 } ?: 0L
         // 等间隔时用户插了话:这次不做,先让模型读那句话。间隔从上一次做完算起,下次再做时余下的照样补上
-        if (paced > 0 && waitOrSteer { delay(paced) } == null) {
+        if (paced > 0 && timedActionPhase("pacing") { waitOrSteer { delay(paced) } } == null) {
             return ran(Step(call, args, origin, before, writing = false, offScreen, verb, null, followUp, reads, preset = failCode(SKIPPED_FOR_NEW_MESSAGE)))
         }
         // 改动屏幕的动作:按这块屏的能力的节奏先停一会儿(App 里见 AppDwell),单步、一批里的每一步都在这里停;
         // 组合动作(脚本)本身不停,里面的每一步经这里各自停。到了屏数上限、停留中用户插了话就不做
         val screenPaced = writing && !offScreen && !tools.composite(call.name)
-        val dwelt = if (screenPaced) tools.beforeWrite(call.name, outward = site != null) else Paced.NONE
-        dwelt.stop?.let { stop ->
-            return ran(Step(call, args, origin, before, writing = false, offScreen, verb, null, followUp, reads, preset = stop, pacedMs = paced + dwelt.waitMs))
-        }
+        val dwelt = if (screenPaced) timedActionPhase("pacing") { tools.beforeWrite(call.name, outward = site != null) } else Paced.NONE
+        dwelt.stop?.let { stop -> return ran(Step(call, args, origin, before, writing = false, offScreen, verb, null, followUp, reads, preset = stop, pacedMs = paced + dwelt.waitMs)) }
         if (approvals.revision() != approvalRevision) return refusedCall(call, args, origin, before, followUp, "approval_revoked")
+        if (writing && !policy.gatedByCaller) {
+            // 审批、对外动作间隔和 App 停留都可能跨过一次锁屏;真正投递前再过一次门禁并作废旧目标。
+            timedActionPhase("runGate") { gate() }
+        }
+        // 回放的关卡由调用方在读屏前统一过,但这里仍要检查等待期间是否锁屏/解锁。
+        if (writing && screenGeneration() != preparedGeneration) return ran(Step(call, args, origin, before, writing = false, offScreen, verb, null, followUp, reads, preset = screenChangedDuringLock()))
         if (writing) {
             guards.noteAction()
             decision.noteWrite(call.name)
@@ -234,19 +254,19 @@ class ActionExecutor(
         val changes = tools.declaredRisk(call.name) != Risk.Read && (s.offScreen || ClassifiedRisk.changesState(s.verb))
         val mark = tools.ledgerMark()
         val raw = (s.preset ?: offScreen?.exhausted(call.name)?.let { ToolExecution(it) } ?: if (changes && !tools.composite(call.name) && effects != null) {
-            effects.execute(call, s.origin, s.approvalDigest) { execute(s, sub) }
+            effects.execute(call, s.origin, s.approvalDigest, outward = s.outward) { execute(s, sub) }
         } else execute(s, sub))
             .let { r -> s.note?.let { r.with(content = JsonObject(r.content + it)) } ?: r }
             .let { r -> if (s.pacedMs > 0) r.with(waitMs = r.waitMs + s.pacedMs) else r }
             .let { r -> if (s.idleScrolls > 0) r.with(record = JsonObject(r.record + ("idleScrolls" to JsonPrimitive(s.idleScrolls)))) else r }
+            .let { r -> if (changes) r.withActionDelivery() else r }
         if (tools.composite(call.name) && s.preset == null) effects?.checkSettled()
         // 报了失败、也没说界面变了的动作什么也没改成:回答前不用为它再读一遍
         val failed = raw.content["ok"] == JsonPrimitive(false) && raw.changed != true
         if (changes && s.preset == null && !failed) recorder.noteChange(mark)
         val durationMs = recorder.now() - started
-        val resolved = s.followUp.resolve(raw) ?: return ActionOutcome.Cancelled(s.before)
+        val resolved = timedActionPhase("followUp") { s.followUp.resolve(raw) } ?: return ActionOutcome.Cancelled(s.before)
         tools.interfaces.checkAppAccess(tools.declared(call.name), after = true)
-
         val after = subVerdicts.toMutableList()
         after += if (s.offScreen) offScreen?.result(call.name, s.args, resolved.content).orEmpty() else guards.result(call.name, resolved.content)
         // 动作报回的实际效果先记(没有效果、换了地方),接着的画面就不再按指纹重复记
@@ -255,19 +275,25 @@ class ActionExecutor(
             after += guards.effect(kind, (effect["treeBlind"] as? JsonPrimitive)?.booleanOrNull == true)
         }
         val elements = resolved.screenElements ?: resolved.content["elements"] as? JsonArray
+        val frameHash = screenFingerprint(resolved.content, elements)
         val beforeFrameProgress = guards.progressVersion
-        elementsHash(elements)?.let { after += guards.frame("$n:${call.id}", it) }
-        if (guards.progressVersion != beforeFrameProgress) after.removeAll { it.code == "no_progress" }
+        if (frameHash != null || s.verb == Verb.WaitFor || s.verb == Verb.Wait) {
+            after += guards.frame("$n:${call.id}", frameHash)
+        }
+        val frameProgressed = guards.progressVersion != beforeFrameProgress
+        if (frameProgressed) after.removeAll { it.code == "no_progress" || it.code == "repeating_action" }
         if (!s.offScreen) {
             if (s.verb in PAGE_READ_VERBS) {
-                // 读到画面上次变化以来没读到过的内容(新的一屏、整页换了起点、脚本给出新结果)不算重读
-                val fp = elementsHash(elements) ?: resultFingerprint(resolved.content)
+                // 新内容不算重读;frame 已确认换屏时只登记指纹,不再重复 progress 清掉本次调用观察。
+                val fp = readFingerprint(resolved.content, elements)
                 val beforeReadProgress = guards.progressVersion
-                after += if (s.reads != null) guards.read(call.name, guards.firstSeen(fp, s.reads), s.reads, fp)
-                else guards.read(call.name, guards.firstSeen(fp), fingerprint = fp)
-                if (guards.progressVersion != beforeReadProgress) after.removeAll { it.code == "no_progress" }
+                val fresh = if (s.reads != null) guards.firstSeen(fp, s.reads) else guards.firstSeen(fp)
+                after += if (s.reads != null) guards.read(call.name, fresh, s.reads, fp, noteProgress = !frameProgressed)
+                else guards.read(call.name, fresh, fingerprint = fp, noteProgress = !frameProgressed)
+                if (guards.progressVersion != beforeReadProgress) after.removeAll { it.code == "no_progress" || it.code == "repeating_action" }
             } else if (s.writing && resolved.changed != false && resolved.content["ok"] == JsonPrimitive(true)) {
-                guards.pageChanged()
+                guards.pageChanged(resetCalls = resolved.changed == true)
+                after.removeAll { it.code == "repeating_action" }
             }
         }
         val (exec, content) = s.followUp.present(resolved, s.before + after)
@@ -288,6 +314,29 @@ class ActionExecutor(
         s.traced?.let { recorder.event(RunEvent.State(recorder.now(), "gate_unresolved", "${call.name} $it")) }
         return ActionOutcome.Ran(exec, s.before, after, content, durationMs, shotId.takeIf { picture != null }, picture, seen)
     }
+
+    /** 旧工具没有显式投递状态时,按可证明的事实补;派发后超时永远是 unknown,不是 not_sent。 */
+    private fun ToolExecution.withActionDelivery(): ToolExecution {
+        val wire = (content["delivery"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+        val reported = delivery ?: ActionDelivery.entries.firstOrNull { it.wire == wire }
+        val resolved = reported ?: when {
+            content["executed"] == JsonPrimitive(false) -> ActionDelivery.NotSent
+            content["submissionUnconfirmed"] == JsonPrimitive(true) || content["error"] == JsonPrimitive("action_timeout") -> ActionDelivery.Unknown
+            content["effect"] is JsonObject -> ActionDelivery.Sent
+            changed != null -> ActionDelivery.Sent
+            content["ok"] == JsonPrimitive(true) -> ActionDelivery.Sent
+            content["ok"] == JsonPrimitive(false) -> ActionDelivery.Unknown
+            else -> null
+        }
+        if (resolved == null) return this
+        return with(content = JsonObject(content + ("delivery" to JsonPrimitive(resolved.wire))), delivery = resolved)
+    }
+
+    private fun screenChangedDuringLock() = ToolExecution(buildJsonObject {
+        put("ok", false); put("error", "screen_changed_during_lock"); put("executed", false)
+        put("delivery", "not_sent"); put("counts_as_failure", false); put("recoverable", true)
+        put("message", "The phone locked and was unlocked while this action was being prepared. The action was not sent. Read the current screen and verify the previous action before choosing a new target.")
+    })
 
     private suspend fun execute(s: Step, sub: SubActions?): ToolExecution {
         val call = if (s.offScreen && offScreen != null) offScreen.capTimeout(s.call, s.args) else s.call

@@ -100,7 +100,7 @@ class AgentLoopLightTest {
     }
 
     @Test fun permanentLightErrorTurnsRoutingOff() = runTest {
-        val main = Named("main", FakeModel(*Array(6) { tools(call("phone_observe")) }, finish()))
+        val main = Named("main", FakeModel(*Array(5) { tools(call("phone_observe")) }, finish()))
         val light = Named("light", FakeModel(com.daiyimo.maeve.core.model.ModelError.Auth()))
         val sink = Events()
         val r = loop(main, light, sink).run("t")
