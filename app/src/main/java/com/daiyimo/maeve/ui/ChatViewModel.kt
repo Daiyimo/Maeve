@@ -1200,7 +1200,7 @@ class ChatViewModel(
                     if (live != null) it.copy(runId = live) else it
                 }
                 // 收尾时还没交到任务手里的插话:服务把它当成这个对话的下一件事
-                else withSummarizing(withNotes(it.copy(runId = endedRunFor(ui.conversationId), elapsedMs = elapsedOf(old),
+                else withSummarizing(withNotes(it.copy(runId = endedRunFor(ui.conversationId) ?: it.runId, elapsedMs = elapsedOf(old),
                     steers = it.steers.map { n -> if (n.state.unconsumed) n.copy(state = SteerState.Next) else n }), runNotes.value))
             }
             val exchanges = ui.exchanges.toMutableList().also { it[liveIndex] = ex }

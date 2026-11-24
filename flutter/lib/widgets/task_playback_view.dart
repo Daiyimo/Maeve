@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -212,7 +213,6 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
     }
     final bytes = frame == null ? null : _bytes[frame.screenshotId];
     final reduce = MediaQuery.disableAnimationsOf(context);
-    final buttonSide = widget.compact ? 40.0 : 48.0;
     return Column(
       key: const ValueKey('task-playback-view'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -270,65 +270,7 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
           ),
         ],
         const SizedBox(height: MaeveSpace.s8),
-        Slider(
-          value: _index.toDouble(),
-          max: (_frames.length - 1).toDouble(),
-          divisions: _frames.length > 1 ? _frames.length - 1 : null,
-          label: '第 ${_index + 1} 帧',
-          semanticFormatterCallback: (value) => '第 ${value.round() + 1} 帧',
-          onChanged: (value) {
-            _pause();
-            _go(value.round());
-          },
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox.square(
-              dimension: buttonSide,
-              child: MaeveGlassButton(
-                icon: Icons.skip_previous_rounded,
-                tooltip: '上一帧',
-                compact: true,
-                haptic: MaeveHaptic.tick,
-                onPressed: _index == 0
-                    ? null
-                    : () {
-                        _pause();
-                        _go(_index - 1);
-                      },
-              ),
-            ),
-            SizedBox(width: widget.compact ? 4 : MaeveSpace.s8),
-            SizedBox.square(
-              dimension: buttonSide,
-              child: MaeveGlassButton(
-                icon: _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                tooltip: _playing ? '暂停' : '播放',
-                compact: true,
-                prominent: true,
-                haptic: MaeveHaptic.light,
-                onPressed: _playing ? _pause : _play,
-              ),
-            ),
-            SizedBox(width: widget.compact ? 4 : MaeveSpace.s8),
-            SizedBox.square(
-              dimension: buttonSide,
-              child: MaeveGlassButton(
-                icon: Icons.skip_next_rounded,
-                tooltip: '下一帧',
-                compact: true,
-                haptic: MaeveHaptic.tick,
-                onPressed: _index >= _frames.length - 1
-                    ? null
-                    : () {
-                        _pause();
-                        _go(_index + 1);
-                      },
-              ),
-            ),
-          ],
-        ),
+        _controls(),
 
         if (widget.showStages && widget.report.stages.isNotEmpty) ...[
           const SizedBox(height: MaeveSpace.s12),
@@ -368,6 +310,99 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
         ],
       ],
     );
+  }
+
+  Widget _controls() => Center(
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 232),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final mix = ((width - 120) / 112).clamp(0.0, 1.0);
+          final slot = width / 3;
+          final skipSize = math.min(slot * .82, 30 + 10 * mix);
+          final playSize = math.min(slot * .94, 36 + 12 * mix);
+          final thumbRadius = 6 + 2 * mix;
+          final slider = SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 2.5 + mix,
+              trackShape: const RoundedRectSliderTrackShape(),
+              thumbShape: RoundSliderThumbShape(
+                enabledThumbRadius: thumbRadius,
+              ),
+              overlayShape: RoundSliderOverlayShape(
+                overlayRadius: thumbRadius + 5,
+              ),
+            ),
+            child: Slider(
+              value: _index.toDouble(),
+              max: (_frames.length - 1).toDouble(),
+              divisions: _frames.length > 1 ? _frames.length - 1 : null,
+              label: '第 ${_index + 1} 帧',
+              semanticFormatterCallback: (value) => '第 ${value.round() + 1} 帧',
+              onChanged: (value) => _seek(value.round()),
+            ),
+          );
+          return Column(
+            key: const ValueKey('playback-controls'),
+            children: [
+              SizedBox(
+                height: 36 + 8 * mix,
+                width: double.infinity,
+                child: slider,
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: MaeveGlassButton(
+                        icon: Icons.skip_previous_rounded,
+                        tooltip: '上一帧',
+                        visualDiameter: skipSize,
+                        haptic: MaeveHaptic.tick,
+                        onPressed: _index == 0 ? null : () => _seek(_index - 1),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: MaeveGlassButton(
+                        icon: _playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        tooltip: _playing ? '暂停' : '播放',
+                        visualDiameter: playSize,
+                        prominent: true,
+                        haptic: MaeveHaptic.light,
+                        onPressed: _playing ? _pause : _play,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Center(
+                      child: MaeveGlassButton(
+                        icon: Icons.skip_next_rounded,
+                        tooltip: '下一帧',
+                        visualDiameter: skipSize,
+                        haptic: MaeveHaptic.tick,
+                        onPressed: _index >= _frames.length - 1
+                            ? null
+                            : () => _seek(_index + 1),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    ),
+  );
+
+  void _seek(int index) {
+    _pause();
+    _go(index);
   }
 }
 

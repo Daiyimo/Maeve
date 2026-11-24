@@ -121,10 +121,25 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump();
 
-    final preview = tester.getRect(find.byType(TaskPreview));
-    final records = tester.getRect(find.byType(LiveExecutionFeed));
+    final previewFrame = find.byKey(const ValueKey('live-preview-frame'));
+    final preview = tester.getRect(previewFrame);
+    final records = tester.getRect(
+      find.byKey(const ValueKey('live-execution-feed')),
+    );
     expect(preview.right, lessThanOrEqualTo(records.left));
     expect(preview.top, records.top);
+    expect(preview.bottom, records.bottom);
+    final previewTitle = tester.getRect(find.text('实时执行画面'));
+    final recordTitle = tester.getRect(find.text('实时执行记录'));
+    expect(previewTitle.top, recordTitle.top);
+    expect(previewTitle.bottom, recordTitle.bottom);
+    expect(previewTitle.bottom, lessThan(preview.top));
+    final liveImage = find.descendant(
+      of: previewFrame,
+      matching: find.byType(Image),
+    );
+    expect(tester.getSize(liveImage).height, greaterThan(300));
+    expect(tester.widget<Image>(liveImage).fit, BoxFit.contain);
     expect(tester.takeException(), isNull);
   });
 
@@ -138,10 +153,25 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump();
 
-    final preview = tester.getRect(find.byType(TaskPreview));
-    final records = tester.getRect(find.byType(LiveExecutionFeed));
+    final previewFrame = find.byKey(const ValueKey('live-preview-frame'));
+    final preview = tester.getRect(previewFrame);
+    final records = tester.getRect(
+      find.byKey(const ValueKey('live-execution-feed')),
+    );
     expect(preview.right, lessThanOrEqualTo(records.left));
     expect(preview.top, records.top);
+    expect(preview.bottom, records.bottom);
+    final previewTitle = tester.getRect(find.text('实时执行画面'));
+    final recordHeading = tester.getRect(find.text('实时执行记录'));
+    expect(previewTitle.top, recordHeading.top);
+    expect(previewTitle.bottom, lessThan(preview.top));
+    expect(320 - records.right, closeTo(20, .1));
+    expect(records.width / preview.width, closeTo(52 / 48, .01));
+    final liveImage = find.descendant(
+      of: previewFrame,
+      matching: find.byType(Image),
+    );
+    expect(tester.getSize(liveImage).height, greaterThan(200));
     final recordTitle = tester.widget<Text>(find.text('01  点击系统设置'));
     expect(recordTitle.style?.fontSize, lessThanOrEqualTo(12));
     expect(
@@ -152,6 +182,77 @@ void main() {
     expect(find.byTooltip('正在跟随最新'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final hasRecording in [false, true]) {
+    testWidgets(
+      'Stopping keeps execution columns aligned (recorded: $hasRecording)',
+      (tester) async {
+        final bridge = FakeChatBridge()
+          ..frame = _png
+          ..report = TaskReport(
+            available: true,
+            goal: '打开设置',
+            outcome: '已停止',
+            frames: _report().frames,
+          );
+        await _mount(tester, bridge, size: const Size(390, 844));
+        _emitWorking(bridge);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+        final stop = find.widgetWithText(MaeveGlassTextButton, '停止任务');
+        await tester.ensureVisible(stop);
+        await tester.tap(stop);
+        await tester.pump();
+
+        expect(bridge.cancelCalls, 1);
+        expect(find.text('正在停止，等待任务收尾'), findsOneWidget);
+        final left = tester.getRect(
+          find.byKey(const ValueKey('live-preview-frame')),
+        );
+        final right = tester.getRect(
+          find.byKey(const ValueKey('live-execution-feed')),
+        );
+        expect(left.top, right.top);
+        expect(left.bottom, right.bottom);
+
+        bridge.emitUi(
+          conversationId: 'live',
+          exchanges: [
+            FakeChatBridge.exchange(
+              '打开设置',
+              status: 'cancelled',
+              runId: hasRecording ? 'run-1' : null,
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        final replay = tester.getRect(
+          find.byKey(const ValueKey('stopped-playback-frame')),
+        );
+        final summary = tester.getRect(
+          find.byKey(const ValueKey('stopped-settlement-frame')),
+        );
+        expect(replay.top, summary.top);
+        expect(replay.bottom, summary.bottom);
+        expect(replay.left, left.left);
+        expect(summary.right, right.right);
+        expect(
+          tester.getTopLeft(find.text('操作回放')).dy,
+          tester.getTopLeft(find.text('任务结算')).dy,
+        );
+        expect(find.text('已停止'), findsWidgets);
+        expect(
+          find.text('这次任务没有记录画面。'),
+          hasRecording ? findsNothing : findsOneWidget,
+        );
+        expect(
+          find.byIcon(Icons.play_arrow_rounded),
+          hasRecording ? findsOneWidget : findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('Active status detail waits for the settlement pane', (
     tester,
@@ -169,7 +270,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       find.descendant(
-        of: find.byType(TaskSettlementView),
+        of: find.byType(TaskReportCard),
         matching: find.text('已核对 10 步执行记录'),
       ),
       findsOneWidget,
@@ -208,8 +309,38 @@ void main() {
       expect(processButton.shape, reportButton.shape);
       expect(processButton.enabled, reportButton.enabled);
       final playback = tester.getRect(find.byType(TaskPlaybackView));
-      final settlement = tester.getRect(find.byType(TaskSettlementView));
+      final settlement = tester.getRect(find.byType(TaskReportCard));
       expect(playback.right, lessThanOrEqualTo(settlement.left));
+      final replayFrame = find.byKey(
+        const ValueKey('completed-playback-frame'),
+      );
+      final summaryFrame = find.byKey(
+        const ValueKey('completed-settlement-frame'),
+      );
+      final replayGlass = tester.widget<MaeveGlassSurface>(replayFrame);
+      final summaryGlass = tester.widget<MaeveGlassSurface>(summaryFrame);
+      expect(replayGlass.tier, MaeveGlassTier.card);
+      expect(replayGlass.tier, summaryGlass.tier);
+      expect(replayGlass.shape, summaryGlass.shape);
+      expect(
+        tester.getTopLeft(replayFrame).dy,
+        tester.getTopLeft(summaryFrame).dy,
+      );
+      expect(
+        tester.getBottomLeft(replayFrame).dy,
+        tester.getBottomLeft(summaryFrame).dy,
+      );
+      expect(find.text('导出'), findsNothing);
+      expect(find.text('完整报告'), findsNothing);
+      expect(tester.getSize(find.byType(Slider)).width, 232);
+      expect(
+        tester
+            .widget<MaeveGlassButton>(
+              find.widgetWithIcon(MaeveGlassButton, Icons.play_arrow_rounded),
+            )
+            .visualDiameter,
+        48,
+      );
 
       await tester.tap(find.byIcon(Icons.play_arrow_rounded));
       await tester.pump();
@@ -294,12 +425,35 @@ void main() {
     await tester.pumpAndSettle();
 
     final playback = tester.getRect(find.byType(TaskPlaybackView));
-    final settlement = tester.getRect(find.byType(TaskSettlementView));
+    final replayFrame = tester.getRect(
+      find.byKey(const ValueKey('completed-playback-frame')),
+    );
+    final settlement = tester.getRect(
+      find.byKey(const ValueKey('completed-settlement-frame')),
+    );
     expect(playback.right, lessThanOrEqualTo(settlement.left));
-    expect(playback.top, settlement.top);
+    expect(replayFrame.top, settlement.top);
+    expect(replayFrame.bottom, settlement.bottom);
+    expect(390 - settlement.right, closeTo(20, .1));
+    final controls = tester.getRect(
+      find.byKey(const ValueKey('playback-controls')),
+    );
+    final play = tester.widget<MaeveGlassButton>(
+      find.widgetWithIcon(MaeveGlassButton, Icons.play_arrow_rounded),
+    );
+    final previous = tester.widget<MaeveGlassButton>(
+      find.widgetWithIcon(MaeveGlassButton, Icons.skip_previous_rounded),
+    );
+    final next = tester.widget<MaeveGlassButton>(
+      find.widgetWithIcon(MaeveGlassButton, Icons.skip_next_rounded),
+    );
+    expect(controls.width, playback.width);
+    expect(play.visualDiameter, lessThan(48));
+    expect(play.visualDiameter, greaterThan(previous.visualDiameter!));
+    expect(previous.visualDiameter, next.visualDiameter);
     final goal = tester.widget<Text>(
       find.descendant(
-        of: find.byType(TaskSettlementView),
+        of: find.byType(TaskReportCard),
         matching: find.text('打开设置'),
       ),
     );
@@ -350,7 +504,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('这次任务没有记录画面。'), findsOneWidget);
-    expect(find.byType(TaskSettlementView), findsOneWidget);
+    expect(find.byType(TaskReportCard), findsOneWidget);
     expect(find.byIcon(Icons.play_arrow_rounded), findsNothing);
     expect(tester.takeException(), isNull);
   });

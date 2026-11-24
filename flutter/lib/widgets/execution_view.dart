@@ -13,6 +13,7 @@ import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../ui/common/app_page.dart';
 import '../ui/common/haptics.dart';
+import 'execution_section.dart';
 import 'execution_token_usage_view.dart';
 import 'glass_surface.dart';
 import 'live_elapsed_text.dart';
@@ -151,14 +152,13 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
         _expanded ??
         (message.active ||
             message.failed ||
-            (widget.isLatest && message.runId != null));
+            (widget.isLatest && message.hasSettlement));
     final rows = message.executionSteps;
     final showLive =
         widget.isLatest &&
         message.active &&
         controller.hostConversationId != null;
-    final showCompleted =
-        widget.isLatest && !message.active && message.runId != null;
+    final showCompleted = widget.isLatest && message.hasSettlement;
     MaeveGlassTextButton executionAction({
       required String label,
       required IconData icon,
@@ -344,15 +344,15 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
         if (showLive) ...[
           if (expanded)
             AdaptiveExecutionLayout(
-              wideHeight: 340,
-              compactHeight: 280,
+              wideHeight: 350,
+              compactHeight: 288,
               left: TaskPreview(
                 key: ValueKey(
                   'preview-${controller.hostConversationId}-${message.runId}',
                 ),
                 bridge: controller.chatBridge,
                 conversationId: controller.hostConversationId!,
-                imageHeight: 300,
+                imageHeight: null,
               ),
               right: LiveExecutionFeed(
                 key: ValueKey(
@@ -360,14 +360,6 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
                 ),
                 steps: rows,
                 height: 275,
-              ),
-              compactLeft: TaskPreview(
-                key: ValueKey(
-                  'preview-${controller.hostConversationId}-${message.runId}',
-                ),
-                bridge: controller.chatBridge,
-                conversationId: controller.hostConversationId!,
-                imageHeight: 200,
               ),
               compactRight: LiveExecutionFeed(
                 key: ValueKey(
@@ -391,7 +383,8 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
           CompletedExecutionPanel(
             key: ValueKey('completed-${message.runId}'),
             bridge: controller.chatBridge,
-            runId: message.runId!,
+            runId: message.runId,
+            stopped: message.status == 'cancelled',
             detail: message.detail,
             fallbackReport: TaskReport(
               available: true,
@@ -399,13 +392,6 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
               outcome: message.statusLabel,
               duration: message.elapsedLabel,
               answer: message.text,
-            ),
-            onOpenFullReport: () => AppPage.open(
-              context,
-              TaskReportPage(
-                bridge: controller.chatBridge,
-                runId: message.runId!,
-              ),
             ),
           )
         else if (expanded && widget.isLatest && message.active && !showLive)
@@ -622,7 +608,7 @@ class TaskPreview extends StatefulWidget {
   });
   final MaeveChatBridge bridge;
   final String conversationId;
-  final double imageHeight;
+  final double? imageHeight;
   @override
   State<TaskPreview> createState() => _TaskPreviewState();
 }
@@ -677,7 +663,8 @@ class _TaskPreviewState extends State<TaskPreview> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) => _bytes == null
+  Widget build(BuildContext context) =>
+      _bytes == null && widget.imageHeight != null
       ? Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Text(
@@ -687,7 +674,7 @@ class _TaskPreviewState extends State<TaskPreview> with WidgetsBindingObserver {
             ),
           ),
         )
-      : _Frame(bytes: _bytes!, title: '实时执行画面', height: widget.imageHeight);
+      : _Frame(bytes: _bytes, title: '实时执行画面', height: widget.imageHeight);
 }
 
 class _Frame extends StatelessWidget {
@@ -697,69 +684,106 @@ class _Frame extends StatelessWidget {
     this.pointer,
     this.height = 190,
   });
-  final Uint8List bytes;
+  final Uint8List? bytes;
   final String title;
   final ExecutionPointer? pointer;
-  final double height;
+  final double? height;
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => Scaffold(
-            backgroundColor: Colors.black,
-            appBar: AppBar(
-              title: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: MaeveType.title.copyWith(color: Colors.white),
+  Widget build(BuildContext context) {
+    final colors = MaeveTheme.of(context).colors;
+    final bytes = this.bytes;
+    final caption = Text(
+      bytes == null ? title : '$title · 点按放大',
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: MaeveType.hint.copyWith(color: colors.ink3),
+    );
+    final picture = ColoredBox(
+      color: colors.fill,
+      child: bytes == null
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Text(
+                  '当前任务尚未产生执行画面',
+                  textAlign: TextAlign.center,
+                  style: MaeveType.hint.copyWith(color: colors.ink3),
+                ),
               ),
-              backgroundColor: Colors.black,
-              foregroundColor: Colors.white,
-            ),
-            body: SafeArea(
-              child: Center(
-                child: InteractiveViewer(
-                  maxScale: 5,
-                  child: pointer == null
-                      ? Image.memory(bytes, fit: BoxFit.contain)
-                      : AspectRatio(
-                          aspectRatio: pointer!.width / pointer!.height,
-                          child: _PointerImage(bytes: bytes, pointer: pointer),
-                        ),
+            )
+          : _PointerImage(bytes: bytes, pointer: pointer),
+    );
+    final VoidCallback? openFrame = bytes == null
+        ? null
+        : () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => Scaffold(
+                backgroundColor: Colors.black,
+                appBar: AppBar(
+                  title: Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: MaeveType.title.copyWith(color: Colors.white),
+                  ),
+                  backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
+                ),
+                body: SafeArea(
+                  child: Center(
+                    child: InteractiveViewer(
+                      maxScale: 5,
+                      child: pointer == null
+                          ? Image.memory(bytes, fit: BoxFit.contain)
+                          : AspectRatio(
+                              aspectRatio: pointer!.width / pointer!.height,
+                              child: _PointerImage(
+                                bytes: bytes,
+                                pointer: pointer,
+                              ),
+                            ),
+                    ),
+                  ),
                 ),
               ),
             ),
+          );
+    if (height == null) {
+      return ExecutionSection(
+        title: title,
+        frameKey: const ValueKey('live-preview-frame'),
+        action: SizedBox.square(
+          dimension: 36,
+          child: MaeveGlassButton(
+            icon: Icons.open_in_full_rounded,
+            tooltip: '放大实时画面',
+            visualDiameter: 28,
+            haptic: MaeveHaptic.tick,
+            onPressed: openFrame,
           ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$title · 点按放大',
-            style: MaeveType.hint.copyWith(
-              color: MaeveTheme.of(context).colors.ink3,
+        body: InkWell(onTap: openFrame, child: picture),
+      );
+    }
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: openFrame,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            caption,
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(height: height, child: picture),
             ),
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              height: height,
-              width: double.infinity,
-              child: ColoredBox(
-                color: MaeveTheme.of(context).colors.fill,
-                child: _PointerImage(bytes: bytes, pointer: pointer),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class RunDetailsPage extends StatefulWidget {

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../design/maeve_type.dart';
+
 /// 执行画面与记录/结算的左右双栏容器；窄屏只压缩内容，不改为上下。
 class AdaptiveExecutionLayout extends StatelessWidget {
   const AdaptiveExecutionLayout({
@@ -25,15 +27,21 @@ class AdaptiveExecutionLayout extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final compact = constraints.maxWidth < breakpoint;
-      return SizedBox(
-        height: compact ? compactHeight : wideHeight,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(flex: 48, child: compact ? compactLeft ?? left : left),
-            SizedBox(width: compact ? 8 : 12),
-            Expanded(flex: 52, child: compact ? compactRight ?? right : right),
-          ],
+      return Padding(
+        padding: const EdgeInsetsDirectional.only(end: MaeveSpace.s12),
+        child: SizedBox(
+          height: compact ? compactHeight : wideHeight,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 48, child: compact ? compactLeft ?? left : left),
+              SizedBox(width: compact ? 8 : 12),
+              Expanded(
+                flex: 52,
+                child: compact ? compactRight ?? right : right,
+              ),
+            ],
+          ),
         ),
       );
     },

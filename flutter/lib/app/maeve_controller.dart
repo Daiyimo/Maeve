@@ -615,10 +615,7 @@ class MaeveController extends ChangeNotifier {
     final plan = exchange['plan'] is Map
         ? TaskPlanView.fromMap(exchange['plan'] as Map)
         : null;
-    if (text.isEmpty &&
-        line.isEmpty &&
-        steps == 0 &&
-        const ['done', 'cancelled'].contains(status)) {
+    if (text.isEmpty && line.isEmpty && steps == 0 && status == 'done') {
       return;
     }
     yield Message(

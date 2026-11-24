@@ -535,7 +535,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump();
       expect(bridge.previewConversations, isNotEmpty);
-      expect(find.text('实时执行画面 · 点按放大'), findsOneWidget);
+      expect(find.byTooltip('放大实时画面'), findsOneWidget);
       expect(bridge.previewConversations, everyElement('live'));
       for (final state in [
         AppLifecycleState.inactive,

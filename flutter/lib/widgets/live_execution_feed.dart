@@ -4,6 +4,7 @@ import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../models/execution.dart';
 import '../ui/common/haptics.dart';
+import 'execution_section.dart';
 import 'glass_surface.dart';
 
 /// 固定高度的实时记录窗口；记录从上到下追加，最新记录停在底部。
@@ -143,67 +144,38 @@ class _LiveExecutionFeedState extends State<LiveExecutionFeed> {
               );
             },
           );
-    return Container(
-      key: const ValueKey('live-execution-feed'),
-      margin: widget.compact
+    final jumpToLatest = _following
+        ? null
+        : () => _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    return Padding(
+      padding: widget.compact || widget.height != null
           ? EdgeInsets.zero
           : const EdgeInsets.only(top: 8, bottom: 4),
-      decoration: BoxDecoration(
-        color: c.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: c.rule),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Padding(
-            padding: widget.compact
-                ? const EdgeInsets.fromLTRB(8, 6, 4, 0)
-                : const EdgeInsets.fromLTRB(12, 8, 8, 0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '实时执行记录',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: titleStyle.copyWith(color: c.ink2),
-                  ),
+      child: ExecutionSection(
+        title: '实时执行记录',
+        frameKey: const ValueKey('live-execution-feed'),
+        bodyHeight: widget.height == null
+            ? (_extent * 1.8).clamp(160, 230)
+            : null,
+        body: list,
+        action: widget.compact
+            ? SizedBox.square(
+                dimension: 36,
+                child: MaeveGlassButton(
+                  icon: Icons.keyboard_double_arrow_down_rounded,
+                  tooltip: followLabel,
+                  visualDiameter: 28,
+                  haptic: MaeveHaptic.tick,
+                  onPressed: jumpToLatest,
                 ),
-                if (widget.compact)
-                  SizedBox.square(
-                    dimension: 40,
-                    child: MaeveGlassButton(
-                      icon: Icons.keyboard_double_arrow_down_rounded,
-                      tooltip: followLabel,
-                      compact: true,
-                      haptic: MaeveHaptic.tick,
-                      onPressed: _following
-                          ? null
-                          : () => _scroll.jumpTo(
-                              _scroll.position.maxScrollExtent,
-                            ),
-                    ),
-                  )
-                else
-                  MaeveGlassTextButton(
-                    label: followLabel,
-                    compact: true,
-                    enabled: !_following,
-                    haptic: MaeveHaptic.tick,
-                    onPressed: _following
-                        ? null
-                        : () =>
-                              _scroll.jumpTo(_scroll.position.maxScrollExtent),
-                  ),
-              ],
-            ),
-          ),
-          if (widget.height != null)
-            Expanded(child: list)
-          else
-            SizedBox(height: (_extent * 1.8).clamp(160, 230), child: list),
-        ],
+              )
+            : MaeveGlassTextButton(
+                label: followLabel,
+                compact: true,
+                enabled: !_following,
+                haptic: MaeveHaptic.tick,
+                onPressed: jumpToLatest,
+              ),
       ),
     );
   }

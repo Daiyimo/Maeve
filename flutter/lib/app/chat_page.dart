@@ -709,7 +709,7 @@ class _AssistantTurn extends StatelessWidget {
             ExecutionPanel(message: message, isLatest: isLatest),
             if (message.text.isNotEmpty &&
                 (!message.active || message.detail?.isNotEmpty == true) &&
-                !(isLatest && !message.active && message.runId != null))
+                !(isLatest && message.hasSettlement))
               Container(
                 decoration: BoxDecoration(
                   border: Border(

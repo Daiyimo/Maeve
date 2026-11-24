@@ -7,6 +7,7 @@ import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../models/task_report.dart';
 import 'adaptive_execution_layout.dart';
+import 'execution_section.dart';
 import 'glass_surface.dart';
 import 'task_playback_view.dart';
 import 'task_settlement_view.dart';
@@ -19,13 +20,13 @@ class CompletedExecutionPanel extends StatefulWidget {
     required this.runId,
     this.fallbackReport,
     this.detail,
-    this.onOpenFullReport,
+    this.stopped = false,
   });
   final MaeveChatBridge bridge;
-  final String runId;
+  final String? runId;
   final TaskReport? fallbackReport;
   final String? detail;
-  final VoidCallback? onOpenFullReport;
+  final bool stopped;
 
   @override
   State<CompletedExecutionPanel> createState() =>
@@ -56,11 +57,12 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
   }
 
   Future<void> _load() async {
-    if (_loading) return;
+    final runId = widget.runId;
+    if (_loading || runId == null) return;
     _loading = true;
     _attempt++;
     try {
-      final report = await widget.bridge.runReport(widget.runId);
+      final report = await widget.bridge.runReport(runId);
       if (!mounted) return;
       setState(() {
         _report = report;
@@ -82,74 +84,119 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
   Widget build(BuildContext context) {
     final c = MaeveTheme.of(context).colors;
     final loaded = _report;
-    final report = loaded?.available == true ? loaded : widget.fallbackReport;
-    if (report == null && _error == null) {
-      return const Padding(padding: EdgeInsets.all(24), child: Text('正在生成结算…'));
-    }
-    if (_error != null) {
-      return Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_error!, style: MaeveType.body.copyWith(color: c.bad)),
-            const SizedBox(height: 8),
-            MaeveGlassTextButton(label: '重试', compact: true, onPressed: _load),
-          ],
-        ),
-      );
+    final report = loaded?.available == true && !(widget.stopped && loaded!.running)
+        ? loaded
+        : widget.fallbackReport;
+    final error = _error;
+    final errorView = error == null
+        ? null
+        : Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(error, style: MaeveType.body.copyWith(color: c.bad)),
+                const SizedBox(height: 8),
+                MaeveGlassTextButton(
+                  label: '重试',
+                  compact: true,
+                  onPressed: _load,
+                ),
+              ],
+            ),
+          );
+    if (errorView != null && (!widget.stopped || report == null)) {
+      return errorView;
     }
     if (report == null) {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Text(
-          loaded?.running == true ? '结算正在生成…' : '这次记录不存在或已被清理。',
+          loaded == null || loaded.running ? '结算正在生成…' : '这次记录不存在或已被清理。',
           style: MaeveType.body.copyWith(color: c.ink2),
         ),
       );
     }
+    final runId = widget.runId;
+    Widget playback({required bool compact}) {
+      final player = runId == null
+          ? null
+          : TaskPlaybackView(
+              bridge: widget.bridge,
+              runId: runId,
+              report: report,
+              initialFrame: report.frames.isEmpty
+                  ? 0
+                  : report.frames.length - 1,
+              imageHeight: compact ? 150 : 280,
+              showStages: false,
+              compact: compact,
+            );
+      return ExecutionSection(
+        title: widget.stopped ? '操作回放' : null,
+        frameKey: ValueKey(
+          widget.stopped
+              ? 'stopped-playback-frame'
+              : 'completed-playback-frame',
+        ),
+        glass: true,
+        body: player == null || report.frames.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(MaeveSpace.s8),
+                  child: Text(
+                    '这次任务没有记录画面。',
+                    textAlign: TextAlign.center,
+                    style: MaeveType.caption.copyWith(color: c.ink2),
+                  ),
+                ),
+              )
+            : SingleChildScrollView(
+                padding: EdgeInsets.symmetric(
+                  horizontal: compact ? MaeveSpace.s4 : MaeveSpace.s12,
+                  vertical: compact ? MaeveSpace.s8 : MaeveSpace.s12,
+                ),
+                child: player,
+              ),
+      );
+    }
+
+    Widget settlement({required bool compact}) {
+      final card = TaskReportCard(
+        key: const ValueKey('task-settlement-view'),
+        report: report,
+        detail: widget.detail,
+        compact: compact,
+        embedded: true,
+      );
+      final body = SingleChildScrollView(
+        child: errorView == null
+            ? card
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [card, errorView],
+              ),
+      );
+      return ExecutionSection(
+        title: widget.stopped ? '任务结算' : null,
+        frameKey: ValueKey(
+          widget.stopped
+              ? 'stopped-settlement-frame'
+              : 'completed-settlement-frame',
+        ),
+        glass: true,
+        body: body,
+      );
+    }
+
     return AdaptiveExecutionLayout(
       key: const ValueKey('completed-execution-layout'),
       wideHeight: 520,
       compactHeight: 360,
-      left: TaskPlaybackView(
-        bridge: widget.bridge,
-        runId: widget.runId,
-        report: report,
-        initialFrame: report.frames.isEmpty ? 0 : report.frames.length - 1,
-        imageHeight: 280,
-        showStages: false,
-      ),
-      compactLeft: SingleChildScrollView(
-        child: TaskPlaybackView(
-          bridge: widget.bridge,
-          runId: widget.runId,
-          report: report,
-          initialFrame: report.frames.isEmpty ? 0 : report.frames.length - 1,
-          imageHeight: 150,
-          showStages: false,
-          compact: true,
-        ),
-      ),
-      right: SingleChildScrollView(
-        child: TaskSettlementView(
-          bridge: widget.bridge,
-          runId: widget.runId,
-          report: report,
-          detail: widget.detail,
-          onOpenFullReport: widget.onOpenFullReport,
-        ),
-      ),
-      compactRight: SingleChildScrollView(
-        child: TaskSettlementView(
-          bridge: widget.bridge,
-          runId: widget.runId,
-          report: report,
-          detail: widget.detail,
-          onOpenFullReport: widget.onOpenFullReport,
-          compact: true,
-        ),
-      ),
+      left: playback(compact: false),
+      compactLeft: playback(compact: true),
+      right: settlement(compact: false),
+      compactRight: settlement(compact: true),
     );
   }
 }

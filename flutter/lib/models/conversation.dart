@@ -42,6 +42,7 @@ class Message {
   }
 
   bool get active => !const ['done', 'failed', 'cancelled'].contains(status);
+  bool get hasSettlement => !active && (runId != null || status == 'cancelled');
   String get statusLabel => waitingForModel && status == 'working'
       ? '等待模型响应'
       : switch (status) {

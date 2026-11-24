@@ -20,10 +20,12 @@ class TaskReportCard extends StatelessWidget {
     required this.report,
     this.compact = false,
     this.detail,
+    this.embedded = false,
   });
   final TaskReport report;
   final bool compact;
   final String? detail;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context) {
@@ -49,93 +51,91 @@ class TaskReportCard extends StatelessWidget {
       if (report.reviewDetail case final String review) review,
       if (detail case final String messageDetail) messageDetail,
     ].where((s) => s.trim().isNotEmpty && s != report.answer).toSet();
-    return MaeveGlassSurface(
-      tier: MaeveGlassTier.card,
-      shape: MaeveShapes.card,
-      padding: EdgeInsets.all(compact ? MaeveSpace.s12 : MaeveSpace.s20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            report.goal,
-            style: MaeveType.title.copyWith(
-              fontSize: compact ? 14.5 : 21,
-              fontWeight: FontWeight.w700,
-              color: c.ink,
-              height: compact ? 1.3 : 1.35,
-            ),
+    final padding = EdgeInsets.all(compact ? MaeveSpace.s12 : MaeveSpace.s20);
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          report.goal,
+          style: MaeveType.title.copyWith(
+            fontSize: compact ? 14.5 : 21,
+            fontWeight: FontWeight.w700,
+            color: c.ink,
+            height: compact ? 1.3 : 1.35,
           ),
-          if (summary.isNotEmpty) ...[
-            SizedBox(height: gap),
-            Container(
-              decoration: BoxDecoration(
-                color: c.accent.withValues(alpha: .10),
-                borderRadius: BorderRadius.circular(MaeveRadius.sm),
-                border: Border(left: BorderSide(color: c.accent, width: 3)),
-              ),
-              padding: EdgeInsets.symmetric(
-                horizontal: compact ? MaeveSpace.s8 : MaeveSpace.s12,
-                vertical: compact ? 6 : MaeveSpace.s10,
-              ),
-              child: Text.rich(
-                TextSpan(
-                  style: strongStyle.copyWith(color: c.ink),
-                  children: [
-                    TextSpan(text: summary),
-                    if (duration != null)
-                      TextSpan(
-                        text: ' · $duration',
-                        style: MaeveType.mono.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+        ),
+        if (summary.isNotEmpty) ...[
+          SizedBox(height: gap),
+          Container(
+            decoration: BoxDecoration(
+              color: c.accent.withValues(alpha: .10),
+              borderRadius: BorderRadius.circular(MaeveRadius.sm),
+              border: Border(left: BorderSide(color: c.accent, width: 3)),
             ),
-          ],
-          for (final item in details) ...[
-            SizedBox(height: gap / 2),
-            Text(item, style: bodyStyle.copyWith(color: c.ink2)),
-          ],
-          if (report.criteria.isNotEmpty) ...[
-            SizedBox(height: gap),
-            Text('做成的标准', style: labelStyle.copyWith(color: c.ink3)),
-            SizedBox(height: gap / 2),
-            for (final item in report.criteria)
-              Padding(
-                padding: const EdgeInsets.only(bottom: MaeveSpace.s4),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('· ', style: bodyStyle.copyWith(color: c.ink3)),
-                    Expanded(
-                      child: Text(
-                        item,
-                        style: bodyStyle.copyWith(color: c.ink2),
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? MaeveSpace.s8 : MaeveSpace.s12,
+              vertical: compact ? 6 : MaeveSpace.s10,
+            ),
+            child: Text.rich(
+              TextSpan(
+                style: strongStyle.copyWith(color: c.ink),
+                children: [
+                  TextSpan(text: summary),
+                  if (duration != null)
+                    TextSpan(
+                      text: ' · $duration',
+                      style: MaeveType.mono.copyWith(
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
-          ],
-          SizedBox(height: compact ? 12 : MaeveSpace.s20),
-          Text('回答', style: labelStyle.copyWith(color: c.ink3)),
-          SizedBox(height: gap / 2),
-          if (report.hasAnswer)
-            MaeveMarkdown(
-              data: report.answer,
-              style: compact ? bodyStyle : null,
-            )
-          else
-            Text('这次任务没有保存最终回答。', style: bodyStyle.copyWith(color: c.ink3)),
+            ),
+          ),
         ],
-      ),
+        for (final item in details) ...[
+          SizedBox(height: gap / 2),
+          Text(item, style: bodyStyle.copyWith(color: c.ink2)),
+        ],
+        if (report.criteria.isNotEmpty) ...[
+          SizedBox(height: gap),
+          Text('做成的标准', style: labelStyle.copyWith(color: c.ink3)),
+          SizedBox(height: gap / 2),
+          for (final item in report.criteria)
+            Padding(
+              padding: const EdgeInsets.only(bottom: MaeveSpace.s4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('· ', style: bodyStyle.copyWith(color: c.ink3)),
+                  Expanded(
+                    child: Text(item, style: bodyStyle.copyWith(color: c.ink2)),
+                  ),
+                ],
+              ),
+            ),
+        ],
+        SizedBox(height: compact ? 12 : MaeveSpace.s20),
+        Text('回答', style: labelStyle.copyWith(color: c.ink3)),
+        SizedBox(height: gap / 2),
+        if (report.hasAnswer)
+          MaeveMarkdown(data: report.answer, style: compact ? bodyStyle : null)
+        else
+          Text('这次任务没有保存最终回答。', style: bodyStyle.copyWith(color: c.ink3)),
+      ],
     );
+    return embedded
+        ? Padding(padding: padding, child: content)
+        : MaeveGlassSurface(
+            tier: MaeveGlassTier.card,
+            shape: MaeveShapes.card,
+            padding: padding,
+            child: content,
+          );
   }
 }
 
-/// 报告页与内嵌结算区共用的导出按钮。
+/// 任务报告页的导出按钮。
 class TaskReportExportButton extends StatefulWidget {
   const TaskReportExportButton({
     super.key,
@@ -186,104 +186,13 @@ class _TaskReportExportButtonState extends State<TaskReportExportButton> {
   }
 
   @override
-  Widget build(BuildContext context) => TaskReportActionButton(
+  Widget build(BuildContext context) => MaeveGlassTextButton(
     label: '导出',
     icon: Icons.ios_share_rounded,
-    enabled: !_exporting,
-    onPressed: _export,
-  );
-}
-
-/// 内嵌结算区；完整报告页仍保留关键页与长记录。
-class TaskSettlementView extends StatefulWidget {
-  const TaskSettlementView({
-    super.key,
-    required this.bridge,
-    required this.runId,
-    required this.report,
-    this.detail,
-    this.onOpenFullReport,
-    this.compact = false,
-  });
-  final MaeveChatBridge bridge;
-  final String runId;
-  final TaskReport report;
-  final String? detail;
-  final VoidCallback? onOpenFullReport;
-  final bool compact;
-
-  @override
-  State<TaskSettlementView> createState() => _TaskSettlementViewState();
-}
-
-class _TaskSettlementViewState extends State<TaskSettlementView> {
-  String? _notice;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = MaeveTheme.of(context).colors;
-    return Column(
-      key: const ValueKey('task-settlement-view'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TaskReportCard(
-          report: widget.report,
-          compact: widget.compact,
-          detail: widget.detail,
-        ),
-        const SizedBox(height: MaeveSpace.s12),
-        Wrap(
-          spacing: MaeveSpace.s8,
-          runSpacing: MaeveSpace.s8,
-          children: [
-            TaskReportExportButton(
-              bridge: widget.bridge,
-              runId: widget.runId,
-              onNotice: (notice) => setState(() => _notice = notice),
-            ),
-            if (widget.onOpenFullReport != null)
-              TaskReportActionButton(
-                label: '完整报告',
-                icon: Icons.assignment_outlined,
-                onPressed: widget.onOpenFullReport,
-              ),
-          ],
-        ),
-        if (_notice != null) ...[
-          const SizedBox(height: MaeveSpace.s8),
-          Text(
-            _notice!,
-            style: MaeveType.caption.copyWith(
-              color: _notice == '报告已保存' ? c.ok : c.ink2,
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class TaskReportActionButton extends StatelessWidget {
-  const TaskReportActionButton({
-    super.key,
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-    this.enabled = true,
-  });
-  final String label;
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) => MaeveGlassTextButton(
-    label: label,
-    icon: icon,
     compact: true,
-    enabled: enabled,
+    enabled: !_exporting,
     haptic: MaeveHaptic.tick,
-    onPressed: enabled ? onPressed : null,
+    onPressed: _exporting ? null : _export,
   );
 }
 

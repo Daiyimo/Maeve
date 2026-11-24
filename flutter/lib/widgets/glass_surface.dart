@@ -757,13 +757,8 @@ class _GlassShadowPainter extends CustomPainter {
   }
 }
 
-/// 玻璃圆钮:顶栏动作键、输入条的两颗圆键、抽屉的关闭键、页面顶栏的刷新键。
-///
-/// 圆钮浮在静态背景上,按约定不取样,只拿玻璃的填充、受光边、斜带与顶边高光;
-/// [prominent] 用实色强调色(发送键)——仍然带一道白色受光边,读作"能按的玻璃",
-/// 不是一块塑料色块。[fill] / [foreground] 可覆盖底色与图形色(停止键用实色墨)。
-/// 视觉 36/40,可点域恒 48(顶栏动作的触控契约);按压反馈走 Pressable:
-/// 内容缩 0.97 + 触点径向流光 + 一次触感。圆钮不取样,缩放不会引发重采样。
+/// 静态液态玻璃圆钮。默认直径 36/40，可通过 [visualDiameter] 调整视觉尺寸。
+/// 可点域默认 48，按压反馈由 [Pressable] 提供。
 class MaeveGlassButton extends StatelessWidget {
   const MaeveGlassButton({
     super.key,
@@ -772,6 +767,7 @@ class MaeveGlassButton extends StatelessWidget {
     required this.onPressed,
     this.prominent = false,
     this.compact = false,
+    this.visualDiameter,
     this.enabled = true,
     this.fill,
     this.foreground,
@@ -783,6 +779,7 @@ class MaeveGlassButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool prominent;
   final bool compact;
+  final double? visualDiameter;
   final bool enabled;
 
   /// 覆盖填充(prominent 的强调色、停止键的实色墨)。
@@ -807,7 +804,7 @@ class MaeveGlassButton extends StatelessWidget {
     final theme = MaeveTheme.of(context);
     final colors = theme.colors;
     final chrome = theme.surfaces.chrome;
-    final dimension = compact ? 36.0 : MaeveSize.iconButton;
+    final dimension = visualDiameter ?? (compact ? 36.0 : MaeveSize.iconButton);
     const shape = CircleBorder();
     final active = enabled && onPressed != null;
     final solid = prominent || fill != null;
@@ -836,7 +833,7 @@ class MaeveGlassButton extends StatelessWidget {
           child: SizedBox.square(
             dimension: dimension,
             child: Center(
-              child: Icon(icon, size: compact ? 18 : 20, color: foreground),
+              child: Icon(icon, size: dimension / 2, color: foreground),
             ),
           ),
         ),
