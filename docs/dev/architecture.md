@@ -104,9 +104,11 @@
 | `RouteReplay` | 打开「照着上次的做法做」时,在第一次调模型前回放匹配的成功路线(见 §9) |
 | `UserExchange` | 追问、确认、接管这三种要用户参与的交互 |
 
-步数上限默认 60:设置 › 任务运行 › 每个任务的步数上限(`FeatureFlags.taskStepLimit`,1–500)。`TaskRun` 开工时读一次,放进 `RunSpec.stepBudget`,再作为 `AgentLoop` 的 `maxSteps`(评测的 `EvalHooks.maxSteps` 优先;内部未给预算时仍是 `AgentLoop.UNLIMITED_STEPS`);中途改设置只管之后开工的任务。守卫按上限分级,走到一半和四分之三时提醒进度(上限不少于 10 步),步数用完后再给最后一轮收尾(只给 `end_not_done`),收尾也没答出就以 `FailKind.StepLimit` 结束。开始事件与运行详情页记录实际上限。
+步数上限默认 500:设置 › 任务运行 › 每个任务的步数上限(`FeatureFlags.taskStepLimit`,1–500)。`TaskRun` 开工时读一次,放进 `RunSpec.stepBudget`,再作为 `AgentLoop` 的 `maxSteps`(评测的 `EvalHooks.maxSteps` 优先;内部未给预算时仍是 `AgentLoop.UNLIMITED_STEPS`);中途改设置只管之后开工的任务。守卫按上限分级,走到一半和四分之三时提醒进度(上限不少于 10 步),步数用完后再给最后一轮收尾(只给 `end_not_done`),收尾也没答出就以 `FailKind.StepLimit` 结束。开始事件与运行详情页记录实际上限。
 
 设置现在管的范围(都经 `TaskRun.execute`):对话界面(含悬浮胶囊、浏览器页上问)、定时触发的任务、电脑经 CLI / MCP 交来的任务都按设置;定时的条件核查(只读的那一次检查)不受它管,一直不限制;子任务不看设置,步数由 `spawn_agent` 自己定(默认 15 步,模型可要到 40 步,`SpawnAgent`),也不算进父任务的步数。
+
+模型可用 `report_plan` 显式报告 1–8 步计划与 1-based `currentStep`。计划状态由代码校验,任务结束按成功/失败/停止结算并随 `Turn` 持久化;界面只展示到当前步骤,不从工具调用数猜计划。`OperationGuards` 在现有 Module 内同时识别状态兜圈、最近 6 次同调用同屏和最近 8 步 ABAB 同屏;命中走统一 `GuardVerdict.stop`,主循环真正结束。普通等待也按返回屏幕纳入调用窗口;用户确认/追问/接管交回后才清调用历史。同名歧义控件只有在边界与中心完全没变时一对一沿用,列表滚动后仍重新编号。
 
 ### 结果判定
 
@@ -119,7 +121,9 @@
 
 ## 4. 唯一执行入口与工具
 
-- **唯一入口**:所有改变外部世界的动作都经 `ActionExecutor`(`core/action/ActionExecutor.kt`)。`ToolDispatcher.execute` 要一个 `ActionPass`(`core/tool/ActionPass.kt`),它的构造函数是 internal,只有 `ActionExecutor` 能造,从编译层面杜绝绕过;只读调用走 `executeRead`,不是只读的会被拒绝。执行顺序固定:守卫 → 锁屏检查 → 不可逆动作检查与同意 → 执行 → 动作后核对 → 记录。
+- **唯一入口**:所有改变外部世界的动作都经 `ActionExecutor`(`core/action/ActionExecutor.kt`)。`ToolDispatcher.execute` 要一个 `ActionPass`(`core/tool/ActionPass.kt`),它的构造函数是 internal,只有 `ActionExecutor` 能造,从编译层面杜绝绕过;只读调用走 `executeRead`,不是只读的会被拒绝。执行顺序固定:守卫 → 锁屏检查 → 不可逆动作检查与同意 → 执行 → 动作后核对 → 记录。写动作在目标解析前和真正投递前各过一次门禁;主屏锁屏代次在等待后变化则返回 `screen_changed_during_lock`、`executed=false`、`delivery=not_sent`,强制重读,不沿用旧 ref/坐标。
+- **投递三态**:`ActionDelivery` 区分 `sent`(端口已接受输入,不等于界面生效)、`not_sent`(可证明未投递)、`unknown`(派发后超时/断线/结果不明)。工具结果、执行入口、副作用账本和运行记录保留同一语义;`unknown` 不自动重发,也不能记成 NotApplied。只有 `not_sent` 或 `executed=false` 能证明未应用;`sent` 后即使 `ok=false` 也先记 Unknown,需本地核对后才能继续写动作。手机长按与拖动是单指原生时间轴;拖动可指定移动前 hold 与移动后 rest,仍是一笔连续手势。`do_steps` 每个子步保留同一投递语义,拒绝/跳过为 not_sent,取消为 unknown,批级结果取最保守状态。动作结果默认带同调用屏幕。
+- **网页 SSRF 边界**:导航、重定向与下载会拒绝短写/八进制/十六进制 IPv4、内网 IPv6 和任一内网 DNS 答案。支持 `PROXY_OVERRIDE` 的 WebView 走仅绑定 `127.0.0.1` 的进程级代理:明文 HTTP 校验主机后固定用已验证 IP 建连并重写请求行;HTTPS 先校验 CONNECT 目标,再固定 IP 盲转发 TLS,证书仍由 WebView 校验。主文档、子资源、POST 与重定向都不再检查后重新解析。代理不可用时保留原有导航/重定向/DNS 检查,但这一降级路径不声称消除 DNS 重新绑定竞态。
 - **对外动作之间的间隔**(`core/action/OutwardPacing.kt` 纯逻辑,`ActionExecutor` 照它等):不可逆判定认出的发送、提交(含一点就联系别人、投申请的按钮,如「立即沟通」「打招呼」「投递」「Say hi」「Easy Apply」)在同一网站(按可注册域名)或 App(按包名)里连着做时,第一次不等,之后和上一次至少隔 8–20 秒随机的一段,最近 30 分钟里做得越多上下限各加 0.5 / 1 秒,至多 30 秒;从上一次做完算起,中间读页面、想下一步的时间算在内,换不换页都算(换页的停留另由网页的节奏管)。手机、网页同一个判定、同一套间隔;自主执行时判定照样跑来认对外动作(按模型手里那一屏,不另读屏),审批仍按 `ApprovalPolicy` 执行。等在判定之后、动作开始之前,任务还能取消;等了多久记进这次调用的 `waitMs`,不算进操作用时。只由 App 的任务装上(`AgentLoop(outwardPacing = …)`),核心测试默认不等。
 - **这一步谁发起**:`Origin`(`core/action/Origin.kt`)= Model / Batch / Script / Replay / McpTool,各有策略(能否用用户的同意放行付款、遇到守卫警告是否停)。复合工具(一次多步、沙箱里的 `maeve phone`、网页脚本)内部的每个动作经 `SubActions`(`core/tool/SubActions.kt`)回到同一个入口,和单步工具同一条执行、记录路径。
 - **工具声明**:每个工具一个类,实现 `AgentTool`(`core/tool/AgentTool.kt`),声明自己的动词、风险(Read / Write / External)、所属能力、能否进一次多步、能否进经验路线、并发方式等;代码按这些属性办事,不写死工具名。`ToolRegistry` 按任务筛出可用工具,一个任务内工具定义冻结不变。
