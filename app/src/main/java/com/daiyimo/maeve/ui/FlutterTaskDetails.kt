@@ -63,6 +63,7 @@ internal object FlutterTaskDetails {
             "outcome" to report.header.outcome,
             "verdict" to report.header.verdict,
             "reviewDetail" to report.header.reviewDetail,
+            "reviewClaims" to report.header.reviewClaims?.let { mapOf("matched" to it.matched, "total" to it.total) },
             "duration" to report.header.duration,
             "criteria" to report.header.criteria,
             "answer" to report.answer,
@@ -79,7 +80,6 @@ internal object FlutterTaskDetails {
             ) },
         )
     }
-
     private fun pointer(p: com.daiyimo.maeve.core.record.RunEvent.Pointer): Map<String, Any?> = mapOf(
         "x" to p.x, "y" to p.y, "width" to p.width, "height" to p.height,
         "bounds" to p.bounds, "method" to p.method, "clicks" to p.clicks, "screenshotId" to p.screenshotId,

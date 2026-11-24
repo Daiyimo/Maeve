@@ -81,6 +81,7 @@ data class TimelineHeader(
     val metrics: RunMetrics? = null,
     val tokens: RunTokens? = null,
     val reviewDetail: String? = null,
+    val reviewClaims: LocalReview.Coverage? = null,
 )
 
 sealed interface TimelineUi {
@@ -123,10 +124,10 @@ class RunTimelineViewModel(
                 ?: events.filterIsInstance<RunEvent.Criteria>().lastOrNull()?.criteria.orEmpty(),
             outcome = if (endMs == null && ended == null && !isRunning) "记录已中断" else outcomeLabel(summary?.outcome ?: ended?.outcome,
                 summary?.judged ?: events.filterIsInstance<RunEvent.OutcomeJudged>().lastOrNull()?.outcome),
-            // 结束事件或结束时间只要有一个就算跑完了;都没有时还要任务真在跑,界面据此决定要不要按秒重读
             running = isRunning,
             verdict = localReview?.let(::localReviewLabel) ?: if (isRunning) "" else verdictLabel(legacyVerdict),
             reviewDetail = localReview?.let(::localReviewDetail),
+            reviewClaims = localReview?.claims,
             duration = endMs?.let { duration(it - startMs) },
             modelCalls = events.count { it is RunEvent.ModelReply },
             stepLimit = started?.stepLimit,
@@ -139,7 +140,6 @@ class RunTimelineViewModel(
     }
 
     fun screen(screenshotId: Int): File? = store.screen(runId, screenshotId)
-
     fun usageLog(): String = store.usageLog(runId)
 
     companion object {

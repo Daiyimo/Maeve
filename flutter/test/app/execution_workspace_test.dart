@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:maeve_flutter/app/chat_page.dart';
 import 'package:maeve_flutter/app/maeve_app.dart';
 import 'package:maeve_flutter/app/maeve_controller.dart';
 import 'package:maeve_flutter/bridge/maeve_bridge.dart';
@@ -11,6 +13,7 @@ import 'package:maeve_flutter/models/task_report.dart';
 import 'package:maeve_flutter/widgets/execution_view.dart';
 import 'package:maeve_flutter/widgets/glass_surface.dart';
 import 'package:maeve_flutter/widgets/task_playback_view.dart';
+import 'package:maeve_flutter/widgets/task_share_page.dart';
 import 'package:maeve_flutter/widgets/task_settlement_view.dart';
 
 import '../support/fake_chat_bridge.dart';
@@ -19,6 +22,16 @@ import '../support/fake_settings_bridge.dart';
 final _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=',
 );
+
+class _ShareBridge extends FakeChatBridge {
+  late Completer<Uint8List> png;
+
+  @override
+  Future<bool> shareTaskImage(Uint8List image) async {
+    png.complete(image);
+    return true;
+  }
+}
 
 TaskReport _report({bool frames = true}) => TaskReport(
   available: true,
@@ -458,6 +471,55 @@ void main() {
       ),
     );
     expect(goal.style?.fontSize, lessThanOrEqualTo(15));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Share uses the selected completion and exports an actual PNG', (
+    tester,
+  ) async {
+    const viewport = Size(320, 720);
+    final bridge = _ShareBridge()..report = _report();
+    await _mount(tester, bridge, size: viewport);
+    _emitDone(bridge);
+    await tester.pumpAndSettle();
+
+    final share = find.widgetWithText(MaeveGlassTextButton, '分享图');
+    final process = find.widgetWithText(MaeveGlassTextButton, '查看过程');
+    final report = find.widgetWithText(MaeveGlassTextButton, '任务报告');
+    expect(tester.getTopLeft(share).dy, tester.getTopLeft(process).dy);
+    expect(tester.getTopLeft(share).dy, tester.getTopLeft(report).dy);
+    await tester.ensureVisible(share);
+    await tester.tap(share);
+    await tester.pumpAndSettle();
+
+    final preview = find.byType(TaskSharePage);
+    final screen = find.descendant(
+      of: preview,
+      matching: find.byType(ChatPage),
+    );
+    expect(tester.getSize(screen), viewport);
+    final playback = tester.getRect(
+      find.descendant(of: screen, matching: find.byType(TaskPlaybackView)),
+    );
+    final settlement = tester.getRect(
+      find.descendant(of: screen, matching: find.byType(TaskReportCard)),
+    );
+    expect(playback.right, lessThanOrEqualTo(settlement.left));
+    expect(bridge.screenRequests, contains('run-1:2'));
+    expect(tester.takeException(), isNull);
+
+    final shareImage = tester.widget<MaeveGlassTextButton>(
+      find.widgetWithText(MaeveGlassTextButton, '分享图片'),
+    );
+    final png = await tester.runAsync(() async {
+      bridge.png = Completer<Uint8List>();
+      shareImage.onPressed!();
+      return bridge.png.future.timeout(const Duration(seconds: 15));
+    });
+    expect(png, isNotNull);
+    expect(png!.take(8), [137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(ByteData.sublistView(png).getUint32(16), 1080);
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 

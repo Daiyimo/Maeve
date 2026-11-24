@@ -32,9 +32,13 @@ class ExecutionPanel extends StatefulWidget {
     super.key,
     required this.message,
     required this.isLatest,
+    this.onShare,
+    this.snapshot,
   });
   final Message message;
   final bool isLatest;
+  final VoidCallback? onShare;
+  final SettlementSnapshot? snapshot;
   @override
   State<ExecutionPanel> createState() => _ExecutionPanelState();
 }
@@ -161,7 +165,7 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
     final showCompleted = widget.isLatest && message.hasSettlement;
     MaeveGlassTextButton executionAction({
       required String label,
-      required IconData icon,
+      required IconData? icon,
       required VoidCallback? onPressed,
       bool enabled = true,
       MaeveHaptic haptic = MaeveHaptic.tick,
@@ -386,6 +390,7 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
             runId: message.runId,
             stopped: message.status == 'cancelled',
             detail: message.detail,
+            snapshot: widget.snapshot,
             fallbackReport: TaskReport(
               available: true,
               goal: message.planTitle ?? '任务结果',
@@ -483,10 +488,43 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
         if (recordButton != null && !(widget.isLatest && message.active))
           Align(
             alignment: Alignment.centerLeft,
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [recordButton, ?reportButton],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final share = reportButton != null && widget.onShare != null;
+                final icons =
+                    !share ||
+                    constraints.maxWidth >=
+                        151 + 11 * MediaQuery.textScalerOf(context).scale(12.5);
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    if (icons)
+                      recordButton
+                    else
+                      executionAction(
+                        label: recordButton.label,
+                        icon: null,
+                        onPressed: recordButton.onPressed,
+                      ),
+                    if (reportButton != null)
+                      if (icons)
+                        reportButton
+                      else
+                        executionAction(
+                          label: reportButton.label,
+                          icon: null,
+                          onPressed: reportButton.onPressed,
+                        ),
+                    if (share)
+                      executionAction(
+                        label: '分享图',
+                        icon: icons ? Icons.ios_share_outlined : null,
+                        onPressed: widget.onShare,
+                      ),
+                  ],
+                );
+              },
             ),
           ),
         const SizedBox(height: 6),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -12,6 +13,8 @@ import 'glass_surface.dart';
 import 'task_playback_view.dart';
 import 'task_settlement_view.dart';
 
+typedef SettlementSnapshot = ({TaskReport report, Uint8List? frame});
+
 /// 任务完成后的同一执行面板：左侧回放，右侧结算。
 class CompletedExecutionPanel extends StatefulWidget {
   const CompletedExecutionPanel({
@@ -20,12 +23,14 @@ class CompletedExecutionPanel extends StatefulWidget {
     required this.runId,
     this.fallbackReport,
     this.detail,
+    this.snapshot,
     this.stopped = false,
   });
   final MaeveChatBridge bridge;
   final String? runId;
   final TaskReport? fallbackReport;
   final String? detail;
+  final SettlementSnapshot? snapshot;
   final bool stopped;
 
   @override
@@ -42,7 +47,7 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    if (widget.snapshot == null) unawaited(_load());
   }
 
   @override
@@ -52,7 +57,7 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
       _report = null;
       _error = null;
       _attempt = 0;
-      unawaited(_load());
+      if (widget.snapshot == null) unawaited(_load());
     }
   }
 
@@ -84,9 +89,11 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
   Widget build(BuildContext context) {
     final c = MaeveTheme.of(context).colors;
     final loaded = _report;
-    final report = loaded?.available == true && !(widget.stopped && loaded!.running)
-        ? loaded
-        : widget.fallbackReport;
+    final report =
+        widget.snapshot?.report ??
+        (loaded?.available == true && !(widget.stopped && loaded!.running)
+            ? loaded
+            : widget.fallbackReport);
     final error = _error;
     final errorView = error == null
         ? null
@@ -117,6 +124,9 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
         ),
       );
     }
+    final frozenFrame = widget.snapshot == null
+        ? null
+        : (bytes: widget.snapshot!.frame);
     final runId = widget.runId;
     Widget playback({required bool compact}) {
       final player = runId == null
@@ -131,6 +141,7 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
               imageHeight: compact ? 150 : 280,
               showStages: false,
               compact: compact,
+              frozenFrame: frozenFrame,
             );
       return ExecutionSection(
         title: widget.stopped ? '操作回放' : null,

@@ -27,6 +27,7 @@ class TaskPlaybackView extends StatefulWidget {
     this.imageHeight = 360,
     this.showStages = true,
     this.compact = false,
+    this.frozenFrame,
   });
 
   final MaeveChatBridge bridge;
@@ -36,6 +37,7 @@ class TaskPlaybackView extends StatefulWidget {
   final double imageHeight;
   final bool showStages;
   final bool compact;
+  final ({Uint8List? bytes})? frozenFrame;
 
   @override
   State<TaskPlaybackView> createState() => _TaskPlaybackViewState();
@@ -59,7 +61,7 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(_fetch(_index));
+    if (widget.frozenFrame == null) unawaited(_fetch(_index));
   }
 
   @override
@@ -72,7 +74,7 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
         0,
         widget.report.frames.isEmpty ? 0 : widget.report.frames.length - 1,
       );
-      unawaited(_fetch(_index));
+      if (widget.frozenFrame == null) unawaited(_fetch(_index));
     }
   }
 
@@ -211,7 +213,11 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
         ),
       );
     }
-    final bytes = frame == null ? null : _bytes[frame.screenshotId];
+    final bytes = widget.frozenFrame != null
+        ? widget.frozenFrame!.bytes
+        : frame == null
+        ? null
+        : _bytes[frame.screenshotId];
     final reduce = MediaQuery.disableAnimationsOf(context);
     return Column(
       key: const ValueKey('task-playback-view'),

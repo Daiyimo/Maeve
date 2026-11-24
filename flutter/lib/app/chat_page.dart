@@ -22,9 +22,13 @@ import '../ui/common/pressable.dart';
 import '../ui/common/status.dart';
 import '../ui/settings/settings_components.dart';
 import '../widgets/glass_surface.dart';
+import '../widgets/completed_execution_panel.dart';
 import '../widgets/maeve_mark.dart';
 import '../widgets/execution_view.dart';
 import '../widgets/maeve_markdown.dart';
+import '../widgets/task_share_page.dart';
+
+part 'chat_composer.dart';
 
 /// 聊天页(Maeve 的语言:剧本轨 + 纸条输入条)。
 ///
@@ -34,9 +38,23 @@ import '../widgets/maeve_markdown.dart';
 ///   她的回答是**一条竖线 + 全宽正文**(剧本边注),没有填充卡片。
 /// - 输入条是 16 圆角的纸条,不是胶囊;浮在内容上,下面垫一段渐隐。
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, required this.onMenu});
+  const ChatPage({super.key, required this.onMenu})
+    : shareConversation = null,
+      shareSettlement = null;
+
+  const ChatPage.share({
+    super.key,
+    required Conversation conversation,
+    required SettlementSnapshot settlement,
+  }) : onMenu = _noop,
+       shareConversation = conversation,
+       shareSettlement = settlement;
 
   final VoidCallback onMenu;
+  final Conversation? shareConversation;
+  final SettlementSnapshot? shareSettlement;
+
+  static void _noop() {}
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -53,6 +71,7 @@ class _ChatPageState extends State<ChatPage> {
   int _draftRestoreRevision = -1;
   MaeveController? _draftController;
   bool _restoringDraft = false, _submitting = false;
+  bool _shareOpen = false;
 
   /// 正在引用的那条消息(引用 chip)。
   ({String text, bool fromUser})? _quote;
@@ -164,11 +183,48 @@ class _ChatPageState extends State<ChatPage> {
     WidgetsBinding.instance.ensureVisualUpdate();
   }
 
+  Future<void> _openShare(MaeveController controller, Message message) async {
+    if (_shareOpen) return;
+    final conversation = controller.active;
+    final index = conversation.messages.indexOf(message);
+    if (index < 0 || message.runId == null) return;
+    final prompt = conversation.messages
+        .take(index)
+        .where((m) => m.isUser)
+        .lastOrNull;
+    final media = MediaQuery.of(context).copyWith(
+      viewInsets: EdgeInsets.zero,
+      padding: MediaQuery.viewPaddingOf(context),
+      disableAnimations: true,
+    );
+    final turn = Conversation(id: conversation.id, title: conversation.title);
+    turn.messages.addAll([?prompt, message]);
+    _shareOpen = true;
+    try {
+      await AppPage.open<void>(
+        context,
+        TaskSharePage(
+          bridge: controller.chatBridge,
+          message: message,
+          prompt: prompt?.text,
+          viewport: media.size,
+          screen: (settlement) => MediaQuery(
+            data: media,
+            child: ChatPage.share(conversation: turn, settlement: settlement),
+          ),
+        ),
+      );
+    } finally {
+      _shareOpen = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
-    _bindDraft(controller);
-    final conversation = controller.active;
+    final capturing = widget.shareConversation != null;
+    if (!capturing) _bindDraft(controller);
+    final conversation = widget.shareConversation ?? controller.active;
     final last = conversation.messages.lastOrNull;
     final taskSignature =
         '${conversation.id}:${conversation.messages.length}:${last?.executionSteps.length}:${last?.text.length}:${last?.status}';
@@ -187,7 +243,7 @@ class _ChatPageState extends State<ChatPage> {
         (MediaQuery.sizeOf(context).width < 600 ? 4 : MaeveSpace.s12) +
         (MediaQuery.sizeOf(context).width < 600 ? 4 : MaeveSpace.s24) +
         (_quote != null ? 56 : 0) +
-        (controller.blockedNotice != null ? 40 : 0);
+        (!capturing && controller.blockedNotice != null ? 40 : 0);
     final topInset =
         padding.top +
         MaeveSize.topBarBrand +
@@ -254,6 +310,11 @@ class _ChatPageState extends State<ChatPage> {
                                 onRetry: controller.sendQueued,
                                 onLongPress: (m) =>
                                     _messageSheet(context, controller, m),
+                                onShare: capturing
+                                    ? (_) {}
+                                    : (message) =>
+                                          _openShare(controller, message),
+                                snapshot: widget.shareSettlement,
                               ),
                       ),
                     ),
@@ -269,8 +330,10 @@ class _ChatPageState extends State<ChatPage> {
           right: 0,
           child: TopBar(
             title: conversation.isEmpty ? 'maeve' : conversation.title,
-            subtitle: controller.statusLine,
-            statusTone: !controller.connected
+            subtitle: capturing ? '本机 · 任务结算' : controller.statusLine,
+            statusTone: capturing
+                ? MaeveTone.ready
+                : !controller.connected
                 ? MaeveTone.idle
                 : controller.generating
                 ? MaeveTone.running
@@ -278,7 +341,7 @@ class _ChatPageState extends State<ChatPage> {
                       controller.native.currentModelId == null
                 ? MaeveTone.warning
                 : MaeveTone.ready,
-            working: controller.generating,
+            working: !capturing && controller.generating,
             brand: true,
             showBack: false,
             leading: _BarAction(
@@ -306,9 +369,10 @@ class _ChatPageState extends State<ChatPage> {
             onClearQuote: () => setState(() => _quote = null),
             onSend: () => _send(controller),
             onStop: controller.stop,
+            capturing: capturing,
           ),
         ),
-        if (!conversation.isEmpty && _showJump)
+        if (!capturing && !conversation.isEmpty && _showJump)
           Positioned(
             right: MaeveSpace.s16,
             bottom: bottomSafe + 104,
@@ -471,6 +535,8 @@ class _MessageList extends StatelessWidget {
     required this.onToggleTurn,
     required this.onRetry,
     required this.onLongPress,
+    required this.onShare,
+    this.snapshot,
   });
 
   final Conversation conversation;
@@ -478,6 +544,8 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<String> onToggleTurn;
   final ValueChanged<Message> onRetry;
   final ValueChanged<Message> onLongPress;
+  final ValueChanged<Message> onShare;
+  final SettlementSnapshot? snapshot;
 
   @override
   Widget build(BuildContext context) {
@@ -517,6 +585,8 @@ class _MessageList extends StatelessWidget {
             onToggle: () => onToggleTurn(key),
             isLatest: isLatest,
             onLongPress: () => onLongPress(message),
+            onShare: () => onShare(message),
+            snapshot: snapshot,
           ),
         ),
       );
@@ -646,6 +716,8 @@ class _AssistantTurn extends StatelessWidget {
     required this.onToggle,
     required this.isLatest,
     required this.onLongPress,
+    required this.onShare,
+    this.snapshot,
   });
 
   final Message message;
@@ -653,6 +725,8 @@ class _AssistantTurn extends StatelessWidget {
   final VoidCallback onToggle;
   final bool isLatest;
   final VoidCallback onLongPress;
+  final VoidCallback onShare;
+  final SettlementSnapshot? snapshot;
 
   @override
   Widget build(BuildContext context) {
@@ -706,7 +780,12 @@ class _AssistantTurn extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ExecutionPanel(message: message, isLatest: isLatest),
+            ExecutionPanel(
+              message: message,
+              isLatest: isLatest,
+              onShare: onShare,
+              snapshot: snapshot,
+            ),
             if (message.text.isNotEmpty &&
                 (!message.active || message.detail?.isNotEmpty == true) &&
                 !(isLatest && message.hasSettlement))
@@ -776,389 +855,6 @@ class _QuotedBlock extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: MaeveType.hint.copyWith(color: colors.ink3),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 输入条那一整块:引文 / 自动同意 / 活动条叠在纸条上方;玻璃自行采样。
-class _ComposerDock extends StatelessWidget {
-  const _ComposerDock({
-    required this.controller,
-    required this.input,
-    required this.quote,
-    required this.onClearQuote,
-    required this.onSend,
-    required this.onStop,
-  });
-
-  final MaeveController controller;
-  final TextEditingController input;
-  final String? quote;
-  final VoidCallback onClearQuote;
-  final VoidCallback onSend;
-  final VoidCallback onStop;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
-    final bottom = MediaQuery.viewPaddingOf(context).bottom;
-    return Container(
-      padding: EdgeInsets.only(bottom: bottom + MaeveSpace.s6),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          MaeveSpace.s12,
-          MaeveSpace.s10,
-          MaeveSpace.s12,
-          MaeveSpace.s6,
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: MaeveSpace.readingWidth,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ExpandReveal(
-                  visible: quote != null,
-                  child: quote == null
-                      ? const SizedBox.shrink()
-                      : Padding(
-                          padding: const EdgeInsets.only(bottom: MaeveSpace.s6),
-                          child: _QuoteChip(
-                            text: quote!,
-                            onClear: onClearQuote,
-                          ),
-                        ),
-                ),
-                ExpandReveal(
-                  visible: controller.blockedNotice != null,
-                  child: controller.blockedNotice == null
-                      ? const SizedBox.shrink()
-                      : Padding(
-                          padding: const EdgeInsets.only(bottom: MaeveSpace.s6),
-                          child: _BlockedNotice(
-                            text: controller.blockedNotice!,
-                          ),
-                        ),
-                ),
-                if (controller.draftError != null)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          controller.draftError!,
-                          style: MaeveType.hint.copyWith(color: colors.bad),
-                        ),
-                      ),
-                      MaeveGlassTextButton(
-                        label: '重试保存',
-                        compact: true,
-                        haptic: MaeveHaptic.tick,
-                        onPressed: controller.retryDraftStorage,
-                      ),
-                    ],
-                  ),
-                if (controller.chatError != null)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          controller.chatError!,
-                          style: MaeveType.hint.copyWith(color: colors.bad),
-                        ),
-                      ),
-                      MaeveGlassTextButton(
-                        label: controller.reconnecting ? '连接中…' : '重新连接',
-                        compact: true,
-                        enabled: !controller.reconnecting,
-                        haptic: MaeveHaptic.tick,
-                        onPressed: controller.reconnecting
-                            ? null
-                            : controller.reconnect,
-                      ),
-                    ],
-                  ),
-                _ComposerBar(
-                  controller: controller,
-                  input: input,
-                  onSend: onSend,
-                  onStop: onStop,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 16 圆角的纸条输入栏(不是胶囊)。
-class _ComposerBar extends StatefulWidget {
-  const _ComposerBar({
-    required this.controller,
-    required this.input,
-    required this.onSend,
-    required this.onStop,
-  });
-
-  final MaeveController controller;
-  final TextEditingController input;
-  final VoidCallback onSend;
-  final VoidCallback onStop;
-
-  @override
-  State<_ComposerBar> createState() => _ComposerBarState();
-}
-
-class _ComposerBarState extends State<_ComposerBar> {
-  final FocusNode _focus = FocusNode();
-
-  @override
-  void initState() {
-    super.initState();
-    widget.input.addListener(_sync);
-    _focus.addListener(_sync);
-  }
-
-  @override
-  void dispose() {
-    widget.input.removeListener(_sync);
-    _focus.dispose();
-    super.dispose();
-  }
-
-  void _sync() => setState(() {});
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = widget.controller;
-    final colors = MaeveTheme.of(context).colors;
-    final canSend = widget.input.text.trim().isNotEmpty;
-    final busy = controller.generating;
-    return AnimatedContainer(
-      duration: AppMotion.of(context).quick,
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(MaeveRadius.composer + 4),
-        border: Border.all(
-          color: _focus.hasFocus
-              ? colors.accent.withValues(alpha: .55)
-              : Colors.transparent,
-        ),
-      ),
-      child: MaeveGlassSurface(
-        tier: MaeveGlassTier.chrome,
-        shape: MaeveShapes.composer,
-        grouped: true,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: MaeveSize.composer),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: TextField(
-                  key: const ValueKey('message-input'),
-                  controller: widget.input,
-                  focusNode: _focus,
-                  minLines: 1,
-                  maxLines: 5,
-                  style: MaeveType.body.copyWith(color: colors.ink),
-                  textAlignVertical: TextAlignVertical.center,
-                  textInputAction: TextInputAction.newline,
-                  cursorColor: colors.accent,
-                  decoration: InputDecoration(
-                    isDense: true,
-                    contentPadding: EdgeInsets.zero,
-                    border: InputBorder.none,
-                    hintText: controller.connected
-                        ? (busy ? '插话给当前这一步…' : '想做什么？交给 Maeve…')
-                        : '未连接，暂时不能发送',
-                    hintStyle: MaeveType.body.copyWith(color: colors.ink3),
-                  ),
-                  onSubmitted: (_) => canSend ? widget.onSend() : null,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: MaeveSpace.s8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: MaeveGlassTextButton(
-                          label: controller.model,
-                          icon: Icons.auto_awesome_outlined,
-                          compact: true,
-                          tooltip: '模型配置',
-                          haptic: MaeveHaptic.tick,
-                          onPressed: () =>
-                              AppPage.open(context, const ModelSettingsPage()),
-                        ),
-                      ),
-                    ),
-                    if (busy)
-                      _RoundKey(
-                        icon: Icons.stop_rounded,
-                        tooltip: controller.cancelRequested
-                            ? '正在停止，等待任务收尾'
-                            : '停止任务',
-                        enabled: !controller.cancelRequested,
-                        ink: true,
-                        onTap: widget.onStop,
-                      ),
-                    if (!busy || canSend)
-                      _RoundKey(
-                        key: const ValueKey('send-message'),
-                        icon: Icons.arrow_upward_rounded,
-                        tooltip: '发送消息',
-                        accent: canSend,
-                        enabled: canSend,
-                        onTap: canSend ? widget.onSend : null,
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 40 圆键:发送是强调色实心,停止是实色墨;不可用时降透明度(不是变灰点不动)。
-///
-/// 两颗都是液态玻璃圆钮:实色底也带一道白色受光边和顶边提亮,读作"能按的玻璃",
-/// 不是一块塑料色块。
-class _RoundKey extends StatelessWidget {
-  const _RoundKey({
-    super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.accent = false,
-    this.ink = false,
-    this.enabled = true,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onTap;
-  final bool accent;
-  final bool ink;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
-    return AnimatedOpacity(
-      duration: AppMotion.of(context).quick,
-      opacity: accent || ink || enabled ? 1 : .5,
-      child: MaeveGlassButton(
-        icon: icon,
-        tooltip: tooltip,
-        onPressed: enabled ? onTap : null,
-        prominent: accent,
-        enabled: enabled,
-        haptic: enabled ? MaeveHaptic.light : null,
-        fill: ink ? colors.ink : null,
-        foreground: ink ? colors.bg : null,
-      ),
-    );
-  }
-}
-
-/// 发送被拦下的原因(宿主前置条件没满足):贴在输入条上方,warn 色,说清缺什么。
-class _BlockedNotice extends StatelessWidget {
-  const _BlockedNotice({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = MaeveTheme.of(context);
-    final colors = theme.colors;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        MaeveSpace.s12,
-        MaeveSpace.s8,
-        MaeveSpace.s12,
-        MaeveSpace.s8,
-      ),
-      decoration: BoxDecoration(
-        color: colors.warnSoft,
-        borderRadius: BorderRadius.circular(MaeveRadius.md),
-        border: Border.all(color: colors.edge, width: .5),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 15,
-            color: theme.semantic.warn,
-          ),
-          const SizedBox(width: MaeveSpace.s8),
-          Expanded(
-            child: Text(
-              text,
-              style: MaeveType.hint.copyWith(color: colors.ink2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 引文 chip:一行摘要 + 取消,贴在输入条上方。
-class _QuoteChip extends StatelessWidget {
-  const _QuoteChip({required this.text, required this.onClear});
-
-  final String text;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        MaeveSpace.s12,
-        MaeveSpace.s8,
-        MaeveSpace.s6,
-        MaeveSpace.s8,
-      ),
-      decoration: BoxDecoration(
-        color: colors.accentSoft,
-        borderRadius: BorderRadius.circular(MaeveRadius.md),
-        border: Border.all(color: colors.edge, width: .5),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.format_quote_rounded, size: 15, color: colors.accent),
-          const SizedBox(width: MaeveSpace.s8),
-          Expanded(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: MaeveType.hint.copyWith(color: colors.ink2),
-            ),
-          ),
-          Pressable(
-            onTap: onClear,
-            borderRadius: BorderRadius.circular(MaeveRadius.pill),
-            semanticLabel: '取消引用',
-            child: SizedBox.square(
-              dimension: 28,
-              child: Icon(Icons.close, size: 15, color: colors.ink3),
-            ),
           ),
         ],
       ),

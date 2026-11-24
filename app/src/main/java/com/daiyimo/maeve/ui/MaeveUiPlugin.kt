@@ -102,10 +102,9 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
                     result.success(null)
                 }
             }
-            // 报告导出走系统文件选择器:用户自己挑位置,应用不需要任何存储权限。
-            // FlutterActivity 不是 ComponentActivity,结果只能经 ActivityPluginBinding 的
-            // ActivityResultListener 回来(见 attach/detach),不能用 activityResultRegistry。
+            // 报告导出通过系统文件选择器与 ActivityResultListener。
             "exportRunReport" -> exportReport(call, result)
+            "shareTaskImage" -> scope.launch { result.success(TaskShareImage.open(activity?.activity, call.arguments as? ByteArray)) }
             // 「获取更新」:检查、下载、安装都交给 about 包里已有的那套实现,
             // 这里只转发和推状态,不重写节流/选包/校验规则(见 UpdateBridge)。
             "updateState" -> scope.launch {
