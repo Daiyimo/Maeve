@@ -1,6 +1,10 @@
 package com.daiyimo.maeve.ui
 
 import androidx.compose.ui.text.AnnotatedString
+import com.daiyimo.maeve.core.export.ReportExportDocument
+import com.daiyimo.maeve.core.export.ReportExportInput
+import com.daiyimo.maeve.core.export.ReportExportRedaction
+import com.daiyimo.maeve.core.export.ReportExportSanitizer
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -8,8 +12,10 @@ import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-/** 纯本地导出;复用 Markdown 模型,DOCX 使用标准 OOXML ZIP,不把 HTML 改后缀。 */
+/** 纯本地导出;默认按 Secrets 脱敏,复用 Markdown 模型,DOCX 使用标准 OOXML ZIP,不把 HTML 改后缀。 */
 object TaskReportExport {
+    enum class RedactionLevel { Secrets, SecretsAndPii }
+
     enum class Format(val extension: String, val mime: String) {
         Markdown("md", "text/markdown"),
         Word("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
@@ -63,22 +69,85 @@ object TaskReportExport {
         }
     }
 
-    fun markdown(report: TaskReport): String = buildString {
-        append("# ").append(report.header.goal.replace('\n', ' ')).append("\n\n")
-        append(report.header.outcome)
-        report.header.verdict.takeIf { it.isNotBlank() }?.let { append(" · ").append(it) }
-        report.header.duration?.let { append(" · ").append(it) }
-        append("\n\n")
-        report.header.reviewDetail?.let { append(it).append("\n\n") }
-        if (report.header.criteria.isNotEmpty()) {
-            report.header.criteria.forEach { append("- ").append(it).append('\n') }
-            append('\n')
-        }
-        append(displayMarkdown(report.answer, report.header.goal)).append('\n')
+    private val URL = Regex("""https?://[^\s<>()\[\]{}"']+""", RegexOption.IGNORE_CASE)
+
+    /** 当前报告模型能提供的真实材料;附件名由调用方通过 [ReportExportInput] 补充。 */
+    private fun input(report: TaskReport) = ReportExportInput(
+        title = report.header.goal,
+        summary = listOf(report.header.outcome) + listOfNotNull(
+            report.header.verdict.takeIf { it.isNotBlank() }, report.header.duration,
+        ),
+        preface = listOfNotNull(report.header.reviewDetail),
+        criteria = report.header.criteria,
+        body = report.answer,
+        headings = report.pages.map { it.title },
+        urls = URL.findAll(report.answer).map { it.value.trimEnd('.', ',', ';', '!', '?', '，', '。', '；', '！', '？') }.toList(),
+        toolTexts = report.playback.flatMap { step -> listOfNotNull(step.tool, step.failure) },
+        notes = if (report.frames.isNotEmpty() || report.pages.isNotEmpty() || report.missingFrames > 0) listOf(
+            "本导出不包含截图；原始截图字节未做匿名化处理。",
+        ) else emptyList(),
+    )
+
+    private fun coreLevel(level: RedactionLevel): ReportExportRedaction = when (level) {
+        RedactionLevel.Secrets -> ReportExportRedaction.Secrets
+        RedactionLevel.SecretsAndPii -> ReportExportRedaction.SecretsAndPii
     }
 
-    fun write(report: TaskReport, format: Format, output: OutputStream) {
-        val md = markdown(report)
+    /** 后端入口只拿已脱敏文档;原始 [ReportExportInput] 不得直接交给 Markdown/DOCX 渲染。 */
+    fun sanitizedDocument(input: ReportExportInput, redaction: RedactionLevel = RedactionLevel.Secrets): ReportExportDocument =
+        ReportExportSanitizer.sanitize(input, coreLevel(redaction))
+
+    fun markdown(report: TaskReport, redaction: RedactionLevel = RedactionLevel.Secrets): String =
+        render(sanitizedDocument(input(report), redaction))
+
+    fun markdown(input: ReportExportInput, redaction: RedactionLevel = RedactionLevel.Secrets): String =
+        render(sanitizedDocument(input, redaction))
+
+    private fun render(document: ReportExportDocument): String = buildString {
+        append("# ").append(document.title.replace('\n', ' ')).append("\n\n")
+        append(document.summary.joinToString(" · ")).append("\n\n")
+        document.preface.forEach { append(it).append("\n\n") }
+        if (document.criteria.isNotEmpty()) {
+            document.criteria.forEach { append("- ").append(it).append('\n') }
+            append('\n')
+        }
+        append(displayMarkdown(document.body, document.title)).append('\n')
+        if (document.headings.isNotEmpty()) {
+            append("\n## 关键页面\n\n")
+            document.headings.forEach { append("- ").append(it).append('\n') }
+        }
+        if (document.urls.isNotEmpty()) {
+            append("\n## 链接\n\n")
+            document.urls.forEach { append("- ").append(it).append('\n') }
+        }
+        if (document.attachmentNames.isNotEmpty()) {
+            append("\n## 附件\n\n")
+            document.attachmentNames.forEach { append("- ").append(it).append('\n') }
+        }
+        if (document.toolTexts.isNotEmpty()) {
+            append("\n## 工具记录\n\n")
+            document.toolTexts.forEach { append("- ").append(it.replace('\n', ' ')).append('\n') }
+        }
+        document.notes.forEach { append("\n> ").append(it).append('\n') }
+    }
+
+    fun write(
+        report: TaskReport,
+        format: Format,
+        output: OutputStream,
+        redaction: RedactionLevel = RedactionLevel.Secrets,
+    ) = write(sanitizedDocument(input(report), redaction), format, output)
+
+    fun write(
+        input: ReportExportInput,
+        format: Format,
+        output: OutputStream,
+        redaction: RedactionLevel = RedactionLevel.Secrets,
+    ) = write(sanitizedDocument(input, redaction), format, output)
+
+    /** 编码后端只接受已脱敏文档,不能把 [ReportExportInput] 或 [TaskReport] 直接编码。 */
+    fun write(document: ReportExportDocument, format: Format, output: OutputStream) {
+        val md = render(document)
         when (format) {
             Format.Markdown -> output.write(md.toByteArray(Charsets.UTF_8))
             Format.Text -> output.write(MarkdownModel.toPlainText(md).toByteArray(Charsets.UTF_8))

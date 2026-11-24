@@ -243,7 +243,7 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
     }
 
     /** 等系统文件选择器回来的一次导出;同一时刻只允许一个。 */
-    private class PendingExport(val runId: String, val format: TaskReportExport.Format, val result: MethodChannel.Result)
+    private class PendingExport(val runId: String, val format: TaskReportExport.Format, val redaction: TaskReportExport.RedactionLevel, val result: MethodChannel.Result)
 
     private var pendingExport: PendingExport? = null
 
@@ -251,6 +251,7 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
         val host = activity?.activity
         val runId = call.argument<String>("runId")
         val format = TaskReportExport.Format.entries.firstOrNull { it.name.equals(call.argument<String>("format"), ignoreCase = true) }
+        val redaction = if (call.argument<String>("redaction")?.equals("secretsAndPii", ignoreCase = true) == true) TaskReportExport.RedactionLevel.SecretsAndPii else TaskReportExport.RedactionLevel.Secrets
         when {
             host == null -> result.error("no_activity", "exportRunReport needs a foreground activity", null)
             runId.isNullOrBlank() || format == null -> result.error("bad_args", "A run id and a known format are required", null)
@@ -262,7 +263,7 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
                     .putExtra(Intent.EXTRA_TITLE, "Maeve-$runId.${format.extension}")
                 val started = runCatching { host.startActivityForResult(intent, EXPORT_REQUEST) }.isSuccess
                 if (!started) result.error("no_picker", "没有可用的文件保存入口", null)
-                else pendingExport = PendingExport(runId, format, result)
+                else pendingExport = PendingExport(runId, format, redaction, result)
             }
         }
     }
@@ -284,7 +285,7 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
                             ?: error("record_unavailable")
                         // "wt" 截断重写:选到已有文件时不残留旧内容。
                         context.contentResolver.openOutputStream(uri, "wt")?.use { out ->
-                            TaskReportExport.write(report, pending.format, out)
+                            TaskReportExport.write(report, pending.format, out, pending.redaction)
                         } ?: error("no_stream")
                     }
                     "saved"

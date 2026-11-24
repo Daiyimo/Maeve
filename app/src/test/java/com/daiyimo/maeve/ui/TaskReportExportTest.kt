@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.ui
 
+import com.daiyimo.maeve.core.export.ReportExportDocument
+import com.daiyimo.maeve.core.export.ReportExportInput
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -58,6 +60,43 @@ class TaskReportExportTest {
         assertTrue(display.contains("**11月12日** **18:18**，**¥302**"))
         assertTrue(display.contains("https://example.com/18:18"))
         assertFalse(display.contains("****"))
+    }
+
+    @Test fun defaultExportMasksSecretsAcrossReportSurfaces() {
+        val secret = "sk-" + "a1B2c3D4e5F6g7H8i9J0k1L2"
+        val raw = report.copy(
+            header = report.header.copy(goal = "目标 $secret person@example.com"),
+            answer = "正文 $secret https://example.com/cb?access_token=abc",
+            playback = listOf(PlaybackStep(1, "工具 $secret", failure = "失败 $secret")),
+            pages = listOf(ReportPage("页面 $secret", 0, 1)),
+            missingFrames = 1,
+        )
+        val md = TaskReportExport.markdown(raw)
+        assertFalse(md.contains(secret))
+        assertFalse(md.contains("access_token=abc"))
+        assertTrue(md.contains("person@example.com"))
+        assertTrue(md.contains("access_token=***"))
+        assertTrue(md.contains("原始截图字节未做匿名化"))
+    }
+
+    @Test fun optionalPiiLevelAndAttachmentNamesAreSanitizedBeforeRendering() {
+        val input = ReportExportInput(
+            title = "标题 person@example.com",
+            body = "正文 13800138000",
+            attachmentNames = listOf("person@example.com.txt"),
+            toolTexts = listOf("工具 sk-abcdefghijklmnopqrstuvwx"),
+        )
+        val safe: ReportExportDocument = TaskReportExport.sanitizedDocument(input, TaskReportExport.RedactionLevel.SecretsAndPii)
+        assertFalse(safe.toString().contains("person@example.com"))
+        assertFalse(safe.toString().contains("13800138000"))
+        assertFalse(safe.toString().contains("sk-abcdefghijklmnopqrstuvwx"))
+        val encoded = ByteArrayOutputStream().also {
+            TaskReportExport.write(safe, TaskReportExport.Format.Markdown, it)
+        }.toString("UTF-8")
+        assertFalse(encoded.contains("person@example.com"))
+        val md = TaskReportExport.markdown(input, TaskReportExport.RedactionLevel.SecretsAndPii)
+        assertTrue(md.contains("## 附件"))
+        assertFalse(md.contains("person@example.com"))
     }
 
     /** 导出不接管调用方的流:SAF 那边还要自己 close。 */
