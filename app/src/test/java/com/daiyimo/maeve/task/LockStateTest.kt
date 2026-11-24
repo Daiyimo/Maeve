@@ -36,10 +36,10 @@ class LockStateTest {
         runCurrent()
         assertEquals(TaskState.Held(TaskGate.LOCKED), reported.last())
 
-        // 熄屏时不读,等 SCREEN_ON
+        // 熄屏期间也继续重读:部分 ROM 会漏 SCREEN_ON / USER_PRESENT,不能永久等广播
         val dark = reads
         repeat(5) { tick() }
-        assertEquals(dark, reads)
+        assertTrue("熄屏时仍应轮询系统状态", reads > dark)
 
         interactive = true
         lock.refresh() // SCREEN_ON 或 USER_PRESENT:亮了,锁屏界面还在
@@ -54,6 +54,18 @@ class LockStateTest {
         val unlocked = reads
         repeat(10) { tick() }
         assertEquals(unlocked, reads)
+    }
+
+    @Test fun generationChangesOnEveryObservedLockCycle() = runTest {
+        val lock = lockState()
+        assertEquals(0L, lock.generation)
+        interactive = true
+        keyguardLocked = false
+        lock.refresh()
+        assertEquals(1L, lock.generation)
+        keyguardLocked = true
+        lock.refresh()
+        assertEquals(2L, lock.generation)
     }
 
     // 没人看这份状态时不读

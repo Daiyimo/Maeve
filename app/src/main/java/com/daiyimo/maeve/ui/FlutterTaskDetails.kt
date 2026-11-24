@@ -17,6 +17,10 @@ internal object FlutterTaskDetails {
         "confirmationTitle" to (ex.status as? ExchangeStatus.NeedsConfirmation)?.title,
         "options" to (ex.status as? ExchangeStatus.NeedsInput)?.options,
         "resumable" to (ex.status as? ExchangeStatus.Paused)?.resumable,
+        "plan" to ex.plan?.let { p -> mapOf(
+            "title" to p.title, "currentStep" to p.currentStep,
+            "steps" to p.visibleSteps.map { mapOf("text" to it.text, "status" to it.status.name.lowercase(java.util.Locale.ROOT)) },
+        ) },
     )
 
     fun timeline(ui: TimelineUi): Map<String, Any?> = when (ui) {

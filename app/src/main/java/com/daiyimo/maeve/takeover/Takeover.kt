@@ -36,7 +36,7 @@ interface TakeoverPort {
     fun stopWatching()
     /** 把接管的结局交还 Agent 循环。 */
     suspend fun resume(result: HandBack)
-    fun cancel()
+    fun cancel(source: String)
 
     /**
      * 当前界面是网页时,把当前标签(同一个页面)拿到主屏给用户:成功 true,失败 false;不是网页界面为 null,走挪任务的老路。
@@ -234,7 +234,7 @@ class Takeover(
     }
 
     /** 「取消任务」:App 若在主屏就留在主屏,不从用户眼前抽走;网页标签则放回后台(任务的标签随后关掉)。 */
-    suspend fun cancel() = mutex.withLock {
+    suspend fun cancel(source: String = "user") = mutex.withLock {
         stopTimer()
         if (handedWeb) {
             port.returnWeb(loggedIn = false)
@@ -246,7 +246,7 @@ class Takeover(
         _stage.value = Stage.None
         _problem.value = null
         queue?.leave(this)
-        port.cancel()
+        port.cancel(source)
     }
 
     /** 没带 key(应用内按钮)总是认;带了的必须是当前这次等待。 */

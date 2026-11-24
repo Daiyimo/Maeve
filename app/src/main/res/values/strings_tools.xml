@@ -61,4 +61,7 @@
     <string name="tool_tap">Tap</string>
     <string name="tool_type">Type text</string>
     <string name="tool_clear">Clear field</string>
+    <string name="tool_report_plan">Update plan</string>
+    <string name="tool_long_press">Long press</string>
+    <string name="tool_drag">Drag</string>
 </resources>

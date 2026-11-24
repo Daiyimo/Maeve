@@ -61,4 +61,7 @@
     <string name="tool_tap">Нажать</string>
     <string name="tool_type">Ввести текст</string>
     <string name="tool_clear">Очистить поле</string>
+    <string name="tool_report_plan">Обновить план</string>
+    <string name="tool_long_press">Долгое нажатие</string>
+    <string name="tool_drag">Перетащить</string>
 </resources>

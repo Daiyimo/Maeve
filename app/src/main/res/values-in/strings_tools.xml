@@ -61,4 +61,7 @@
     <string name="tool_tap">Ketuk</string>
     <string name="tool_type">Ketik teks</string>
     <string name="tool_clear">Kosongkan kolom</string>
+    <string name="tool_report_plan">Perbarui rencana</string>
+    <string name="tool_long_press">Tekan lama</string>
+    <string name="tool_drag">Seret</string>
 </resources>

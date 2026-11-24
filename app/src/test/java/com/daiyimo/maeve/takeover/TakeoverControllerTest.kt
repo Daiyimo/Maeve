@@ -48,7 +48,7 @@ class TakeoverControllerTest {
             results += result
             log += "resume:${result.outcome}" + if (result.userFinished) "/finished" else ""
         }
-        override fun cancel() { log += "cancel" }
+        override fun cancel(source: String) { log += "cancel" }
     }
 
     internal companion object { const val AGENT = 9 }

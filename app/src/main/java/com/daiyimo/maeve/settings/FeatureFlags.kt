@@ -174,9 +174,9 @@ class FeatureFlags(private val prefs: SharedPreferences) {
 
     companion object {
         const val PREFS = "feature_flags"
-        /** 每个任务步数上限能设的最大值;0/null 表示不限制。 */
+        /** 每个任务步数上限能设的最大值;0/null 按默认预算处理。 */
         const val MAX_TASK_STEP_LIMIT = 500
-        const val DEFAULT_TASK_STEP_LIMIT = 60
+        const val DEFAULT_TASK_STEP_LIMIT = 500
         private const val SPEED_FLAGS = "speed_flags"
         /**
          * 提速开关默认值的升级,按先后各做一次(键记下做过没有):v2 打开分级读屏、连续操作、按需看图;

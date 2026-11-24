@@ -61,4 +61,7 @@
     <string name="tool_tap">Tocar</string>
     <string name="tool_type">Escribir texto</string>
     <string name="tool_clear">Borrar campo</string>
+    <string name="tool_report_plan">Actualizar plan</string>
+    <string name="tool_long_press">Pulsación larga</string>
+    <string name="tool_drag">Arrastrar</string>
 </resources>

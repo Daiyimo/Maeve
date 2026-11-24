@@ -24,11 +24,9 @@ import kotlin.coroutines.resumeWithException
 internal object PhoneOcr {
     private const val TAG = "PhoneOcr"
 
-    // 飞行守卫:ML Kit 识别器串行处理,密集帧(几百条评论)一次要几十秒。若每次读屏都排队等上一帧认完,
-    // 点击会被拖到几十秒。有任务在跑时新调用直接拿上一次结果(位置稍旧也比卡死强),任务完成才更新缓存。
-    // 守卫绑 ML Kit 任务的完成回调,不绑协程取消:读屏超时取消了等待,任务仍在跑,后续调用照样不排队。
+    // OCR can outlive its waiting coroutine. Keep the ML Kit lease until the callback finishes.
+    // A concurrent read is unavailable because cached coordinates can belong to another frame or tile.
     private val busy = AtomicBoolean(false)
-    @Volatile private var lastLines: List<VisibleTextLine>? = null
 
     private val chinese: TextRecognizer by lazy {
         TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
@@ -37,28 +35,33 @@ internal object PhoneOcr {
         TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
     }
 
-    suspend fun read(bitmap: Bitmap): List<VisibleTextLine> {
+    suspend fun read(bitmap: Bitmap): List<VisibleTextLine> = readFresh(bitmap).orEmpty()
+
+    suspend fun readFresh(bitmap: Bitmap): List<VisibleTextLine>? {
         try {
-            val full = recognize(bitmap.copy(Bitmap.Config.ARGB_8888, false))
+            val full = recognize(bitmap.copy(Bitmap.Config.ARGB_8888, false)) ?: return null
             // Small navigation labels often disappear at full-screen scale. Only dense/small-text
             // frames get bounded overlapping Chinese tiles; never enlarge every frame.
-            val small = full.count { (it.bounds[3] - it.bounds[1]) * bitmap.height / 999 < 32 }
-            if (bitmap.width < 600 || small < 3) return full
+            val small = full.filter { (it.bounds[3] - it.bounds[1]) * bitmap.height / 999 < 32 }
+            if (bitmap.width < 600 || small.size < 3) return full
             val detailed = mutableListOf<VisibleTextLine>()
-            // 4 块重叠 tiles 串行识别(并行抢 ML Kit 反而更慢);密集小字页面才做。
-            // 去掉冗余的 720px 概览识别(整帧已读过),并跳过放大不足 1.5 倍的块(认不出更多小字,白耗一次识别)。
-            for (band in 0..1) for (column in 0..1) {
+            // Magnify the least certain lines individually. Tight crops keep adjacent labels
+            // and icons from influencing the second pass on dense, tall screens.
+            val candidates = small.sortedWith(compareBy<VisibleTextLine> { it.confidence ?: 1f }
+                .thenBy { it.bounds[1] }.thenBy { it.bounds[0] }).take(4)
+            for (candidate in candidates) {
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
-                val top = (band * bitmap.height / 2 - 48).coerceAtLeast(0)
-                val bottom = ((band + 1) * bitmap.height / 2 + 48).coerceAtMost(bitmap.height)
-                val left = (column * bitmap.width / 2 - 32).coerceAtLeast(0)
-                val right = ((column + 1) * bitmap.width / 2 + 32).coerceAtMost(bitmap.width)
-                val scale = minOf(3.0, 1280.0 / maxOf(right - left, bottom - top))
+                val bounds = candidate.bounds
+                val top = (bounds[1] * bitmap.height / 999 - 8).coerceAtLeast(0)
+                val bottom = (bounds[3] * bitmap.height / 999 + 8).coerceAtMost(bitmap.height)
+                val left = (bounds[0] * bitmap.width / 999 - 10).coerceAtLeast(0)
+                val right = (bounds[2] * bitmap.width / 999 + 10).coerceAtMost(bitmap.width)
+                val scale = minOf(4.5, 1280.0 / maxOf(right - left, bottom - top))
                 if (scale < 1.5) continue
                 val crop = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
                 val enlarged = Bitmap.createScaledBitmap(crop, (crop.width * scale).toInt(), (crop.height * scale).toInt(), true)
                 if (crop !== bitmap && crop !== enlarged) crop.recycle()
-                val lines = try { recognize(enlarged, chineseOnly = true) }
+                val lines = try { recognize(enlarged, chineseOnly = true) ?: continue }
                 catch (e: kotlinx.coroutines.CancellationException) { throw e }
                 catch (_: Exception) { continue }
                 detailed += lines.map { line -> line.copy(bounds = listOf(
@@ -81,8 +84,11 @@ internal object PhoneOcr {
         return area > 0 && intersection.toDouble() / area >= .7
     }
 
-    private suspend fun recognize(bitmap: Bitmap, chineseOnly: Boolean = false): List<VisibleTextLine> {
-        if (!busy.compareAndSet(false, true)) { bitmap.recycle(); return lastLines ?: emptyList() }
+    private suspend fun recognize(bitmap: Bitmap, chineseOnly: Boolean = false): List<VisibleTextLine>? {
+        if (!busy.compareAndSet(false, true)) {
+            bitmap.recycle()
+            return null
+        }
         val recognizers = try { if (chineseOnly) listOf(chinese) else listOf(chinese, latin) } catch (e: Exception) {
             bitmap.recycle(); busy.set(false)
             throw e
@@ -111,7 +117,6 @@ internal object PhoneOcr {
                 if (remaining.decrementAndGet() == 0) {
                     val complete = lines.toList()
                     bitmap.recycle()
-                    if (succeeded.get() > 0) lastLines = complete
                     busy.set(false)
                     // 两套都出错不是「屏上没字」:照实报错,读屏结果才写得出 ocr: failed
                     if (continuation.isActive) {

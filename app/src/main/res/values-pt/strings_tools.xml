@@ -61,4 +61,7 @@
     <string name="tool_tap">Tocar</string>
     <string name="tool_type">Digitar texto</string>
     <string name="tool_clear">Limpar campo</string>
+    <string name="tool_report_plan">Atualizar plano</string>
+    <string name="tool_long_press">Pressão longa</string>
+    <string name="tool_drag">Arrastar</string>
 </resources>

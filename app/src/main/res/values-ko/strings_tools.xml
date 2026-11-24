@@ -61,4 +61,7 @@
     <string name="tool_tap">탭</string>
     <string name="tool_type">텍스트 입력</string>
     <string name="tool_clear">입력란 지우기</string>
+    <string name="tool_report_plan">계획 업데이트</string>
+    <string name="tool_long_press">길게 누르기</string>
+    <string name="tool_drag">드래그</string>
 </resources>

@@ -5,6 +5,9 @@ import com.daiyimo.maeve.core.agent.Turn
 import com.daiyimo.maeve.core.memory.MemoryNote
 import com.daiyimo.maeve.core.memory.NoteKind
 import com.daiyimo.maeve.core.skills.SkillNote
+import com.daiyimo.maeve.core.tool.PlanStep
+import com.daiyimo.maeve.core.tool.PlanStepStatus
+import com.daiyimo.maeve.core.tool.TaskPlan
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -312,6 +315,17 @@ class ConversationStore(private val dir: File) {
                 groups = (o["groups"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull } ?: emptyList(),
                 keptPage = field("keptPage"),
                 keptPageClosed = field("keptPageClosed"),
+                plan = (o["plan"] as? JsonObject)?.let { p ->
+                    val title = (p["title"] as? JsonPrimitive)?.contentOrNull ?: return@let null
+                    val current = (p["currentStep"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: return@let null
+                    val steps = (p["steps"] as? JsonArray)?.mapNotNull { raw ->
+                        val s = raw as? JsonObject ?: return@mapNotNull null
+                        val text = (s["text"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+                        val status = PlanStepStatus.entries.firstOrNull { it.name == (s["status"] as? JsonPrimitive)?.contentOrNull } ?: return@mapNotNull null
+                        PlanStep(text, status)
+                    } ?: return@let null
+                    TaskPlan(title, steps, current)
+                },
             )
             turn to (o["files"] as? JsonArray).orEmpty().mapNotNull(::fileOf)
         }
@@ -380,6 +394,10 @@ class ConversationStore(private val dir: File) {
                 if (it.finishedReplies.any(String::isNotEmpty)) put("finishedReplies", JsonArray(it.finishedReplies.map(::JsonPrimitive)))
                 if (it.groups.isNotEmpty()) put("groups", JsonArray(it.groups.map(::JsonPrimitive)))
                 it.keptPage?.let { h -> put("keptPage", h) }; it.keptPageClosed?.let { r -> put("keptPageClosed", r) }
+                it.plan?.let { p -> put("plan", buildJsonObject {
+                    put("title", p.title); put("currentStep", p.currentStep)
+                    put("steps", JsonArray(p.steps.map { s -> buildJsonObject { put("text", s.text); put("status", s.status.name) } }))
+                }) }
                 if (it.skillNotes.isNotEmpty()) put("skillNotes", JsonArray(it.skillNotes.map { n ->
                     buildJsonObject { put("text", n.text); n.draftId?.let { d -> put("draftId", d) }; n.suspended?.let { x -> put("suspended", x) } }
                 }))

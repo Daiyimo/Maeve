@@ -8,7 +8,7 @@ class FeatureFlagsStepLimitTest {
     private fun flags() = FeatureFlags(FeatureFlagsCapsuleTest.MemoryPrefs())
 
     @Test fun defaultsToFiniteLimit() {
-        assertEquals(60, flags().taskStepLimit())
+        assertEquals(500, flags().taskStepLimit())
     }
 
     @Test fun keepsAChosenLimit() {
@@ -16,15 +16,15 @@ class FeatureFlagsStepLimitTest {
         f.setTaskStepLimit(60)
         assertEquals(60, f.taskStepLimit())
         f.setTaskStepLimit(null)
-        assertEquals(60, f.taskStepLimit())
+        assertEquals(500, f.taskStepLimit())
     }
 
     @Test fun clampsIntoRange() {
         val f = flags()
         f.setTaskStepLimit(0)
-        assertEquals(60, f.taskStepLimit())
+        assertEquals(500, f.taskStepLimit())
         f.setTaskStepLimit(-5)
-        assertEquals(60, f.taskStepLimit())
+        assertEquals(500, f.taskStepLimit())
         f.setTaskStepLimit(FeatureFlags.MAX_TASK_STEP_LIMIT + 100)
         assertEquals(FeatureFlags.MAX_TASK_STEP_LIMIT, f.taskStepLimit())
     }

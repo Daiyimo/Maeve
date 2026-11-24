@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.settings
 
+import com.daiyimo.maeve.core.agent.GroupPool
+import com.daiyimo.maeve.core.agent.ModelPools
 import com.daiyimo.maeve.core.model.Capabilities
 import com.daiyimo.maeve.core.model.ChatModel
 import com.daiyimo.maeve.core.model.ListedModel
@@ -933,6 +935,63 @@ class ProviderStoreTest {
             seen.map { it.first },
         )
         assertEquals(Usage(3, 2), seen.first().second)
+    }
+
+    // ---------- 主用途自动备援(不持久化模型组) ----------
+
+    @Test fun mainPoolIsAbsentWhenUserHasNotChosenMain() {
+        val s = store()
+        assertNull(s.modelPoolForMain(ModelSession.of("conversation")))
+        assertTrue(s.mainPoolCandidates().isEmpty())
+    }
+
+    @Test fun mainPoolKeepsCurrentMainFirstThenOnlyExistingToolCapableConfigs() {
+        ModelPools.resetForTests()
+        val s = store()
+        val p = connected(s)
+        s.use(ModelRole.Light, p.id, "m2", none.copy(toolCalls = true, vision = true))
+        s.use(ModelRole.Main, p.id, "m1", none.copy(toolCalls = true))
+        s.use(ModelRole.Vision, p.id, "m1", none.copy(toolCalls = false, vision = true))
+        val other = connected(s, "Other")
+        s.use(ModelRole.Vision, other.id, "m2", none.copy(toolCalls = false, vision = true))
+        // 连接列表里还有未用于任何用途的模型:不自动纳入,避免悄悄改用另一档/付费模型。
+        s.rememberModels(p.id, listOf(ListedModel("m1"), ListedModel("m2"), ListedModel("m3-paid")))
+
+        val beforeConfigs = s.configs.value
+        val beforeRoles = s.roles.value
+        val beforeFile = File(tmp.root, "providers.json").readText()
+        val pool = s.modelPoolForMain(ModelSession.of("conversation")) as GroupPool
+        assertEquals(listOf("m1", "m2"), pool.members.map { it.key.model })
+        assertEquals(listOf(0, 1), pool.members.map { it.priority })
+        assertEquals(beforeConfigs, s.configs.value)
+        assertEquals(beforeRoles, s.roles.value)
+        assertEquals(beforeFile, File(tmp.root, "providers.json").readText())
+    }
+
+    @Test fun singleMainCandidateReturnsOriginalModelPath() {
+        val s = store()
+        val p = connected(s)
+        s.use(ModelRole.Main, p.id, "m1", none)
+        val model = s.modelPoolForMain(ModelSession.of("conversation"))
+        assertFalse(model is GroupPool)
+        assertEquals(none.copy(toolCalls = true), model!!.capabilities)
+    }
+
+    @Test fun everyPoolMemberIsMeteredAsMainAndUsesTheSameConversationSession() = runTest {
+        ModelPools.resetForTests()
+        val seen = mutableListOf<Pair<UsageSource, Usage?>>()
+        val s = ProviderStore(tmp.root, AesGcmKeyCipher { key }, usage = { src, u -> seen += src to u }) { cfg, _, _, _ -> FakeModel(cfg.capabilities) }
+        val p = s.connect("甲", ProviderConfig.Kind.OpenAiCompat, "https://a.test/v1", "k", listOf(ListedModel("m1"), ListedModel("m2")), sessionHeader = "x-session")
+        s.use(ModelRole.Main, p.id, "m1", none.copy(toolCalls = true))
+        s.use(ModelRole.Light, p.id, "m2", none.copy(toolCalls = true))
+        val session = ModelSession.of("conversation")
+        val pool = s.modelPoolForMain(session) as GroupPool
+        pool.members.forEach { it.model.complete("s", emptyList(), emptyList()) }
+        assertEquals(listOf(
+            UsageSource(p.id, "甲", "m1", UsagePurpose.Main),
+            UsageSource(p.id, "甲", "m2", UsagePurpose.Main),
+        ), seen.map { it.first })
+        assertTrue(setups.all { it.headers["x-session"] == session.id })
     }
 
     private class FakeModel(override val capabilities: Capabilities) : ChatModel {

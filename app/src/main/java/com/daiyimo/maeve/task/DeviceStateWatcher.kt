@@ -36,8 +36,10 @@ class DeviceStateWatcher(
     private val keyguard = appContext.getSystemService(KeyguardManager::class.java)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val lock = LockState({ LockState.Reading(power.isInteractive, keyguard.isKeyguardLocked) }, scope)
+    private val lock = LockState({ LockState.Reading(power.isInteractive, keyguard.isKeyguardLocked, keyguard.isDeviceLocked) }, scope)
     val locked: StateFlow<Boolean> = lock.locked
+    /** 主屏每次锁上/解开都递增;动作准备后代次变化说明旧屏幕上的目标已失效。 */
+    val generation: Long get() = lock.generation
 
     // 只用广播当作「该重新看一眼」的信号,状态本身每次都从系统读,不靠广播顺序推断
     private val receiver = object : BroadcastReceiver() {
@@ -97,29 +99,38 @@ class DeviceStateWatcher(
 /**
  * 主屏是否不可操作(熄屏或锁屏)。广播来了重读一次;但解锁时系统先发 USER_PRESENT,
  * [android.app.KeyguardManager.isKeyguardLocked] 要等锁屏界面真的退下去才变,这一刻读到的还是「锁着」,
- * 之后不会再有广播。所以读到「亮着但锁着」时,只要有人在看这份状态,就每 [DeviceStateWatcher.POLL_MS] 再读一次,
- * 直到读到解锁或熄屏;熄屏时不读,等 SCREEN_ON。
+ * 之后不会再有广播。所以只要有人在看这份状态、且系统仍报锁着(熄屏也算),就每 [DeviceStateWatcher.POLL_MS] 再读一次,
+ * 直到读到解锁;部分 ROM 会漏 SCREEN_ON / USER_PRESENT,熄屏期间也继续重读。
  */
 internal class LockState(private val read: () -> Reading, scope: CoroutineScope) {
-    data class Reading(val interactive: Boolean, val keyguardLocked: Boolean) {
-        val locked get() = !interactive || keyguardLocked
+    data class Reading(val interactive: Boolean, val keyguardLocked: Boolean, val deviceLocked: Boolean = keyguardLocked) {
+        /** 以设备是否真被凭据锁着为准;部分 ROM 解锁后 isKeyguardLocked 仍会短暂为 true。 */
+        val locked get() = !interactive || deviceLocked
     }
 
     @Volatile private var last = read()
     private val _locked = MutableStateFlow(last.locked)
     val locked: StateFlow<Boolean> = _locked.asStateFlow()
+    @Volatile var generation = 0L
+        private set
 
     fun refresh() {
+        val wasLocked = last.locked
         last = read()
-        _locked.value = last.locked
+        val nowLocked = last.locked
+        if (nowLocked != wasLocked) generation++
+        _locked.value = nowLocked
     }
 
     init {
         scope.launch {
             _locked.subscriptionCount.map { it > 0 }.distinctUntilChanged().collectLatest { watched ->
-                while (watched) {
-                    delay(DeviceStateWatcher.POLL_MS)
-                    if (last.interactive && last.keyguardLocked) refresh()
+                if (watched) {
+                    refresh() // 订阅刚开始先重读,避免漏广播后的旧值多活一个轮询周期
+                    while (watched) {
+                        delay(DeviceStateWatcher.POLL_MS)
+                        if (last.locked) refresh()
+                    }
                 }
             }
         }

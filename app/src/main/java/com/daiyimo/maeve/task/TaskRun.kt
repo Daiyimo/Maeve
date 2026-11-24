@@ -42,6 +42,7 @@ import com.daiyimo.maeve.confirm.ConfirmationNotifier
 import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.action.ConfirmChoice
 import com.daiyimo.maeve.core.agent.AgentLoop
+import com.daiyimo.maeve.core.tool.TaskPlan
 import com.daiyimo.maeve.core.agent.SystemPrompt
 import com.daiyimo.maeve.core.agent.FailKind
 import com.daiyimo.maeve.core.agent.ModelRouter
@@ -282,6 +283,8 @@ class TaskRun(
     /** 用户点了停止:还没交给模型的插话一起作废,不当成下一件事。 */
     @Volatile private var stopPressed = false
     @Volatile private var loop: AgentLoop? = null
+    @Volatile private var lastPlan: TaskPlan? = null
+    val plan: TaskPlan? get() = lastPlan
     val activeAsk: Delivery.Ask? get() = loop?.activeAsk
     @Volatile private var gate: TaskGate? = null
     @Volatile var takeover: Takeover? = null
@@ -304,14 +307,14 @@ class TaskRun(
     private val publishLock = Any()
     private var ended = false
 
-    fun cancel() {
+    fun cancel(source: String = "user") {
         stopPressed = true
         children?.cancelAll(RunId(key))
         val running = loop
         val t = takeover
         when {
-            t != null -> scope.launch { t.cancel() }
-            running != null -> inbox.cancel()
+            t != null -> scope.launch { t.cancel(source) }
+            running != null -> inbox.cancel(source)
             else -> {
                 // 刚从队里放出来、协程还没挂上时点的取消:协程入口检查这个标志并照常收尾
                 cancelRequested = true
@@ -601,7 +604,7 @@ class TaskRun(
                 shellDeath = IBinder.DeathRecipient {
                     shellDied = true
                     val running = loop
-                    if (running != null) running.cancel() else job?.cancel()
+                    if (running != null) inbox.cancel("shell_disconnected") else job?.cancel()
                 }.also { shell.asBinder().linkToDeath(it, 0) }
                 shellBinder = shell.asBinder()
                 side.launch { conn.shell.map { it != null }.collect { shellUp.value = it } }
@@ -810,6 +813,11 @@ class TaskRun(
                         conversationId = conversationId, inlineScreen = speed.inlineScreen,
                         adaptiveVision = speed.adaptiveVision)
                     AgentLoop(model, childTools, SystemPrompt.identity(), maxSteps = childSpec.stepBudget ?: AgentLoop.UNLIMITED_STEPS,
+                        gate = { w ->
+                            if (phoneScreen.acquired && childTools.surface != WEB) phone?.screen?.let { awaitUserPick(it, taskGate, w) }
+                            taskGate.pass({ phoneScreen.acquired && childTools.surface != WEB }, w)
+                        },
+                        screenGeneration = states::generation,
                         effects = com.daiyimo.maeve.core.action.ActionEffects((service.application as MaeveApp).actionEffects, conversationId, childSpec.id.value),
                         // 子任务跟着询问 / 自主;询问时它也过关卡,子任务里花钱的一步一律不做
                         confirmations = runApproval.gate(), approvals = runApproval, autonomous = runApproval.autonomous(),
@@ -902,6 +910,7 @@ class TaskRun(
                 userScreens = userScreens,
                 // 同一网站、App 里连着联系别人、提交:两次之间隔一段随机的时间
                 outwardPacing = OutwardPacing.human(),
+                screenGeneration = states::generation,
             )
             loop = agent
             liveFeed = agent.events.subscribe(liveEvents)
@@ -958,7 +967,7 @@ class TaskRun(
                     counter = null
                 }
                 override suspend fun resume(result: HandBack) { inbox.send(RunInput.HandBack(result)) }
-                override fun cancel() { inbox.cancel() }
+                override fun cancel(source: String) { inbox.cancel(source) }
 
                 // 网页界面:把当前标签(同一个页面)拿到主屏的接管界面;手机界面返回 null,走挪任务
                 override suspend fun showWeb(reason: String, key: Int): Boolean? {
@@ -1019,6 +1028,7 @@ class TaskRun(
             awake?.close()
             awake = null
             shellDeath?.let { d -> runCatching { shellBinder?.unlinkToDeath(d, 0) } }
+            lastPlan = loop?.plan
             loop = null
             children = null
             // 早点关:后面收尾要等屏和网页;resources 关时还会再关一次(只关一次,不重复)

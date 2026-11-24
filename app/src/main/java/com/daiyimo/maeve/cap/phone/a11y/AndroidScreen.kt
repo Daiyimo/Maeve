@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.cap.phone.a11y
 
+import com.daiyimo.maeve.core.action.timedActionPhase
 import android.accounts.AccountManager
 import android.app.AlarmManager
 import android.app.PendingIntent
@@ -40,6 +41,8 @@ import com.daiyimo.maeve.core.uistate.ScreenPort
 import com.daiyimo.maeve.core.uistate.ScreenEvent
 import com.daiyimo.maeve.core.uistate.ScreenSnapshot
 import com.daiyimo.maeve.core.uistate.VisibleTextLine
+import com.daiyimo.maeve.core.uistate.VisualFrame
+import java.io.ByteArrayOutputStream
 import com.daiyimo.maeve.core.uistate.SystemCommandResult
 import com.daiyimo.maeve.core.uistate.SystemAction
 import com.daiyimo.maeve.core.uistate.SystemActionResult
@@ -247,7 +250,29 @@ class AndroidScreen(
     override suspend fun readVisibleText(): List<VisibleTextLine>? = withContext(Dispatchers.IO) {
         if (!hasDisplay || frameBlack() == true) return@withContext null
         StillFrameRead.read(SystemClock::uptimeMillis, { delay(it) }, ::frameSignature) {
-            display.current?.latestFrameBitmap()?.let { PhoneOcr.read(it) }
+            display.current?.latestFrameBitmap()?.let { PhoneOcr.readFresh(it) }
+        }
+    }
+
+    override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long): VisualFrame = withContext(Dispatchers.IO) {
+        val target = display.current ?: return@withContext VisualFrame(null, null); val pkg = foregroundTaskPackage() ?: return@withContext VisualFrame(null, null)
+        StillFrameRead.awaitStill(SystemClock::uptimeMillis, { delay(it) }, ::frameSignature)
+        val bitmap = target.latestFrameBitmap() ?: return@withContext VisualFrame(null, null)
+        try {
+            if (frameBlack() == true) return@withContext VisualFrame(null, null); val before = frameSignature()
+            val png = if (!withImage) null else ByteArrayOutputStream().use { output ->
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output); output.toByteArray()
+            }
+            val text = try {
+                withTimeoutOrNull(timeoutMs) { PhoneOcr.readFresh(bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)) }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
+                null
+            }
+            if (display.current !== target || foregroundTaskPackage() != pkg ||
+                frameBlack() == true || FrameMath.pageChanged(before, frameSignature())) VisualFrame(null, null)
+            else VisualFrame(png, text, bitmap.width, bitmap.height)
+        } finally {
+            bitmap.recycle()
         }
     }
 
@@ -291,7 +316,10 @@ class AndroidScreen(
 
     override suspend fun waitStable(timeoutMs: Long): Boolean = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext true
-        withEventClock { clock -> clock.awaitQuiet(QUIET_MS, timeoutMs) }
+        StableScreenRead.await(timeoutMs, SystemClock::uptimeMillis, ::delay) {
+            val content = read()
+            StableScreenRead.Reading(content.hash, treeHash(), content.topPackage)
+        }
     }
 
     /** 视觉优先时只轮询画面指纹,不订阅或读取无障碍事件。 */
@@ -467,12 +495,14 @@ class AndroidScreen(
         verified { drag(listOf(x1 to y1, x2 to y2), durationMs, bow = true) }
     }
 
-    override suspend fun gesture(paths: List<List<Pair<Int, Int>>>, durationMs: Long): ActionResult = withContext(Dispatchers.IO) {
+    override suspend fun gesture(
+        paths: List<List<Pair<Int, Int>>>, durationMs: Long, holdMs: Long, restMs: Long,
+    ): ActionResult = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext NO_APP_OPEN
         if (paths.isEmpty() || paths.size > 2 || paths.any { it.size < 2 || it.size > 32 }) return@withContext ActionResult.Failed("invalid_gesture")
         verified {
             // 一根手指照着画好的路径走,按节奏排快慢;几根手指一起动的只让时长浮动一点
-            if (paths.size == 1) return@verified drag(paths.single(), durationMs, bow = false)
+            if (paths.size == 1) return@verified drag(paths.single(), durationMs, bow = false, holdMs = holdMs, restMs = restMs)
             delay(pacing.approach())
             a11y.gesture(displayId, paths.map(::pathOf), pacing.duration(durationMs))
         }
@@ -717,15 +747,15 @@ class AndroidScreen(
         var pasted: Boolean? = null
         val changed = withEventClock { clock ->
             clock.mark()
-            pasted = pasteUnseen(text, beforeFrame)
+            pasted = timedActionPhase("inputDispatch") { pasteUnseen(text, beforeFrame) }
             pasted == true && awaitChange(clock, beforeTree, beforeFrame).changed
         }
         when (pasted) {
             null -> return ActionResult.Failed("paste_unavailable", HINT_PASTE_BLOCKED)
-            false -> return ActionResult.Failed("action_failed")
+            false -> return ActionResult.Failed("dispatch_unknown")
             else -> Unit
         }
-        val after = readVisibleText()?.let { UnseenField.outside(it, imeBox() ?: ime) }
+        val after = timedActionPhase("inputReadback") { readVisibleText()?.let { UnseenField.outside(it, imeBox() ?: ime) } }
         return when (val r = UnseenField.typed(text, before, after, changed, keyboardUp = ime != null, atPoint = atPoint)) {
             is ActionResult.Ok -> ok(changed = r.changed, verification = r.verification, hint = r.hint)
             else -> r
@@ -1264,8 +1294,8 @@ class AndroidScreen(
         val w = armSpillWatch()
         val change = withEventClock { clock ->
             clock.mark()
-            if (action()) awaitChange(clock, beforeTree, beforeFrame) else null
-        } ?: return ActionResult.Failed("action_failed")
+            if (timedActionPhase("inputDispatch", action)) awaitChange(clock, beforeTree, beforeFrame) else null
+        } ?: return ActionResult.Failed("dispatch_unknown")
         // 从挪回来的任务里又打开了一个的,一并算进来
         val profile = adoptFromAdopted(w)
         val spill = takeSpill(w)
@@ -1631,14 +1661,14 @@ class AndroidScreen(
 
     /** 等界面稳定后比对指纹(规则见 [ChangeWait]);确认变了立即返回 true。 */
     private suspend fun awaitChange(clock: EventClock, beforeTree: Long?, beforeFrame: IntArray?): ChangeWait.Result =
-        ChangeWait.awaitStableChange(
+        timedActionPhase("screenSettle") { ChangeWait.awaitStableChange(
             now = SystemClock::uptimeMillis,
             sleep = { delay(it) },
             frame = ::frameSignature,
             quietForMs = clock::quietForMs,
             treeChanged = { beforeTree != null && treeHash() != beforeTree },
             beforeFrame = beforeFrame,
-        )
+        ) }
 
     /** 前台不是目标 App、也不是它调起的系统页面或系统选择器时,返回当前前台包名及是否由目标 App 打开。 */
     private fun switchedTo(): AppSwitch.Switch? {
@@ -1859,10 +1889,13 @@ class AndroidScreen(
      * 一根手指沿 [points] 滑动。有节奏时按 [GesturePacing.stroke] 排好每个点的时刻,由内置助手逐点注入(App 看到先快后慢的真实速度);
      * 助手注不了时退回无障碍手势沿同一条弧线走(系统按路径匀速走,只少了快慢)。不加节奏时和以前一样:无障碍手势按给定时长匀速走折线。
      */
-    private suspend fun drag(points: List<Pair<Int, Int>>, durationMs: Long, bow: Boolean): Boolean {
-        if (!pacing.paced) return a11y.gesture(displayId, pathOf(points), durationMs)
+    private suspend fun drag(
+        points: List<Pair<Int, Int>>, durationMs: Long, bow: Boolean, holdMs: Long = 0, restMs: Long = 0,
+    ): Boolean {
+        if (!pacing.paced && holdMs == 0L && restMs == 0L) return a11y.gesture(displayId, pathOf(points), durationMs)
         delay(pacing.approach())
-        val stroke = pacing.stroke(points.map { it.first.toDouble() to it.second.toDouble() }, durationMs, bow, screenWidth to screenHeight)
+        val stroke = (if (pacing.paced) pacing else GesturePacing.Instant)
+            .stroke(points.map { it.first.toDouble() to it.second.toDouble() }, durationMs, bow, screenWidth to screenHeight, holdMs, restMs)
         if (injectStroke(stroke.points)) return true
         return a11y.gesture(displayId, pathOf(stroke.points.map { it.x.roundToInt() to it.y.roundToInt() }), stroke.durationMs)
     }

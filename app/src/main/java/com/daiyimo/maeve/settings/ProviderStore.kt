@@ -14,6 +14,9 @@ import com.daiyimo.maeve.core.model.AnthropicModel
 import com.daiyimo.maeve.core.model.BearerToken
 import com.daiyimo.maeve.core.model.Capabilities
 import com.daiyimo.maeve.core.model.Author
+import com.daiyimo.maeve.core.agent.GroupPool
+import com.daiyimo.maeve.core.agent.MemberKey
+import com.daiyimo.maeve.core.agent.PoolMember
 import com.daiyimo.maeve.core.model.ChatModel
 import com.daiyimo.maeve.core.model.ClientHeaders
 import com.daiyimo.maeve.core.model.GeminiModel
@@ -715,6 +718,63 @@ class ProviderStore(
         ))
         modelFactory(configured, apiKey(cfg.id), listed?.endpoint, ClientSetup(
             headers(p?.sessionHeader, session), reasoningEffort = _roles.value.reasoningEffort(role),
+            thinkingTypes = listed?.thinkingTypes,
+        )).metered(source, usage)
+    }
+
+    /**
+     * 主用途的最小可用备援池:当前 main 永远第一,其后是已连接且声明支持工具调用的现有模型配置。
+     * 不新建配置、不改用途选择、不写文件,也不引入任何默认/付费模型;只有一个候选时原样返回 main。
+     * [session] 同时用作服务商会话头和 group+session 粘性键,同一对话优先留在上次成功的成员。
+     */
+    @Synchronized fun modelPoolForMain(session: ModelSession): ChatModel? {
+        val main = configFor(ModelRole.Main) ?: return null
+        val candidates = mainPoolCandidates()
+        if (candidates.size <= 1) return buildMainMember(main, session)
+        val members = candidates.mapIndexed { index, cfg ->
+            val p = provider(cfg.providerId)
+            PoolMember(
+                MemberKey(cfg.providerId, cfg.model), buildMainMember(cfg, session), index,
+                p?.name ?: cfg.name,
+            )
+        }
+        return GroupPool(MAIN_POOL_GROUP, members, sessionId = session.id)
+    }
+
+    /** 供设置页/诊断查看候选;顺序即故障转移顺序,不持久化模型组。 */
+    @Synchronized internal fun mainPoolCandidates(): List<ProviderConfig> {
+        val main = configFor(ModelRole.Main) ?: return emptyList()
+        val seen = hashSetOf(MemberKey(main.providerId, main.model))
+        val rest = _configs.value.filter { cfg ->
+            val key = MemberKey(cfg.providerId, cfg.model)
+            cfg.capabilities.toolCalls && provider(cfg.providerId) != null && seen.add(key)
+        }.map(::effectivePoolCandidate)
+        return listOf(main) + rest
+    }
+
+    /** 和 [configFor] 一样按当前选择推看图能力;被选作视觉模型的配置不能因存储初值为 false 而无法接图。 */
+    private fun effectivePoolCandidate(cfg: ProviderConfig): ProviderConfig {
+        val p = provider(cfg.providerId)
+        val known = p?.let { ModelOptions.ofProvider(it, _configs.value).firstOrNull { it.id == cfg.model }?.capabilities?.vision }
+            ?: cfg.capabilities.vision
+        val sees = ModelOptions.seesImages(known, p?.visionOverrides?.get(cfg.model),
+            usedForVision = _roles.value.resolve(ModelRole.Vision) == cfg.id)
+        return if (sees == cfg.capabilities.vision) cfg else cfg.copy(capabilities = cfg.capabilities.copy(vision = sees))
+    }
+
+    /** 备援成员仍记在主用途名下;各自保留上下文设置、端点和会话头,思考档位按成员能力收口。 */
+    private fun buildMainMember(cfg: ProviderConfig, session: ModelSession): ChatModel {
+        val p = provider(cfg.providerId)
+        val source = UsageSource(cfg.providerId, p?.name ?: cfg.name, cfg.model, UsagePurpose.of(ModelRole.Main))
+        val listed = listedOf(cfg)
+        val settings = p?.contextSettings?.get(cfg.model)
+        val configured = if (settings == null) cfg else cfg.copy(capabilities = cfg.capabilities.copy(
+            contextTokens = settings.windowTokens ?: cfg.capabilities.contextTokens,
+            compactionTriggerTokens = settings.triggerTokens,
+        ))
+        return modelFactory(configured, apiKey(cfg.id), listed?.endpoint, ClientSetup(
+            headers = headers(p?.sessionHeader, session),
+            reasoningEffort = memberReasoningEffort(cfg, listed, _roles.value.reasoningEffort(ModelRole.Main)),
             thinkingTypes = listed?.thinkingTypes,
         )).metered(source, usage)
     }
@@ -1454,6 +1514,8 @@ class ProviderStore(
          * 试调用:临时配置的 id、系统提示、那句话、试用的工具、回复上限。
          * 上限留得够一次工具调用,连同必须先想一想的模型的思考(Messages、generateContent 把思考也算在上限里)。
          */
+        internal const val MAIN_POOL_GROUP = "main"
+
         private const val PROBE_ID = "probe"
         private const val PROBE_SYSTEM = "This is a connection test. Call the get_time tool now. Do not answer with text."
         private const val PROBE_TEXT = "What time is it? Use the get_time tool."

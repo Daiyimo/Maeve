@@ -61,4 +61,7 @@
     <string name="tool_tap">點選</string>
     <string name="tool_type">輸入文字</string>
     <string name="tool_clear">清空輸入框</string>
+    <string name="tool_report_plan">更新計畫</string>
+    <string name="tool_long_press">長按</string>
+    <string name="tool_drag">拖曳</string>
 </resources>

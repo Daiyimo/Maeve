@@ -61,4 +61,7 @@
     <string name="tool_tap">タップ</string>
     <string name="tool_type">テキストを入力</string>
     <string name="tool_clear">入力欄をクリア</string>
+    <string name="tool_report_plan">計画を更新</string>
+    <string name="tool_long_press">長押し</string>
+    <string name="tool_drag">ドラッグ</string>
 </resources>
