@@ -498,6 +498,28 @@ void main() {
       matching: find.byType(ChatPage),
     );
     expect(tester.getSize(screen), viewport);
+    expect(
+      MediaQuery.viewPaddingOf(tester.element(screen)).top,
+      greaterThanOrEqualTo(viewport.height * (124 / 2670)),
+    );
+    Rect phonePart(String key) => tester.getRect(
+      find.descendant(of: preview, matching: find.byKey(ValueKey(key))),
+    );
+    final body = phonePart('share-phone-body');
+    final volume = phonePart('share-volume-rocker');
+    final power = phonePart('share-power-key');
+    final ai = phonePart('share-ai-key');
+    final camera = phonePart('share-front-camera');
+    for (final button in [volume, power, ai]) {
+      expect(button.left, lessThan(body.right));
+      expect(button.right, greaterThan(body.right));
+    }
+    expect(volume.bottom, lessThan(power.top));
+    expect(power.bottom, lessThan(ai.top));
+    expect(volume.height, greaterThan(power.height));
+    expect((ai.top - body.top) / body.height, closeTo(.387, .002));
+    expect(camera.center.dx, closeTo(body.center.dx, .01));
+    expect((camera.center.dy - body.top) / body.height, closeTo(.034, .004));
     final playback = tester.getRect(
       find.descendant(of: screen, matching: find.byType(TaskPlaybackView)),
     );

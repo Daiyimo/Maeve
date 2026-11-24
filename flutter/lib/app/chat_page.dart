@@ -192,9 +192,15 @@ class _ChatPageState extends State<ChatPage> {
         .take(index)
         .where((m) => m.isUser)
         .lastOrNull;
-    final media = MediaQuery.of(context).copyWith(
+    final originalMedia = MediaQuery.of(context);
+    final cameraInset = TaskSharePage.portraitTopInset(originalMedia.size);
+    final safePadding = originalMedia.viewPadding.top >= cameraInset
+        ? originalMedia.viewPadding
+        : originalMedia.viewPadding.copyWith(top: cameraInset);
+    final media = originalMedia.copyWith(
       viewInsets: EdgeInsets.zero,
-      padding: MediaQuery.viewPaddingOf(context),
+      viewPadding: safePadding,
+      padding: safePadding,
       disableAnimations: true,
     );
     final turn = Conversation(id: conversation.id, title: conversation.title);
