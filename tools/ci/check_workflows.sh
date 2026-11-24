@@ -16,3 +16,4 @@ tar --extract --gzip --file "$maeve_lint_dir/actionlint.tar.gz" \
   --directory "$maeve_lint_dir" actionlint
 
 "$maeve_lint_dir/actionlint" "$maeve_repo"/.github/workflows/*.yml
+python3 "$maeve_repo/tools/ci/check_pr_gate.py"

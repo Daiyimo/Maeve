@@ -202,7 +202,19 @@ dependencies {
 }
 
 // 本地模块使用固定坐标，但 AAR 会随源码改变，不能复用昨天缓存的二进制。
-configurations.configureEach { resolutionStrategy.cacheChangingModulesFor(0, "seconds") }
+configurations.configureEach {
+    resolutionStrategy.cacheChangingModulesFor(0, "seconds")
+    // Compose 1.7.6 的测试依赖会传递旧 runner/JUnit；所有 source set 对齐显式版本，
+    // 避免 AGP consistent resolution 把旧版本锁进 debugRuntimeClasspath。
+    resolutionStrategy.eachDependency {
+        if (requested.group == "androidx.test" && requested.name == "runner") {
+            useVersion(libs.versions.androidxTestRunner.get())
+        }
+        if (requested.group == "junit" && requested.name == "junit") {
+            useVersion(libs.versions.junit.get())
+        }
+    }
+}
 
 // LicensesTest 读仓库的 licenses/THIRD_PARTY_NOTICES.md:让它参与测试的增量判断
 tasks.withType<Test>().configureEach {
