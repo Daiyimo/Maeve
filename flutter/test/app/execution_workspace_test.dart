@@ -218,6 +218,71 @@ void main() {
     },
   );
 
+  testWidgets('Home elapsed time accumulates through model and phone states', (
+    tester,
+  ) async {
+    final bridge = FakeChatBridge();
+    await _mount(tester, bridge, size: const Size(390, 844));
+
+    void emit({
+      bool waiting = false,
+      int? elapsedMs,
+      String? runId,
+      bool done = false,
+    }) {
+      bridge.emitUi(
+        conversationId: 'live',
+        composer: done ? 'idle' : 'busy',
+        exchanges: [
+          {
+            ...FakeChatBridge.exchange(
+              '打开设置',
+              status: done ? 'done' : 'working',
+              answer: done ? '已打开系统设置。' : null,
+              elapsedMs: elapsedMs,
+              runId: runId,
+            ),
+            'waitingForModel': waiting,
+          },
+        ],
+      );
+    }
+
+    emit(waiting: true);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('等待模型响应'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('3 秒'), findsOneWidget);
+
+    emit(runId: 'run-clock');
+    await tester.pump();
+    expect(find.text('执行中'), findsOneWidget);
+    expect(find.text('3 秒'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('5 秒'), findsOneWidget);
+
+    emit(waiting: true, elapsedMs: 4400, runId: 'run-clock');
+    await tester.pump();
+    expect(find.text('等待模型响应'), findsOneWidget);
+    expect(find.text('5 秒'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('7 秒'), findsOneWidget);
+
+    emit(done: true, elapsedMs: 7200, runId: 'run-clock');
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('已完成'), findsAtLeastNWidgets(1));
+    expect(
+      find.descendant(
+        of: find.byType(ExecutionPanel),
+        matching: find.text('7 秒'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('9 秒'), findsNothing);
+  });
+
   testWidgets('Completed narrow task keeps playback left of settlement', (
     tester,
   ) async {

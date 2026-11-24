@@ -312,8 +312,11 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
                           '${message.steps} 步',
                           style: MaeveType.hint.copyWith(color: colors.ink3),
                         ),
-                      if (message.waitingForModel && message.active)
+                      if (message.active &&
+                          (message.status != 'queued' ||
+                              message.elapsedMs != null))
                         LiveElapsedText(
+                          key: ValueKey(controller.active.id),
                           elapsedMs: message.elapsedMs ?? 0,
                           style: MaeveType.mono,
                         )

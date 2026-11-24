@@ -316,8 +316,8 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
             screenOpen = tasks.previewOpen
                 .stateIn(scope, SharingStarted.Eagerly, tasks.agentAppShown.value || tasks.webScreenOpen.value),
             endedRunId = taskState.endedRunId,
-            // 按对话取它自己的任务,不用服务对外那一份(并行时那是显示中的别的任务)
             liveRunId = { taskState.run(it)?.runId?.value },
+            runStartedAt = { taskState.run(it)?.startedAtMs },
             endedRunIds = taskState.endedRunIds,
             parallelFlag = { FeatureFlags.get(app).speedFlags().parallelTasks },
             shownTask = taskState.shownTask,

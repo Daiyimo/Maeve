@@ -61,7 +61,7 @@ class ChatViewModelTest {
         vm.openConversation(id); runCurrent()
         val ex = vm.ui.value.exchanges.single()
         assertEquals(17, ex.stepCount)
-        assertEquals(97_599L, ex.elapsedMs)
+        assertEquals(97_599L, vm.elapsedForSnapshot(ex))
         assertTrue(ex.steps.isEmpty())
         assertEquals("## 核对完成", (ex.status as ExchangeStatus.Done).answer)
         assertTrue(requested.isNotEmpty() && requested.all { it == "exact-record" })
@@ -76,7 +76,7 @@ class ChatViewModelTest {
                 io = StandardTestDispatcher(testScheduler), runSummary = { summary })
             vm.openConversation(id); runCurrent()
             assertEquals(0, vm.ui.value.exchanges.single().stepCount)
-            assertNull(vm.ui.value.exchanges.single().elapsedMs)
+            assertNull(vm.elapsedForSnapshot(vm.ui.value.exchanges.single()))
         }
     }
     @get:Rule val texts = ChineseTexts()
@@ -281,16 +281,16 @@ class ChatViewModelTest {
         assertEquals("打开 12306", liveLine(ex))
         assertTrue(vm.ui.value.operatingPhone)
 
-        // 模型请求在途时显示中性状态，不虚构新步骤。
+        now = 4_000L
         emit(TaskState.Running(2, ""))
         ex = vm.ui.value.exchanges.single()
         assertEquals(1, ex.steps.size)
         assertEquals("正在处理", liveLine(ex))
-
+        assertEquals(3_000L, vm.elapsedForSnapshot(ex))
         emit(TaskState.Running(2, "", "phone_tap", reason = "正在 12306 搜索上海到杭州的车次"))
         assertEquals("正在 12306 搜索上海到杭州的车次", liveLine(vm.ui.value.exchanges.single()))
         did(2, "act", "phone_tap", "cn.railway", "changed")
-
+        assertEquals(3_000L, vm.elapsedForSnapshot(vm.ui.value.exchanges.single()))
         // 等解锁时不算在后台操作
         emit(TaskState.Held(TaskGate.LOCKED))
         assertFalse(vm.ui.value.operatingPhone)

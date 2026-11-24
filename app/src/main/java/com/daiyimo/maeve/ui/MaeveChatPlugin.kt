@@ -376,7 +376,7 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                         "live" to ex.live,
                         "steps" to ex.stepCount,
                         "line" to ex.line,
-                        "elapsedMs" to ex.elapsedMs,
+                        "elapsedMs" to app.chat.elapsedForSnapshot(ex),
                     ) + FlutterTaskDetails.exchange(ex)
                 },
             ),

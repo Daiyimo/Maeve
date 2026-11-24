@@ -6,7 +6,7 @@ import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../models/duration_format.dart';
 
-/// 等待模型响应时的本地实时用时；宿主快照到达后用新基线校准。
+/// 实时显示任务累计用时，并用宿主快照向前校准。
 class LiveElapsedText extends StatefulWidget {
   const LiveElapsedText({super.key, required this.elapsedMs, this.style});
 
@@ -18,27 +18,28 @@ class LiveElapsedText extends StatefulWidget {
 }
 
 class _LiveElapsedTextState extends State<LiveElapsedText> {
-  Timer? _timer;
-  late int _elapsedMs;
+  static const _interval = Duration(milliseconds: 200);
+  late final Timer _timer;
+  late int _baselineMs;
+  int get _elapsedMs => _baselineMs + _timer.tick * _interval.inMilliseconds;
 
   @override
   void initState() {
     super.initState();
-    _elapsedMs = widget.elapsedMs;
-    _timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-      if (mounted) setState(() => _elapsedMs += 200);
-    });
+    _baselineMs = widget.elapsedMs;
+    _timer = Timer.periodic(_interval, (_) => setState(() {}));
   }
 
   @override
   void didUpdateWidget(covariant LiveElapsedText oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.elapsedMs != widget.elapsedMs) _elapsedMs = widget.elapsedMs;
+    final correction = widget.elapsedMs - _elapsedMs;
+    if (correction > 0) _baselineMs += correction;
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _timer.cancel();
     super.dispose();
   }
 

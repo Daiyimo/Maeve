@@ -334,6 +334,7 @@ class ChatViewModel(
     private val activeConversations: StateFlow<List<String>> = MutableStateFlow(emptyList()),
     /** 该对话正在跑的任务的原话;切过去接着显示时用。 */
     private val runGoal: (String) -> String? = { null },
+    private val runStartedAt: (String) -> Long? = { null },
     /** 该对话正在跑的任务自己的状态(不论服务此刻显示的是谁);切走后靠它接着记那一问一答的步骤。 */
     private val runState: (String) -> StateFlow<TaskState>? = { null },
     /** 任务结束后补上的记忆与技能提示,按运行编号。 */
@@ -856,7 +857,8 @@ class ChatViewModel(
         if (fresh) {
             // 先把这个对话的那一问一答摆好,再让服务显示它:服务一换显示,状态可能当场就送进来(onShown),
             // 那时这一问一答必须已经在,不然会另起一条没有原话的
-            val live = p?.exchange ?: Exchange(runGoal(conversationId).orEmpty(), emptyList(), ExchangeStatus.Working, live = true, startedAt = clock())
+            val live = p?.exchange ?: Exchange(runGoal(conversationId).orEmpty(), emptyList(), ExchangeStatus.Working,
+                live = true, startedAt = startOf(conversationId))
             screenSeen = p?.screenSeen ?: false
             pipClosed = p?.pipClosed ?: false
             _ui.update {
@@ -1185,7 +1187,7 @@ class ChatViewModel(
                 // 原话、文件按对话取:这条状态属于屏上这个对话的任务
                 val goal = it.conversationId?.let(runGoal).orEmpty()
                 val files = if (ownTask()) sharedFiles.value else emptyList()
-                val ex = Exchange(goal, emptyList(), ExchangeStatus.Working, live = true, files = files, startedAt = clock())
+                val ex = Exchange(goal, emptyList(), ExchangeStatus.Working, live = true, files = files, startedAt = startOf(it.conversationId))
                 it.copy(exchanges = it.exchanges + ex)
             }
         }
@@ -1237,6 +1239,11 @@ class ChatViewModel(
         if (ex.goal.isNotEmpty() || !ex.status.active()) return ex
         return conversationId?.let(runGoal)?.takeIf(String::isNotEmpty)?.let { ex.copy(goal = it) } ?: ex
     }
+
+    private fun startOf(conversationId: String?): Long = conversationId?.let(runStartedAt) ?: clock()
+
+    internal fun elapsedForSnapshot(ex: Exchange): Long? =
+        ex.elapsedMs ?: if (ex.status.active()) elapsedOf(ex) else null
 
     private fun elapsedOf(ex: Exchange): Long? = ex.startedAt.takeIf { it > 0 }?.let { (clock() - it).coerceAtLeast(0) }
 

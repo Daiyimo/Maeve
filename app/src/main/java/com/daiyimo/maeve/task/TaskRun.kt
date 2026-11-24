@@ -188,7 +188,6 @@ class TaskRun(
     private fun mcpEndpoints(): List<com.daiyimo.maeve.core.cap.mcp.McpConnection> = buildList {
         mcpConnections?.let { addAll(it.connections) }
     }
-    /** 自己的一份;显示中时同步写到服务对外的那份。[show] 时整份抄过去。 */
     /** App 给的模型来源、评测钩子、屏幕画面的开关。 */
     private val env = TaskEnvironment.of(service)
     /** 这段对话对外的会话号:这次运行建的模型(主、轻量、看图,及核查、意图判断、停止交代等旁路)都用它。 */
@@ -215,6 +214,7 @@ class TaskRun(
 
     /** 静音等恢复记录按它分开,几个任务各记各的。 */
     val key: String = UUID.randomUUID().toString()
+    val startedAtMs: Long = System.currentTimeMillis()
     private val inbox = RunInbox()
 
     private val _runId = Mirrored<String?>(null, service.taskState._runId)
