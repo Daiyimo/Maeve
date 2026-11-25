@@ -25,6 +25,11 @@ import com.daiyimo.maeve.core.uistate.ActionResult
 import com.daiyimo.maeve.core.uistate.ScreenPort
 import com.daiyimo.maeve.core.uistate.ScreenSnapshot
 import com.daiyimo.maeve.core.uistate.UiElement
+import com.daiyimo.maeve.core.uistate.VisibleTextLine
+import com.daiyimo.maeve.core.uistate.VisualFrame
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -34,17 +39,23 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-private class DeniedPaymentScreen(private val label: String) : ScreenPort by FakeScreen() {
+private class DeniedPaymentScreen(var label: String, private val app: String = "com.example.shop") : ScreenPort by FakeScreen() {
     var taps = 0
-    private val shown = ScreenSnapshot("s1", "com.example.shop", listOf(
+    private val shown get() = ScreenSnapshot("s1", app, listOf(
         UiElement("@e1", "Button", label, 500, 500, listOf(100, 400, 900, 600), null, true, false, false),
     ), 1080, 2400)
     override suspend fun snapshot() = shown
     override suspend fun peek() = shown
+    override suspend fun currentPackage() = app
+    override suspend fun viewport() = 1080 to 2400
+    override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long) = VisualFrame(
+        label.toByteArray().takeIf { withImage }, listOf(VisibleTextLine(label, listOf(450, 480, 550, 520))), 1080, 2400,
+    )
     override suspend fun tapRef(ref: String, snapshotId: String) = ActionResult.Ok(changed = true).also { taps++ }
     override suspend fun tapXY(x: Int, y: Int) = ActionResult.Ok(changed = true).also { taps++ }
 }
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class UnavailableApprovalTest {
     private val provenance = RunProvenance(RunOrigin.Mcp, Attendance.Unattended)
     private fun reply(id: String, name: String, args: String = "{}") =
@@ -95,5 +106,78 @@ class UnavailableApprovalTest {
             assertEquals("false", content["executed"]!!.jsonPrimitive.content)
             assertTrue(returned.isError)
         }
+    }
+
+    @Test fun amooAsksOnThePhoneAndOnlyExecutesTheApprovedScreenStep() = runTest {
+        for (changed in listOf(false, true)) {
+            val phone = DeniedPaymentScreen("搜索", "com.tencent.mm")
+            val model = FakeModel(
+                reply("observe", "phone_observe"),
+                reply("search", "phone_tap", """{"x":500,"y":500,"target":"搜索"}"""),
+                reply("end", "end_not_done", """{"message":"已核对操作"}"""),
+            )
+            val loop = AgentLoop(model, toolDispatcher(phone), "BASE", confirmations = ConfirmationGate(),
+                reviewFinalAnswer = false)
+            val spec = RunSpec(RunId("amoo-confirm"), "打开搜索", "test",
+                provenance = RunProvenance(RunOrigin.Amoo, Attendance.Reachable))
+            val run = async { loop.run(spec, RunInbox()) }
+            runCurrent()
+            assertTrue("${loop.state.value}: " + model.requests.flatMap { request ->
+                request.flatMap { it.parts.filterIsInstance<Part.ToolResult>() }
+            }, loop.state.value is TaskState.WaitingConfirmation)
+            val waiting = loop.state.value as TaskState.WaitingConfirmation
+            assertEquals("com.tencent.mm", waiting.request.app)
+            assertEquals("搜索 · 屏幕坐标 (500, 500)", waiting.request.target)
+            assertEquals(0, phone.taps)
+            if (changed) phone.label = "联系人"
+            assertTrue(loop.answerConfirmation(true))
+            run.await()
+            assertEquals(if (changed) 0 else 1, phone.taps)
+        }
+    }
+
+    @Test fun amooDoesNotAskToApproveAVisualPaymentOrSendButton() = runTest {
+        for (label in listOf("确认付款", "发送")) {
+            val phone = DeniedPaymentScreen(label, "com.tencent.mm")
+            val tools = toolDispatcher(phone)
+            tools.execute(Part.ToolCall("observe", "phone_observe", "{}"))
+            val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {},
+                recorder = ActionRecorder(RunSink.NONE), provenance = RunProvenance(RunOrigin.Amoo, Attendance.Reachable))
+            val result = executor.run(Part.ToolCall("tap", "phone_tap", """{"x":500,"y":500,"target":"搜索"}"""), Origin.Model(1))
+            assertEquals("target_unresolved", (result as ActionOutcome.Refused).code)
+            assertEquals(0, phone.taps)
+        }
+    }
+
+    @Test fun amooAutonomyAllowsOrdinaryVisualTapsAndStillChecksSensitiveActions() = runTest {
+        for (label in listOf("搜索", "确认付款", "发送")) {
+            val phone = DeniedPaymentScreen(label, "com.tencent.mm")
+            val tools = toolDispatcher(phone)
+            tools.execute(Part.ToolCall("observe", "phone_observe", "{}"))
+            val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {},
+                recorder = ActionRecorder(RunSink.NONE), approvals = ApprovalSettings { true },
+                provenance = RunProvenance(RunOrigin.Amoo, Attendance.Reachable))
+            val result = executor.run(Part.ToolCall("tap", "phone_tap", """{"x":500,"y":500,"target":"搜索"}"""), Origin.Model(1))
+            if (label == "搜索") {
+                assertTrue(result.toString(), result is ActionOutcome.Ran)
+                assertEquals(1, phone.taps)
+            } else {
+                assertEquals("approval_unavailable", (result as ActionOutcome.Refused).code)
+                assertEquals(0, phone.taps)
+            }
+        }
+    }
+
+    @Test fun anOrdinaryDeniedRemoteActionIsNotReportedAsSpendingMoney() = runTest {
+        val screen = DeniedPaymentScreen("搜索", "com.tencent.mm")
+        val tools = toolDispatcher(screen)
+        tools.execute(Part.ToolCall("observe", "phone_observe", "{}"))
+        val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {},
+            recorder = ActionRecorder(RunSink.NONE), provenance = provenance)
+        val result = executor.run(Part.ToolCall("tap", "phone_tap", """{"x":500,"y":500}"""), Origin.Model(1))
+            as ActionOutcome.Refused
+        assertEquals("approval_unavailable", result.code)
+        assertTrue(result.content.getValue("message").jsonPrimitive.content.contains("local approval"))
+        assertEquals(0, screen.taps)
     }
 }

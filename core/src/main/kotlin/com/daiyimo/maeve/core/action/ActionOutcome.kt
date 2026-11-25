@@ -62,7 +62,7 @@ internal object Refusals {
     fun content(code: String, style: RefusalStyle, before: List<GuardVerdict>, hit: Irreversible?, reason: String?, everyWrite: Boolean = false): JsonObject = when (style) {
         // 模型单步被守卫叫停时任务就此结束,用不到说明
         RefusalStyle.Model -> if (code == "approval_unavailable") notRun(code,
-            "This step spends money, but this run cannot collect the user's approval. The action was not run. " +
+            "This step requires local approval, but this run cannot collect it. The action was not run. " +
                 "Do not retry this action in this run; explain the limitation to the user.") {
             hit?.let { put("action", it.action.name); put("matched", it.matched) }
             put("counts_as_failure", false)
@@ -72,6 +72,7 @@ internal object Refusals {
             SECRET_PAGE -> Feedback.format("screen.needs_human", "reason" to "login")
             "target_unresolved" -> "The target cannot be confirmed. The action was not run. Read a fresh snapshot or locate and verify a named target before trying again. Do not repeat blind coordinates."
             "approval_revoked" -> "Approval settings changed before execution. The action was not run; request fresh local approval if it is still needed."
+            "approval_screen_changed" -> "The approved page changed before execution. The action was not run. Read the current page and retry the step if it is still needed."
             else -> code
         }) else {
             val blocked = if (reason != null) mismatch(hit, reason) else required(hit, everyWrite)
@@ -85,6 +86,7 @@ internal object Refusals {
                 "confirmation_mismatch" -> "this step (${hit?.matched}) does not match what the user approved ($reason)"
                 "approval_unavailable" -> "this external action cannot get trusted local approval; the action was not run"
                 "approval_revoked" -> "approval settings changed before execution; the action was not run"
+                "approval_screen_changed" -> "the approved page changed before execution; the action was not run"
                 "target_unresolved" -> "that ref is not on the latest snapshot; call maeve.snapshot() again"
                 OWN_APP -> Feedback["own_app"]
                 APP_DENIED -> Feedback["app_denied"]

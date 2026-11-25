@@ -1,7 +1,7 @@
 package com.daiyimo.maeve.core.run
 
 /** 谁启动这次运行；与单个动作的 Invoker 完全分开。 */
-enum class RunOrigin { Ui, Channel, Trigger, Mcp, Child }
+enum class RunOrigin { Ui, Channel, Trigger, Mcp, Child, Amoo }
 
 /** 用户能否在本次运行中及时处理提问或确认。 */
 enum class Attendance { Present, Reachable, Unattended }

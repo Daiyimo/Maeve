@@ -51,12 +51,14 @@ sealed interface Approval {
 
 /**
  * 审批判定:纯函数。付款和工具声明要问的(见 [Risk.ask])要问;[everyWrite] 为 true 时(每步确认名单里的 App,
- * 如微信)每一步写操作都要问;问不到人(无人值守、子任务)或不在手机上(渠道、定时、MCP 发起的)时这些都不做。
+ * 如微信)每一步写操作都要问。Amoo 文件桥的普通界面写入可由手机主人逐次确认。
  */
 object ApprovalPolicy {
     fun decide(risk: Risk, run: RunProvenance = RunProvenance(), everyWrite: Boolean = false): Approval = when {
         !risk.payment && risk.ask == null && !risk.level.outward && !everyWrite -> Approval.Allow
-        run.attendance == Attendance.Unattended || run.origin != RunOrigin.Ui -> Approval.Deny
-        else -> Approval.Ask
+        run.attendance == Attendance.Unattended -> Approval.Deny
+        run.origin == RunOrigin.Ui -> Approval.Ask
+        run.origin == RunOrigin.Amoo && everyWrite && !risk.payment && risk.ask == null && !risk.level.outward -> Approval.Ask
+        else -> Approval.Deny
     }
 }

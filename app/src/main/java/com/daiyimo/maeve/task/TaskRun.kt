@@ -468,8 +468,10 @@ class TaskRun(
     fun confirm(choice: ConfirmChoice, key: Int?) {
         val running = loop
         val waiting = _state.value as? TaskState.WaitingConfirmation
-        if (running != null && waiting != null && key == ConfirmationNotifier.requestKey(waiting)) {
-            scope.launch { inbox.send(RunInput.Confirm(choice)) }
+        val ask = running?.activeAsk?.takeIf { it.kind == Delivery.Ask.Kind.Confirm }
+        if (ask != null && waiting != null && waiting === running.state.value &&
+            key == ConfirmationNotifier.requestKey(waiting)) {
+            scope.launch { inbox.send(RunInput.Confirm(choice, ask.askId)) }
         }
     }
 

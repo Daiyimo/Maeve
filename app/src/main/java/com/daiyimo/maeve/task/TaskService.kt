@@ -224,7 +224,8 @@ class TaskService : Service() {
             ACTION_START_MCP -> intent.getStringExtra(EXTRA_MCP_ID)?.let { id ->
                 if ((application as com.daiyimo.maeve.MaeveApp).remoteTasks.claimStart(id)) {
                     begin(intent.getStringExtra(EXTRA_GOAL).orEmpty(), intent.getStringExtra(EXTRA_CONVERSATION),
-                        provenance = RunProvenance(RunOrigin.Mcp,
+                        provenance = RunProvenance(
+                            if (intent.getBooleanExtra(EXTRA_AMOO, false)) RunOrigin.Amoo else RunOrigin.Mcp,
                             Attendance.entries.firstOrNull { it.name == intent.getStringExtra(EXTRA_ATTENDANCE) } ?: Attendance.Unattended),
                         mcpExternalId = id)
                 }
@@ -290,7 +291,7 @@ class TaskService : Service() {
         val store = ConversationStore.shared(this)
         val conversationId = requestedConversation ?: store.newConversation()
         // 定时和电脑交来的任务不丢:这个对话还有任务时排在它后面
-        val queueHere = provenance.origin == RunOrigin.Trigger || provenance.origin == RunOrigin.Mcp || provenance.origin == RunOrigin.Channel
+        val queueHere = provenance.origin in setOf(RunOrigin.Trigger, RunOrigin.Mcp, RunOrigin.Channel, RunOrigin.Amoo)
         when (val r = center.tryStart(conversationId, newGoal, queueInConversation = queueHere,
             channelPeer = channelPeer, channelMessageId = channelMessageId)) {
             StartResult.DuplicateChannelMessage -> acknowledgeChannel(channelPeer, channelMessageId)
@@ -352,7 +353,7 @@ class TaskService : Service() {
 
     /** 用户(或电脑)在新对话里交来的第一句话:后台请模型起一个标题记下(只起一次,起不出来就不记)。 */
     private fun nameConversation(store: ConversationStore, id: String, first: String, provenance: RunProvenance) {
-        if (provenance.origin != RunOrigin.Ui && provenance.origin != RunOrigin.Mcp && provenance.origin != RunOrigin.Channel) return
+        if (provenance.origin !in setOf(RunOrigin.Ui, RunOrigin.Mcp, RunOrigin.Channel, RunOrigin.Amoo)) return
         scope.launch(Dispatchers.IO) {
             runCatching {
                 val env = TaskEnvironment.of(this@TaskService)
@@ -694,7 +695,7 @@ class TaskService : Service() {
         val quiet = (application as com.daiyimo.maeve.MaeveApp).capsule.showing.value
         if (state is TaskState.WaitingConfirmation) {
             return ConfirmationNotifier.build(
-                this, CHANNEL_ATTENTION, state, TaskService::class.java, ACTION_APPROVE, ACTION_DECLINE, openApp(),
+                this, CHANNEL_ATTENTION, state, TaskService::class.java, ACTION_APPROVE, ACTION_DECLINE, openApp(run.conversationId),
                 codeOffset = SLOT_STRIDE * run.slot, runExtra = EXTRA_RUN to run.key, quiet = quiet,
             )
         }
@@ -909,6 +910,7 @@ class TaskService : Service() {
         private const val EXTRA_TRIGGER_ACTION = "trigger_action"
         private const val EXTRA_TRIGGER_THREAD = "trigger_thread"
         private const val EXTRA_MCP_ID = "mcp_id"
+        private const val EXTRA_AMOO = "amoo_file_bridge"
         private const val EXTRA_ATTENDANCE = "attendance"
         private const val EXTRA_CHANNEL_ID = "channel_id"
         private const val EXTRA_PEER_ID = "peer_id"
@@ -977,11 +979,13 @@ class TaskService : Service() {
                 .putExtra(EXTRA_CHANNEL_MESSAGE_ID, messageId))
         }
 
-        /** 电脑交来的任务([RemoteTaskHub]):记在 [conversation] 这个对话里,来源记成 MCP。 */
-        fun startMcp(context: Context, goal: String, conversation: String, externalId: String, attendance: Attendance) {
+        /** 文件桥与电脑任务共用回执账本，审批仍按各自来源判定。 */
+        internal fun startRemote(context: Context, goal: String, conversation: String, externalId: String, provenance: RunProvenance) {
+            require(provenance.origin == RunOrigin.Mcp || provenance.origin == RunOrigin.Amoo)
             context.startForegroundService(Intent(context, TaskService::class.java).setAction(ACTION_START_MCP)
                 .putExtra(EXTRA_GOAL, goal).putExtra(EXTRA_CONVERSATION, conversation)
-                .putExtra(EXTRA_MCP_ID, externalId).putExtra(EXTRA_ATTENDANCE, attendance.name))
+                .putExtra(EXTRA_MCP_ID, externalId).putExtra(EXTRA_ATTENDANCE, provenance.attendance.name)
+                .putExtra(EXTRA_AMOO, provenance.origin == RunOrigin.Amoo))
         }
 
         fun cancelMcp(context: Context, externalId: String) {

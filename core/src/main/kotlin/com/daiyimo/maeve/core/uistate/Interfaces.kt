@@ -398,6 +398,9 @@ internal class Interfaces(
             gate.confirmedSeen(session, verb, args), readAgeOf(args.argStr("snapshotId")), ::peek)
     }
 
+    suspend fun approvalFrame(tool: AgentTool?, app: String, withImage: Boolean): VisualFrame? =
+        sessionOf(tool).approvalFrame(app, withImage)
+
     /** 那次读屏距今多少毫秒;不在任何一块屏最近的几次里时为 null。 */
     private fun readAgeOf(snapshotId: String?): Long? = sessions.values.firstNotNullOfOrNull { s ->
         s.recentSnapshots.firstOrNull { it.snapshotId == snapshotId }?.let { snap -> s.readAt[snap.snapshotId]?.let { System.currentTimeMillis() - it } }

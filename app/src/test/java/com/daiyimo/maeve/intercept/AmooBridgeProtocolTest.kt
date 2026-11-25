@@ -46,4 +46,12 @@ class AmooBridgeProtocolTest {
         assertEquals("""{"id":"id-2","task_id":null,"status":"failed","answer":null,"note":"refused","updated_at":987654321}""", json)
         assertTrue(jsonString(json, "goal") == null)
     }
+
+    @Test fun waitingForConfirmationKeepsExistingAmooPollersRunning() {
+        val json = amooResultJson("id-1", "task-1", "running", null,
+            "正在等待本机确认", updatedAt = 1234567890L, waitingFor = "confirmation")
+        assertEquals("running", jsonString(json, "status"))
+        assertEquals("confirmation", jsonString(json, "waiting_for"))
+        assertEquals("正在等待本机确认", jsonString(json, "note"))
+    }
 }

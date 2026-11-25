@@ -271,6 +271,15 @@ internal class ScreenSession(
     suspend fun currentVisualText(timeoutMs: Long = OCR_WAIT_MS): List<VisibleTextLine>? =
         captureVisual(withPng = false, withOcr = true, register = false, waitMs = timeoutMs).ocr
 
+    /** 用同一张当前画面核对本机确认的动作和页面，不登记截图。 */
+    suspend fun approvalFrame(app: String, withImage: Boolean): VisualFrame? {
+        if (!visualModeFor(app)) return null
+        val read = captureVisual(withPng = withImage, withOcr = true, register = false, waitMs = OCR_WAIT_MS)
+        val snap = read.snapshot
+        if (snap.packageName != app || (withImage && read.png == null) || read.ocr.isNullOrEmpty()) return null
+        return VisualFrame(read.png, read.ocr, snap.width, snap.height)
+    }
+
     private fun visualText(snap: ScreenSnapshot, ocr: List<VisibleTextLine>?): String =
         (listOf("当前 App:" + (snap.packageName ?: "未知")) +
             ocr.orEmpty().map { it.text.replace(Char(10), ' ') })

@@ -10,7 +10,11 @@ import java.math.BigDecimal
 import kotlin.math.abs
 
 /** 模型申报的一次要花钱的操作;字段已去首尾空白、截短,界面上照此显示。[app] 是包名。 */
-data class ConfirmationRequest(val action: IrrevAction, val target: String, val content: String, val amount: String?, val app: String)
+data class ConfirmationRequest(
+    val action: IrrevAction, val target: String, val content: String, val amount: String?, val app: String,
+    /** 本机执行器对精确调用与当前页面的绑定，模型申报的确认没有此字段。 */
+    val screenBinding: String? = null,
+)
 
 sealed interface DeclareResult {
     /** 申报的 App 和前台不一致(或读不到前台),不交给用户。 */

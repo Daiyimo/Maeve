@@ -207,8 +207,9 @@ internal class UserExchange(
             emit(event("declined_unattended"))
             return error("confirmation_declined", CONFIRMATION_DECLINED, recoverable = false)
         }
-        // 付款只在手机上同意:渠道、定时、MCP 发起的任务不问
-        if (provenance.origin != RunOrigin.Ui) {
+        // Amoo 只收本机执行器生成的屏幕操作确认；模型自行申报的确认不适用。
+        val amooScreenStep = provenance.origin == RunOrigin.Amoo && r.screenBinding != null
+        if (provenance.origin != RunOrigin.Ui && !amooScreenStep) {
             g.decide(ConfirmChoice.Deny, step)
             emit(event("declined_remote"))
             return error("confirmation_declined", CONFIRMATION_DECLINED, recoverable = false)

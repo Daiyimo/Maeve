@@ -95,7 +95,8 @@ class ActionEffectStore(private val directory: File, private val clock: () -> Lo
         const val MAX_RECEIPTS = 4096
         const val MAX_BYTES = 4 * 1024 * 1024
         private val DIGEST = Regex("[a-f0-9]{64}")
-        internal fun digest(value: String) = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        internal fun digest(value: String) = digest(value.toByteArray(Charsets.UTF_8))
+        internal fun digest(value: ByteArray) = MessageDigest.getInstance("SHA-256").digest(value).joinToString("") { "%02x".format(it) }
         private fun canonical(value: JsonElement): JsonElement = when (value) {
             is JsonObject -> JsonObject(value.toSortedMap().mapValues { canonical(it.value) })
             is JsonArray -> JsonArray(value.map(::canonical))

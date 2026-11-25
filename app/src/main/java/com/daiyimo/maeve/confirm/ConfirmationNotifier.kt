@@ -25,8 +25,8 @@ object ConfirmationCopy {
     const val CONTENT_MAX = 60
     /** 展开的卡片和通知里内容最多显示的字数(和申报时的上限一致)。 */
     const val DETAIL_MAX = 200
-    /** 确认卡片上的说明:只有花钱的操作要你同意,每次只同意这一次。 */
-    val NOTE: String get() = tr(R.string.confirm_note)
+    /** 确认卡片上的说明：这次同意只用于当前操作。 */
+    val NOTE: String get() = tr(R.string.card_approve_once)
 
     fun actionLabel(action: IrrevAction): String = when (action) {
         IrrevAction.send -> tr(R.string.chat_send)
@@ -103,7 +103,7 @@ object ConfirmationNotifier {
                 context, code + codeOffset,
                 Intent(context, service).setAction(action).setData(Uri.parse(intentData(key, approve))).putExtra(EXTRA_REQUEST, key)
                     .apply { runExtra?.let { (k, v) -> putExtra(k, v) } },
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_CANCEL_CURRENT,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
             return Notification.Action.Builder(null, context.getString(title), pi).apply {
                 // 锁屏上点「同意」要先解锁

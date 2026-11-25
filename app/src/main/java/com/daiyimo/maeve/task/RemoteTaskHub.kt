@@ -18,6 +18,7 @@ import com.daiyimo.maeve.core.run.Attendance
 import com.daiyimo.maeve.core.run.RunEventBus
 import com.daiyimo.maeve.core.run.RunId
 import com.daiyimo.maeve.core.run.RunOrigin
+import com.daiyimo.maeve.core.run.RunProvenance
 import com.daiyimo.maeve.core.run.RunSpec
 import java.util.UUID
 
@@ -40,13 +41,14 @@ class RemoteTaskHub(
         require(spec.provenance.origin == RunOrigin.Mcp)
         val thread = spec.threadId.takeIf(RemoteTaskService::isConversation)
         val bus = buses.getOrPut(spec.id) { RunEventBus() }
-        try { launch(spec.id.value, spec.goal, thread, spec.provenance.attendance) }
+        try { launch(spec.id.value, spec.goal, thread, spec.provenance) }
         catch (e: Exception) { buses.remove(spec.id); throw e }
         return McpTaskLink(spec.id, bus) { cancel(spec.id.value) }
     }
 
     override fun start(goal: String, conversation: String?, requestId: String?): StartOutcome = try {
-        StartOutcome.Started(launch(requestId ?: UUID.randomUUID().toString(), goal, conversation, Attendance.Reachable))
+        StartOutcome.Started(launch(requestId ?: UUID.randomUUID().toString(), goal, conversation,
+            RunProvenance(RunOrigin.Mcp, Attendance.Reachable)))
     } catch (e: RemoteTaskError) {
         throw e
     } catch (e: Exception) {
@@ -54,11 +56,15 @@ class RemoteTaskHub(
         StartOutcome.Refused("Maeve could not start the task on the phone. Check its status before trying again.")
     }
 
-    @Synchronized private fun launch(id: String, goal: String, conversation: String?, attendance: Attendance): RemoteTask {
+    /** 仅文件桥调用，已校验请求正文，编号来自私有回执账本。 */
+    internal fun startAmoo(goal: String, taskId: String): RemoteTask =
+        launch(taskId, goal, null, RunProvenance(RunOrigin.Amoo, Attendance.Reachable))
+
+    @Synchronized private fun launch(id: String, goal: String, conversation: String?, provenance: RunProvenance): RemoteTask {
         receipts.find(id, goal, conversation)?.let { return current(it) }
         val task = RemoteTask(id, conversation ?: RemoteTaskService.newConversation(), goal, clock(), null)
         receipts.insert(task, newChat = conversation == null)
-        try { TaskService.startMcp(context, goal, task.conversation, id, attendance) }
+        try { TaskService.startRemote(context, goal, task.conversation, id, provenance) }
         catch (e: Exception) {
             receipts.finish(id, TaskState.Failed("Maeve could not start the task on the phone.", FailKind.Environment), emptyList())
             throw e

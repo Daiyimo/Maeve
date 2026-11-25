@@ -9,14 +9,20 @@ import com.daiyimo.maeve.core.gate.Irreversible
 import com.daiyimo.maeve.core.gate.IrreversibleDetector
 import com.daiyimo.maeve.core.gate.Permit
 import com.daiyimo.maeve.core.gate.SelfAppGuard
+import com.daiyimo.maeve.core.guard.exactCallSignature
 import com.daiyimo.maeve.core.uistate.ScreenSnapshot
+import com.daiyimo.maeve.core.uistate.UiElement
+import com.daiyimo.maeve.core.uistate.VisibleTextLine
 import com.daiyimo.maeve.core.uistate.interfaces
 import com.daiyimo.maeve.core.tool.ToolDispatcher
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.contentOrNull
 import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.run.RunProvenance
+import com.daiyimo.maeve.core.run.RunOrigin
 
 /** 一次动作执行前的审批结论。 */
 sealed interface Decision {
@@ -87,22 +93,43 @@ class ConfirmDecision(
         if (writing && AppTiers.tierOf(aim.aimed?.packageName) == AppTier.Deny) return Decision.DeniedApp
         if (entering && aim.aimed?.elements?.any { it.secret } == true) return Decision.SecretPage
         // 每步确认名单里的 App(微信):询问时每一步写操作都要用户同意;软规则,自主模式豁免
-        val everyWrite = writing && !approvals.autonomous() && AppTiers.tierOf(aim.aimed?.packageName) == AppTier.ConfirmEveryWrite
+        val approvalScreen = if (writing && provenance.origin == RunOrigin.Amoo) aim.now() else null
+        if (SelfAppGuard.targetsSelf(selfPackage, writing, args, approvalScreen)) return Decision.OwnApp
+        if (AppTiers.tierOf(approvalScreen?.packageName) == AppTier.Deny) return Decision.DeniedApp
+        if (entering && approvalScreen?.elements?.any { it.secret } == true) return Decision.SecretPage
+        val everyWrite = writing && !approvals.autonomous() &&
+            AppTiers.tierOf((approvalScreen ?: aim.aimed)?.packageName) == AppTier.ConfirmEveryWrite
         val policy = origin.policy
         val target = tools.gateTarget(tool)
         tools.approvalRisk(tool, checked)?.let { declared ->
             return approve(tool, checked, origin, null, declared, null, null, null, everyWrite) ?: Decision.Clear
         }
         val typing = if (verb == Verb.TypeText) (args["text"] as? JsonPrimitive)?.contentOrNull else null
+        val needsCheck = IrreversibleDetector.needsCheck(target, args)
+        val amooAutonomous = provenance.origin == RunOrigin.Amoo && approvals.autonomous()
+        val app = approvalScreen?.packageName
+        val riskScreen = if (amooAutonomous && approvalScreen != null && app != null &&
+            AppTiers.tierOf(app) == AppTier.ConfirmEveryWrite && (needsCheck || entering)) {
+            val evidence = if (approvalScreen.elements.isNotEmpty()) approvalScreen else {
+                val frame = tools.interfaces.approvalFrame(tools.declared(tool), app, withImage = false) ?: return Decision.Unresolved
+                approvalScreen.withVisualText(frame.text.orEmpty())
+            }
+            IrreversibleDetector.paymentPage(evidence)?.let { payment ->
+                val hit = Irreversible(IrrevAction.pay, payment)
+                return approve(tool, checked, origin, hit, Risk(ActionRisk.Irreversible, payment = true), evidence, typing, null)
+                    ?: Decision.Denied(hit)
+            }
+            evidence
+        } else approvalScreen
         // 每步确认名单里的 App(微信):每一步写操作都要用户同意,和看起来可不可逆无关;
         // 问不到人时按 Approval.Deny 停下(见 [ApprovalPolicy]),不擅自放行
-        if (everyWrite && !IrreversibleDetector.needsCheck(target, args)) {
-            return approve(tool, checked, origin, null, Risk(ActionRisk.Change), aim.aimed, typing, null, everyWrite) ?: Decision.Clear
+        if (everyWrite && !needsCheck) {
+            return approve(tool, checked, origin, null, Risk(ActionRisk.Change), approvalScreen ?: aim.aimed, typing, null, everyWrite) ?: Decision.Clear
         }
         // 没有可判的不可逆字样的动作(一般改动、界面间移动)不花钱,不用问
-        if (!IrreversibleDetector.needsCheck(target, args)) return Decision.Clear
+        if (!needsCheck) return Decision.Clear
         val snap = aim.aimed
-        val fresh = aim.now()
+        val fresh = riskScreen ?: aim.now()
         // 复看此刻的一屏:硬规则按它再判一次(动作之前换到了受保护的 App 或页面)
         if (SelfAppGuard.targetsSelf(selfPackage, writing, args, fresh)) return Decision.OwnApp
         if (writing && AppTiers.tierOf(fresh?.packageName) == AppTier.Deny) return Decision.DeniedApp
@@ -113,12 +140,14 @@ class ConfirmDecision(
         val risk = risks.assess(verb, hit) { fresh ?: snap }
         outwardSite = outward(hit, fresh ?: snap)
         approve(tool, checked, origin, hit, risk, fresh ?: snap, typing, seen, everyWrite)?.let { return it }
+        // 已确认的坐标只在用户确认过的同一页面上放行。
+        if (provenance.origin == RunOrigin.Amoo && approvalDigest != null) return Decision.Clear
         if (hit != null || !IrreversibleDetector.unresolved(target, checked, snap, fresh)) return Decision.Clear
         // 有名字、经过定位与复看的视觉目标可继续；裸坐标/失效编号不能靠记日志后盲点。
         if (aim.bySight && !seen.isNullOrBlank() && fresh != null && fresh.packageName == snap?.packageName) return Decision.Clear
         // 自主执行:不可逆动作已在上面被拦下,走到这里说明这一下是安全的;自绘界面(canvas)上没有元素,
         // 裸坐标点击不该再被「目标确认不了」卡住,否则模型反复盲点、最后放弃。
-        if (autonomous) return Decision.Clear
+        if (if (provenance.origin == RunOrigin.Amoo) amooAutonomous else autonomous) return Decision.Clear
         return Decision.Unresolved
     }
 
@@ -127,7 +156,7 @@ class ConfirmDecision(
         if (hit?.action == IrrevAction.send || hit?.action == IrrevAction.submit) OutwardPacing.siteOf(screen?.packageName, screen?.web != null) else null
 
     /** 按来源判;要花钱时核对用户的一次性同意。放行为 null。 */
-    private fun approve(
+    private suspend fun approve(
         tool: String, checked: JsonObject, origin: Origin, hit: Irreversible?, risk: Risk, screen: ScreenSnapshot?,
         typing: String?, seen: String?, everyWrite: Boolean = false,
     ): Decision? {
@@ -144,10 +173,14 @@ class ConfirmDecision(
             Approval.Deny -> return Decision.Denied(asked).also { audit("denied") }
             Approval.Ask -> Unit
         }
-        val required = Decision.Required(asked, risk.ask, everyWrite)
+        val ask = if (provenance.origin == RunOrigin.Amoo) {
+            if (!policy.usesGrant) return Decision.Denied(asked).also { audit("denied") }
+            screenRequest(tool, checked, screen, typing, seen) ?: return Decision.Unresolved
+        } else risk.ask
+        val required = Decision.Required(asked, ask, everyWrite)
         val gate = confirmations?.takeIf { policy.usesGrant } ?: return required.also { audit("required") }
         val granted = gate.granted
-        val permit = risk.ask?.let { gate.permitsExactly(it, origin.step) } ?: gate.permits(asked, screen, origin.step, typing, listOfNotNull(seen))
+        val permit = ask?.let { gate.permitsExactly(it, origin.step) } ?: gate.permits(asked, screen, origin.step, typing, listOfNotNull(seen))
         return when (val p = permit) {
             Permit.Allowed -> null.also {
                 approvalDigest = granted?.let { ActionEffectStore.digest(kotlinx.serialization.json.Json.encodeToString(
@@ -159,6 +192,65 @@ class ConfirmDecision(
             is Permit.Mismatch -> Decision.Mismatch(asked, p.reason).also { audit("mismatch") }
         }
     }
+
+    private suspend fun screenRequest(tool: String, args: JsonObject, screen: ScreenSnapshot?, typing: String?, seen: String?): ConfirmationRequest? {
+        val app = screen?.packageName ?: return null
+        if (AppTiers.tierOf(app) != AppTier.ConfirmEveryWrite) return null
+        val binding = screenBinding(tool, args, screen) ?: return null
+        val verb = tools.verb(tool)
+        val element = ClassifiedRisk.target(verb, args, screen)
+        val point = listOf("x", "y").map { (args[it] as? JsonPrimitive)?.contentOrNull }
+        val target = element?.name?.takeIf(String::isNotBlank) ?: seen?.takeIf(String::isNotBlank)
+            ?: if (point.all { it != null }) {
+                val position = "屏幕坐标 (${point.joinToString(", ")})"
+                val hint = (args["target"] as? JsonPrimitive)?.contentOrNull?.lineSequence()?.firstOrNull()?.take(80)
+                if (hint.isNullOrBlank()) position else "$hint · $position"
+            } else ""
+        val content = when (verb) {
+            Verb.Tap -> "点击"
+            Verb.TypeText -> "输入文字：${typing.orEmpty()}"
+            Verb.ClearText -> "清空输入框"
+            Verb.Back -> "返回上一页"
+            else -> "界面操作：$tool"
+        }
+        return ConfirmationRequest(IrrevAction.other, target.take(200), content, null, app, binding)
+    }
+
+    /** 显示确认后，发给工具前再次检查批准的调用和页面依然一致。 */
+    suspend fun matchesApprovedScreen(tool: String, args: JsonObject, request: ConfirmationRequest): Boolean {
+        val aim = tools.interfaces.actionTarget(tools.declared(tool), args)
+        val screen = aim.now() ?: return false
+        return screenBinding(tool, aim.args, screen) == request.screenBinding
+    }
+
+    private suspend fun screenBinding(tool: String, args: JsonObject, screen: ScreenSnapshot): String? {
+        if (screen.protected || !screen.hasWindow || screen.changedDuringRead) return null
+        val app = screen.packageName ?: return null
+        if (AppTiers.tierOf(app) != AppTier.ConfirmEveryWrite) return null
+        val page = if (screen.elements.isNotEmpty()) {
+            if (IrreversibleDetector.paymentPage(screen) != null) return null
+            val elements = screen.elements.map {
+                listOf(it.role, it.name, it.bounds.joinToString(","), it.resourceId.orEmpty(),
+                    it.focused.toString(), it.states.sorted().joinToString(","))
+            }
+            "tree:${screen.width}x${screen.height}:${Json.encodeToString(elements)}"
+        } else {
+            val frame = tools.interfaces.approvalFrame(tools.declared(tool), app, withImage = true) ?: return null
+            val check = screen.withVisualText(frame.text.orEmpty())
+            if (IrreversibleDetector.paymentPage(check) != null ||
+                IrreversibleDetector.classify(tools.gateTarget(tool), args, check) != null) return null
+            "frame:${frame.width}x${frame.height}:${ActionEffectStore.digest(frame.png ?: return null)}"
+        }
+        return ActionEffectStore.digest("${exactCallSignature(tool, args)}\n$app\n$page")
+    }
+
+    private fun ScreenSnapshot.withVisualText(lines: List<VisibleTextLine>): ScreenSnapshot = copy(
+        elements = lines.mapIndexedNotNull { i, line ->
+            val b = line.bounds.takeIf { it.size == 4 } ?: return@mapIndexedNotNull null
+            UiElement("ocr$i", "Text", line.text, (b[0] + b[2]) / 2, (b[1] + b[3]) / 2, b,
+                null, clickable = false, editable = false, scrollable = false)
+        },
+    )
 
     /** 执行了一个写操作:同意按它的规则作废或保留。 */
     fun noteWrite(tool: String) {

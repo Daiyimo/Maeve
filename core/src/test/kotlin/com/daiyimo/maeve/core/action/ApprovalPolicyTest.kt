@@ -24,4 +24,14 @@ class ApprovalPolicyTest {
             assertEquals("$origin $attendance $level payment", expected, ApprovalPolicy.decide(Risk(level, payment = true), run))
         }
     }
+
+    @Test fun amooMayAskLocallyForAnOrdinaryWriteWithoutChangingOtherRemotePolicy() {
+        val amoo = RunProvenance(RunOrigin.Amoo, Attendance.Reachable)
+        val mcp = RunProvenance(RunOrigin.Mcp, Attendance.Reachable)
+        assertEquals(Approval.Ask, ApprovalPolicy.decide(Risk(ActionRisk.Change), amoo, everyWrite = true))
+        assertEquals(Approval.Deny, ApprovalPolicy.decide(Risk(ActionRisk.Change), mcp, everyWrite = true))
+        assertEquals(Approval.Deny, ApprovalPolicy.decide(Risk(ActionRisk.External), amoo, everyWrite = true))
+        assertEquals(Approval.Deny, ApprovalPolicy.decide(Risk(ActionRisk.Change, payment = true), amoo, everyWrite = true))
+        assertEquals(Approval.Deny, ApprovalPolicy.decide(Risk(ActionRisk.Change), amoo.copy(attendance = Attendance.Unattended), everyWrite = true))
+    }
 }

@@ -128,7 +128,7 @@ class AmooBridge(private val app: MaeveApp) {
         }
         val taskId = receipt.taskId
         if (fresh) {
-            try { tasks.start(goal, null, taskId) }
+            try { app.remoteTasks.startAmoo(goal, taskId) }
             catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (_: Exception) {
                 writeResult(root, id, taskId, "receipt_unknown", null, "提交结果未知，请查询原任务，不能自动重发。")
@@ -145,16 +145,27 @@ class AmooBridge(private val app: MaeveApp) {
         writeResult(root, id, taskId, "running", null, null)
         val deadline = android.os.SystemClock.elapsedRealtime() + WAIT_MS
         var lastHeartbeat = android.os.SystemClock.elapsedRealtime()
+        var lastWait: String? = null
         while (android.os.SystemClock.elapsedRealtime() < deadline) {
             delay(POLL_MS)
-            val state = runCatching { tasks.get(taskId)?.state }.getOrNull() ?: continue
+            val state = runCatching { tasks.get(taskId).state }.getOrNull() ?: continue
             val status = RemoteStatus.of(state)
             if (!RemoteStatus.finished(status)) {
                 // 心跳:每 1.5s 刷新一次 updated_at,amoo 侧据此区分「在推进」和「已卡死」(SPEC §13.8/ADR-05)
                 val now = android.os.SystemClock.elapsedRealtime()
-                if (now - lastHeartbeat >= HEARTBEAT_MS) {
+                val waitingFor = when (state) {
+                    is TaskState.WaitingConfirmation -> "confirmation"
+                    else -> if (status == RemoteStatus.WAITING_ON_PHONE || status == RemoteStatus.WAITING_FOR_ANSWER) "phone" else null
+                }
+                if (waitingFor != lastWait || now - lastHeartbeat >= HEARTBEAT_MS) {
+                    val note = when (waitingFor) {
+                        "confirmation" -> "Maeve 正在等待本机确认，请在手机上的 Maeve 通知或任务卡片中处理。"
+                        "phone" -> "Maeve 正在等待你在手机上处理这一步。"
+                        else -> null
+                    }
                     lastHeartbeat = now
-                    writeResult(root, id, taskId, "running", null, null)
+                    lastWait = waitingFor
+                    writeResult(root, id, taskId, "running", null, note, waitingFor)
                 }
                 continue
             }
@@ -172,7 +183,7 @@ class AmooBridge(private val app: MaeveApp) {
         throw IllegalStateException("deferred")
     }
 
-    private suspend fun writeResult(root: File, id: String, taskId: String?, status: String, answer: String?, note: String?) {
+    private suspend fun writeResult(root: File, id: String, taskId: String?, status: String, answer: String?, note: String?, waitingFor: String? = null) {
         withContext(Dispatchers.IO) {
             outputMutex.withLock {
             val out = File(root, OUT).apply { check(isDirectory || mkdirs()) }
@@ -186,7 +197,7 @@ class AmooBridge(private val app: MaeveApp) {
             previous.filter { it.isFile && it.name.endsWith(".tmp") && now - it.lastModified() > 3_600_000L }.forEach { it.delete() }
             val target = File(out, "$id.json")
             check(target.exists() || previous.count { it.exists() } < 4096) { "output_entry_capacity" }
-            val json = amooResultJson(id, taskId, status, answer?.take(4000), note)
+            val json = amooResultJson(id, taskId, status, answer?.take(4000), note, waitingFor = waitingFor)
             val data = json.toByteArray(Charsets.UTF_8)
             check(data.size <= 64 * 1024)
             check(previous.filter { it.isFile && it.exists() && it != target }.sumOf { it.length() } + data.size <= 16 * 1024 * 1024)
@@ -213,7 +224,8 @@ class AmooBridge(private val app: MaeveApp) {
 }
 
 /** 写回给 amoo 的结果。字段名叫 status/answer,和 Maeve 的 /api/v1 任务接口一致,便于它复用同一套理解。updated_at 是心跳时间戳,amoo 据此区分「在推进」和「已卡死」。 */
-internal fun amooResultJson(id: String, taskId: String?, status: String, answer: String?, note: String?, updatedAt: Long = System.currentTimeMillis()): String =
+internal fun amooResultJson(id: String, taskId: String?, status: String, answer: String?, note: String?,
+    updatedAt: Long = System.currentTimeMillis(), waitingFor: String? = null): String =
     buildString {
         append('{')
         append("\"id\":").append(quote(id))
@@ -222,6 +234,7 @@ internal fun amooResultJson(id: String, taskId: String?, status: String, answer:
         append(",\"answer\":").append(answer?.let(::quote) ?: "null")
         append(",\"note\":").append(note?.let(::quote) ?: "null")
         append(",\"updated_at\":").append(updatedAt)
+        waitingFor?.let { append(",\"waiting_for\":").append(quote(it)) }
         append('}')
     }
 

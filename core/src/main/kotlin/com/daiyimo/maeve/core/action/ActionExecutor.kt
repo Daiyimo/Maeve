@@ -50,7 +50,7 @@ import com.daiyimo.maeve.core.capability.Paced
 class ActionExecutor(
     private val tools: ToolDispatcher,
     private val guards: OperationGuards,
-    confirmations: ConfirmationGate?,
+    private val confirmations: ConfirmationGate?,
     private val gate: suspend () -> Unit,
     val recorder: ActionRecorder,
     /** 不动屏幕的工具的守卫;没有为 null。 */
@@ -152,15 +152,26 @@ class ActionExecutor(
         // 没有可用的同意就不执行,也不计入失败熔断
         val approvalRevision = approvals.revision()
         var d = timedActionPhase("policy") { decision.judge(call.name, args, origin) }
-        // 不在屏上、工具声明要问的一步(会改动东西的 root 命令):调用方问得到人就当场问,同意了按这次同意再判一次;
+        // 要当场确认的一步:调用方问得到人就问,同意了按这次同意再判一次;
         // 问不到人(这次运行不能问、调用方不是模型单步)就不做,照被拦下记
-        val ask = if (d is Decision.Required || d is Decision.Denied) tools.approvalRisk(call.name, args)?.ask else null
+        val ask = when (d) {
+            is Decision.Required -> d.ask
+            is Decision.Denied -> tools.approvalRisk(call.name, args)?.ask
+            else -> null
+        }
+        val screenApproval = ask?.takeIf { it.screenBinding != null }
         if (ask != null) {
             val hit = Irreversible(ask.action, ask.content)
             val answer = (if (d is Decision.Required) timedActionPhase("approvalWait") { followUp.approve(ask) } else null)
                 ?: return declined(call, args, origin, before, hit, ToolExecution(Refusals.unavailable()), followUp, "approval_unavailable")
             if (answer.content["ok"] != JsonPrimitive(true)) return declined(call, args, origin, before, hit, answer, followUp, "confirmation_declined")
             d = timedActionPhase("policy") { decision.judge(call.name, args, origin) }
+            if (screenApproval != null && decision.approvalDigest == null) {
+                confirmations?.permitsExactly(screenApproval, origin.step)
+                if (d is Decision.Clear || d is Decision.Mismatch || d is Decision.Unresolved) {
+                    return refusedCall(call, args, origin, before, followUp, "approval_screen_changed")
+                }
+            }
         }
         when (d) {
             is Decision.Required -> return blocked(call, args, origin, before, d.hit, null, followUp, d.everyWrite)
@@ -191,6 +202,9 @@ class ActionExecutor(
         }
         // 回放的关卡由调用方在读屏前统一过,但这里仍要检查等待期间是否锁屏/解锁。
         if (writing && screenGeneration() != preparedGeneration) return ran(Step(call, args, origin, before, writing = false, offScreen, verb, null, followUp, reads, preset = screenChangedDuringLock()))
+        if (screenApproval != null && !decision.matchesApprovedScreen(call.name, args, screenApproval)) {
+            return refusedCall(call, args, origin, before, followUp, "approval_screen_changed")
+        }
         if (writing) {
             guards.noteAction()
             decision.noteWrite(call.name)
