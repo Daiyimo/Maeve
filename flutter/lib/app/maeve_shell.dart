@@ -124,78 +124,110 @@ class _MaeveShellState extends State<MaeveShell>
           onHorizontalDragEnd: _end,
           child: AnimatedBuilder(
             animation: _drawer,
-            builder: (context, _) => BackdropGroup(
-              backdropKey: _backdropKey,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  const Positioned.fill(child: MaeveBackdrop()),
-                  Positioned.fill(
-                    child: Row(
-                      children: [
-                        if (wide)
-                          TweenAnimationBuilder<double>(
-                            tween: Tween<double>(
-                              begin: _folded ? 0 : 288,
-                              end: _folded ? 0 : 288,
+            builder: (context, _) {
+              final progress = _drawer.value;
+              final overlay = !wide && progress > 0;
+              final width = overlay ? _width : 0.0;
+              final left = -width * (1 - progress);
+              return BackdropGroup(
+                backdropKey: _backdropKey,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    const Positioned.fill(child: MaeveBackdrop()),
+                    Positioned.fill(
+                      // The glass samples the same backdrop underneath its whole path.
+                      child: ClipPath(
+                        clipper: overlay
+                            ? _OutsideDrawerClipper(left, width)
+                            : null,
+                        clipBehavior: overlay ? Clip.antiAlias : Clip.none,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Row(
+                              children: [
+                                if (wide)
+                                  TweenAnimationBuilder<double>(
+                                    tween: Tween<double>(
+                                      begin: _folded ? 0 : 288,
+                                      end: _folded ? 0 : 288,
+                                    ),
+                                    duration: AppMotion.of(context).emphasized,
+                                    curve: MaeveMotion.glide,
+                                    builder: (context, width, _) => SizedBox(
+                                      width: width,
+                                      child: ClipRect(
+                                        child: OverflowBox(
+                                          alignment: Alignment.centerLeft,
+                                          minWidth: 288,
+                                          maxWidth: 288,
+                                          child: SessionsDrawer(
+                                            docked: true,
+                                            settled:
+                                                width == (_folded ? 0 : 288)
+                                                ? 1
+                                                : 0,
+                                            onClose: () =>
+                                                setState(() => _folded = true),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                Expanded(child: ShellPage(progress, _toggle)),
+                              ],
                             ),
-                            duration: AppMotion.of(context).emphasized,
-                            curve: MaeveMotion.glide,
-                            builder: (context, width, _) => SizedBox(
-                              width: width,
-                              child: ClipRect(
-                                child: OverflowBox(
-                                  alignment: Alignment.centerLeft,
-                                  minWidth: 288,
-                                  maxWidth: 288,
-                                  child: SessionsDrawer(
-                                    docked: true,
-                                    settled: width == (_folded ? 0 : 288)
-                                        ? 1
-                                        : 0,
-                                    onClose: () =>
-                                        setState(() => _folded = true),
+                            if (overlay)
+                              GestureDetector(
+                                key: const ValueKey('shell-scrim'),
+                                onTap: _close,
+                                child: ColoredBox(
+                                  color: colors.scrim.withValues(
+                                    alpha: colors.scrim.a * progress,
                                   ),
                                 ),
                               ),
-                            ),
-                          ),
-                        Expanded(child: ShellPage(_drawer.value, _toggle)),
-                      ],
-                    ),
-                  ),
-                  if (!wide && _drawer.value > 0) ...[
-                    Positioned.fill(
-                      child: GestureDetector(
-                        key: const ValueKey('shell-scrim'),
-                        onTap: _close,
-                        child: ColoredBox(
-                          color: colors.scrim.withValues(
-                            alpha: colors.scrim.a * _drawer.value,
-                          ),
+                          ],
                         ),
                       ),
                     ),
-                    Positioned(
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: _width,
-                      child: Transform.translate(
-                        offset: Offset(-_width * (1 - _drawer.value), 0),
-                        child: SessionsDrawer(
-                          onClose: _close,
-                          settled: _drawer.value == 1 ? 1 : 0,
-                        ),
+                    if (overlay)
+                      Positioned(
+                        left: left,
+                        top: 0,
+                        bottom: 0,
+                        width: width,
+                        child: SessionsDrawer(onClose: _close),
                       ),
-                    ),
                   ],
-                ],
-              ),
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),
     );
   }
+}
+
+class _OutsideDrawerClipper extends CustomClipper<Path> {
+  const _OutsideDrawerClipper(this.left, this.width);
+
+  final double left;
+  final double width;
+
+  @override
+  Path getClip(Size size) {
+    final drawer = Rect.fromLTWH(left, 0, width, size.height);
+    return Path.combine(
+      PathOperation.difference,
+      Path()..addRect(Offset.zero & size),
+      Path()..addRRect(SessionsDrawer.borderRadius.toRRect(drawer)),
+    );
+  }
+
+  @override
+  bool shouldReclip(_OutsideDrawerClipper oldClipper) =>
+      left != oldClipper.left || width != oldClipper.width;
 }

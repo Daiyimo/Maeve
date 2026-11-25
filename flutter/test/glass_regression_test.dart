@@ -172,7 +172,7 @@ void main() {
     );
   });
 
-  testWidgets('Overlay drawer samples only after its animation settles', (
+  testWidgets('Overlay drawer keeps sampling as its animation settles', (
     tester,
   ) async {
     await pumpApp(tester);
@@ -181,17 +181,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     final sidebar = find.byKey(const ValueKey('conversation-sidebar'));
     expect(sidebar, findsOneWidget);
-    expect(tester.widget<MaeveGlassSurface>(sidebar).settled, 0);
-    expect(
-      find.descendant(of: sidebar, matching: find.byType(BackdropFilter)),
-      findsNothing,
+    final filter = find.descendant(
+      of: sidebar,
+      matching: find.byType(BackdropFilter),
     );
+    expect(filter, findsOneWidget);
+    final movingFilter = tester.element(filter);
 
     await tester.pumpAndSettle();
-    expect(tester.widget<MaeveGlassSurface>(sidebar).settled, 1);
-    expect(
-      find.descendant(of: sidebar, matching: find.byType(BackdropFilter)),
-      findsOneWidget,
-    );
+    expect(tester.element(filter), same(movingFilter));
   });
 }

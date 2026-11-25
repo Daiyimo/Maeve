@@ -22,6 +22,10 @@ class SessionsDrawer extends StatefulWidget {
     this.settled = 1,
     required this.onClose,
   });
+  static const borderRadius = BorderRadius.only(
+    topRight: Radius.circular(MaeveRadius.xl),
+    bottomRight: Radius.circular(MaeveRadius.xl),
+  );
   final VoidCallback onClose;
   final bool docked;
   final double settled;
@@ -155,10 +159,7 @@ class _SessionsDrawerState extends State<SessionsDrawer> {
       tint: c.bg,
       tintAlpha: c.isDark ? .39 : .42,
       shape: RoundedRectangleBorder(
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(MaeveRadius.xl),
-          bottomRight: Radius.circular(MaeveRadius.xl),
-        ),
+        borderRadius: SessionsDrawer.borderRadius,
         side: BorderSide(color: c.rule, width: .5),
       ),
       child: SafeArea(
