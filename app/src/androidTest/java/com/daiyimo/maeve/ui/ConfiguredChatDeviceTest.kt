@@ -25,6 +25,7 @@ import org.junit.runner.RunWith
  */
 @RunWith(AndroidJUnit4::class)
 class ConfiguredChatDeviceTest {
+    private val livePreviewLabel = Regex("实时(?:执行)?画面")
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val automation get() = instrumentation.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
     private val context get() = instrumentation.targetContext
@@ -40,6 +41,13 @@ class ConfiguredChatDeviceTest {
         if (root.packageName == context.packageName) nodes(root).toList() else emptyList()
     }.orEmpty()
 
+    private fun saveScreenshot(name: String) {
+        val bitmap = automation.takeScreenshot() ?: return
+        try {
+            File(app.cacheDir, name).outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        } finally { bitmap.recycle() }
+    }
+
     private fun waitFor(description: String, timeout: Long = 15_000, condition: () -> Boolean) {
         val deadline = SystemClock.uptimeMillis() + timeout
         while (SystemClock.uptimeMillis() < deadline) {
@@ -47,12 +55,7 @@ class ConfiguredChatDeviceTest {
             SystemClock.sleep(80)
         }
         if (automation.rootInActiveWindow?.packageName == context.packageName) {
-            automation.takeScreenshot()?.let { bitmap ->
-                File(app.cacheDir, "task-monitor-failure.png").outputStream().use {
-                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
-                }
-                bitmap.recycle()
-            }
+            saveScreenshot("task-monitor-failure.png")
         }
         fail(description)
     }
@@ -63,8 +66,6 @@ class ConfiguredChatDeviceTest {
             target = windowNodes().firstOrNull { it.contentDescription?.toString() == label && it.isEnabled }
             target != null
         }
-        // Custom Flutter controls can label a parent while its gesture action
-        // belongs to a child. Tap the observed control as a user would.
         val bounds = Rect().also { requireNotNull(target).getBoundsInScreen(it) }
         val downAt = SystemClock.uptimeMillis()
         for (action in listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP)) {
@@ -84,7 +85,8 @@ class ConfiguredChatDeviceTest {
         assumeTrue("A native main model must already be configured", app.providers.configFor(ModelRole.Main) != null)
         assumeTrue("Run without an active user task", app.taskState.runs.value.isEmpty())
         val customGoal = InstrumentationRegistry.getArguments().getString("maeve_verify_goal")?.takeIf { it.isNotBlank() }
-        val phoneTask = customGoal != null || InstrumentationRegistry.getArguments().getString("maeve_verify_phone_task") == "true"
+        val firstFrameOnly = InstrumentationRegistry.getArguments().getString("maeve_verify_first_frame_only") == "true"
+        val phoneTask = firstFrameOnly || customGoal != null || InstrumentationRegistry.getArguments().getString("maeve_verify_phone_task") == "true"
         val goal = customGoal ?: if (phoneTask) "打开系统计算器，先清空，再依次按3、7、+、5、8、=，确认屏幕上显示95后告诉我结果。必须实际按键，不要口算或只看历史。不要进行其他操作。" else "你好"
         val originalPace = com.daiyimo.maeve.settings.FeatureFlags.get(context).operatingPace()
         if (phoneTask) com.daiyimo.maeve.settings.FeatureFlags.get(context).setOperatingPace(com.daiyimo.maeve.core.cap.phone.OperatingPace.FAST)
@@ -118,16 +120,15 @@ class ConfiguredChatDeviceTest {
                         Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, goal) })
                     false // Wait for Flutter to acknowledge the edit, rather than Android's action dispatch.
                 }
-                // A multiline goal changes the composer's height while the IME opens.
-                // Wait for geometry to settle before tapping its observed bounds.
+                // Wait for the IME and composer to finish laying out.
                 automation.waitForIdle(250, 3_000)
                 click("发送消息")
                 waitFor("The greeting did not reach the native chat") {
                     assertTrue("Native prerequisites blocked the configured greeting", app.chat.ui.value.blocked.isNullOrEmpty())
                     app.chat.ui.value.exchanges.isNotEmpty()
                 }
+                verificationConversationId = app.chat.ui.value.conversationId
                 if (phoneTask) {
-                    // First-turn metadata must exist while executing, before a persisted result.
                     val result = java.util.concurrent.CompletableFuture<List<*>>()
                     scenario.onActivity { activity ->
                         val plugin = activity.provideFlutterEngine(activity).plugins.get(MaeveChatPlugin::class.java) as MaeveChatPlugin
@@ -153,19 +154,18 @@ class ConfiguredChatDeviceTest {
                 var sawSteps = false
                 var sawLatestAboveComposer = false
                 var capturedStepCount = -1
-                waitFor("The configured model did not finish its task", if (customGoal != null) 300_000 else if (phoneTask) 180_000 else 60_000) {
+                waitFor("The configured model did not finish its task", if (firstFrameOnly) 15_000 else if (customGoal != null) 300_000 else if (phoneTask) 180_000 else 60_000) {
                     val exchange = app.chat.ui.value.exchanges.lastOrNull()
                     val status = exchange?.status
                     if (phoneTask) {
                         val labels = windowNodes().mapNotNull { it.contentDescription?.toString() }
-                        if (!sawPreview && labels.any { it.contains("实时执行画面") }) {
+                        val preview = windowNodes().any { node ->
+                            livePreviewLabel.containsMatchIn("${node.text} ${node.contentDescription}")
+                        }
+                        val run = verificationConversationId?.let(app.taskState::run)
+                        if (!sawPreview && preview && (run?.fullFrames?.value ?: run?.frames?.value) != null) {
                             sawPreview = true
-                            automation.takeScreenshot()?.let { bitmap ->
-                                File(app.cacheDir, "task-monitor-device.png").outputStream().use {
-                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
-                                }
-                                bitmap.recycle()
-                            }
+                            saveScreenshot("task-monitor-device.png")
                         }
                         sawSteps = sawSteps || exchange?.steps?.any { step -> labels.any { it.contains(step.title) } } == true
                         val nodes = windowNodes()
@@ -181,16 +181,16 @@ class ConfiguredChatDeviceTest {
                         sawLatestAboveComposer = sawLatestAboveComposer || visibleLatest
                         if (visibleLatest && exchange!!.steps.size != capturedStepCount) {
                             capturedStepCount = exchange.steps.size
-                            automation.takeScreenshot()?.let { bitmap ->
-                                File(app.cacheDir, "task-monitor-latest-device.png").outputStream().use {
-                                    bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
-                                }
-                                bitmap.recycle()
-                            }
+                            saveScreenshot("task-monitor-latest-device.png")
                         }
                     }
                     if (status is ExchangeStatus.Failed) fail("The configured provider returned a task failure")
-                    app.chat.ui.value.composer == ComposerMode.Idle && status is ExchangeStatus.Done
+                    if (firstFrameOnly) sawPreview else app.chat.ui.value.composer == ComposerMode.Idle && status is ExchangeStatus.Done
+                }
+                if (firstFrameOnly) {
+                    instrumentation.runOnMainSync { app.chat.cancel() }
+                    waitFor("The preview test task was not stopped") { app.chat.ui.value.composer == ComposerMode.Idle }
+                    return@use
                 }
                 if (phoneTask) {
                     assertTrue("The phone task's real steps must be visible while executing", sawSteps)
