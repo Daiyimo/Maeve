@@ -10,6 +10,7 @@ import '../../widgets/glass_surface.dart';
 import 'settings_components.dart';
 import 'add_model_page.dart';
 import 'model_usage_panel.dart';
+import 'about_pages.dart';
 export 'add_model_page.dart';
 
 class ModelSettingsPage extends StatelessWidget {
@@ -177,6 +178,13 @@ class ModelSettingsPage extends StatelessWidget {
         Text(
           '模型负责思考，Maeve 负责在设备上行动。密钥由本机安全存储保管。',
           style: MaeveType.caption.copyWith(color: c.ink2, height: 1.6),
+        ),
+        const SizedBox(height: 10),
+        MaeveGlassTextButton(
+          label: '隐私与数据去向',
+          icon: Icons.privacy_tip_outlined,
+          haptic: MaeveHaptic.tick,
+          onPressed: () => AppPage.open(context, const PrivacyPage()),
         ),
         const SizedBox(height: 24),
         const ModelUsagePanel(),

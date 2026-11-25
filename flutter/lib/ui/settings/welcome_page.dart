@@ -9,6 +9,7 @@ import '../common/app_page.dart';
 import '../common/haptics.dart';
 import 'model_settings_page.dart';
 import 'phone_readiness_page.dart';
+import 'about_pages.dart';
 
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key, this.firstRun = false});
@@ -64,8 +65,15 @@ class _WelcomePageState extends State<WelcomePage> {
         Text('关于你的数据', style: MaeveType.bodyStrong.copyWith(color: c.ink)),
         const SizedBox(height: 10),
         Text(
-          '对话与配置保存在设备上。执行任务时，必要的内容会交给你配置的模型服务。',
+          privacyModelDisclosure,
           style: MaeveType.caption.copyWith(color: c.ink2, height: 1.7),
+        ),
+        const SizedBox(height: 10),
+        MaeveGlassTextButton(
+          label: '查看隐私声明',
+          icon: Icons.privacy_tip_outlined,
+          haptic: MaeveHaptic.tick,
+          onPressed: () => AppPage.open(context, const PrivacyPage()),
         ),
         const SizedBox(height: 28),
         if (_error != null)

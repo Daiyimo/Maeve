@@ -62,6 +62,81 @@ Future<void> openHostLink(
   );
 }
 
+const privacyModelDisclosure =
+    '你发给 Maeve 的对话、屏幕内容和截图，在进行模型处理时只发给你在「模型配置」中配置的模型服务商。Maeve 不进行数据收集，不出售这些内容，也不用于广告。';
+const privacyLocalDisclosure = '对话、配置、任务记录和截图默认保存在本机，用于继续对话、操作回放、任务报告与分享。';
+const privacyChannelDisclosure =
+    '如果你主动通过 Amoo、微信等通道发起任务，内容也会沿该通道发送给对应服务；这些服务的数据处理方式以其隐私政策为准。';
+const privacyControlDisclosure = '你可以在「模型配置」更换或删除服务商；本地删除模型配置不会删除已保存的任务记录和截图。';
+
+class PrivacyPage extends StatelessWidget {
+  const PrivacyPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = MaeveTheme.of(context).colors;
+    return AppPage.list(
+      title: '隐私声明',
+      subtitle: '你的数据，由你掌握',
+      eyebrow: 'PRIVACY',
+      children: [
+        const SizedBox(height: MaeveSpace.s12),
+        MaeveGlassSurface(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.privacy_tip_outlined, color: c.accent, size: 24),
+                  const SizedBox(width: MaeveSpace.s12),
+                  Expanded(
+                    child: Text(
+                      '不收集，不出售，不用于广告',
+                      style: MaeveType.bodyStrong.copyWith(color: c.ink),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text(
+                privacyModelDisclosure,
+                style: MaeveType.body.copyWith(color: c.ink2, height: 1.7),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: MaeveSpace.s24),
+        _PrivacySection(title: '本机保存', body: privacyLocalDisclosure),
+        const SizedBox(height: MaeveSpace.s20),
+        _PrivacySection(title: '你主动接入的第三方通道', body: privacyChannelDisclosure),
+        const SizedBox(height: MaeveSpace.s20),
+        _PrivacySection(title: '你的选择', body: privacyControlDisclosure),
+      ],
+    );
+  }
+}
+
+class _PrivacySection extends StatelessWidget {
+  const _PrivacySection({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = MaeveTheme.of(context).colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: MaeveType.bodyStrong.copyWith(color: c.ink)),
+        const SizedBox(height: 8),
+        Text(body, style: MaeveType.body.copyWith(color: c.ink2, height: 1.7)),
+      ],
+    );
+  }
+}
+
 class AboutPage extends StatefulWidget {
   const AboutPage({super.key});
 

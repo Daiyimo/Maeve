@@ -15,6 +15,8 @@ import 'package:maeve_flutter/ui/settings/phone_readiness_page.dart';
 import 'package:maeve_flutter/ui/settings/scheduled_tasks_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_wechat_page.dart';
+import 'package:maeve_flutter/ui/settings/about_pages.dart';
+import 'package:maeve_flutter/ui/settings/welcome_page.dart';
 import 'package:maeve_flutter/widgets/glass_surface.dart';
 
 import '../support/fake_chat_bridge.dart';
@@ -571,6 +573,69 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('Privacy disclosure is reachable from every data entry', (
+    tester,
+  ) async {
+    await mount(tester, FakeSettingsBridge());
+    await open(tester, const SettingsHubPage());
+    final settingsEntry = find.text('隐私声明');
+    await tester.scrollUntilVisible(
+      settingsEntry,
+      320,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await Scrollable.ensureVisible(
+      tester.element(settingsEntry),
+      alignment: .5,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(settingsEntry);
+    await tester.pumpAndSettle();
+    expect(find.byType(PrivacyPage), findsOneWidget);
+    expect(find.text(privacyModelDisclosure), findsOneWidget);
+    expect(find.text(privacyLocalDisclosure), findsOneWidget);
+    expect(find.text(privacyChannelDisclosure), findsOneWidget);
+    Navigator.of(tester.element(find.byType(PrivacyPage))).pop();
+    await tester.pumpAndSettle();
+
+    AppPage.open(
+      tester.element(find.byType(SettingsHubPage)),
+      const ModelSettingsPage(),
+    );
+    await tester.pumpAndSettle();
+    final modelEntry = find.text('隐私与数据去向');
+    await tester.scrollUntilVisible(
+      modelEntry,
+      320,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await Scrollable.ensureVisible(tester.element(modelEntry), alignment: .5);
+    await tester.pumpAndSettle();
+    await tester.tap(modelEntry);
+    await tester.pumpAndSettle();
+    expect(find.byType(PrivacyPage), findsOneWidget);
+    Navigator.of(tester.element(find.byType(PrivacyPage))).pop();
+    await tester.pumpAndSettle();
+
+    AppPage.open(
+      tester.element(find.byType(ModelSettingsPage)),
+      const WelcomePage(),
+    );
+    await tester.pumpAndSettle();
+    final welcomeEntry = find.text('查看隐私声明');
+    await tester.scrollUntilVisible(
+      welcomeEntry,
+      320,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await Scrollable.ensureVisible(tester.element(welcomeEntry), alignment: .5);
+    await tester.pumpAndSettle();
+    await tester.tap(welcomeEntry);
+    await tester.pumpAndSettle();
+    expect(find.byType(PrivacyPage), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Wireless pairing explains the actual developer settings destination',
     (tester) async {

@@ -205,6 +205,12 @@ class SettingsHubPage extends StatelessWidget {
           title: '关于',
           rows: [
             SettingsTile(
+              icon: Icons.privacy_tip_outlined,
+              title: '隐私声明',
+              subtitle: '数据去向与本机保存',
+              onTap: () => AppPage.open(context, const PrivacyPage()),
+            ),
+            SettingsTile(
               icon: Icons.info_outline_rounded,
               title: '关于 Maeve',
               onTap: () => AppPage.open(context, const AboutPage()),

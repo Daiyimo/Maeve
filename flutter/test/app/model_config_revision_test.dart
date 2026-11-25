@@ -91,11 +91,11 @@ void main() {
     await open(tester, const AboutPage());
     expect(find.text('许可与致谢'), findsNothing);
     expect(find.text('开源许可'), findsNothing);
-    expect(find.textContaining('对话与配置保存在设备上'), findsNothing);
+    expect(find.text(privacyModelDisclosure), findsNothing);
     Navigator.of(tester.element(find.byType(AboutPage))).pop();
     await tester.pumpAndSettle();
     await open(tester, const WelcomePage());
-    expect(find.textContaining('对话与配置保存在设备上'), findsOneWidget);
+    expect(find.text(privacyModelDisclosure), findsOneWidget);
   });
 
   testWidgets(
