@@ -26,6 +26,11 @@ final _png = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAICAIAAABRUclSAAAAFElEQVR4nGNcNmsvAwwwwVlU5wAAzl8CDZzzQqQAAAAASUVORK5CYII=',
 );
 
+const _guizangAnswer =
+    '已成功找到归藏的小豆体验笔记，阅读全部8张图片并解码出两个体验码。'
+    '体验码#01为7HGJ5V（ASCII密钥偏移解码），体验码#02为537ZMW（斐波那契36进制解码）。'
+    '任务已完成，无需进一步操作。';
+
 class _ShareBridge extends FakeChatBridge {
   late Completer<Uint8List> png;
 
@@ -36,30 +41,36 @@ class _ShareBridge extends FakeChatBridge {
   }
 }
 
-TaskReport _report({bool frames = true}) => TaskReport(
-  available: true,
-  goal: '打开设置',
-  outcome: '已完成',
-  verdict: '核查通过',
-  duration: '12 秒',
-  answer: '已打开系统设置。',
-  stages: const [
-    PlaybackStage(title: '开始', stepIndex: 0),
-    PlaybackStage(title: '完成', stepIndex: 1, screenshotId: 2),
-  ],
-  frames: frames
-      ? const [
-          ReplayFrame(stepIndex: 0, screenshotId: 1, step: 1, title: '打开设置'),
-          ReplayFrame(
-            stepIndex: 1,
-            screenshotId: 2,
-            step: 1,
-            title: '设置已打开',
-            after: true,
-          ),
-        ]
-      : const [],
-);
+TaskReport _report({bool frames = true, String answer = '已打开系统设置。'}) =>
+    TaskReport(
+      available: true,
+      goal: '打开设置',
+      outcome: '已完成',
+      verdict: '核查通过',
+      duration: '12 秒',
+      answer: answer,
+      stages: const [
+        PlaybackStage(title: '开始', stepIndex: 0),
+        PlaybackStage(title: '完成', stepIndex: 1, screenshotId: 2),
+      ],
+      frames: frames
+          ? const [
+              ReplayFrame(
+                stepIndex: 0,
+                screenshotId: 1,
+                step: 1,
+                title: '打开设置',
+              ),
+              ReplayFrame(
+                stepIndex: 1,
+                screenshotId: 2,
+                step: 1,
+                title: '设置已打开',
+                after: true,
+              ),
+            ]
+          : const [],
+    );
 
 Future<MaeveController> _mount(
   WidgetTester tester,
@@ -118,21 +129,54 @@ void _emitWorking(
   ],
 );
 
-void _emitDone(FakeChatBridge bridge, {String? detail}) => bridge.emitUi(
-  conversationId: 'live',
-  composer: 'idle',
-  exchanges: [
-    FakeChatBridge.exchange(
-      '打开设置',
-      status: 'done',
-      answer: '已打开系统设置。',
-      detail: detail,
-      runId: 'run-1',
-    ),
-  ],
-);
+void _emitDone(FakeChatBridge bridge, {String? detail, int steps = 0}) =>
+    bridge.emitUi(
+      conversationId: 'live',
+      composer: 'idle',
+      exchanges: [
+        FakeChatBridge.exchange(
+          '打开设置',
+          status: 'done',
+          answer: '已打开系统设置。',
+          detail: detail,
+          steps: steps,
+          runId: 'run-1',
+        ),
+      ],
+    );
 
 void main() {
+  test('Share answer excerpt keeps a clean conclusion paragraph', () {
+    expect(
+      shareAnswerExcerpt('### 执行说明\n\n**已找到归藏入口**，并打开对应页面。\n\n后续细节略。'),
+      '已找到归藏入口，并打开对应页面。',
+    );
+    expect(
+      shareAnswerExcerpt('- 已完成 [归藏](https://example.com) 整理。'),
+      '已完成归藏整理。',
+    );
+    expect(shareAnswerExcerpt('  \n```text\nignored\n```\n'), isEmpty);
+  });
+
+  test('Share answer excerpt keeps both decoded Guizang codes', () {
+    expect(
+      shareAnswerExcerpt(_guizangAnswer),
+      '已成功找到归藏的小豆体验笔记，阅读全部8张图片并解码出两个体验码。\n'
+      '体验码 01：7HGJ5V\n'
+      '体验码 02：537ZMW',
+    );
+  });
+
+  test(
+    'Share answer excerpt shortens other long answers at a sentence boundary',
+    () {
+      final excerpt = shareAnswerExcerpt('已完成归藏整理。${'后续细节' * 30}');
+      expect(excerpt.startsWith('已完成归藏整理。'), isTrue);
+      expect(excerpt.length, lessThanOrEqualTo(140));
+      expect(excerpt.contains('**'), isFalse);
+    },
+  );
+
   testWidgets('A completed run can be scheduled using its original goal', (
     tester,
   ) async {
@@ -614,10 +658,10 @@ void main() {
   ) async {
     const viewport = Size(320, 720);
     final bridge = _ShareBridge()
-      ..report = _report()
+      ..report = _report(answer: _guizangAnswer)
       ..frame = _png;
     await _mount(tester, bridge, size: viewport);
-    _emitDone(bridge);
+    _emitDone(bridge, steps: 2);
     await tester.pumpAndSettle();
 
     final share = find.widgetWithText(MaeveGlassTextButton, '分享图');
@@ -634,6 +678,29 @@ void main() {
     await tester.pumpAndSettle();
 
     final preview = find.byType(TaskSharePage);
+    expect(
+      find.descendant(of: preview, matching: find.text('回答')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: preview,
+        matching: find.text(
+          '已成功找到归藏的小豆体验笔记，阅读全部8张图片并解码出两个体验码。\n'
+          '体验码 01：7HGJ5V\n'
+          '体验码 02：537ZMW',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: preview, matching: find.text('执行步数')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: preview, matching: find.text('任务耗时')),
+      findsOneWidget,
+    );
     expect(bridge.screenRequests, contains('run-1:1'));
     expect(
       find.descendant(of: preview, matching: find.byType(ChatPage)),
