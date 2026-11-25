@@ -6,6 +6,40 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+@Serializable
+enum class TriggerPreset(val key: String, val title: String, val goal: String) {
+    AmooGrowthCheckIn(
+        "amoo_growth_check_in",
+        "Amoo 成长计划签到",
+        "打开 STEPX 账号页的 Amoo 成长计划，核对今日签到状态。未签到时签到一次并确认结果，已签到时直接报告。",
+    );
+
+    /** 随应用播种的内置计划；普通示例只在用户手动创建时生成计划。 */
+    fun builtInSchedule(nowMs: Long): TriggerDefinition? = when (this) {
+        AmooGrowthCheckIn -> TriggerDefinition(
+            id = "builtin-$key",
+            threadId = "scheduled-$key",
+            goal = goal,
+            nextAtMs = nextCalendarAt("09:00", "Asia/Shanghai", emptyList(), nowMs),
+            idleOnly = true,
+            calendarTime = "09:00",
+            calendarZone = "Asia/Shanghai",
+            preset = this,
+            fixedZone = true,
+        )
+    }
+
+    companion object {
+        /** 空库或升级时还缺哪些内置计划；已有同名 preset（含用户手动建的）只保留，不重复添加。 */
+        fun missingBuiltInSchedules(triggers: List<TriggerDefinition>, nowMs: Long): List<TriggerDefinition> =
+            entries.mapNotNull { preset ->
+                preset.builtInSchedule(nowMs)?.takeIf { builtIn ->
+                    triggers.none { it.id == builtIn.id || it.preset == preset }
+                }
+            }
+    }
+}
+
 /**
  * 一条定时/周期计划的定义。
  *
@@ -22,6 +56,7 @@ import java.time.format.DateTimeFormatter
  * @property calendarTime 按当地钟点重复（`HH:mm`），配合 [calendarZone] 使用
  * @property calendarZone 当地钟点所属时区
  * @property calendarDays 允许触发的星期（1=周一 … 7=周日），空表示每天
+ * @property fixedZone 为 true 时钉住 [calendarZone]，设备时区变化不跟随
  */
 @Serializable
 data class TriggerDefinition(
@@ -38,6 +73,8 @@ data class TriggerDefinition(
     val calendarTime: String? = null,
     val calendarZone: String? = null,
     val calendarDays: List<Int> = emptyList(),
+    val preset: TriggerPreset? = null,
+    val fixedZone: Boolean = false,
 ) {
     init {
         require(id.isNotBlank() && threadId.isNotBlank() && goal.isNotBlank())
@@ -395,7 +432,7 @@ class TriggerEngine(
     fun rezone(nowMs: Long, fromZone: String, toZone: ZoneId) {
         if (fromZone == toZone.id) return
         store.all()
-            .filter { it.enabled && it.calendarTime != null && it.calendarZone == fromZone }
+            .filter { it.enabled && !it.fixedZone && it.calendarTime != null && it.calendarZone == fromZone }
             .forEach { t ->
                 store.upsert(
                     t.copy(

@@ -2,6 +2,7 @@ package com.daiyimo.maeve.core.run
 
 import com.daiyimo.maeve.core.action.ConfirmChoice
 import com.daiyimo.maeve.core.agent.Turn
+import com.daiyimo.maeve.core.trigger.TriggerPreset
 
 @JvmInline value class RunId(val value: String) {
     init { require(value.isNotBlank()) }
@@ -21,6 +22,7 @@ data class RunSpec(
     val readOnly: Boolean = false,
     val parent: RunId? = null,
     val stepBudget: Int? = null,
+    val triggerPreset: TriggerPreset? = null,
 ) {
     init { require(goal.isNotBlank() && threadId.isNotBlank()) }
 }

@@ -24,12 +24,14 @@ class CompletedExecutionPanel extends StatefulWidget {
     this.fallbackReport,
     this.detail,
     this.stopped = false,
+    this.frameSelection,
   });
   final MaeveChatBridge bridge;
   final String? runId;
   final TaskReport? fallbackReport;
   final String? detail;
   final bool stopped;
+  final ValueNotifier<int?>? frameSelection;
 
   @override
   State<CompletedExecutionPanel> createState() =>
@@ -41,7 +43,9 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
   String? _error;
   bool _loading = false;
   int _attempt = 0;
-  final _frameSelection = ValueNotifier<int?>(null);
+  final _ownedFrameSelection = ValueNotifier<int?>(null);
+  ValueNotifier<int?> get _frameSelection =>
+      widget.frameSelection ?? _ownedFrameSelection;
   bool _showTimeline = false;
 
   @override
@@ -52,7 +56,7 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
 
   @override
   void dispose() {
-    _frameSelection.dispose();
+    _ownedFrameSelection.dispose();
     super.dispose();
   }
 

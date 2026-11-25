@@ -2,6 +2,7 @@ package com.daiyimo.maeve.core.cap.phone
 
 import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.prompt.Prompts
+import com.daiyimo.maeve.core.trigger.TriggerPreset
 import com.daiyimo.maeve.core.run.SKIPPED_FOR_NEW_MESSAGE
 import com.daiyimo.maeve.core.run.waitOrSteer
 import com.daiyimo.maeve.core.tool.failCode
@@ -30,16 +31,22 @@ import com.daiyimo.maeve.core.uistate.session
 internal object PhoneRun : PhoneTool {
     override val verb = Verb.PhoneRun
     override val risk = Risk.Write
-    override fun entry(ctx: ToolContext) = Entry.Opens.takeIf { ctx.phone.deepLinks }
+    override fun entry(ctx: ToolContext) = Entry.Opens.takeIf { ctx.phone.deepLinks || allowsAmoo(ctx) }
     override val composite = true
     override val label = "连续操作手机"
     private val operations = setOf("launch", "tap", "type", "clear", "scroll", "swipe", "key", "back", "wait", "assert", "observe")
     override val def = definition(deepLinks = false)
     private val withLinks = definition(deepLinks = true)
-    override fun def(ctx: ToolContext) = if (ctx.phone.deepLinks) withLinks else def
+    private val withAmoo = definition(deepLinks = true, amoo = true)
+    private fun allowsAmoo(ctx: ToolContext) = ctx.config.runSpec?.triggerPreset == TriggerPreset.AmooGrowthCheckIn
+    override fun def(ctx: ToolContext) = when {
+        allowsAmoo(ctx) -> withAmoo
+        ctx.phone.deepLinks -> withLinks
+        else -> def
+    }
 
-    private fun definition(deepLinks: Boolean): ToolDef {
-        val ops = if (deepLinks) operations + "open_link" else operations
+    private fun definition(deepLinks: Boolean, amoo: Boolean = false): ToolDef {
+        val ops = operations + listOfNotNull("open_link".takeIf { deepLinks }, "amoo_check_in".takeIf { amoo })
         val fields = listOf("targetText", "resourceId", "role", "text", "packageName", "direction", "whenText", "key")
         val tap = "tap(targetText/resourceId/role or x+y)"
         val description = Prompts.tool("phone_run", "navigation_commands" to
@@ -67,14 +74,21 @@ internal object PhoneRun : PhoneTool {
         ), listOf("commands"))
     }
 
-    override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution = ctx.session.textOnly {
-        runCommands(a, ctx)
+    override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
+        val commands = a.o["commands"] as? JsonArray
+        val amoo = allowsAmoo(ctx) && commands?.size == 1 &&
+            (commands.firstOrNull() as? JsonObject)?.string("op") == "amoo_check_in"
+        return if (amoo) runCommands(a, ctx) else ctx.session.textOnly { runCommands(a, ctx) }
     }
 
     private suspend fun runCommands(a: Args, ctx: ToolContext): ToolExecution {
         val commands = a.o["commands"] as? JsonArray ?: throw ArgError("commands", "must be an array")
         if (commands.size !in 1..30) throw ArgError("commands", "must have 1-30 items")
         val sub = ctx.sub ?: return failed("actions_unavailable")
+        if (commands.any { (it as? JsonObject)?.string("op") == "amoo_check_in" }) {
+            if (!allowsAmoo(ctx) || commands.size != 1) throw ArgError("commands", "amoo_check_in requires the scheduled Amoo preset and must run alone")
+            return AmooCheckIn(ctx, sub, ctx.callId).execute()
+        }
         val steps = mutableListOf<JsonObject>()
         val callId = ctx.callId
         var expectedPackage = ctx.screen.currentPackage()

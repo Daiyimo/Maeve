@@ -38,6 +38,7 @@ internal class PhoneCapability(
     appPace: (String) -> PlacePace = { PlacePace.NORMAL },
     idle: IdleScroll? = null,
 ) : Capability {
+    var amooCheckInAttempted = false
     val dwell = AppDwell(pacing, appPace, idle)
 
     override val id = PHONE

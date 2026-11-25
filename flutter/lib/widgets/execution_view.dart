@@ -36,7 +36,7 @@ class ExecutionPanel extends StatefulWidget {
   });
   final Message message;
   final bool isLatest;
-  final VoidCallback? onShare;
+  final ValueChanged<int?>? onShare;
   @override
   State<ExecutionPanel> createState() => _ExecutionPanelState();
 }
@@ -45,6 +45,13 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
   bool? _expanded;
   bool _acting = false;
   String? _error;
+  final _frameSelection = ValueNotifier<int?>(null);
+
+  @override
+  void dispose() {
+    _frameSelection.dispose();
+    super.dispose();
+  }
 
   Future<void> _act(String action) async {
     final controller = MaeveScope.read(context);
@@ -378,6 +385,7 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
               duration: message.elapsedLabel,
               answer: message.text,
             ),
+            frameSelection: _frameSelection,
           )
         else if (expanded && widget.isLatest && message.active && !showLive)
           LiveExecutionFeed(
@@ -500,7 +508,8 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
                       executionAction(
                         label: '分享图',
                         icon: icons ? Icons.ios_share_outlined : null,
-                        onPressed: widget.onShare,
+                        onPressed: () =>
+                            widget.onShare?.call(_frameSelection.value),
                       ),
                     if (scheduleGoal != null)
                       executionAction(

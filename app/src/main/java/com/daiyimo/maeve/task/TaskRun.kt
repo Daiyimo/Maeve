@@ -44,14 +44,21 @@ import com.daiyimo.maeve.core.action.ConfirmChoice
 import com.daiyimo.maeve.core.agent.AgentLoop
 import com.daiyimo.maeve.core.tool.TaskPlan
 import com.daiyimo.maeve.core.tool.LinkPolicy
+import com.daiyimo.maeve.core.trigger.TriggerPreset
 import com.daiyimo.maeve.core.agent.SystemPrompt
 import com.daiyimo.maeve.core.agent.FailKind
 import com.daiyimo.maeve.core.agent.ModelRouter
 import com.daiyimo.maeve.core.memory.MemoryExtractor
 import com.daiyimo.maeve.core.memory.MemoryStore
 import com.daiyimo.maeve.core.memory.UserUtterances
+import com.daiyimo.maeve.core.model.Capabilities
 import com.daiyimo.maeve.core.model.ChatModel
+import com.daiyimo.maeve.core.model.Message
+import com.daiyimo.maeve.core.model.ModelError
+import com.daiyimo.maeve.core.model.ModelReply
 import com.daiyimo.maeve.core.model.ModelSession
+import com.daiyimo.maeve.core.model.StopReason
+import com.daiyimo.maeve.core.model.ToolSpec
 import com.daiyimo.maeve.core.skills.SkillDrafter
 import com.daiyimo.maeve.chat.ConversationStore
 import com.daiyimo.maeve.memory.MemoryRuntime
@@ -169,6 +176,7 @@ class TaskRun(
 ) {
     internal var provenance = RunProvenance()
     internal var triggerWindowKey: String? = null
+    private var triggerPreset: TriggerPreset? = null
     internal var triggerActionGoal: String? = null
     internal var triggerThreadId: String? = null
     internal var mcpExternalId: String? = null
@@ -548,9 +556,14 @@ class TaskRun(
             wakeHandoff?.release()
             wakeHandoff = null
             val stepLimit = FeatureFlags.get(service).taskStepLimit()
+            triggerPreset = triggerWindowKey?.takeUnless { conditionCheck }?.let { window ->
+                withContext(Dispatchers.IO) { TriggerRuntime.presetFor(service, window) }
+            }
             // token 预算按步数放大:每步请求(压缩后)约 20-30k,60 步要 1.2-1.8M,默认 1M 不够
             val budget = com.daiyimo.maeve.core.run.RunBudget(maxSteps = stepLimit, maxReportedTokens = (stepLimit.toLong() * 40_000L).coerceAtLeast(1_000_000L)).also { runBudget = it }
-            val model = env.modelFactory(service, session)?.let(budget::wrap) ?: return TaskState.Failed(tr(R.string.fail_no_main_model), FailKind.Environment)
+            val model = env.modelFactory(service, session)?.let(budget::wrap)
+                ?: if (triggerPreset == TriggerPreset.AmooGrowthCheckIn) budget.wrap(ScheduledOnlyModel)
+                else return TaskState.Failed(tr(R.string.fail_no_main_model), FailKind.Environment)
             // 用户在浏览器页上对着一页问的:那一页借给这个任务当当前网页标签(见 PageLoans);开跑时页面还开着才借得到
             val pageLoan = if (provenance.origin == RunOrigin.Ui) withContext(Dispatchers.Main) { UserBrowser.existing()?.claim(conversationId, key) } else null
             val light = env.lightModelFactory(service, session)?.let(budget::wrap)
@@ -800,7 +813,7 @@ class TaskRun(
             val runSpec = RunSpec(RunId(key), goal, conversationId,
                 priorTurns,
                 provenance, if (conditionCheck) setOf("web", "sandbox") else null, readOnly = conditionCheck,
-                stepBudget = stepLimit)
+                stepBudget = stepLimit, triggerPreset = triggerPreset)
             // 外部 MCP server 只在主任务接;子任务/条件检查/评测不接,避免绕过父任务审批、影响评测可复现
             if (!conditionCheck) {
                 // 连上的当场归 resources:收尾(含取消、失败、连到一半被停)关作用域时一起关,stdio server 的进程和沙箱租约跟着放掉
@@ -1221,7 +1234,8 @@ class TaskRun(
     suspend fun settleOutcome(end: TaskState, conversations: ConversationStore): JudgedOutcome? {
         val k = kit ?: return null
         if (end !is TaskState.Succeeded) return null
-        val judged = OutcomeJudge(k.light ?: k.model, k.model).judge(k.agent.taskText ?: goal, end.answer, k.priorTurns)
+        val judged = if (triggerPreset == TriggerPreset.AmooGrowthCheckIn) JudgedOutcome(RunOutcome.Done)
+            else OutcomeJudge(k.light ?: k.model, k.model).judge(k.agent.taskText ?: goal, end.answer, k.priorTurns)
         val runId = _runId.value
         if (runId != null) withContext(Dispatchers.IO) {
             k.runStore?.append(runId, judged.event(System.currentTimeMillis()))
@@ -1242,6 +1256,7 @@ class TaskRun(
      * 在进程级的作用域里跑,服务退出也不中断。
      */
     suspend fun learnAfter(end: TaskState, outcome: RunOutcome?, conversations: ConversationStore) {
+        if (triggerPreset == TriggerPreset.AmooGrowthCheckIn) return
         val k = kit ?: return
         val runId = _runId.value
         val learning = RunLearning(
@@ -1360,4 +1375,12 @@ class TaskRun(
         val NO_ACCESSIBILITY: String get() = tr(R.string.task_no_a11y)
         const val TAG = "MaeveTask"
     }
+}
+
+/** 固定签到流程只占位以满足 AgentLoop 的构造契约；任何模型化路径误入都会立即失败。 */
+private object ScheduledOnlyModel : ChatModel {
+    override val capabilities = Capabilities(toolCalls = true, vision = false, contextTokens = 128_000, reasoning = false)
+    override val name = "scheduled-only"
+    override suspend fun complete(system: String, messages: List<Message>, tools: List<ToolSpec>): ModelReply =
+        throw ModelError.BadResponse("固定签到流程不应请求主模型")
 }

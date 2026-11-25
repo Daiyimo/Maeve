@@ -28,6 +28,7 @@ import com.daiyimo.maeve.core.trigger.TriggerDefinition
 import com.daiyimo.maeve.core.trigger.TriggerEngine
 import com.daiyimo.maeve.core.trigger.ConditionOutcome
 import com.daiyimo.maeve.core.trigger.TriggerSnapshot
+import com.daiyimo.maeve.core.trigger.TriggerPreset
 import com.daiyimo.maeve.core.trigger.TriggerWindowState
 import com.daiyimo.maeve.core.trigger.rescheduledTo
 import com.daiyimo.maeve.settings.FeatureFlags
@@ -198,7 +199,21 @@ object TriggerRuntime {
         catch (e: Exception) { reportStartFailure(context, store, trigger, window.key, e, resetCondition = true) }
     }
 
+    /** 升级或首次启动只播种一次；之后用户删除、暂停或改时间都不会被恢复。 */
+    @Synchronized fun ensureBuiltInSchedules(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getBoolean(BUILT_INS_SEEDED, false)) return
+        val store = store(context)
+        val now = System.currentTimeMillis()
+        TriggerPreset.missingBuiltInSchedules(store.all(), now).forEach { schedule(context, it) }
+        prefs.edit().putBoolean(BUILT_INS_SEEDED, true).apply()
+    }
+
     @Synchronized fun list(context: Context): List<TriggerDefinition> = store(context).all()
+
+    @Synchronized fun presetFor(context: Context, windowKey: String) = store(context).let { store ->
+        store.windows().firstOrNull { it.key == windowKey }?.let { store.get(it.triggerId)?.preset }
+    }
 
     fun canScheduleExactly(context: Context): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
         context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
@@ -353,6 +368,7 @@ object TriggerRuntime {
     private const val PREFS = "triggers"
     private const val PROMPTED = "exact_alarm_prompted"
     private const val KEY_DEVICE_ZONE = "device_timezone"
+    private const val BUILT_INS_SEEDED = "builtin_schedules_seeded_v1"
 }
 
 /** 准时闹钟权限的引导:没开时只主动提醒一次,之后在定时任务页一直写明。 */

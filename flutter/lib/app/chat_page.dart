@@ -169,7 +169,11 @@ class _ChatPageState extends State<ChatPage> {
     WidgetsBinding.instance.ensureVisualUpdate();
   }
 
-  Future<void> _openShare(MaeveController controller, Message message) async {
+  Future<void> _openShare(
+    MaeveController controller,
+    Message message, {
+    int? frameIndex,
+  }) async {
     if (_shareOpen) return;
     final conversation = controller.active;
     final index = conversation.messages.indexOf(message);
@@ -187,6 +191,7 @@ class _ChatPageState extends State<ChatPage> {
           message: message,
           prompt: prompt?.text,
           viewport: MediaQuery.sizeOf(context),
+          initialFrameIndex: frameIndex,
         ),
       );
     } finally {
@@ -285,8 +290,11 @@ class _ChatPageState extends State<ChatPage> {
                                 onRetry: controller.sendQueued,
                                 onLongPress: (m) =>
                                     _messageSheet(context, controller, m),
-                                onShare: (message) =>
-                                    _openShare(controller, message),
+                                onShare: (message, frameIndex) => _openShare(
+                                  controller,
+                                  message,
+                                  frameIndex: frameIndex,
+                                ),
                               ),
                       ),
                     ),
@@ -323,7 +331,10 @@ class _ChatPageState extends State<ChatPage> {
               _BarAction(
                 icon: Icons.schedule_rounded,
                 label: '定时任务',
-                onTap: () => AppPage.open(context, ScheduledTasksPage(conversationId: controller.activeId)),
+                onTap: () => AppPage.open(
+                  context,
+                  ScheduledTasksPage(conversationId: controller.activeId),
+                ),
               ),
               _BarAction(
                 icon: Icons.add_rounded,
@@ -517,7 +528,7 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<String> onToggleTurn;
   final ValueChanged<Message> onRetry;
   final ValueChanged<Message> onLongPress;
-  final ValueChanged<Message> onShare;
+  final void Function(Message, int?) onShare;
 
   @override
   Widget build(BuildContext context) {
@@ -557,7 +568,7 @@ class _MessageList extends StatelessWidget {
             onToggle: () => onToggleTurn(key),
             isLatest: isLatest,
             onLongPress: () => onLongPress(message),
-            onShare: () => onShare(message),
+            onShare: (frameIndex) => onShare(message, frameIndex),
           ),
         ),
       );
@@ -695,7 +706,7 @@ class _AssistantTurn extends StatelessWidget {
   final VoidCallback onToggle;
   final bool isLatest;
   final VoidCallback onLongPress;
-  final VoidCallback onShare;
+  final void Function(int?) onShare;
 
   @override
   Widget build(BuildContext context) {

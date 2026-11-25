@@ -25,6 +25,7 @@ class TaskSharePage extends StatefulWidget {
     required this.prompt,
     required this.viewport,
     this.report,
+    this.initialFrameIndex,
   });
 
   final MaeveChatBridge bridge;
@@ -32,6 +33,7 @@ class TaskSharePage extends StatefulWidget {
   final String? prompt;
   final Size viewport;
   final TaskReport? report;
+  final int? initialFrameIndex;
 
   @override
   State<TaskSharePage> createState() => _TaskSharePageState();
@@ -39,7 +41,8 @@ class TaskSharePage extends StatefulWidget {
 
 class _TaskSharePageState extends State<TaskSharePage> {
   final _poster = GlobalKey();
-  ({TaskReport report, Uint8List? frame})? _snapshot;
+  ({TaskReport report, Uint8List? frame, int selectedIndex})? _snapshot;
+  final Map<int, Future<Uint8List?>> _frames = {};
   bool _sharing = false;
   String? _editedTitle;
   String? _error;
@@ -72,26 +75,68 @@ class _TaskSharePageState extends State<TaskSharePage> {
       // Older or cleared records can still share the saved conversation turn.
     }
     if (!mounted) return;
+    final selectedIndex = report.frames.isEmpty
+        ? 0
+        : (widget.initialFrameIndex ?? report.frames.length - 1).clamp(
+            0,
+            report.frames.length - 1,
+          );
     Uint8List? frame;
     if (report.frames.isNotEmpty) {
       try {
-        frame = await widget.bridge
-            .runScreen(runId, report.frames.last.screenshotId)
-            .timeout(timeout);
+        frame = await _frameBytes(report, selectedIndex);
         if (!mounted) return;
-        final bytes = frame;
-        if (bytes != null) {
-          await precacheImage(
-            MemoryImage(bytes),
-            context,
-            onError: (_, _) => frame = null,
-          );
-        }
       } catch (_) {
         frame = null;
       }
     }
-    if (mounted) setState(() => _snapshot = (report: report, frame: frame));
+    if (mounted) {
+      setState(
+        () => _snapshot = (
+          report: report,
+          frame: frame,
+          selectedIndex: selectedIndex,
+        ),
+      );
+    }
+  }
+
+  Future<Uint8List?> _frameBytes(TaskReport report, int index) {
+    final runId = widget.message.runId!;
+    final screenshotId = report.frames[index].screenshotId;
+    return _frames.putIfAbsent(
+      index,
+      () => widget.bridge
+          .runScreen(runId, screenshotId)
+          .timeout(const Duration(seconds: 5)),
+    );
+  }
+
+  Future<void> _selectFrame(int index) async {
+    final current = _snapshot;
+    if (current == null || index == current.selectedIndex) return;
+    setState(
+      () => _snapshot = (
+        report: current.report,
+        frame: null,
+        selectedIndex: index,
+      ),
+    );
+    Uint8List? frame;
+    try {
+      frame = await _frameBytes(current.report, index);
+    } catch (_) {
+      frame = null;
+    }
+    if (mounted && _snapshot?.selectedIndex == index) {
+      setState(
+        () => _snapshot = (
+          report: current.report,
+          frame: frame,
+          selectedIndex: index,
+        ),
+      );
+    }
   }
 
   String _originalTitle(TaskReport report) => report.goal.trim().isNotEmpty
@@ -138,6 +183,60 @@ class _TaskSharePageState extends State<TaskSharePage> {
     }
   }
 
+  Widget _framePicker(TaskReport report, int selectedIndex) => SizedBox(
+    height: 92,
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: report.frames.length,
+      separatorBuilder: (_, _) => const SizedBox(width: 8),
+      itemBuilder: (context, index) => FutureBuilder<Uint8List?>(
+        future: _frameBytes(report, index),
+        builder: (context, snapshot) {
+          final bytes = snapshot.data;
+          return Semantics(
+            selected: index == selectedIndex,
+            button: true,
+            label: '第 ${index + 1} 帧',
+            child: InkWell(
+              key: ValueKey('share-frame-$index'),
+              onTap: () => _selectFrame(index),
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: 76,
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: index == selectedIndex
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).dividerColor,
+                    width: index == selectedIndex ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: bytes == null
+                          ? const Center(
+                              child: Icon(
+                                Icons.image_not_supported_outlined,
+                                size: 18,
+                              ),
+                            )
+                          : Image.memory(bytes, fit: BoxFit.contain),
+                    ),
+                    const SizedBox(height: 2),
+                    Text('第 ${index + 1} 帧', style: MaeveType.hint),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final snapshot = _snapshot;
@@ -164,10 +263,15 @@ class _TaskSharePageState extends State<TaskSharePage> {
                           editedTitle: _editedTitle != null,
                           viewport: widget.viewport,
                           frame: snapshot.frame,
+                          frameNumber: snapshot.selectedIndex + 1,
                         ),
                       ),
                     ),
                   ),
+                  if (snapshot.report.frames.length > 1) ...[
+                    const SizedBox(height: 8),
+                    _framePicker(snapshot.report, snapshot.selectedIndex),
+                  ],
                   if (_error case final error?)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
@@ -257,6 +361,7 @@ class _TaskSharePoster extends StatelessWidget {
     required this.editedTitle,
     required this.viewport,
     required this.frame,
+    required this.frameNumber,
   });
 
   static const _paper = Color(0xfffaf6f4);
@@ -271,6 +376,7 @@ class _TaskSharePoster extends StatelessWidget {
   final bool editedTitle;
   final Size viewport;
   final Uint8List? frame;
+  final int frameNumber;
 
   @override
   Widget build(BuildContext context) {
@@ -400,14 +506,14 @@ class _TaskSharePoster extends StatelessWidget {
                               child: Image.memory(
                                 frame,
                                 fit: BoxFit.contain,
-                                semanticLabel: '最后一帧操作画面',
+                                semanticLabel: '第 $frameNumber 帧操作画面',
                                 errorBuilder: (_, _, _) =>
                                     const SizedBox.shrink(),
                               ),
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              '最后一帧操作画面',
+                              '第 $frameNumber 帧操作画面',
                               style: MaeveType.hint.copyWith(color: _muted),
                             ),
                           ],

@@ -12,6 +12,7 @@ import 'package:maeve_flutter/ui/settings/settings_hub.dart';
 import 'package:maeve_flutter/ui/settings/model_settings_page.dart';
 import 'package:maeve_flutter/ui/settings/system_access_page.dart';
 import 'package:maeve_flutter/ui/settings/phone_readiness_page.dart';
+import 'package:maeve_flutter/ui/settings/scheduled_tasks_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_page.dart';
 import 'package:maeve_flutter/ui/settings/amoo_wechat_page.dart';
 import 'package:maeve_flutter/widgets/glass_surface.dart';
@@ -73,6 +74,7 @@ void main() {
       if (args['action'] == 'create') {
         plan = {
           'id': 'daily',
+          'threadId': 'daily-thread',
           'goal': args['goal'],
           'time': args['time'],
           'nextAt': 2000000000000,
@@ -92,7 +94,7 @@ void main() {
         'deferred': args['action'] == 'runNow' ? 'offline' : null,
       };
     };
-    await mount(tester, settings);
+    final controller = await mount(tester, settings);
     await tester.tap(find.byTooltip('定时任务'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('新建定时任务'));
@@ -108,10 +110,58 @@ void main() {
     expect(find.text('每日签到'), findsOneWidget);
     await tester.tap(find.text('立即执行'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('等待网络恢复'), findsOneWidget);
+    expect(find.byType(ScheduledTasksPage), findsNothing);
+    expect(controller.activeId, 'daily-thread');
     expect(
       actions.singleWhere((action) => action['action'] == 'runNow')['id'],
       'daily',
+    );
+  });
+
+  testWidgets('Amoo example creates the built-in check-in preset on enable', (
+    tester,
+  ) async {
+    const example = {
+      'id': 'amoo_growth_check_in',
+      'title': 'Amoo 成长计划签到',
+      'goal': '进入 STEPX 账号页的 Amoo 成长计划，未签到时签到一次。',
+    };
+    final creates = <Map<String, Object>>[];
+    Map<String, Object?>? plan;
+    final settings = FakeSettingsBridge();
+    settings.scheduleHandler = (request) async {
+      if (request['action'] == 'create') {
+        creates.add(request);
+        plan = {
+          'id': 'amoo',
+          'title': example['title'],
+          'preset': example['id'],
+          'goal': example['goal'],
+          'time': request['time'],
+          'nextAt': 2000000000000,
+          'enabled': true,
+        };
+      }
+      return {
+        'exactAlarm': true,
+        'examples': [example],
+        'plans': [?plan],
+      };
+    };
+    await mount(tester, settings);
+    await tester.tap(find.byTooltip('定时任务'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(example['title']!));
+    await tester.pumpAndSettle();
+    expect(find.text(example['goal']!), findsOneWidget);
+    expect(creates, isEmpty);
+    await tester.tap(find.text('启用'));
+    await tester.pumpAndSettle();
+    expect(creates.single['preset'], example['id']);
+    expect(creates.single['time'], '09:00');
+    expect(
+      find.byKey(ValueKey('schedule-example-${example['id']}')),
+      findsNothing,
     );
   });
 

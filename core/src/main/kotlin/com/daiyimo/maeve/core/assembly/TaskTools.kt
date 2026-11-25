@@ -123,8 +123,11 @@ fun toolDispatcher(
     /** 点后视觉核对异步跑的 scope;为空用全局 scope。测试注入可控 scope。 */
     visionScope: kotlinx.coroutines.CoroutineScope? = null,
 ): ToolDispatcher {
-    val config = ToolConfig(visionEnabled, skills, recordFrames, vision, inlineScreen, adaptiveVision, memory, profile, utterances, conversationId,
-        imageOps, scheduleTrigger, scheduleAdmin, runSpec, childHost, userScreens, personalSkills, selfConfig, runRecords, visionScope = visionScope)
+    val amooReplay = runSpec.triggerPreset == com.daiyimo.maeve.core.trigger.TriggerPreset.AmooGrowthCheckIn
+    val config = ToolConfig(visionEnabled, skills, recordFrames, vision, inlineScreen || amooReplay, adaptiveVision, memory, profile, utterances, conversationId,
+        imageOps, scheduleTrigger, scheduleAdmin, runSpec, childHost, userScreens, personalSkills, selfConfig, runRecords,
+        tapVisionCheck = runSpec.triggerPreset != com.daiyimo.maeve.core.trigger.TriggerPreset.AmooGrowthCheckIn,
+        visionScope = visionScope)
     val providers: List<CapabilityProvider> = listOf(
         object : CapabilityProvider {
             override val id = PHONE

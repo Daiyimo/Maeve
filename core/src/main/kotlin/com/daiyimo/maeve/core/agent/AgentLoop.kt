@@ -13,6 +13,7 @@ import com.daiyimo.maeve.core.tool.fail
 import com.daiyimo.maeve.core.action.ActionExecutor
 import com.daiyimo.maeve.core.action.ActionOutcome
 import com.daiyimo.maeve.core.action.ActionRecorder
+import com.daiyimo.maeve.core.action.execution
 import com.daiyimo.maeve.core.action.OutwardPacing
 import com.daiyimo.maeve.core.action.ApprovalSettings
 import com.daiyimo.maeve.core.action.ConfirmChoice
@@ -50,6 +51,7 @@ import com.daiyimo.maeve.core.run.RunInbox
 import com.daiyimo.maeve.core.run.RunSpec
 import com.daiyimo.maeve.core.run.RunProvenance
 import com.daiyimo.maeve.core.run.RunOrigin
+import com.daiyimo.maeve.core.trigger.TriggerPreset
 import com.daiyimo.maeve.core.run.Interaction
 import com.daiyimo.maeve.core.run.LocalInteraction
 import com.daiyimo.maeve.core.run.Delivery
@@ -237,11 +239,13 @@ class AgentLoop(
     val activeAsk: Delivery.Ask? get() = user.activeAsk
 
     /** 新入口:同一对话里的插话和控制经 [inbox] 进入;旧入口继续使用相同的执行路径。 */
-    suspend fun run(spec: RunSpec, inbox: RunInbox): TaskState = runInternal(spec.goal, spec.priorTurns, inbox, spec.provenance, spec.threadId)
+    suspend fun run(spec: RunSpec, inbox: RunInbox): TaskState =
+        runInternal(spec.goal, spec.priorTurns, inbox, spec.provenance, spec.threadId, spec.triggerPreset)
 
     suspend fun run(task: String, priorTurns: List<Turn> = emptyList()): TaskState = runInternal(task, priorTurns, null, RunProvenance(), "local")
 
-    private suspend fun runInternal(task: String, priorTurns: List<Turn>, inbox: RunInbox?, runProvenance: RunProvenance, threadId: String): TaskState {
+    private suspend fun runInternal(task: String, priorTurns: List<Turn>, inbox: RunInbox?, runProvenance: RunProvenance, threadId: String,
+        triggerPreset: TriggerPreset? = null): TaskState {
         cancelRequested = false
         provenance = runProvenance
         user.begin(threadId, runProvenance, interaction)
@@ -263,7 +267,7 @@ class AgentLoop(
         replay?.reset()
         lastEnd = null
         try {
-            end = runLoop(task, priorTurns, inbox)
+            end = runLoop(task, priorTurns, inbox, triggerPreset)
             tools.taskPlan = tools.taskPlan?.let { p -> when (end) {
                 is TaskState.Succeeded -> p.finished(true)
                 TaskState.Cancelled -> p.stopped()
@@ -283,11 +287,11 @@ class AgentLoop(
         }
     }
 
-    private suspend fun runLoop(task: String, priorTurns: List<Turn>, inbox: RunInbox?): TaskState {
+    private suspend fun runLoop(task: String, priorTurns: List<Turn>, inbox: RunInbox?, triggerPreset: TriggerPreset?): TaskState {
         val end = try {
             coroutineScope {
                 // 插话的信号装在整个运行的上下文里:撤掉也不丢东西的等待据此提前结束(见 waitOrSteer)
-                val body = async(inbox?.signal ?: EmptyCoroutineContext) { loop(task, priorTurns, inbox) }
+                val body = async(inbox?.signal ?: EmptyCoroutineContext) { loop(task, priorTurns, inbox, triggerPreset) }
                 job = body
                 if (cancelRequested) body.cancel()
                 body.await()
@@ -351,7 +355,7 @@ class AgentLoop(
         job?.cancel()
     }
 
-    private suspend fun loop(raw: String, rawPrior: List<Turn>, inbox: RunInbox?): TaskState {
+    private suspend fun loop(raw: String, rawPrior: List<Turn>, inbox: RunInbox?, triggerPreset: TriggerPreset?): TaskState {
         // 用户发来的屏幕:这一句给全(那句话、截图、详情),之前几轮里的收成一行;下面都用换好的这句
         val shots = UserScreenTurns(userScreens, zone, tools.seesImages, canAskVision = !tools.seesImages && tools.vision != null && tools.definitions().any { it.name == VIEW_USER_SCREEN },
             image = { tools.modelImage(it, null) }, seen = tools::noteUserScreen).also { screens = it }
@@ -411,6 +415,7 @@ class AgentLoop(
                 taskTargets?.action(verb, args, exec.content, step)
                 taskTargets?.observe(exec.content, step, exec.screenElements)
             })
+        if (triggerPreset == TriggerPreset.AmooGrowthCheckIn) return runAmooCheckIn(executor)
         var emptyNudged = false
         // 调过工具才有可核对的材料;交给用户付款和放行过对外动作一样,回答要另请核查
         var acted = false
@@ -775,6 +780,27 @@ class AgentLoop(
         appendSteers(history, inbox)
         refreshOffer()
         return finalTurn(task, history, specs, maxSteps + 1, labels, place, recorder, facts(), inbox)
+    }
+
+    private suspend fun runAmooCheckIn(executor: ActionExecutor): TaskState {
+        val running = TaskState.Running(1, "正在核对 Amoo 成长计划签到")
+        gateState = running
+        _state.value = running
+        val action = executor.run(Part.ToolCall("amoo-check-in", "phone_run", """{"commands":[{"op":"amoo_check_in"}]}"""), Origin.Script(1))
+        if (action is ActionOutcome.Cancelled) return TaskState.Cancelled
+        val result = action.execution().content
+        val answer = when ((result["status"] as? JsonPrimitive)?.contentOrNull) {
+            "already_signed" -> "今天已签到。"
+            "signed" -> "今日签到成功，已读回「已签到」。」"
+            else -> return TaskState.Failed((result["message"] as? JsonPrimitive)?.contentOrNull
+                ?: "未能确认 Amoo 成长计划的签到结果。", FailKind.GaveUp)
+        }
+        val treeReadback = (result["readback"] as? JsonPrimitive)?.contentOrNull == "ui_tree"
+        val review = if (treeReadback) LocalReview(
+            LocalReview.Status.Verified,
+            claims = LocalReview.Coverage(1, 1),
+        ) else null
+        return deliver(Conclusion(TaskState.Succeeded(answer, verified = treeReadback, reviewed = treeReadback), review))
     }
 
     /** 运行记录里按结果另记的事:报告的障碍(供评测按 barrier 类归因;参数不对被拒的不算)、看过的个人技能、存下的记忆。 */

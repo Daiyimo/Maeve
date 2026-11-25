@@ -123,7 +123,20 @@ class TaskReportViewModel(
             val taken = steps.flatMap { listOfNotNull(it.afterId, it.before?.screenshotId) }.toSet()
             steps += media.filter { it.mediaId !in taken }
                 .map { PlaybackStep(it.step, null, afterId = it.mediaId, legacy = true) }
-            return steps.sortedWith(compareBy({ it.step }, { it.before?.screenshotId ?: Int.MAX_VALUE }, { it.afterId ?: Int.MAX_VALUE }))
+            val callOrder = mutableMapOf<String, Int>()
+            val mediaOrder = mutableMapOf<Int, Int>()
+            events.forEachIndexed { index, event ->
+                when (event) {
+                    is RunEvent.Pointer -> event.callId?.let { callOrder.getOrPut(it) { index } }
+                    is RunEvent.ToolResult -> event.callId?.let { callOrder.getOrPut(it) { index } }
+                    is RunEvent.Media -> mediaOrder.getOrPut(event.mediaId) { index }
+                    else -> Unit
+                }
+            }
+            fun order(step: PlaybackStep): Int = step.callId?.let(callOrder::get)
+                ?: step.afterId?.let(mediaOrder::get)
+                ?: Int.MAX_VALUE
+            return steps.sortedWith(compareBy({ it.step }, { order(it) }, { it.afterId ?: Int.MAX_VALUE }))
         }
 
         /** 关键页和阶段按证据截图定位,不能用打开它之前的动作画面代替。 */

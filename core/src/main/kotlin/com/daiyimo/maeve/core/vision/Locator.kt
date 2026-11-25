@@ -81,7 +81,7 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
 
     private suspend fun visualFirst(): Boolean = VisualFirstPolicy.applies(screen.currentPackage())
 
-    suspend fun locate(target: String, text: String?, role: String? = null, field: Boolean = false): LocateResult {
+    suspend fun locate(target: String, text: String?, role: String? = null, field: Boolean = false, preferVision: Boolean = false): LocateResult {
         val description = buildString {
             append(target)
             if (role != null) append(" (required role: ").append(role.take(80)).append(')')
@@ -99,7 +99,7 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
         val second = capture(visual).let { it as? Shot.Ok ?: return (it as Shot.Missing).asNotFound() }
         val synced = first != null && elements != null && hamming(first.hash, second.hash) <= LOCATE_SCREEN_CHANGE
 
-        if (text != null && synced) {
+        if (text != null && synced && !preferVision) {
             val hit = exactMatch(elements.filter { e ->
                 (!field || e.editable) && (role == null || e.role.equals(role, ignoreCase = true))
             }, text)

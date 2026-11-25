@@ -626,10 +626,15 @@ void main() {
     expect(tester.getTopLeft(share).dy, tester.getTopLeft(process).dy);
     expect(tester.getTopLeft(share).dy, tester.getTopLeft(report).dy);
     await tester.ensureVisible(share);
+    await tester.tap(
+      find.widgetWithIcon(MaeveGlassButton, Icons.skip_previous_rounded),
+    );
+    await tester.pump();
     await tester.tap(share);
     await tester.pumpAndSettle();
 
     final preview = find.byType(TaskSharePage);
+    expect(bridge.screenRequests, contains('run-1:1'));
     expect(
       find.descendant(of: preview, matching: find.byType(ChatPage)),
       findsNothing,
@@ -653,10 +658,28 @@ void main() {
     expect(camera.center.dx, closeTo(body.center.dx, .01));
     expect((camera.center.dy - body.top) / body.height, closeTo(.034, .004));
     expect(
-      find.descendant(of: preview, matching: find.byType(Image)),
+      find.descendant(
+        of: preview,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Image && widget.semanticLabel == '第 1 帧操作画面',
+        ),
+      ),
       findsOneWidget,
     );
+    expect(bridge.screenRequests, contains('run-1:1'));
+    expect(find.byKey(const ValueKey('share-frame-1')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('share-frame-1')));
+    await tester.pumpAndSettle();
     expect(bridge.screenRequests, contains('run-1:2'));
+    expect(
+      find.descendant(
+        of: preview,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Image && widget.semanticLabel == '第 2 帧操作画面',
+        ),
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
 
     await tester.tap(find.text('编辑标题'));

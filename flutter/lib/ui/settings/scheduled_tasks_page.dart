@@ -83,6 +83,16 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
           _notice = null;
         }
       });
+      if (action == 'runNow') {
+        final plans = (value['plans'] as List?)?.whereType<Map>() ?? const <Map>[];
+        final plan = plans.where((item) => item['id'] == args['id']).firstOrNull;
+        final threadId = plan?['threadId'] as String?;
+        if (threadId != null && threadId.isNotEmpty) {
+          final controller = MaeveScope.of(context);
+          Navigator.of(context).pop();
+          controller.openThread(threadId);
+        }
+      }
     } catch (error) {
       if (mounted && !quiet && revision == _revision) {
         setState(() {
@@ -101,10 +111,14 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
     }
   }
 
-  Future<void> _create({String? goal}) async {
+  Future<void> _create({String? goal, String? preset, String? title}) async {
     final input = await showDialog<(String, TimeOfDay)>(
       context: context,
-      builder: (_) => _NewScheduleDialog(initialGoal: goal ?? ''),
+      builder: (_) => _NewScheduleDialog(
+        initialGoal: goal ?? '',
+        exampleTitle: title,
+        fixedTime: preset != null,
+      ),
     );
     if (!mounted || input == null) return;
     final (task, time) = input;
@@ -113,6 +127,7 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
       'create',
       args: {
         'goal': task,
+        'preset': ?preset,
         'time': '${two(time.hour)}:${two(time.minute)}',
         'conversationId': ?widget.conversationId,
       },
@@ -165,6 +180,16 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
   Widget build(BuildContext context) {
     final plans =
         (_snapshot?['plans'] as List?)?.whereType<Map>() ?? const <Map>[];
+    final plannedPresets = plans
+        .map((plan) => plan['preset'])
+        .whereType<String>()
+        .toSet();
+    final examples =
+        (_snapshot?['examples'] as List?)
+            ?.whereType<Map>()
+            .where((example) => !plannedPresets.contains(example['id']))
+            .toList() ??
+        const <Map>[];
     return AppPage.list(
       title: '定时任务',
       actions: [
@@ -197,13 +222,32 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
         if (_snapshot == null && _error == null)
           const Center(child: CircularProgressIndicator()),
         if (_snapshot != null && plans.isEmpty)
-          const FooterNote(text: '还没有定时任务。可以从每日签到开始。'),
+          const FooterNote(text: '还没有定时任务。'),
+        if (examples.isNotEmpty)
+          SettingsSection(
+            title: '任务示例',
+            rows: [
+              for (final example in examples)
+                SettingsTile(
+                  key: ValueKey('schedule-example-${example['id']}'),
+                  title: example['title'] as String,
+                  subtitle: '视觉优先，视觉不可用时使用界面树',
+                  icon: Icons.event_available_outlined,
+                  enabled: !_busy,
+                  onTap: () => _create(
+                    goal: example['goal'] as String,
+                    preset: example['id'] as String,
+                    title: example['title'] as String,
+                  ),
+                ),
+            ],
+          ),
         for (final plan in plans)
           SettingsSection(
             title: _status(plan),
             rows: [
               SettingsTile(
-                title: plan['goal'] as String,
+                title: (plan['title'] ?? plan['goal']) as String,
                 icon: Icons.schedule_rounded,
                 trailing: Semantics(
                   label: '启用定时任务',
@@ -242,9 +286,15 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
 }
 
 class _NewScheduleDialog extends StatefulWidget {
-  const _NewScheduleDialog({required this.initialGoal});
+  const _NewScheduleDialog({
+    required this.initialGoal,
+    this.exampleTitle,
+    this.fixedTime = false,
+  });
 
   final String initialGoal;
+  final String? exampleTitle;
+  final bool fixedTime;
 
   @override
   State<_NewScheduleDialog> createState() => _NewScheduleDialogState();
@@ -262,30 +312,35 @@ class _NewScheduleDialogState extends State<_NewScheduleDialog> {
 
   @override
   Widget build(BuildContext context) => MaeveGlassDialog(
-    title: const Text('新建定时任务'),
+    title: Text(widget.exampleTitle ?? '新建定时任务'),
     content: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        TextField(
-          controller: _goal,
-          maxLength: 4000,
-          maxLines: 3,
-          onChanged: (_) => setState(() {}),
-          decoration: const InputDecoration(
-            labelText: '任务说明',
-            hintText: '例如：打开指定应用并完成签到',
+        if (widget.exampleTitle != null)
+          Text(widget.initialGoal)
+        else
+          TextField(
+            controller: _goal,
+            maxLength: 4000,
+            maxLines: 3,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              labelText: '任务说明',
+              hintText: '例如：打开指定应用并完成签到',
+            ),
           ),
-        ),
         TextButton.icon(
           icon: const Icon(Icons.access_time_rounded),
           label: Text('每日 ${_time.format(context)}'),
-          onPressed: () async {
-            final value = await showTimePicker(
-              context: context,
-              initialTime: _time,
-            );
-            if (mounted && value != null) setState(() => _time = value);
-          },
+          onPressed: widget.fixedTime
+              ? null
+              : () async {
+                  final value = await showTimePicker(
+                    context: context,
+                    initialTime: _time,
+                  );
+                  if (mounted && value != null) setState(() => _time = value);
+                },
         ),
       ],
     ),

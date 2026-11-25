@@ -43,6 +43,22 @@ class TaskReportViewModelTest {
         assertNull(step.frames.last().pointer)
     }
 
+    /** 回放按调用发生顺序排列,不按截图编号猜测时间;点击前帧编号可以比后帧大。 */
+    @Test fun replayFollowsCallOrderRatherThanScreenshotIds() {
+        val events = listOf(
+            result(1, "phone_open_link", 1, "open"),
+            RunEvent.Media(2, 1, 1, "com.stepos.account"),
+            pointer(1, "phone_tap", 3, "enter"),
+            result(1, "phone_tap", 2, "enter"),
+            RunEvent.Media(5, 2, 1, "com.stepos.ailauncher"),
+        )
+
+        val steps = TaskReportViewModel.playbackSteps(events)
+
+        assertEquals(listOf("open", "enter"), steps.map { it.callId })
+        assertEquals(listOf(1, 3, 2), steps.flatMap { it.frames.map { f -> f.screenshotId } })
+    }
+
     /** 批里的子步按 callId 各自成格;外层批调用没有画面,不占格也不借子步的帧。 */
     @Test fun batchSubStepsKeepTheirOwnFramesAndOuterBatchTakesNone() {
         val events = listOf(

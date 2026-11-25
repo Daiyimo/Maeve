@@ -406,6 +406,7 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
         // 完全退出期间不排闹钟,重新打开时再补排
         if (!quit) scope.launch(Dispatchers.IO) { runCatching {
             TriggerRuntime.watchReadiness(this@MaeveApp)
+            TriggerRuntime.ensureBuiltInSchedules(this@MaeveApp)
             TriggerRuntime.syncTimeZone(this@MaeveApp)
             TriggerRuntime.rearm(this@MaeveApp)
         } }
@@ -443,6 +444,7 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
         scope.launch(Dispatchers.IO) {
             runCatching {
                 TriggerRuntime.watchReadiness(this@MaeveApp)
+                TriggerRuntime.ensureBuiltInSchedules(this@MaeveApp)
                 TriggerRuntime.syncTimeZone(this@MaeveApp)
                 TriggerRuntime.rearm(this@MaeveApp)
             }.onFailure { Log.w("MaeveTrigger", "could not restore schedules after quit", it) }

@@ -1,6 +1,7 @@
 package com.daiyimo.maeve.task
 
 import com.daiyimo.maeve.core.trigger.TriggerDefinition
+import com.daiyimo.maeve.core.trigger.TriggerPreset
 import com.daiyimo.maeve.core.trigger.TriggerWindowState
 import java.nio.file.Files
 import org.junit.Assert.assertEquals
@@ -17,6 +18,14 @@ class FileTriggerStoreTest {
         assertEquals(2L, restored.windows().single().missedIntervals)
         assertEquals(TriggerWindowState.Claimed, restored.windows().single().state)
         assertEquals(emptyList<Any>(), restored.claimDue(3_100))
+    }
+
+    @Test fun builtInAmooSettingsSurviveStoreReopen() {
+        val file = Files.createTempDirectory("trigger-test").resolve("triggers.json").toFile()
+        val plan = TriggerPreset.AmooGrowthCheckIn.builtInSchedule(1_000)!!
+        FileTriggerStore(file).upsert(plan)
+
+        assertEquals(plan, FileTriggerStore(file).get(plan.id))
     }
 
     @Test fun reminderAndCalendarSettingsSurviveStoreReopen() {
