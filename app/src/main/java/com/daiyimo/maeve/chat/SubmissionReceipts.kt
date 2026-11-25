@@ -1,9 +1,7 @@
 package com.daiyimo.maeve.chat
 
 import java.io.File
-import java.io.FileOutputStream
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
+import com.daiyimo.maeve.core.io.AtomicFiles
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -47,12 +45,7 @@ class SubmissionReceipts(
         write(rows.map { if (it.requestId == id) receipt else it })
         return receipt
     }
-    private fun write(rows: List<Receipt>) {
-        check(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs())
-        val temp = File(file.parentFile, file.name + ".tmp")
-        FileOutputStream(temp).use { it.write(Json.encodeToString(rows).toByteArray()); it.fd.sync() }
-        Files.move(temp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
-    }
+    private fun write(rows: List<Receipt>) = AtomicFiles.write(file, Json.encodeToString(rows).toByteArray())
 
     companion object {
         const val RETENTION_MS = 7 * 24 * 60 * 60 * 1000L

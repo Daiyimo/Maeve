@@ -7,7 +7,6 @@ import com.daiyimo.maeve.settings.Prerequisites
 import com.daiyimo.maeve.settings.ProviderStore
 import com.daiyimo.maeve.settings.Problem
 import com.daiyimo.maeve.settings.SystemStatusMonitor
-import com.daiyimo.maeve.task.TaskService
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
@@ -22,8 +21,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.encodeToString
-import com.daiyimo.maeve.chat.SubmissionReceipts
 import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 import com.daiyimo.maeve.record.RunStore
@@ -49,26 +46,11 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
     private var uiJob: Job? = null
     private var changesJob: Job? = null
     private var summaryJob: Job? = null
-    private val receipts get() = app.submissionReceipts
-    private fun receiptMap(r: SubmissionReceipts.Receipt) = mapOf("requestId" to r.requestId,
-        "conversationId" to r.conversationId, "accepted" to r.accepted,
-        "state" to if (r.accepted == null) "receipt_unknown" else if (r.accepted) "accepted" else "rejected")
-
-    private fun lookupSubmission(id: String): Map<String, Any?> {
-        val receipt = receipts.find(id)
-        if (receipt?.accepted != null) return receiptMap(receipt)
-        val registered = app.runStore.all().firstOrNull { it.submissionId == id }
-        if (registered != null) return mapOf(
-            "requestId" to id, "conversationId" to registered.threadId,
-            "accepted" to true, "state" to "accepted",
-        )
-        return receipt?.let(::receiptMap) ?: mapOf(
-            "requestId" to id, "state" to if (receipts.canIdentifyMissing(id)) "not_received" else "receipt_unknown",
-        )
-    }
+    private lateinit var submission: ChatSubmission
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         app = binding.applicationContext as MaeveApp
+        submission = ChatSubmission(app)
         methods = MethodChannel(binding.binaryMessenger, CHANNEL).also { it.setMethodCallHandler(this) }
         events = EventChannel(binding.binaryMessenger, EVENTS).also { it.setStreamHandler(this) }
     }
@@ -145,7 +127,7 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
             "sendReceipt" -> engineScope().launch {
                 try {
                     val id = requireNotNull(call.argument<String>("requestId"))
-                    val receipt = submissions.withLock { withContext(Dispatchers.IO) { lookupSubmission(id) } }
+                    val receipt = submissions.withLock { withContext(Dispatchers.IO) { submission.lookup(id) } }
                     result.success(receipt)
                 } catch (e: CancellationException) { throw e }
                 catch (_: Exception) { result.error("receipt_unavailable", "无法读取提交回执，请勿盲目重发", null) }
@@ -153,30 +135,7 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
             "submit" -> engineScope().launch {
                 try {
                     submissions.withLock {
-                        val id = requireNotNull(call.argument<String>("requestId"))
-                        val text = requireNotNull(call.argument<String>("text")?.trim()?.takeIf { it.isNotBlank() })
-                        val conversation = call.argument<String>("conversationId").orEmpty()
-                        val quote = call.argument<String>("quote")?.takeIf { it.isNotBlank() }
-                        val fromUser = call.argument<Boolean>("quoteFromUser") ?: false
-                        val digest = java.security.MessageDigest.getInstance("SHA-256")
-                            .digest(kotlinx.serialization.json.Json.encodeToString(listOf(text, quote.orEmpty(), fromUser.toString())).toByteArray())
-                            .joinToString("") { "%02x".format(it) }
-                        val previous = withContext(Dispatchers.IO) {
-                            val old = receipts.find(id)
-                            receipts.begin(id, digest, conversation)
-                            old?.let { lookupSubmission(id) }
-                        }
-                        if (previous != null) {
-                            result.success(previous)
-                            return@withLock
-                        }
-                        val current = app.chat.ui.value.conversationId.orEmpty()
-                        val accepted = current == conversation && app.chat.submit(
-                            text, quote?.let { QuoteMessage.Quote(if (fromUser) QuoteMessage.From.You else QuoteMessage.From.Maeve, it) },
-                            check(),
-                        ) { goal, thread -> TaskService.submitUi(app, goal, thread, id) }
-                        val settled = withContext(Dispatchers.IO) { receipts.settle(id, accepted) }
-                        result.success(receiptMap(settled))
+                        result.success(submission.submit(call, ::check))
                     }
                 } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
                     result.error("submission_unknown", "任务登记尚未确认，请查询回执", null)

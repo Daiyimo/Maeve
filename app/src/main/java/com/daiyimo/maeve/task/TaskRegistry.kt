@@ -8,17 +8,6 @@ import com.daiyimo.maeve.core.run.RunStore
 import com.daiyimo.maeve.core.run.StoredRun
 import com.daiyimo.maeve.core.uistate.AppWait
 
-sealed interface StartResult<out R> {
-    data class Started<R>(val run: R) : StartResult<R>
-    /** 超出并行上限,排在队里第 [position] 个。 */
-    data class Queued<R>(val run: R, val position: Int) : StartResult<R>
-    /** 已登记过的渠道消息不再次执行，包括进程重启后服务端重投的消息。 */
-    data object DuplicateChannelMessage : StartResult<Nothing>
-    data object DuplicateSubmission : StartResult<Nothing>
-    /** 这个对话已经有任务(在跑或在排队):照 M1 规则不收,由对话自己排队。 */
-    data object AlreadyRunningInConversation : StartResult<Nothing>
-}
-
 /**
  * 按对话索引的运行中任务、并行上限与跨任务的全局锁。上限为 1 时(开关关着)就是 M1 的一次一个。
  * [create] 在登记时建任务对象;R 在产品里是 [TaskRun],测试里换成普通对象。

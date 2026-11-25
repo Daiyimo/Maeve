@@ -2,7 +2,6 @@ package com.daiyimo.maeve.task
 
 import com.daiyimo.maeve.core.run.RunId
 import com.daiyimo.maeve.core.run.ChannelPeer
-import com.daiyimo.maeve.core.run.RunPhase
 import com.daiyimo.maeve.core.run.RunStore
 import com.daiyimo.maeve.core.run.StoredRun
 import kotlinx.serialization.json.Json
@@ -32,7 +31,7 @@ class FileRunStateStore(private val file: File) : RunStore {
                 val id = RunId(o.getValue("id").jsonPrimitive.content)
                 records[id] = StoredRun(
                     id, o.getValue("threadId").jsonPrimitive.content, o.getValue("goal").jsonPrimitive.content,
-                    phase(o.getValue("phase").jsonPrimitive.content),
+                    decodeRunPhase(o.getValue("phase").jsonPrimitive.content),
                     o["reply"]?.jsonPrimitive?.contentOrNull, o["deliveryId"]?.jsonPrimitive?.contentOrNull,
                     o["roundInProgress"]?.jsonPrimitive?.content == "true",
                     o["triggerWindowKey"]?.jsonPrimitive?.contentOrNull,
@@ -55,7 +54,7 @@ class FileRunStateStore(private val file: File) : RunStore {
         file.parentFile?.mkdirs()
         val json = JsonArray(updated.values.map { r -> buildJsonObject {
             put("id", r.id.value); put("threadId", r.threadId); put("goal", r.goal)
-            put("phase", code(r.phase)); put("reply", r.reply)
+            put("phase", encodeRunPhase(r.phase)); put("reply", r.reply)
             put("deliveryId", r.deliveryId)
             put("roundInProgress", r.roundInProgress)
             put("triggerWindowKey", r.triggerWindowKey)
@@ -86,31 +85,5 @@ class FileRunStateStore(private val file: File) : RunStore {
             ChannelPeer(peer.getValue("channelId").jsonPrimitive.content,
                 peer.getValue("peerId").jsonPrimitive.content, peer.getValue("threadId").jsonPrimitive.content)
         }.getOrNull()
-    }
-
-    private fun code(phase: RunPhase): String = when (phase) {
-        RunPhase.Queued -> "queued"
-        RunPhase.Preparing -> "preparing"
-        RunPhase.Running -> "running"
-        is RunPhase.WaitingUser -> "waiting_user"
-        is RunPhase.Parked -> "parked"
-        is RunPhase.Paused -> "paused"
-        RunPhase.Finishing -> "finishing"
-        RunPhase.Aftercare -> "aftercare"
-        RunPhase.Ended -> "ended"
-        RunPhase.Interrupted -> "interrupted"
-    }
-
-    private fun phase(code: String): RunPhase = when (code) {
-        "queued" -> RunPhase.Queued
-        "preparing" -> RunPhase.Preparing
-        "running" -> RunPhase.Running
-        "waiting_user" -> RunPhase.WaitingUser()
-        "parked" -> RunPhase.Parked("")
-        "paused" -> RunPhase.Paused("")
-        "finishing" -> RunPhase.Finishing
-        "aftercare" -> RunPhase.Aftercare
-        "ended" -> RunPhase.Ended
-        else -> RunPhase.Interrupted
     }
 }
