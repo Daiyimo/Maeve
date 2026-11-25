@@ -1033,6 +1033,7 @@ class ChatViewModel(
     }
 
     fun newConversation() {
+        if (_ui.value.exchanges.isEmpty() && store.currentChat() == CurrentChat.Fresh) return
         refreshParallel()
         if (parallel()) {
             // 别的任务可能还在跑:先给新对话编号,它的状态就不会被当成这个对话的

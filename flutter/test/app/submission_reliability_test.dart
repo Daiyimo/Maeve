@@ -194,6 +194,7 @@ void main() {
   test(
     'stop channel error allows retry and shows a recovery message',
     () async {
+      controller.select('a');
       bridge.cancelFails = true;
       await controller.requestStop();
       expect(controller.cancelRequested, isFalse);
@@ -213,6 +214,7 @@ void main() {
   });
 
   test('late UI cannot resurrect a confirmed deletion', () async {
+    controller.select('a');
     await controller.delete('a');
     bridge.emitUi(
       conversationId: 'a',

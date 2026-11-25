@@ -170,9 +170,9 @@ class MaeveController extends ChangeNotifier {
   int draftRestoreRevision = 0;
   String? _resumeDraftKey;
   final _draftKeys = <String, String>{};
-  String get draftKey => activeId.isEmpty
-      ? 'new:$_draftGeneration'
-      : _draftKeys[activeId] ?? activeId;
+  String get _freshDraftKey => 'new:$_draftGeneration';
+  String get draftKey =>
+      activeId.isEmpty ? _freshDraftKey : _draftKeys[activeId] ?? activeId;
   final drafts =
       <String, ({String text, ({String text, bool fromUser})? quote})>{};
 
@@ -327,6 +327,7 @@ class MaeveController extends ChangeNotifier {
   String? hostConversationId;
   String? _requestedConversation;
   bool _acceptNewConversation = false;
+  bool _initialChatLoaded = false;
   int _summaryGeneration = 0;
   final _eventRevisions = <String, int>{};
   String? _chatEpoch;
@@ -354,7 +355,7 @@ class MaeveController extends ChangeNotifier {
   bool connected = false;
   String model = '选择模型';
 
-  /// 接上对话桥:拉会话列表、订事件流、打开当前(或第一个)对话。
+  /// 接上对话桥，加载历史列表并恢复未提交的新任务草稿。
   /// 在 MaeveApp.initState 里调一次。
   void attach() {
     unawaited(refreshSettings());
@@ -404,21 +405,25 @@ class MaeveController extends ChangeNotifier {
       if (_disposed) return;
       connected = true;
       if (generation == _summaryGeneration) _applyConversations(items);
+      final initial = !_initialChatLoaded;
+      _initialChatLoaded = true;
       if (navigation != _navigationGeneration) return;
       final resume = _resumeDraftKey;
       _resumeDraftKey = null;
+      final resumeConversation = _draftKeys.entries
+          .where((e) => e.value == resume && _summaryIds.contains(e.key))
+          .firstOrNull
+          ?.key;
       if (resume != null &&
-          (drafts.containsKey(resume) ||
-              _pendingSubmissions.containsKey(resume))) {
-        final id = _draftKeys.entries
-            .where((e) => e.value == resume && _summaryIds.contains(e.key))
-            .firstOrNull
-            ?.key;
-        if (id != null || _summaryIds.contains(resume)) {
-          activeId = id ?? resume;
+          (_pendingSubmissions.containsKey(resume) ||
+              (resume.startsWith('new:') &&
+                  resumeConversation == null &&
+                  drafts.containsKey(resume)))) {
+        if (resumeConversation != null || _summaryIds.contains(resume)) {
+          activeId = resumeConversation ?? resume;
           _requestedConversation = activeId;
           await _bridge.openConversation(activeId);
-        } else if (resume.startsWith('new:')) {
+        } else if (resume.startsWith('new:') && hostConversationId != null) {
           activeId = '';
           _requestedConversation = '';
           final created = await _bridge.createConversation();
@@ -432,6 +437,7 @@ class MaeveController extends ChangeNotifier {
         notifyListeners();
         return;
       }
+      if (initial) _rotateUsedFreshDraft();
       final current = hostConversationId;
       final desired = _requestedConversation;
       if (desired != null &&
@@ -441,11 +447,8 @@ class MaeveController extends ChangeNotifier {
         await _bridge.openConversation(desired);
       } else if (desired == '') {
         activeId = '';
-      } else if (current != null && conversations.any((c) => c.id == current)) {
-        activeId = current;
-      } else if (conversations.isNotEmpty) {
-        activeId = conversations.first.id;
-        await _bridge.openConversation(activeId);
+      } else if (initial && current != null && !generating) {
+        create();
       }
       notifyListeners();
     } catch (_) {
@@ -492,6 +495,7 @@ class MaeveController extends ChangeNotifier {
     final previous = {
       for (final conversation in conversations) conversation.id: conversation,
     };
+    final wasSaved = _summaryIds.contains(activeId);
     _summaryIds = items.map((item) => item['id'] as String).toSet();
     final next = items.map((item) {
       final id = item['id'] as String;
@@ -510,13 +514,15 @@ class MaeveController extends ChangeNotifier {
     if (attached != null &&
         attached.id == activeId &&
         !_summaryIds.contains(attached.id) &&
-        attached.messages.isNotEmpty) {
+        (attached.messages.isNotEmpty || _draftKeys.containsKey(attached.id))) {
       next.insert(0, attached);
     }
     conversations
       ..clear()
       ..addAll(next);
-    if (activeId.isNotEmpty && conversations.every((c) => c.id != activeId)) {
+    if (wasSaved &&
+        activeId.isNotEmpty &&
+        conversations.every((c) => c.id != activeId)) {
       // 当前对话被删了:落到还剩的第一个
       activeId = conversations.isNotEmpty ? conversations.first.id : '';
     }
@@ -697,6 +703,8 @@ class MaeveController extends ChangeNotifier {
   List<Conversation> get visibleConversations {
     final query = search.trim().toLowerCase();
     var items = conversations.where((conversation) {
+      if (!_summaryIds.contains(conversation.id) && conversation.isEmpty)
+        return false;
       if (listFilter == 1 && !conversation.pinned) return false;
       if (query.isEmpty) return true;
       return conversation.title.toLowerCase().contains(query);
@@ -796,11 +804,23 @@ class MaeveController extends ChangeNotifier {
 
   /// 新对话:宿主切到新状态(还没说话就没有 id),壳进入空态;第一句话发出去时
   /// 宿主才建档,conversations 事件随之带来真实列表。
+  void _rotateUsedFreshDraft() {
+    if (_draftKeys.entries.any(
+      (e) =>
+          e.value == _freshDraftKey &&
+          (_summaryIds.contains(e.key) || !_find(e.key).isEmpty),
+    )) {
+      _draftGeneration++;
+    }
+  }
+
   void create() {
+    if (!generating && active.isEmpty && !_summaryIds.contains(activeId))
+      return;
     final generation = ++_navigationGeneration;
     chatError = null;
-    _draftGeneration++;
-    final key = 'new:$_draftGeneration';
+    _rotateUsedFreshDraft();
+    final key = _freshDraftKey;
     _requestedConversation = '';
     _acceptNewConversation = false;
     activeId = '';
@@ -812,6 +832,8 @@ class MaeveController extends ChangeNotifier {
         _requestedConversation = id;
         hostConversationId = id;
         activeId = id;
+      } else {
+        hostConversationId = null;
       }
       notifyListeners();
     });

@@ -360,6 +360,8 @@ void main() {
       ],
     );
     await pumpApp(tester, controller: MaeveController(bridge: bridge));
+    expect(bridge.opened, isEmpty);
+    expect(find.text('下一幕，\n由你决定。'), findsOneWidget);
     await tester.tap(find.byTooltip('打开对话列表'));
     await tester.pumpAndSettle();
 
@@ -391,7 +393,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('new-conversation')));
     await tester.pumpAndSettle();
-    // 新对话转发给宿主;宿主还没给出 id,壳回到空态(标题回落成 App 名)。
+    expect(bridge.newCalls, 0);
+    await tester.tap(find.byTooltip('打开对话列表'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('搭一个安静的工作台'));
+    await tester.pumpAndSettle();
+    expect(bridge.opened, ['c2']);
+    await tester.tap(find.byTooltip('新对话'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('新对话'));
+    await tester.pumpAndSettle();
     expect(bridge.newCalls, 1);
     expect(find.text('搭一个安静的工作台'), findsNothing);
     expect(find.text('下一幕，\n由你决定。'), findsOneWidget);
