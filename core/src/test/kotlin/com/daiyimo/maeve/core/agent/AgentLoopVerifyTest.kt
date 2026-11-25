@@ -14,6 +14,7 @@ import com.daiyimo.maeve.core.record.LocalReview
 import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.core.record.RunSink
 import com.daiyimo.maeve.core.uistate.ActionResult
+import com.daiyimo.maeve.core.uistate.ScreenPort
 import com.daiyimo.maeve.core.testing.answerReply
 import com.daiyimo.maeve.core.tool.FakeScreen
 import com.daiyimo.maeve.core.verify.Verifier
@@ -193,6 +194,71 @@ class AgentLoopVerifyTest {
         assertEquals(LocalReview.Status.Insufficient, wrongField.status)
         assertEquals(LocalReview.Status.Partial, review("页面有「订单数量」。余额 128 元").status)
         assertEquals(LocalReview.Status.Verified, review("订单数量 128").status)
+    }
+
+    private suspend fun localReview(screen: ScreenPort, answer: String): LocalReview {
+        val sink = ListSink()
+        AgentLoop(FakeModel(observe(), text(answer)), toolDispatcher(screen), "BASE", sink = sink,
+            reviewFinalAnswer = false, localAnswerReview = true).run("查看页面")
+        return sink.events.filterIsInstance<RunEvent.LocalReviewCompleted>().single().review
+    }
+
+    @Test fun productLocalReviewVerifiesExplicitScreenState() = runTest {
+        val base = FakeScreen()
+        val screen = object : com.daiyimo.maeve.core.uistate.ScreenPort by base {
+            override suspend fun snapshot(): com.daiyimo.maeve.core.uistate.ScreenSnapshot =
+                base.snapshot().let { s -> s.copy(elements = s.elements.map { it.copy(name = "WLAN 已开启") }) }
+        }
+        val review = localReview(screen, "已开启 WLAN")
+        assertEquals(LocalReview.Status.Verified, review.status)
+        assertEquals(LocalReview.Coverage(1, 1), review.claims)
+        assertNull(review.limit)
+    }
+
+    @Test fun productLocalReviewBindsValueToFieldDespiteHarmlessLeadIn() = runTest {
+        val base = FakeScreen()
+        val screen = object : com.daiyimo.maeve.core.uistate.ScreenPort by base {
+            override suspend fun snapshot(): com.daiyimo.maeve.core.uistate.ScreenSnapshot =
+                base.snapshot().let { s -> s.copy(elements = s.elements.map { it.copy(name = "电量 86%") }) }
+        }
+        val review = localReview(screen, "当前电量 86%")
+        assertEquals(LocalReview.Status.Verified, review.status)
+        assertEquals(LocalReview.Coverage(1, 1), review.claims)
+        assertNull(review.limit)
+    }
+
+    @Test fun productLocalReviewAcceptsAPostActionReceiptButStillRequiresItsTarget() = runTest {
+        suspend fun review(targetOnScreen: Boolean): LocalReview {
+            val base = FakeScreen()
+            val label = if (targetOnScreen) "张三 支付成功" else "支付成功"
+            val screen = object : com.daiyimo.maeve.core.uistate.ScreenPort by base {
+                override suspend fun snapshot(): com.daiyimo.maeve.core.uistate.ScreenSnapshot =
+                    base.snapshot().let { s -> s.copy(elements = s.elements.map { it.copy(name = label) }) }
+            }
+            val answer = "已向张三付款"
+            val main = FakeModel(
+                tools(call("hand_to_user", """{"reason":"payment","message":"请付款"}""")),
+                observe(),
+                text(answer),
+            )
+            val sink = ListSink()
+            val loop = AgentLoop(main, toolDispatcher(screen), "BASE", sink = sink,
+                reviewFinalAnswer = false, localAnswerReview = true)
+            val run = async { loop.run("请付款") }
+            advanceUntilIdle()
+            loop.resumeAfterTakeover(AgentLoop.USER_FINISHED_NOTE)
+            assertTrue(run.await() is TaskState.Succeeded)
+            return sink.events.filterIsInstance<RunEvent.LocalReviewCompleted>().single().review
+        }
+
+        val receipt = review(targetOnScreen = true)
+        assertEquals(LocalReview.Status.Verified, receipt.status)
+        assertEquals(LocalReview.Coverage(1, 1), receipt.claims)
+        assertNull(receipt.limit)
+
+        val missingTarget = review(targetOnScreen = false)
+        assertEquals(LocalReview.Status.Insufficient, missingTarget.status)
+        assertEquals(LocalReview.Limit.NoReceipt, missingTarget.limit)
     }
 
     // 报了失败的动作什么也没改成:回答前不为它要求再读一遍

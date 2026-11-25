@@ -80,6 +80,15 @@ class StructuredEvidenceTest {
         assertEquals(1, StructuredEvidence.check("1. **战地医疗箱** - 可用余额：5,445", listOf(screen)).matched)
     }
 
+    @Test fun itemCodeToleratesOcrLetterODigitZeroButNotAnotherCode() {
+        val screen = read(region("HO9 防暴头盔", 40, 140, 300), region("19,196", 700, 140))
+        val good = StructuredEvidence.check("1. **H09 防暴头盔** — 19,196", listOf(screen))
+        assertEquals(2, good.total)
+        assertEquals(2, good.matched)
+        assertFalse(good.unbound)
+        assertEquals(0, StructuredEvidence.check("1. **H08 防暴头盔** — 19,196", listOf(screen)).matched)
+    }
+
     @Test fun ledgerKeepsCoordinatesForActualReadTextButNotInputEcho() {
         val input = region("输入的账号", 40, 100)
         val title = region("搜索结果标题", 40, 150)

@@ -11,6 +11,7 @@ import com.daiyimo.maeve.core.verify.AnswerSource
 import com.daiyimo.maeve.core.verify.AnswerSources
 import com.daiyimo.maeve.core.verify.Criteria
 import com.daiyimo.maeve.core.verify.Grounding
+import com.daiyimo.maeve.core.verify.StateEvidence
 import com.daiyimo.maeve.core.verify.StructuredEvidence
 import com.daiyimo.maeve.core.verify.Verdict
 import com.daiyimo.maeve.core.verify.Verification
@@ -60,18 +61,24 @@ internal class AnswerReview(
         val reads = read.ledger.localReviewReads()
         val texts = reads.map { it.text }
         val structured = StructuredEvidence.check(answer, reads)
+        val states = StateEvidence.check(answer, reads)
         val grounding = Grounding.check(goal, structured.prose, texts, read.today, requireValueContext = true)
-        val total = structured.total + grounding.claims.size
-        val matched = structured.matched + grounding.claims.size - grounding.unmatched.size - grounding.unboundValues.size
+        val total = structured.total + grounding.claims.size + states.total
+        val matched = structured.matched + grounding.claims.size - grounding.unmatched.size - grounding.unboundValues.size + states.matched
         val details = targets?.reviewCoverage(answer)
         val claims = total.takeIf { it > 0 }?.let { Coverage(matched, it) }
         val noResultRead = facts.changeMark?.let { mark -> reads.none { it.id > mark } } == true
+        // 对外动作不再一律「缺少凭证」:最后改动之后实读到「已发送/已提交」等结果,且回答里的对外状态全部对上,就算读到回执。
+        val afterChange = facts.changeMark?.let { mark -> reads.filter { it.id > mark } } ?: reads
+        val outwardReceipt = facts.outward && StateEvidence.check(answer, afterChange).let { s ->
+            s.outwardTotal > 0 && s.outwardMatched == s.outwardTotal
+        }
         val limit = when {
-            facts.outward -> Limit.NoReceipt
+            facts.outward && !outwardReceipt -> Limit.NoReceipt
             noResultRead -> Limit.UnreadChange
             texts.isEmpty() && (details?.matched ?: 0) == 0 -> Limit.NoEvidence
             Grounding.builtOnTruncated(answer, texts) -> Limit.Truncated
-            structured.unbound || grounding.unboundValues.isNotEmpty() -> Limit.Unanchored
+            structured.unbound || grounding.unboundValues.isNotEmpty() || states.unbound -> Limit.Unanchored
             details == null && claims == null -> Limit.NoCheckableClaims
             else -> null
         }
@@ -82,7 +89,7 @@ internal class AnswerReview(
             hasSupport -> Status.Partial
             else -> Status.Insufficient
         }
-        val missing = structured.missing.take(3).map { Redactor.evidence(it).take(100) }
+        val missing = (structured.missing + states.missing).distinct().take(3).map { Redactor.evidence(it).take(100) }
         return sources to LocalReview(status, details, claims, limit, missing)
     }
 

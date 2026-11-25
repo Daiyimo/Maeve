@@ -140,7 +140,7 @@ internal object StructuredEvidence {
     /** 有明确截断标记时可用足够长的标题前缀定位该行，完整标题仍待核实。 */
     private fun anchor(key: String, raw: String): Pair<IntRange, Boolean>? {
         val positions = raw.indices.filter { raw[it].isLetterOrDigit() }
-        val compact = positions.joinToString("") { raw[it].lowercaseChar().toString() }
+        val compact = normalized(raw)
         val start = compact.indexOf(key)
         if (start >= 0 && (key.length >= 4 || compact == key)) {
             return (positions[start]..positions[start + key.lastIndex]) to true
@@ -246,7 +246,15 @@ internal object StructuredEvidence {
     private fun canon(text: String) = Normalizer.normalize(Grounding.stripRefs(text), Normalizer.Form.NFKC)
         .replace("**", "").replace("__", "").replace("`", "")
 
-    private fun normalized(text: String) = canon(text).filter(Char::isLetterOrDigit).lowercase()
+    private val TOKEN = Regex("[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*")
+
+    private fun normalized(text: String): String {
+        val keyed = TOKEN.replace(canon(text).lowercase()) { m ->
+            val token = m.value
+            if (token.any(Char::isLetter) && token.any(Char::isDigit)) Grounding.tokenKey(token) else token
+        }
+        return keyed.filter(Char::isLetterOrDigit)
+    }
 
     private val ALIGN = Regex(":?-{2,}:?")
     private val RANK = Regex("排名|位次|名次|序号|rank|no")

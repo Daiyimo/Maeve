@@ -143,6 +143,30 @@ internal object Grounding {
 
     private fun norm(s: String) = s.filter { it.isLetterOrDigit() }
 
+    /** 字段绑定只去掉叙述词和单位,「电量」「余额」「最高气温」这类名称保留。 */
+    private val LABEL_NOISE = listOf(
+        "当前", "现在", "目前", "页面", "屏上", "显示", "约为", "约", "已经", "仍然", "实际", "总共", "一共", "分别", "值为", "是", "为", "的", "和", "与", "及", "或",
+    )
+    private val LABEL_UNITS = listOf("元", "块", "角", "%", "℃", "°", "公里", "千米", "米", "小时", "分钟", "秒", "万", "亿")
+
+    private fun labelKey(text: String, claims: List<Claim>): String {
+        var label = QUOTED.replace(LIST_MARK.replace(text, ""), " ")
+        claims.forEach { c -> label = label.replace(c.text, " ").replace(c.text.replace(",", ""), " ") }
+        val key = norm(label).lowercase().replace("android", "安卓").replace("wifi", "wlan").replace("无线局域网", "wlan")
+        val words = LABEL_NOISE.fold(key) { s, word -> s.replace(word, "") }
+        return LABEL_UNITS.fold(words) { s, unit -> s.removeSuffix(unit) }
+    }
+
+    private fun claimOnLine(c: Claim, line: Line, derived: Set<String>): Boolean = when (c.kind) {
+        Kind.Quote -> false
+        Kind.Number -> c.text in derived || numbers(c.text).firstOrNull()?.let { n -> line.nums.any(n::matches) } == true
+        Kind.Date -> components(c.text).let { v ->
+            v.isNotEmpty() && line.digits.windowed(v.size).any { it == v } ||
+                components(c.text).drop(1).let { v -> v.size == 2 && line.digits.windowed(2).any { it == v } }
+        }
+        Kind.Token -> tokenKey(c.text) in line.tokens
+    }
+
     // 空引号(JSON 里的 ""、「」)没有可核对的原文:跳过,不能让整个任务因此异常中断
     private fun quotes(s: String) = QUOTED.findAll(s).mapNotNull { m -> m.groupValues.drop(1).firstOrNull { it.isNotEmpty() } }.toList()
 
@@ -203,7 +227,7 @@ internal object Grounding {
                     Kind.Number -> numbers(c.text).firstOrNull()?.let { n -> line.nums.any(n::matches) } == true
                     Kind.Date -> components(c.text).let { v -> v.isNotEmpty() && line.digits.windowed(v.size).any { it == v } } ||
                         components(c.text).drop(1).let { v -> v.size == 2 && line.digits.windowed(2).any { it == v } }
-                    Kind.Token -> c.text.lowercase() in line.tokens
+                    Kind.Token -> tokenKey(c.text) in line.tokens
                 }
             }
         }.toSet()
@@ -221,27 +245,27 @@ internal object Grounding {
 
     private class Line(val text: String, val nums: List<Num>, val digits: List<String>, val tokens: Set<String>)
 
-    private val ALNUM_RUN = Regex("[A-Za-z0-9]+")
+    private val ID_TOKEN = Regex("[A-Za-z0-9]+(?:[._-][A-Za-z0-9]+)*")
 
-    /** 一行里的英文字母数字串(比编号用,不分大小写)。 */
-    private fun alnumRuns(s: String) = ALNUM_RUN.findAll(s).map { it.value.lowercase() }.toSet()
+    /** 短型号只容最常见的 OCR O/0 混淆,不把普通单词也折叠。 */
+    internal fun tokenKey(token: String): String = token.lowercase().replace('o', '0')
+
+    /** 一行里字母和数字混写的编号;小数点、下划线、连字符属于同一个编号。 */
+    private fun alnumRuns(s: String) = ID_TOKEN.findAll(s)
+        .filter { it.value.any(Char::isLetter) && it.value.any(Char::isDigit) }
+        .map { tokenKey(it.value) }.toSet()
 
     /**
-     * [s] 里夹在英文字母里的编号(数不是完整的词,见 [wholeToken]),和把它们换成等长空白后的文字:
-     * 编号整个当一个值核对,里面的数字不再当数。
+     * [s] 里字母和数字混写的编号,和把它们换成等长空白后的文字:
+     * 编号整个当一个值核对,里面的数字不再当数,也不会因小数点切出重叠片段。
      */
     private fun idTokens(s: String): Pair<List<String>, String> {
-        val ids = NUMBER.findAll(s).filterNot { m -> wholeToken(s, m.range.first, m.range.first + m.value.length - m.groupValues[1].length) }
-            .mapNotNull { m ->
-                var a = m.range.first
-                var b = m.range.last + 1
-                while (a > 0 && s[a - 1].isAsciiAlnum()) a--
-                while (b < s.length && s[b].isAsciiAlnum()) b++
-                a until b
-            }.distinct().toList()
+        val ids = ID_TOKEN.findAll(s)
+            .filter { it.value.any(Char::isLetter) && it.value.any(Char::isDigit) }
+            .toList()
         var t = s
-        ids.forEach { r -> t = t.replaceRange(r, " ".repeat(r.last - r.first + 1)) }
-        return ids.map { s.substring(it) } to t
+        ids.asReversed().forEach { r -> t = t.replaceRange(r.range, " ".repeat(r.value.length)) }
+        return ids.map { it.value }.distinct() to t
     }
 
     private fun lines(screens: List<String>) = screens.flatMap { canon(it).lines() }
@@ -484,19 +508,20 @@ internal object Grounding {
             Kind.Quote -> quoteFound(c.text)
             Kind.Number -> numbers(c.text).firstOrNull()?.let(::numOnScreen) ?: false
             Kind.Date -> dateOnScreen(c.text) || c.text in byClock
-            Kind.Token -> ls.any { c.text.lowercase() in it.tokens }
+            Kind.Token -> ls.any { tokenKey(c.text) in it.tokens }
         }
         // 证据里对得上的数(题目里的数不算:题目给的数算出来的结果仍要在屏上读到)
         fun grounded(n: Num) = (n.scaled == null || n.scaled !in goalValues) && numOnScreen(n)
         fun groundedRaw(raw: String) = numbers(raw).firstOrNull()?.let(::grounded) == true
         val known = a.lines().flatMap { numbers(ORDINAL.replace(DATE.replace(it, " "), " ")) }.filter(::grounded).mapNotNull { it.scaled?.toBigDecimalOrNull() }
+        val screenValues = ls.flatMap { it.nums }.mapNotNull { it.scaled?.toBigDecimalOrNull() }.distinct()
         // 写明算式的结果,和明说是约数(约、≈)、按写出的精度取整后等于某个对得上的数的数
         val derivedNums = computed(body, ::groundedRaw) + body.lines().flatMap { line ->
             NUMBER.findAll(line).mapNotNull { m ->
                 val n = num(m)
                 val x = n.scaled?.toBigDecimalOrNull() ?: return@mapNotNull null
                 if (!APPROX_BEFORE.containsMatchIn(line.substring(0, m.range.first))) return@mapNotNull null
-                (n.value + n.magnitude).takeIf { known.any { roundsTo(x, it, approx = true) } }
+                (n.value + n.magnitude).takeIf { (known + screenValues).any { roundsTo(x, it, approx = true) } }
             }.toList()
         }
         val unmatched = claims.filterNot { matched(it) || (it.kind == Kind.Number && it.text in derivedNums) }
@@ -533,11 +558,19 @@ internal object Grounding {
         val items = maxOf(rows.size, okInBody.size) + bare.size
         // 本地报告不能用另一条引文为这些值背书。值和它在答复中的描述须在同一条实读文字里对上。
         val unboundValues = if (requireValueContext) {
-            val bound = bodyLines.flatMap { it.split('。', '；', '！', '？', '!', '?', ';', '，') }.flatMap { statement ->
+            val bound = mutableSetOf<Claim>()
+            bodyLines.flatMap { it.split('。', '；', '！', '？', '!', '?', ';', '，', ',') }.forEach { statement ->
                 val text = LIST_MARK.replace(statement, "")
+                val statementClaims = values(text).filter { it.kind != Kind.Quote }
+                if (statementClaims.isEmpty()) return@forEach
                 val phrase = norm(text).lowercase()
-                if (phrase.count(Char::isLetter) >= 2 && ls.any { phrase in it.text.lowercase() }) values(text) else emptyList()
-            }.toSet()
+                val exact = phrase.count(Char::isLetter) >= 2 && ls.any { phrase in it.text.lowercase() }
+                val label = labelKey(text, statementClaims)
+                statementClaims.forEach { c ->
+                    val boundByLabel = label.length >= 2 && ls.any { line -> label in line.text.lowercase() && claimOnLine(c, line, derivedNums) }
+                    if (exact || boundByLabel) bound += c
+                }
+            }
             okClaims.filter { it.kind != Kind.Quote && it !in bound }
         } else emptyList()
         return Result(found, claims, unmatched, anchored = located || claims.size > unmatched.size, located = located, items = items,
