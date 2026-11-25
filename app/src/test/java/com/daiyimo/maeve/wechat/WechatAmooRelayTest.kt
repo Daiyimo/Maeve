@@ -46,17 +46,19 @@ class WechatAmooRelayTest {
         val store = store()
         val relay = WechatAmooRelay({ dir }, store) { true }
         val peer = store.peer("owner")
-        store.journal("1", peer, "问题")
+        store.journal("1", peer, "问题", contextToken = "first-context")
+        store.rememberContext("owner", "new-context")
         relay.forward(peer, "1", "问题")
         val id = WechatAmooRelay.requestId(peer, "1")
         val reply = File(dir, "replies/$id.json")
         WechatAmooRelay.atomic(reply, buildJsonObject {
             put("id", id); put("session", peer.threadId); put("text", "Amoo 的回答")
         }.toString())
-        assertTrue(relay.deliver { _, _ -> SendOutcome.Uncertain })
+        assertTrue(relay.deliver { _, _, _ -> SendOutcome.Uncertain })
         assertEquals(1, store.pending().size)
-        relay.deliver { _, delivery ->
+        relay.deliver { _, delivery, context ->
             assertEquals("Amoo 的回答", (delivery as Delivery.Result).text)
+            assertEquals("first-context", context)
             SendOutcome.Delivered
         }
         assertTrue(store.pending().isEmpty())
@@ -78,9 +80,9 @@ class WechatAmooRelayTest {
         WechatAmooRelay.atomic(File(dir, "replies/$id.json"), buildJsonObject {
             put("id", id); put("session", "old-session"); put("text", "旧回复")
         }.toString())
-        relay.deliver { _, _ -> fail("Wrong session delivered"); SendOutcome.Delivered }
+        relay.deliver { _, _, _ -> fail("Wrong session delivered"); SendOutcome.Delivered }
         store.setEnabled(false)
-        relay.deliver { _, _ -> fail("Disabled channel delivered"); SendOutcome.Delivered }
+        relay.deliver { _, _, _ -> fail("Disabled channel delivered"); SendOutcome.Delivered }
         store.clear()
         relay.syncControl()
         assertFalse(Json.parseToJsonElement(File(dir, "control.json").readText()).jsonObject["enabled"]!!.jsonPrimitive.boolean)

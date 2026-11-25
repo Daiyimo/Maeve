@@ -4,6 +4,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SystemAmooTranscriptTest {
+    @Test fun phoneResultUsesOnlyTheIdAssignedToThisWechatMessage() {
+        val id = wechatPhoneRequestId("abc".repeat(24))
+        assertTrue(id.matches(Regex("[A-Za-z0-9_-]{1,64}")))
+        assertEquals(WechatPhoneResult(running = true), parseWechatPhoneResult(id, """{"id":"$id","status":"running"}"""))
+        assertEquals("签到成功", parseWechatPhoneResult(id, """{"id":"$id","status":"done","answer":"签到成功"}""")?.text)
+        assertEquals("停在登录页", parseWechatPhoneResult(id, """{"id":"$id","status":"failed","note":"停在登录页"}""")?.text)
+        assertNull(parseWechatPhoneResult(id, """{"id":"other","status":"done","answer":"其他任务"}"""))
+    }
+    @Test fun staleGeneratingMarkerDoesNotBlockTheCurrentReply() {
+        val old = listOf("旧问题", "正在生成")
+        assertEquals("本轮答案", SystemAmooTranscript.reply(old + listOf("本轮问题", "本轮答案", "复制"), old, "本轮问题", false))
+    }
+    @Test fun recoveryOnlyReusesTheAnswerForTheSameRequestAndSession() {
+        assertEquals("已完成", recoveredSystemAmooReply("r1", "s1", "r1", "s1", "已完成"))
+        assertNull(recoveredSystemAmooReply("r2", "s1", "r1", "s1", "已完成"))
+        assertNull(recoveredSystemAmooReply("r1", "s2", "r1", "s1", "已完成"))
+    }
     @Test fun waitsForCompletionAndNeverReturnsStreamingText() {
         assertNull(SystemAmooTranscript.reply(listOf("问题", "半句话"), emptyList(), "问题", false))
         assertNull(SystemAmooTranscript.reply(listOf("问题", "半句话", "复制"), emptyList(), "问题", true))

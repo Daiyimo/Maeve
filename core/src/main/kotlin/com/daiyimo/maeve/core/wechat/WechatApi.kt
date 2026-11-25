@@ -129,6 +129,16 @@ data class WechatUpdates(
     val errmsg: String? = null,
     val msgs: List<WechatMessage> = emptyList(),
     @SerialName("get_updates_buf") val cursor: String = "",
+    @Serializable(with = LenientStringSerializer::class)
+    val errcode: String? = null,
+)
+
+@Serializable
+private data class WechatSendAck(
+    val ret: Int = 0,
+    val errmsg: String? = null,
+    @Serializable(with = LenientStringSerializer::class)
+    val errcode: String? = null,
 )
 
 @Serializable
@@ -194,7 +204,7 @@ class WechatApi(
             contextToken = contextToken,
         )
         val body = SendRequest(message, WechatBaseInfo(channelVersion))
-        post(account, "sendmessage", body, SendRequest.serializer(), WechatQrStart.serializer())
+        post(account, "sendmessage", body, SendRequest.serializer(), WechatSendAck.serializer())
     }
 
     private fun <T, R> post(
@@ -222,17 +232,22 @@ class WechatApi(
             val code = when (result) {
                 is WechatQrStart -> result.ret
                 is WechatQrStatus -> result.ret
-                is WechatUpdates -> result.ret
+                is WechatUpdates -> serviceCode(result.ret, result.errcode)
+                is WechatSendAck -> serviceCode(result.ret, result.errcode)
                 else -> 0
             }
             if (code != 0) {
                 val detail = (result as? WechatQrStart)?.errmsg
                     ?: (result as? WechatQrStatus)?.errmsg
                     ?: (result as? WechatUpdates)?.errmsg
+                    ?: (result as? WechatSendAck)?.errmsg
                 throw WechatApiException(code, detail ?: "WeChat API error $code")
             }
             result
         }
+
+    private fun serviceCode(ret: Int, errcode: String?): Int = if (ret != 0) ret
+        else errcode?.toIntOrNull() ?: if (errcode.isNullOrBlank()) 0 else -1
 
     private fun endpoint(base: String, path: String) =
         base.trimEnd('/').toHttpUrl().newBuilder().addPathSegments("ilink/bot/$path").build()

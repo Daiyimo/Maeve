@@ -153,7 +153,7 @@ class SettingsHubPage extends StatelessWidget {
             ),
             SettingsTile(
               icon: Icons.link_rounded,
-              title: 'Amoo',
+              title: '连接更多',
               subtitle: '接入 Amoo、微信对话与手机任务',
               onTap: () => AppPage.open(context, const AmooPage()),
             ),

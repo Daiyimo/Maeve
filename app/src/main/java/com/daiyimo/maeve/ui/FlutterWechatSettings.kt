@@ -67,7 +67,8 @@ internal class FlutterWechatSettings(private val app: MaeveApp, private val scop
                 "background" to runtime.systemAmoo.background,
                 "backgroundReady" to runtime.systemAmoo.backgroundReady,
                 "amooActive" to runtime.systemAmoo.active,
-                "relayError" to runtime.systemAmoo.lastError,
+                "relayError" to (runtime.systemAmoo.lastError ?: if (runtime.waitingToDeliver)
+                    "Amoo 已生成回复，正在等待微信确认投递。Maeve 会自动重试。" else null),
                 "loggingIn" to loginActive, "qrPng" to image, "error" to loginError,
                 "state" to when (runtime.state.value) {
                     WechatConnectionState.Connected -> "connected"

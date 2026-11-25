@@ -19,6 +19,7 @@ import java.io.File
 class SystemAmooWechatBridge(private val app: MaeveApp, private val store: WechatStore, val directory: File) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var worker: Job? = null
+    private var previousWorker: Job? = null
     private val requestReady = Channel<Unit>(Channel.CONFLATED)
     fun notifyRequestReady() { requestReady.trySend(Unit) }
     @Volatile var active = false
@@ -119,12 +120,16 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
     @Synchronized fun start() {
         if (worker?.isActive == true) return
         worker = scope.launch {
+            previousWorker?.join()
             // 只在新进程/新监听启动时恢复已认领消息，不重放可能已经发出的内容。
             withContext(Dispatchers.IO) {
                 File(directory, "requests").listFiles()?.filter { it.extension == "working" }?.forEach { file ->
                     read(file)?.let { request ->
                         if (!File(directory, "replies/${request.id}.json").exists()) {
-                            reply(request, "上次系统 Amoo 对话在中途停止，结果尚未确认。请先在 Amoo 检查，再决定是否重试。")
+                            val saved = recoveredSystemAmooReply(request.id, request.session,
+                                prefs.getString("lastReplyRequest", null), prefs.getString("session", null), prefs.getString("lastReply", null))
+                            reply(request, saved ?: recoverPhoneResult(request)
+                                ?: "上次系统 Amoo 对话在中途停止，结果尚未确认。请先在 Amoo 检查，再决定是否重试。")
                         }
                     }
                 }
@@ -161,7 +166,12 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
         }
     }
 
-    @Synchronized fun stop() { worker?.cancel(); worker = null; active = false; closeBackground() }
+    @Synchronized fun stop() {
+        worker?.let { it.cancel(); previousWorker = it }
+        worker = null
+        active = false
+        closeBackground()
+    }
 
     /**
      * 微信侧的 /new:在 Amoo 里开一个新会话,并忘掉本机记住的会话标记——下一条消息起都进新会话。
@@ -216,7 +226,7 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
      * 连上之后从新会话开始,不接着旧的聊。
      */
     fun resetSessionMarkers() {
-        prefs.edit().remove("session").remove("lastMessage").remove("lastReply").apply()
+        prefs.edit().remove("session").remove("lastMessage").remove("lastReply").remove("lastReplyRequest").apply()
     }
 
     private suspend fun chat(request: Request): String {        if (background && !backgroundReady) throw AmooUiException("手机助手未连接，后台接入不会自动切到前台。请先连接手机助手。")
@@ -228,7 +238,7 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
         var prepared = false
         val allow = FeatureFlags.get(app).bridgeAmoo()
         app.wechat.syncControl()
-        val message = systemAmooMessage(request.text, app.packageName, allow)
+        val message = systemAmooMessage(request.text, app.packageName, allow, wechatPhoneRequestId(request.id))
         var baseline = emptyList<String>()
         while (SystemClock.uptimeMillis() < readyAt && !prepared) {
             withRoot { root ->
@@ -274,24 +284,39 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
         // 流式回复:提取到的文本要连续两拍不变才算数,否则会把半截(按钮已出现、文字还在长)当成答案
         var lastSeen: String? = null
         var stableSince = 0L
+        var nextReceipt = 0L
+        var nativeFinishedAt: Long? = null
+        var receipt: WechatPhoneResult? = null
+        suspend fun finish(answer: String): String {
+            withContext(Dispatchers.IO) {
+                prefs.edit().putString("lastReply", answer).putString("lastReplyRequest", request.id).commit()
+            }
+            return answer
+        }
         while (SystemClock.uptimeMillis() < deadline) {
             var response: String? = null
             withRoot { root ->
                 response = SystemAmooTranscript.reply(chatTexts(root), baseline, message, isBusy(root))
             }
             val now = SystemClock.uptimeMillis()
+            if (allow && now >= nextReceipt) {
+                nextReceipt = now + 500
+                receipt = withContext(Dispatchers.IO) { phoneResult(request) } ?: receipt
+                if (receipt?.text != null && nativeFinishedAt == null) nativeFinishedAt = now
+            }
             val answer = response
             if (answer != null && answer == lastSeen) {
-                if (now - stableSince >= REPLY_STABLE_MS) {
-                    prefs.edit().putString("lastReply", answer).putString("lastReplyRequest", request.id).apply()
-                    return answer
-                }
+                if (now - stableSince >= REPLY_STABLE_MS && receipt?.running != true) return finish(receipt?.text ?: answer)
             } else {
                 lastSeen = answer
                 stableSince = now
             }
+            val finishedAt = nativeFinishedAt
+            val nativeText = receipt?.text
+            if (finishedAt != null && nativeText != null && now - finishedAt >= PHONE_REPLY_GRACE_MS) return finish(nativeText)
             delay(150)
         }
+        receipt?.text?.let { return finish(it) }
         throw AmooUiException("系统 Amoo 暂未完成回复。请打开 Amoo 对话查看；任务可能仍在运行，请核实后再重试。")
     }
 
@@ -336,12 +361,32 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
         } finally { list.recycle() }
     }
 
-    private data class Request(val id: String, val session: String, val text: String, val sequence: Long)
+    private data class Request(val id: String, val session: String, val text: String, val sequence: Long, val createdAt: Long)
     private fun read(file: File): Request? = runCatching {
         val value = Json.parseToJsonElement(file.readText()).jsonObject
         Request(value.getValue("id").jsonPrimitive.content, value.getValue("session").jsonPrimitive.content,
-            value.getValue("text").jsonPrimitive.content, value["sequence"]?.jsonPrimitive?.longOrNull ?: 0)
+            value.getValue("text").jsonPrimitive.content, value["sequence"]?.jsonPrimitive?.longOrNull ?: 0,
+            value["createdAt"]?.jsonPrimitive?.longOrNull ?: file.lastModified())
     }.getOrNull()
+
+    private fun phoneResult(request: Request): WechatPhoneResult? {
+        val id = wechatPhoneRequestId(request.id)
+        val root = app.externalMediaDirs.firstOrNull() ?: return null
+        val result = File(root, "amoo/out/$id.json")
+        if (!result.isFile || result.length() > 64 * 1024) return null
+        return runCatching { parseWechatPhoneResult(id, result.readText()) }.getOrNull()
+    }
+
+    private suspend fun recoverPhoneResult(request: Request): String? {
+        var result = phoneResult(request) ?: return null
+        val deadline = request.createdAt + WechatAmooRelay.REPLY_TIMEOUT_MS
+        while (result.running && System.currentTimeMillis() < deadline) {
+            delay(500)
+            result = phoneResult(request) ?: result
+        }
+        return result.text
+    }
+
     private fun reply(request: Request, text: String) {
         WechatAmooRelay.atomic(File(directory, "replies/${request.id}.json"), buildJsonObject {
             put("id", request.id); put("session", request.session); put("text", text)
@@ -360,18 +405,40 @@ class SystemAmooWechatBridge(private val app: MaeveApp, private val store: Wecha
 
         /** 提取到的回复文本连续这么久不变才当成最终答案(流式输出别抓半截)。 */
         private const val REPLY_STABLE_MS = 600L
+        private const val PHONE_REPLY_GRACE_MS = 2_500L
+    }
+}
+
+internal fun recoveredSystemAmooReply(id: String, session: String, savedId: String?, savedSession: String?, text: String?): String? =
+    text?.takeIf { id == savedId && session == savedSession && it.isNotBlank() }
+
+internal fun wechatPhoneRequestId(id: String): String = "wx-${id.take(56)}"
+
+internal data class WechatPhoneResult(val running: Boolean, val text: String? = null)
+
+internal fun parseWechatPhoneResult(expectedId: String, raw: String): WechatPhoneResult? {
+    val json = runCatching { Json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return null
+    fun text(key: String) = (json[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+    if (text("id") != expectedId) return null
+    return when (text("status")) {
+        "running" -> WechatPhoneResult(running = true)
+        "done" -> WechatPhoneResult(false, text("answer") ?: text("note") ?: "Maeve 已完成任务。")
+        "failed" -> WechatPhoneResult(false, text("note") ?: "Maeve 未能完成任务。")
+        "cancelled" -> WechatPhoneResult(false, text("note") ?: "Maeve 任务已取消。")
+        else -> null
     }
 }
 
 /** 只转发本轮完成后的实际答复，不用提示词伪装系统助手身份。 */
 internal object SystemAmooTranscript {
     fun reply(current: List<String>, baseline: List<String>, message: String, busy: Boolean): String? {
-        if (busy || current.any { it.matches(Regex("正在(思考|生成)[.。…]*")) }) return null
+        if (busy) return null
         val own = current.indexOfLast { it == message }
         val fresh = if (own >= 0) current.drop(own + 1) else {
             val counts = baseline.groupingBy { it }.eachCount().toMutableMap()
             current.filter { value -> val n = counts[value] ?: 0; if (n > 0) { counts[value] = n - 1; false } else true }
         }
+        if (fresh.any { it.matches(Regex("正在(思考|生成)[.。…]*")) }) return null
         if (fresh.none { it.startsWith("已完成") || it == "复制" || it == "重新生成" }) return null
         val answer = fresh.filterNot { it == message || it.startsWith("已完成") || it in setOf("复制", "重新生成", "点赞", "点踩") }
             .filterNot { it.isBlank() || it.matches(Regex("\\d+(s|秒|min|分钟)")) }

@@ -89,6 +89,8 @@ class WechatRuntime(
     private var registration: AutoCloseable? = null
     private var monitor: Job? = null
     private var delivery: Job? = null
+    @Volatile var waitingToDeliver = false
+        private set
     private val replyReady = Channel<Unit>(Channel.CONFLATED)
     fun notifyReplyReady() { replyReady.trySend(Unit) }
     private val network = WechatNetwork(context) { restartMonitor() }
@@ -130,10 +132,14 @@ class WechatRuntime(
         if (delivery?.isActive != true) delivery = scope.launch {
             while (currentCoroutineContext().isActive && store.enabled()) {
                 try {
-                    val retry = relay.deliver(channel::send)
+                    val retry = relay.deliver(channel::sendReply)
+                    waitingToDeliver = retry
                     if (retry) delay(3_000) else withTimeoutOrNull(500) { replyReady.receive() }
                 } catch (e: CancellationException) { throw e }
-                catch (_: Exception) { delay(3_000) }
+                catch (e: Exception) {
+                    Log.w(TAG, "WeChat reply delivery paused: ${e::class.simpleName}")
+                    delay(3_000)
+                }
             }
         }
         if (monitor?.isActive != true) {
@@ -148,6 +154,7 @@ class WechatRuntime(
         monitor = null
         delivery?.cancel()
         delivery = null
+        waitingToDeliver = false
         systemAmoo.stop()
         registration?.close()
         registration = null
@@ -155,8 +162,9 @@ class WechatRuntime(
         _state.value = if (store.account() == null) WechatConnectionState.NeedsBinding else WechatConnectionState.Off
     }
 
-    fun ensureRunning() {
+    @Synchronized fun ensureRunning() {
         if (!store.enabled() || store.account() == null) return
+        if (monitor?.isActive == true && delivery?.isActive == true) return
         _state.value = WechatConnectionState.Connecting
         runCatching { context.startForegroundService(Intent(context, WechatService::class.java)) }
             .onFailure { _state.value = WechatConnectionState.Failed(it.message ?: it::class.simpleName.orEmpty()) }

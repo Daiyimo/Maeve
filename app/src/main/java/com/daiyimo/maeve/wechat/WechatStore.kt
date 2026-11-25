@@ -10,7 +10,8 @@ import java.io.FileOutputStream
 import java.util.UUID
 
 @Serializable
-data class PendingWechatMessage(val messageId: String, val peer: ChannelPeer, val text: String, val sequence: Long = 0)
+data class PendingWechatMessage(val messageId: String, val peer: ChannelPeer, val text: String, val sequence: Long = 0,
+    val contextToken: String? = null)
 
 @Serializable
 private data class WechatState(
@@ -66,9 +67,9 @@ class WechatStore(private val dir: File, private val cipher: KeyCipher) {
     }
 
     /** 同一消息只入站一次；未确认的会在下次启动由 [pending] 补交。 */
-    @Synchronized fun journal(messageId: String, peer: ChannelPeer, text: String): Boolean {
+    @Synchronized fun journal(messageId: String, peer: ChannelPeer, text: String, contextToken: String? = null): Boolean {
         if (messageId in state.completed || state.pending.any { it.messageId == messageId }) return false
-        state = state.copy(pending = state.pending + PendingWechatMessage(messageId, peer, text, state.nextSequence),
+        state = state.copy(pending = state.pending + PendingWechatMessage(messageId, peer, text, state.nextSequence, contextToken),
             nextSequence = state.nextSequence + 1)
         saveState()
         return true

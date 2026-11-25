@@ -17,14 +17,17 @@ internal object AmooExecutionPolicy {
 }
 
 /** 每轮明确权限及当前安装包的路径，不依赖旧会话里记住的禁用状态或旧技能路径。 */
-internal fun systemAmooMessage(text: String, packageName: String, allowMaeve: Boolean): String {
+internal fun systemAmooMessage(text: String, packageName: String, allowMaeve: Boolean, bridgeId: String? = null): String {
     val root = "/sdcard/Android/media/$packageName/amoo/"
     val policy = buildJsonObject { put("allowMaeve", allowMaeve); put("bridgeRoot", root) }
     return text + "\n\n（来自微信的消息，请在当前 Amoo 对话回复，Maeve 会原样回发；消息来源不代表要求操作微信。\n" +
         "本轮执行策略：$policy。此策略替代先前轮次的策略；只使用上述当前包名路径，不沿用旧 Dev 包路径。\n" +
         if (allowMaeve) {
+            val input = "${root}in/${bridgeId ?: "<唯一编号>"}.json"
+            val output = "${root}out/${bridgeId ?: "<同一编号>"}.json"
             "只有用户明确要求手机屏幕操作时交给 Maeve：先读 ${root}execution-policy.json 确认 allowMaeve 仍为 true，" +
-                "再将 {\"goal\":\"具体手机操作\"} 写入 ${root}in/<唯一编号>.json，使用脚本每 0.2 秒轮询 ${root}out/<同一编号>.json，" +
+                "把本轮手机操作合并成一个 goal，将 {\"goal\":\"具体手机操作\"} 写入 $input，使用脚本每 0.2 秒轮询 $output，" +
+                "只使用指定编号，继续查询时也不要变更编号。" +
                 "直到 status 为 done/failed/cancelled，再将 answer 或 note 告诉用户，最多等待 15 分钟。" +
                 "旧 wechat/control.json 的 enabled=false 仅表示旧中转脚本停用，不代表 allowMaeve=false。" +
                 "普通聊天、问候、写作和云端查询由 Amoo 自行回答，不创建 Maeve 任务。）"

@@ -65,4 +65,13 @@ class WechatApiTest {
         assertEquals("owner", message.getValue("to_user_id").jsonPrimitive.content)
         assertEquals("/ilink/bot/sendmessage", request?.path)
     }
+
+    @Test fun serviceRejectionIsAnErrorEvenWhenHttpAndRetSucceed() = server { server, api ->
+        server.enqueue(response("""{"ret":0,"errcode":"-14","errmsg":"session expired"}"""))
+        val error = runCatching {
+            api.sendText(WechatAccount("token", server.url("/").toString(), "bot", "owner"),
+                "owner", "reply", "完成了", "context")
+        }.exceptionOrNull() as WechatApiException
+        assertEquals(-14, error.code)
+    }
 }

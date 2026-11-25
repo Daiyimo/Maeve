@@ -288,7 +288,7 @@ void main() {
       final settings = FakeSettingsBridge();
       await mount(tester, settings);
       await open(tester, const SettingsHubPage());
-      await tester.tap(find.text('Amoo'));
+      await tester.tap(find.text('连接更多'));
       await tester.pumpAndSettle();
       expect(find.byType(AmooPage), findsOneWidget);
       expect(settings.amooActions, ['snapshot']);
@@ -452,7 +452,7 @@ void main() {
       await open(tester, const SettingsHubPage());
       expect(find.text('模型配置'), findsOneWidget);
       expect(find.text('test-model'), findsOneWidget);
-      expect(find.text('Amoo'), findsOneWidget);
+      expect(find.text('连接更多'), findsOneWidget);
       for (final label in [
         '本机',
         '余额',

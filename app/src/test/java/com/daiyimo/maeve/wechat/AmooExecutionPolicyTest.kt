@@ -8,6 +8,12 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 class AmooExecutionPolicyTest {
+    @Test fun wechatExecutionUsesItsAssignedFileForBothDirections() {
+        val message = systemAmooMessage("打开设置", "com.example.maeve", true, "wx-test")
+        assertTrue(message.contains("in/wx-test.json"))
+        assertTrue(message.contains("out/wx-test.json"))
+        assertFalse(systemAmooMessage("你好", "com.example.maeve", false, "wx-test").contains("wx-test"))
+    }
     @get:Rule val tmp = TemporaryFolder()
 
     @Test fun switchingBothWaysPublishesPermissionWithoutRestartingTheLegacyWorker() {

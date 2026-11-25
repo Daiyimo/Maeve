@@ -94,7 +94,7 @@ class _AmooPageState extends State<AmooPage> with WidgetsBindingObserver {
         ? null
         : _time(status!.lastResultAt!);
     return AppPage.list(
-      title: 'Amoo',
+      title: '连接更多',
       subtitle: '把手机操作交给 Maeve',
       actions: [
         MaeveGlassButton(

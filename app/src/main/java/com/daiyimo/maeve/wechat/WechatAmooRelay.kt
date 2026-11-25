@@ -45,7 +45,7 @@ class WechatAmooRelay(
         }.toString())
     }
 
-    suspend fun deliver(send: suspend (ChannelPeer, Delivery) -> SendOutcome): Boolean {
+    suspend fun deliver(send: suspend (ChannelPeer, Delivery, String?) -> SendOutcome): Boolean {
         if (!store.enabled()) return false
         val dir = root() ?: return false
         val owner = store.account()?.ownerId ?: return false
@@ -68,7 +68,7 @@ class WechatAmooRelay(
             }
             // 再检查一次账号，避免解绑后将旧会话的内容发给新账号。
             if (!store.enabled() || store.account()?.ownerId != owner || store.peer(owner).threadId != pending.peer.threadId) return false
-            val outcome = send(pending.peer, Delivery.Result("amoo-$id", pending.peer.threadId, response, title = "Amoo 回复"))
+            val outcome = send(pending.peer, Delivery.Result("amoo-$id", pending.peer.threadId, response, title = "Amoo 回复"), pending.contextToken)
             if (outcome == SendOutcome.Delivered) {
                 synchronized(this) {
                     store.acknowledge(pending.messageId)

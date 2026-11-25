@@ -35,7 +35,9 @@ class WechatChannel(
 
     override fun acknowledge(messageId: String) = store.acknowledge(messageId)
 
-    override suspend fun send(peer: ChannelPeer, delivery: Delivery): SendOutcome {
+    override suspend fun send(peer: ChannelPeer, delivery: Delivery): SendOutcome = sendReply(peer, delivery, null)
+
+    suspend fun sendReply(peer: ChannelPeer, delivery: Delivery, contextToken: String?): SendOutcome {
         if (peer.channelId != id || !isAlive(peer)) return SendOutcome.Failed
         val account = store.account() ?: return SendOutcome.Failed
         val text = when (delivery) {
@@ -47,11 +49,12 @@ class WechatChannel(
         return withContext(Dispatchers.IO) {
             val started = System.nanoTime()
             val outcome = try {
-                api.sendText(account, peer.peerId, delivery.id, text, store.contextToken(peer.peerId))
+                api.sendText(account, peer.peerId, delivery.id, text, contextToken ?: store.contextToken(peer.peerId))
                 SendOutcome.Delivered
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: WechatApiException) {
+            } catch (e: WechatApiException) {
+                log("WeChat rejected ${delivery::class.simpleName}, code=${e.code}")
                 SendOutcome.Failed
             } catch (_: IOException) {
                 SendOutcome.Uncertain
@@ -77,7 +80,7 @@ class WechatChannel(
             val text = message.userText() ?: return@forEach
             val messageId = message.messageId ?: return@forEach
             val peer = store.peer(owner)
-            if (store.journal(messageId, peer, text)) {
+            if (store.journal(messageId, peer, text, message.contextToken?.takeUnless(String::isBlank))) {
                 input.receive(ChannelInput.Text(peer, messageId, text))
             }
         }
