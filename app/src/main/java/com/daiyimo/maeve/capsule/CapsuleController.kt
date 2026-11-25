@@ -152,6 +152,7 @@ class CapsuleController(
     private var capturing = false
     /** 在卡片里发了话的那个对话:展开时跟着它的任务,好看到回答。 */
     private var follow: String? = null
+    private var openedRunKey: String? = null
     /** 空闲卡片接着的最近那段对话(点开空闲图标时读一次)。 */
     private var idle: CardView.Chat? = null
 
@@ -347,7 +348,7 @@ class CapsuleController(
         // App 已交到你手上:顶部那一条代替卡片
         if (shown.kind == CapsuleKind.HandedOver) resetCard()
         view = shown
-        card = if (expanded) CapsuleCards.of(model.cardRuns(), follow, idle, s.kept) else null
+        card = if (expanded) CapsuleCards.of(model.cardRuns(), follow, idle, s.kept, openedRunKey) else null
         if (expanded && card == null) resetCard()
         updateThread(card as? CardView.Chat, s.runs)
         // 换成了没有输入框的内容(例如变成要你同意):输入框收起,焦点还给下面的 App
@@ -452,6 +453,7 @@ class CapsuleController(
         closing = false
         cardOut = false
         follow = null
+        openedRunKey = null
         zoomed = false
         cardHandle = null
         closeInput()
@@ -634,6 +636,7 @@ class CapsuleController(
      */
     private fun startIn(conversationId: String, text: String) {
         TaskService.start(context, text, conversationId)
+        openedRunKey = null
         follow = conversationId
         idle = idle?.let { CardView.Chat(conversationId, title = if (it.target == conversationId) it.title else ScreenCopy.plain(text)) }
     }
@@ -1193,6 +1196,7 @@ class CapsuleController(
     /** 展开卡片:先记下此刻那一颗的方位,卡片从那边长出来。 */
     private fun open() {
         if (!expanded) {
+            openedRunKey = view?.runKey
             anchorY = placedY + (window?.height ?: 0) / 2
             haptics.light()
         }

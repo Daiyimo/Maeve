@@ -1,5 +1,14 @@
 {
   "schema": 1,
+  "radius": {"xs": 6, "sm": 10, "md": 14, "lg": 20, "xl": 28},
+  "motion": {
+    "milliseconds": {"press": 90, "quick": 160, "standard": 240, "collapse": 280, "emphasized": 340, "sheetIn": 380, "glassIn": 120, "breath": 2400, "page": 220, "switch": 200, "holdToConfirm": 1500},
+    "bezier": {"glide": [0.32, 0.72, 0, 1], "decelerate": [0, 0, 0.2, 1]}
+  },
+  "statusOklch": {
+    "light": {"ok": [0.455, 0.105, 150], "warn": [0.470, 0.105, 68], "warnSolid": [0.620, 0.120, 68], "bad": [0.470, 0.145, 22]},
+    "dark": {"ok": [0.780, 0.075, 150], "warn": [0.800, 0.112, 78], "warnSolid": [0.740, 0.120, 78], "bad": [0.700, 0.145, 22]}
+  },
   "densityScale": {
     "clear": {
       "tint": 0.45,

@@ -134,6 +134,7 @@ class CapsuleModel(private val reasonLabel: (String) -> String? = { null }) {
     private var lastRuns: List<CapsuleRun> = emptyList()
 
     private var shownIdentity: Triple<CapsuleKind, String?, Boolean>? = null
+    private var completingRun: String? = null
     private var shownText: String? = null
     private var shownAt = 0L
     private var epoch = 0
@@ -173,7 +174,17 @@ class CapsuleModel(private val reasonLabel: (String) -> String? = { null }) {
             shownText = null
             return CapsuleView.Hidden
         }
-        val candidate = activeView(inputs.runs) ?: endedView(now) ?: keptView(inputs.kept) ?: idleView(inputs.mode) ?: run {
+        val previouslyShown = shownIdentity
+        if (previouslyShown?.first?.active == true && previouslyShown.second?.let(ended::containsKey) == true) {
+            completingRun = previouslyShown.second
+        }
+        val completing = completingRun?.let(ended::get)?.takeIf {
+            now - it.at < PILL_MS && it.run.mark() !in seen
+        }
+        if (completing == null) completingRun = null
+        val active = activeView(inputs.runs)
+        val candidate = active?.takeIf { it.kind.needsYou || it.kind == CapsuleKind.HandedOver }
+            ?: completing?.let { endedView(now, it) } ?: active ?: endedView(now) ?: keptView(inputs.kept) ?: idleView(inputs.mode) ?: run {
             shownIdentity = null
             shownText = null
             return CapsuleView.Hidden
@@ -220,8 +231,8 @@ class CapsuleModel(private val reasonLabel: (String) -> String? = { null }) {
     }
 
     /** 最近结束的那件:先展开成胶囊,再缩回一颗带着结果角标;在卡片里看过的直接是一颗;卡片展开着时停表。 */
-    private fun endedView(now: Long): CapsuleView.Shown? {
-        val last = ended.values.maxByOrNull { it.at } ?: return null
+    private fun endedView(now: Long, last: Ended? = ended.values.maxByOrNull { it.at }): CapsuleView.Shown? {
+        last ?: return null
         val age = (frozenSince ?: now) - last.at
         val pill = age < PILL_MS && last.run.mark() !in seen
         if (frozenSince == null) later(last.at + if (pill) PILL_MS else LINGER_MS)

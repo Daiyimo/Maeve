@@ -102,13 +102,16 @@ object CapsuleCards {
      *
      * [idle] 是用户此刻在的那个对话([CardView.Chat.current])时,别的对话里已结束、还挂着的结果不把卡片抢过去:
      * 否则在对话页新开一个对话,点开胶囊看到的还是上一个对话的结果卡片。
+     * [openedRunKey] 是点开时正在显示的任务，展开期间优先保留它自己的结果。
      */
-    fun of(runs: List<CardRun>, follow: String? = null, idle: CardView.Chat? = null, kept: KeptPage? = null): CardView? {
-        val pick = follow?.let { f ->
+    fun of(runs: List<CardRun>, follow: String? = null, idle: CardView.Chat? = null, kept: KeptPage? = null,
+        openedRunKey: String? = null): CardView? {
+        val opened = openedRunKey?.let { key -> runs.firstOrNull { it.run.key == key } }
+        val pick = opened ?: follow?.let { f ->
             runs.firstOrNull { it.run.conversationId == f && it.kind.active } ?: runs.firstOrNull { it.run.conversationId == f }
         } ?: runs.firstOrNull()
         // 只顶掉「别的对话里已结束、还挂着」的那件;一件都没有时留下来那页照旧是它的卡片(见 kept 一路)
-        val elsewhere = idle?.current == true && pick != null && !pick.kind.active && pick.run.conversationId != idle.conversationId
+        val elsewhere = opened == null && idle?.current == true && pick != null && !pick.kind.active && pick.run.conversationId != idle.conversationId
         if (elsewhere) return idle
         pick ?: return kept?.let(CardView::Kept) ?: idle
         return if (taskCard(pick)) CardView.Detail(pick, content(pick))

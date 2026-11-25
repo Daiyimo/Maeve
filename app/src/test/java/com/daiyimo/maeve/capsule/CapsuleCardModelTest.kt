@@ -19,6 +19,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CapsuleCardModelTest {
+    @Test fun openedRunKeepsItsResultEvenWhenAnotherRunTakesPriority() {
+        val done = card("a", TaskState.Succeeded("好了"), CapsuleKind.Done)
+        val other = card("b", TaskState.Running(2, "note", "tap"), CapsuleKind.Running)
+        val visible = CapsuleCards.of(listOf(other, done), idle = CardView.Chat("c-b", current = true), openedRunKey = "a")
+        assertEquals("a", keyOf(visible))
+        assertEquals("c-a", (visible as CardView.Chat).conversationId)
+    }
     @get:Rule val texts = ChineseTexts()
 
     private fun card(

@@ -2,8 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:maeve_flutter/design/maeve_accent.dart';
 import 'package:maeve_flutter/design/maeve_colors.dart';
+import 'package:maeve_flutter/design/maeve_motion.dart';
+import 'package:maeve_flutter/design/maeve_oklch.dart';
+import 'package:maeve_flutter/design/maeve_shapes.dart';
 import 'package:maeve_flutter/design/maeve_surfaces.dart';
 
 Map<String, dynamic> _tokens() {
@@ -21,11 +25,162 @@ Map<String, dynamic> _tokens() {
 
 double _num(Object? value) => (value as num).toDouble();
 
+String _nativeTheme(String name) {
+  const path = 'app/src/main/java/com/daiyimo/maeve/ui/theme';
+  return [
+    File('../$path/$name.kt'),
+    File('$path/$name.kt'),
+  ].firstWhere((file) => file.existsSync()).readAsStringSync();
+}
+
+List<double> _constants(String text) =>
+    RegExp(r'[-+]?(?:\d+\.\d*|\.\d+|\d+)')
+        .allMatches(text)
+        .map((value) => double.parse(value.group(0)!))
+        .toList();
+
+String _capture(String source, String pattern) {
+  final match = RegExp(pattern, multiLine: true).firstMatch(source);
+  expect(match, isNotNull, reason: pattern);
+  return match!.group(1)!;
+}
+
 void _expectClose(String label, double actual, double expected) {
   expect(actual, closeTo(expected, 0.0001), reason: label);
 }
 
 void main() {
+  test('Compose and Flutter agree on glass layers, tint and blur', () {
+    final contract = _tokens()['tiers'] as Map<String, dynamic>;
+    final source = _nativeTheme('MaeveSurfaces');
+    final nativeTiers = _capture(
+      source,
+      r'enum class GlassTier\s*\{([^}]+)\}',
+    ).split(',').map((tier) => tier.trim().toLowerCase()).toList();
+    expect(nativeTiers, contract.keys.toList());
+    expect(MaeveGlassTier.values.map((tier) => tier.name), nativeTiers);
+    for (final entry in contract.entries) {
+      final native = _capture(
+        source,
+        'val ${entry.key} = TierTokens\\(([\\s\\S]*?)^    \\)',
+      );
+      final tier = entry.value as Map;
+      for (final field in ['blurSigma', 'fallbackBlurSigma']) {
+        expect(
+          _constants(_capture(native, '$field = ([^,]+)')).single,
+          tier[field],
+          reason: '${entry.key}/$field',
+        );
+      }
+      expect(
+        _constants(_capture(native, r'fillAlpha = LightDark\(([^)]+)\)')),
+        [tier['fillAlpha']['light'], tier['fillAlpha']['dark']],
+        reason: '${entry.key}/tint',
+      );
+    }
+  });
+
+  test('Named corner radii and timing use the same logical units', () {
+    final contract = _tokens();
+    final radius = contract['radius'] as Map;
+    final shapes = _nativeTheme('MaeveShapes');
+    final radii = {
+      'xs': MaeveRadius.xs,
+      'sm': MaeveRadius.sm,
+      'md': MaeveRadius.md,
+      'lg': MaeveRadius.lg,
+      'xl': MaeveRadius.xl,
+    };
+    expect(radii, radius);
+    for (final name in radii.keys) {
+      final native = name[0].toUpperCase() + name.substring(1);
+      expect(
+        _constants(_capture(shapes, 'val $native = ([^\\n]+)')).single,
+        radius[name],
+      );
+    }
+    for (final (name, native, shape, expected) in [
+      ('Button', 'Md', MaeveShapes.button, MaeveRadius.md),
+      ('Sheet', 'Xl', MaeveShapes.sheet, MaeveRadius.xl),
+      ('Card', 'Lg', MaeveShapes.card, MaeveRadius.lg),
+    ]) {
+      expect(shapes, contains('$name = SquircleShape(MaeveRadius.$native)'));
+      expect((shape.borderRadius as BorderRadius).topRight.x, expected);
+    }
+    expect(shapes, contains('Pill = CircleShape'));
+    expect(MaeveShapes.pill, isA<StadiumBorder>());
+
+    final motion = contract['motion'] as Map;
+    final nativeMotion = _nativeTheme('MaeveMotion');
+    final durations = {
+      'press': ('PressMs', MaeveMotion.press.inMilliseconds),
+      'quick': ('QuickMs', MaeveMotion.quick.inMilliseconds),
+      'standard': ('StandardMs', MaeveMotion.standard.inMilliseconds),
+      'collapse': ('CollapseMs', MaeveMotion.collapse.inMilliseconds),
+      'emphasized': ('EmphasizedMs', MaeveMotion.emphasized.inMilliseconds),
+      'sheetIn': ('SheetInMs', MaeveMotion.sheetIn.inMilliseconds),
+      'glassIn': ('GlassInMs', MaeveMotion.glassIn.inMilliseconds),
+      'breath': ('BreathMs', MaeveMotion.breath.inMilliseconds),
+      'page': ('PAGE_MS', MaeveMotion.page.inMilliseconds),
+      'switch': ('SWITCH_MS', MaeveMotion.switchDuration.inMilliseconds),
+      'holdToConfirm': ('HoldToConfirmMs', MaeveMotion.holdToConfirmMs),
+    };
+    expect(
+      durations.map((key, pair) => MapEntry(key, pair.$2)),
+      motion['milliseconds'],
+    );
+    for (final pair in durations.values) {
+      expect(
+        _constants(_capture(nativeMotion, 'val ${pair.$1} = (\\d+)')).single,
+        pair.$2,
+      );
+    }
+    for (final (name, kotlin, curve) in [
+      ('glide', 'Glide', MaeveMotion.glide),
+      ('decelerate', 'Decelerate', MaeveMotion.decelerate),
+    ]) {
+      final expected = motion['bezier'][name];
+      expect([curve.a, curve.b, curve.c, curve.d], expected);
+      expect(
+        _constants(
+          _capture(
+            nativeMotion,
+            'val $kotlin[^=]*= CubicBezierEasing\\(([^)]+)\\)',
+          ),
+        ),
+        expected,
+      );
+    }
+  });
+
+  test('Status foregrounds use the same OKLCH triples', () {
+    final expected = _tokens()['statusOklch'] as Map;
+    final parts = _nativeTheme('MaeveColors').split('fun dark(');
+    final accent = deriveAccent(MaeveAccentPreset.reverie);
+    for (final (mode, source, colors) in [
+      ('light', parts.first, MaeveColors.light(accent)),
+      ('dark', parts.last, MaeveColors.dark(accent)),
+    ]) {
+      final status = {
+        'ok': colors.ok,
+        'warn': colors.warn,
+        'warnSolid': colors.warnSolid,
+        'bad': colors.bad,
+      };
+      for (final entry in status.entries) {
+        final triple = (expected[mode][entry.key] as List).map(_num).toList();
+        expect(
+          _constants(_capture(source, '${entry.key} = Oklch\\(([^)]+)\\)')),
+          triple,
+        );
+        expect(
+          entry.value,
+          MaeveOklch.color(l: triple[0], c: triple[1], hue: triple[2]),
+        );
+      }
+    }
+  });
+
   test('Flutter tiers mirror shared/glass_tokens.json for every density', () {
     final tokens = _tokens();
     final densities = {

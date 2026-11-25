@@ -104,6 +104,7 @@ import com.daiyimo.maeve.ui.components.StepItem
 import com.daiyimo.maeve.ui.components.StepState
 import com.daiyimo.maeve.ui.theme.MaeveIcons
 import com.daiyimo.maeve.ui.theme.MaeveMotion
+import com.daiyimo.maeve.ui.theme.MaeveRadius
 import com.daiyimo.maeve.ui.components.cardSurface
 import com.daiyimo.maeve.ui.theme.GlassTier
 import com.daiyimo.maeve.ui.theme.MaeveShapes
@@ -114,7 +115,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 private val CardShape = RoundedCornerShape(12.dp, 24.dp, 12.dp, 12.dp)
-private val ScreenShape = RoundedCornerShape(14.dp)
+private val ScreenShape = RoundedCornerShape(MaeveRadius.Md)
 private val BubbleShape = RoundedCornerShape(12.dp, 12.dp, 4.dp, 12.dp)
 private val CardWidth = 322.dp
 private val ScreenWidth = 104.dp
@@ -304,7 +305,7 @@ internal suspend fun runOverlayClose(reduceMotion: Boolean, animate: suspend () 
     withTimeoutOrNull((CARD_OUT_MS * scale).toLong() + CLOSE_GRACE_MS) { animate() }
 }
 
-private const val CARD_IN_MS = 240
+private const val CARD_IN_MS = MaeveMotion.StandardMs
 private const val CARD_OUT_MS = 180
 private const val CLOSE_GRACE_MS = 500L
 private const val CARD_FROM_SCALE = 0.6f

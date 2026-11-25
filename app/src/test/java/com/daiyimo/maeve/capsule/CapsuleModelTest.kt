@@ -309,6 +309,15 @@ class CapsuleModelTest {
         assertEquals(1, v.count)
     }
 
+    @Test fun visibleRunShowsItsOwnCompletionBeforeAnotherOrdinaryRun() {
+        val other = run("b", running("另一件事"))
+        assertEquals("a", shown(model.update(inputs(run("a", running("正在执行")), other), 0)).runKey)
+        val completed = shown(model.update(inputs(other, run("a", TaskState.Succeeded("好了"))), 500))
+        assertEquals(CapsuleKind.Done to "a", completed.kind to completed.runKey)
+        assertEquals(500L + CapsuleModel.PILL_MS, model.nextChangeAt)
+        assertEquals("b", shown(model.update(inputs(other), 500L + CapsuleModel.PILL_MS)).runKey)
+    }
+
     // ---------- 卡片展开时 ----------
 
     @Test fun openCardStopsTheClockForEndedRuns() {
