@@ -18,7 +18,7 @@ import 'maeve_mark.dart';
 import 'stepx_neo_frame.dart';
 
 /// 分享海报清理 Markdown，优先保留结论与体验码等关键结果，再按句界截断。
-String shareAnswerExcerpt(String answer, {int maxCharacters = 140}) {
+({String lead, List<String> codes}) shareAnswerSummary(String answer) {
   final paragraphs = <String>[];
   var inCode = false;
   for (final rawLine in answer.replaceAll('\r\n', '\n').split('\n')) {
@@ -45,12 +45,14 @@ String shareAnswerExcerpt(String answer, {int maxCharacters = 140}) {
         .replaceAll(RegExp(r'<[^>]+>'), '')
         .replaceAll('`', '')
         .replaceAll('**', '')
-        .replaceAll('__', '')
-        .replaceAll(RegExp(r'(?<!\w)[*_](?=\S)|(?<=\S)[*_](?!\w)'), '');
+        .replaceAllMapped(
+          RegExp(r'(?<!\w)(_{1,2}|\*)(\S.*?)(?<!\s)\1(?!\w)'),
+          (match) => match[2]!,
+        );
     final compact = _compactShareText(text);
     if (compact.isNotEmpty) paragraphs.add(compact);
   }
-  if (paragraphs.isEmpty) return '';
+  if (paragraphs.isEmpty) return (lead: '', codes: const []);
   final plain = paragraphs.join('\n');
   final codeMatches = RegExp(
     r'体验码\s*[#＃]?\s*(\d{1,2})\s*[：:为]\s*([A-Za-z0-9][A-Za-z0-9_-]{3,31})',
@@ -61,18 +63,24 @@ String shareAnswerExcerpt(String answer, {int maxCharacters = 140}) {
     final code = match.group(2);
     if (label != null && code != null) codes[label] = code;
   }
-  if (codes.length >= 2) {
+  if (codes.isNotEmpty) {
     final prefix = plain.substring(0, codeMatches.first.start);
     final sentenceEnd = prefix.lastIndexOf(RegExp(r'[。！？.!?]'));
     final lead = _compactShareText(
       sentenceEnd >= 0 ? prefix.substring(0, sentenceEnd + 1) : prefix,
     );
-    return [
-      if (lead.isNotEmpty) lead,
-      for (final entry in codes.entries) '体验码 ${entry.key}：${entry.value}',
-    ].join('\n');
+    return (
+      lead: _shortenShareLead(lead),
+      codes: [
+        for (final entry in codes.entries) '体验码 ${entry.key}：${entry.value}',
+      ],
+    );
   }
-  final excerpt = paragraphs.first;
+  return (lead: _shortenShareLead(paragraphs.first), codes: const []);
+}
+
+String _shortenShareLead(String excerpt) {
+  const maxCharacters = 140;
   if (excerpt.length <= maxCharacters) return excerpt;
   final window = excerpt.substring(0, maxCharacters - 1);
   final sentenceEnd = window.lastIndexOf(RegExp(r'[。！？.!?]'));
@@ -88,8 +96,8 @@ String shareAnswerExcerpt(String answer, {int maxCharacters = 140}) {
 String _compactShareText(String text) => text
     .replaceAll(RegExp(r'\s+'), ' ')
     .replaceAll(RegExp(r'(?<=[\u4e00-\u9fff])\s+(?=[\u4e00-\u9fff])'), '')
-    .replaceAll(RegExp(r'\s+([，。！？；：、）】》])'), r'$1')
-    .replaceAll(RegExp(r'([（【《])\s+'), r'$1')
+    .replaceAllMapped(RegExp(r'\s+([，。！？；：、）】》])'), (match) => match[1]!)
+    .replaceAllMapped(RegExp(r'([（【《])\s+'), (match) => match[1]!)
     .trim();
 
 class TaskSharePage extends StatefulWidget {
@@ -460,7 +468,9 @@ class _TaskSharePoster extends StatelessWidget {
         : report.outcome;
     final verdict = report.verdict.trim();
     final duration = message.elapsedLabel ?? report.duration;
-    final answer = shareAnswerExcerpt(report.answer);
+    final answer = shareAnswerSummary(report.answer);
+    final leadLines = 6 - answer.codes.length;
+    final answerStyle = MaeveType.caption.copyWith(color: _ink, height: 1.45);
     const phoneWidth = 208.0;
     final portrait = StepxNeoFrame.portraitViewport;
     final screen = viewport.width > viewport.height
@@ -579,16 +589,31 @@ class _TaskSharePoster extends StatelessWidget {
                               style: MaeveType.label.copyWith(color: _muted),
                             ),
                             const SizedBox(height: 5),
-                            Text(
-                              answer.isEmpty ? '这次任务没有保存最终回答。' : answer,
-                              key: const ValueKey('share-answer'),
-                              maxLines: 6,
-                              overflow: TextOverflow.ellipsis,
-                              style: MaeveType.caption.copyWith(
-                                color: _ink,
-                                height: 1.45,
+                            if (leadLines > 0 &&
+                                (answer.lead.isNotEmpty ||
+                                    answer.codes.isEmpty))
+                              Text(
+                                answer.lead.isEmpty
+                                    ? '这次任务没有保存最终回答。'
+                                    : answer.lead,
+                                key: const ValueKey('share-answer'),
+                                maxLines: leadLines,
+                                overflow: TextOverflow.ellipsis,
+                                style: answerStyle,
                               ),
-                            ),
+                            for (final code in answer.codes)
+                              SizedBox(
+                                width: double.infinity,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    code,
+                                    maxLines: 1,
+                                    style: answerStyle,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),

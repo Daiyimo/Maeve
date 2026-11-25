@@ -148,29 +148,28 @@ void _emitDone(FakeChatBridge bridge, {String? detail, int steps = 0}) =>
 void main() {
   test('Share answer excerpt keeps a clean conclusion paragraph', () {
     expect(
-      shareAnswerExcerpt('### 执行说明\n\n**已找到归藏入口**，并打开对应页面。\n\n后续细节略。'),
+      shareAnswerSummary('### 执行说明\n\n**已找到归藏入口** ，并打开对应页面。\n\n后续细节略。').lead,
       '已找到归藏入口，并打开对应页面。',
     );
     expect(
-      shareAnswerExcerpt('- 已完成 [归藏](https://example.com) 整理。'),
+      shareAnswerSummary('- 已完成 [归藏](https://example.com) 整理。').lead,
       '已完成归藏整理。',
     );
-    expect(shareAnswerExcerpt('  \n```text\nignored\n```\n'), isEmpty);
+    expect(shareAnswerSummary('  \n```text\nignored\n```\n').lead, isEmpty);
   });
 
-  test('Share answer excerpt keeps both decoded Guizang codes', () {
-    expect(
-      shareAnswerExcerpt(_guizangAnswer),
-      '已成功找到归藏的小豆体验笔记，阅读全部8张图片并解码出两个体验码。\n'
-      '体验码 01：7HGJ5V\n'
-      '体验码 02：537ZMW',
-    );
+  test('Share answer summary keeps both decoded Guizang codes', () {
+    final answer = shareAnswerSummary(_guizangAnswer);
+    expect(answer.lead, '已成功找到归藏的小豆体验笔记，阅读全部8张图片并解码出两个体验码。');
+    expect(answer.codes, ['体验码 01：7HGJ5V', '体验码 02：537ZMW']);
+    final single = shareAnswerSummary('体验码#1为XX__CODE_');
+    expect(single.codes, ['体验码 1：XX__CODE_']);
   });
 
   test(
     'Share answer excerpt shortens other long answers at a sentence boundary',
     () {
-      final excerpt = shareAnswerExcerpt('已完成归藏整理。${'后续细节' * 30}');
+      final excerpt = shareAnswerSummary('已完成归藏整理。${'后续细节' * 30}').lead;
       expect(excerpt.startsWith('已完成归藏整理。'), isTrue);
       expect(excerpt.length, lessThanOrEqualTo(140));
       expect(excerpt.contains('**'), isFalse);
@@ -653,6 +652,34 @@ void main() {
     },
   );
 
+  testWidgets('Long share summaries reserve visible rows for both codes', (
+    tester,
+  ) async {
+    final lead = '${'已整理详细说明' * 60}。';
+    final bridge = _ShareBridge()
+      ..report = _report(answer: '$lead\n体验码 1：DEMO1234\n体验码 2：DEMO5678')
+      ..frame = _png;
+    await _mount(tester, bridge, size: const Size(320, 720));
+    _emitDone(bridge, steps: 2);
+    await tester.pumpAndSettle();
+    final share = find.widgetWithText(MaeveGlassTextButton, '分享图');
+    await tester.ensureVisible(share);
+    await tester.tap(share);
+    await tester.pumpAndSettle();
+    final summary = find.byKey(const ValueKey('share-answer'));
+    expect(tester.widget<Text>(summary).maxLines, 4);
+    for (final code in ['体验码 1：DEMO1234', '体验码 2：DEMO5678']) {
+      final line = find.text(code);
+      expect(line, findsOneWidget);
+      expect(
+        find.ancestor(of: line, matching: find.byType(FittedBox)),
+        findsWidgets,
+      );
+      expect(tester.widget<Text>(line).maxLines, 1);
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Share uses the selected completion and exports an actual PNG', (
     tester,
   ) async {
@@ -682,17 +709,16 @@ void main() {
       find.descendant(of: preview, matching: find.text('回答')),
       findsOneWidget,
     );
-    expect(
-      find.descendant(
-        of: preview,
-        matching: find.text(
-          '已成功找到归藏的小豆体验笔记，阅读全部8张图片并解码出两个体验码。\n'
-          '体验码 01：7HGJ5V\n'
-          '体验码 02：537ZMW',
-        ),
-      ),
-      findsOneWidget,
-    );
+    for (final line in [
+      '已成功找到归藏的小豆体验笔记，阅读全部8张图片并解码出两个体验码。',
+      '体验码 01：7HGJ5V',
+      '体验码 02：537ZMW',
+    ]) {
+      expect(
+        find.descendant(of: preview, matching: find.text(line)),
+        findsOneWidget,
+      );
+    }
     expect(
       find.descendant(of: preview, matching: find.text('执行步数')),
       findsOneWidget,

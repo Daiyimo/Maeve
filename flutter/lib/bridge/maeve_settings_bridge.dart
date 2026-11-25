@@ -284,6 +284,7 @@ class HostSettingsBridge extends MaeveSettingsBridge {
     if (response == null) throw StateError('定时任务状态未返回');
     return response;
   }
+
   @override
   Future<NativeSettings> setOperatingPace(String pace) =>
       _call('setOperatingPace', {'pace': pace});
