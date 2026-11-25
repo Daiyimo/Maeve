@@ -481,13 +481,17 @@ class AgentLoop(
         suspend fun assessIntent(): IntentGate.Intent? {
             intentAssessed = true
             // 只发来屏幕、没说话:没有话可判,按屏幕猜意图的规矩交给主模型
+            val started = now()
             val result = if (opening != null && opening.words.isEmpty()) null else intentGate?.assess(task, priorTurns)
             emit(RunEvent.State(now(), "intent_gate", result?.name ?: "unavailable"))
+            emit(RunEvent.State(now(), "intent_gate_ms", (now() - started).coerceAtLeast(0).toString()))
             return result
         }
-        // 第一次模型调用之前:有合适的路线就先照着做,不调模型;做完或对不上都交还模型
-        // 路线只记、只放手机上的做法:点名用网页的任务不回放
-        if (flags.replay && replay != null && !task.trimStart().startsWith(WEB_CHANNEL_PREFIX)) {
+        val explicitLaunch = if (opening == null && provenance == RunProvenance() && maxSteps > 1 && inbox?.hasSteers() != true) {
+            ExplicitWeChatLaunch.call(task, labels, specs.firstOrNull { tools.verb(it.name) == Verb.LaunchApp }?.name)
+        } else null
+        // 有合适的路线就先照着做；明示的微信启动先完成本地动作。
+        if (explicitLaunch == null && flags.replay && replay != null && !task.trimStart().startsWith(WEB_CHANNEL_PREFIX)) {
             val reviewRoute = provenance.origin == RunOrigin.Ui && intentGate != null && routeMatcher?.candidates(task)?.isNotEmpty() == true
             if (reviewRoute) intent = assessIntent()
             if (!reviewRoute || intent == IntentGate.Intent.Read || intent == IntentGate.Intent.Act) {
@@ -495,7 +499,24 @@ class AgentLoop(
             }
         }
 
-        for (step in 1..maxSteps) {
+        val firstModelStep = if (explicitLaunch != null && inbox?.hasSteers() != true) {
+            val running = TaskState.Running(1, "正在打开微信", explicitLaunch.name)
+            gateState = running
+            _state.value = running
+            val launched = ExplicitWeChatLaunch.execute(explicitLaunch, executor, tools, history)
+            if (launched is ActionOutcome.Cancelled) return TaskState.Cancelled
+            guards.stop?.let { return StopRules.guard(it) }
+            if (launched is ActionOutcome.Ran) {
+                place = launched.exec.place
+                acted = true
+            }
+            // The direct request is enough to establish current intent. All later actions keep their usual guards.
+            intentAssessed = true
+            emit(RunEvent.State(now(), "intent_gate", "explicit_wechat_launch"))
+            track.markRecovery()
+            2
+        } else 1
+        for (step in firstModelStep..maxSteps) {
             appendSteers(history, inbox)
             if (maxSteps != Int.MAX_VALUE) TurnPolicy.beforeStep(TurnSnapshot(step, maxSteps))?.let { history += ctx.notice(it.source, it.text) }
             appendRuntimeState(history, place, labels, step)
@@ -514,6 +535,8 @@ class AgentLoop(
                 continue
             }
             var (reply, used) = routed
+            var repliedAtMs = now()
+            var retryWaitMs = caller.lastRetryWaitMs
             val proposed = reply.parts.filterIsInstance<Part.ToolCall>().firstOrNull()
             if (provenance.origin == RunOrigin.Ui && intentGate != null && proposed != null &&
                 tools.verb(proposed.name) !in DISCUSSION_LOOKUP_VERBS) {
@@ -522,10 +545,13 @@ class AgentLoop(
                     // 提议的调用尚未写进历史、也没有执行；重问一次，只给直接回答的机会。
                     val discussion = history + ctx.notice("conversation_intent",
                         "The user is discussing or reviewing this time. Answer this question directly, without reading or operating apps, websites or other outside content.")
+                    asked = now()
                     reply = try { caller.ask(discussion, emptyList(), step, using = model, onText = previewFor(step)) }
                     catch (e: CancellationException) { throw e }
                     catch (e: Exception) { return StopRules.modelFailed(e) }
                     used = caller.lastMainUsed
+                    repliedAtMs = now()
+                    retryWaitMs = caller.lastRetryWaitMs
                 }
             }
             val text = reply.parts.filterIsInstance<Part.Text>().joinToString("") { it.text }.trim()
@@ -534,8 +560,6 @@ class AgentLoop(
             note = text.ifEmpty { calls.firstOrNull()?.name ?: note }
             val tool = calls.firstOrNull()?.name
             val reason = calls.firstOrNull()?.let { tools.callReason(it.name, parseArgs(it.argsJson)) }
-            val retryWaitMs = caller.lastRetryWaitMs
-            val repliedAtMs = now()
             val latencyMs = repliedAtMs - asked - retryWaitMs
             // 随调用写的字是进度说明,界面上的实时那一行先用它
             val narration = text.takeIf { calls.isNotEmpty() && it.isNotEmpty() }
