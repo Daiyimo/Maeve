@@ -7,12 +7,14 @@ import '../bridge/maeve_chat_bridge.dart';
 import '../design/maeve_shapes.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
+import '../models/conversation.dart';
 import '../models/task_report.dart';
 import '../ui/common/app_page.dart';
 import '../ui/common/haptics.dart';
 import 'glass_surface.dart';
 import 'task_playback_view.dart';
 import 'task_settlement_view.dart';
+import 'task_share_page.dart';
 
 export 'task_playback_view.dart' show TaskPlaybackPage, TaskPlaybackView;
 
@@ -129,6 +131,25 @@ class _TaskReportPageState extends State<TaskReportPage> {
                 runId: widget.runId,
                 onNotice: (notice) => setState(() => _notice = notice),
               ),
+              if (!report.running)
+                MaeveGlassTextButton(
+                  label: '分享图',
+                  icon: Icons.ios_share_outlined,
+                  onPressed: () => AppPage.open(
+                    context,
+                    TaskSharePage(
+                      bridge: widget.bridge,
+                      message: Message(
+                        report.answer,
+                        isUser: false,
+                        runId: widget.runId,
+                      ),
+                      prompt: report.goal,
+                      viewport: MediaQuery.sizeOf(context),
+                      report: report,
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: MaeveSpace.s8),

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -18,14 +17,15 @@ import 'execution_token_usage_view.dart';
 import 'glass_surface.dart';
 import 'live_elapsed_text.dart';
 import 'live_execution_feed.dart';
+import 'live_execution_workspace.dart';
 import 'maeve_markdown.dart';
-import 'adaptive_execution_layout.dart';
 import 'completed_execution_panel.dart';
-import 'pointer_evidence.dart';
+import 'task_preview.dart';
 import 'task_report_view.dart';
 
 export 'live_execution_feed.dart' show LiveExecutionFeed;
 export 'pointer_evidence.dart' show PointerEvidencePainter;
+export 'task_preview.dart' show TaskPreview;
 
 class ExecutionPanel extends StatefulWidget {
   const ExecutionPanel({
@@ -33,12 +33,10 @@ class ExecutionPanel extends StatefulWidget {
     required this.message,
     required this.isLatest,
     this.onShare,
-    this.snapshot,
   });
   final Message message;
   final bool isLatest;
   final VoidCallback? onShare;
-  final SettlementSnapshot? snapshot;
   @override
   State<ExecutionPanel> createState() => _ExecutionPanelState();
 }
@@ -347,32 +345,14 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
         ),
         if (showLive) ...[
           if (expanded)
-            AdaptiveExecutionLayout(
-              wideHeight: 350,
-              compactHeight: 288,
-              left: TaskPreview(
-                key: ValueKey(
-                  'preview-${controller.hostConversationId}-${message.runId}',
-                ),
-                bridge: controller.chatBridge,
-                conversationId: controller.hostConversationId!,
-                imageHeight: null,
+            LiveExecutionWorkspace(
+              key: ValueKey(
+                'workspace-${controller.hostConversationId}-${message.runId}',
               ),
-              right: LiveExecutionFeed(
-                key: ValueKey(
-                  'live-feed-${message.runId ?? controller.hostConversationId}',
-                ),
-                steps: rows,
-                height: 275,
-              ),
-              compactRight: LiveExecutionFeed(
-                key: ValueKey(
-                  'live-feed-${message.runId ?? controller.hostConversationId}',
-                ),
-                steps: rows,
-                height: 275,
-                compact: true,
-              ),
+              bridge: controller.chatBridge,
+              conversationId: controller.hostConversationId!,
+              runId: message.runId,
+              steps: rows,
             )
           else
             TaskPreview(
@@ -390,7 +370,6 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
             runId: message.runId,
             stopped: message.status == 'cancelled',
             detail: message.detail,
-            snapshot: widget.snapshot,
             fallbackReport: TaskReport(
               available: true,
               goal: message.planTitle ?? '任务结果',
@@ -636,194 +615,6 @@ class ExecutionStepView extends StatelessWidget {
   }
 }
 
-/// Pull the existing guarded frame at a bounded rate, only on the visible page.
-class TaskPreview extends StatefulWidget {
-  const TaskPreview({
-    super.key,
-    required this.bridge,
-    required this.conversationId,
-    this.imageHeight = 190,
-  });
-  final MaeveChatBridge bridge;
-  final String conversationId;
-  final double? imageHeight;
-  @override
-  State<TaskPreview> createState() => _TaskPreviewState();
-}
-
-class _TaskPreviewState extends State<TaskPreview> with WidgetsBindingObserver {
-  Uint8List? _bytes;
-  bool _loading = false;
-  Timer? _timer;
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_load());
-    });
-    _timer = Timer.periodic(const Duration(milliseconds: 800), (_) {
-      if (mounted &&
-          ModalRoute.of(context)?.isCurrent == true &&
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        unawaited(_load());
-      }
-    });
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed &&
-        mounted &&
-        ModalRoute.of(context)?.isCurrent == true) {
-      unawaited(_load());
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    if (_loading) return;
-    _loading = true;
-    try {
-      final bytes = await widget.bridge.preview(widget.conversationId);
-      if (mounted) setState(() => _bytes = bytes);
-    } catch (_) {
-      if (mounted) setState(() => _bytes = null);
-    } finally {
-      _loading = false;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      _bytes == null && widget.imageHeight != null
-      ? Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            '当前任务尚未产生执行画面',
-            style: MaeveType.hint.copyWith(
-              color: MaeveTheme.of(context).colors.ink3,
-            ),
-          ),
-        )
-      : _Frame(bytes: _bytes, title: '实时执行画面', height: widget.imageHeight);
-}
-
-class _Frame extends StatelessWidget {
-  const _Frame({
-    required this.bytes,
-    required this.title,
-    this.pointer,
-    this.height = 190,
-  });
-  final Uint8List? bytes;
-  final String title;
-  final ExecutionPointer? pointer;
-  final double? height;
-  @override
-  Widget build(BuildContext context) {
-    final colors = MaeveTheme.of(context).colors;
-    final bytes = this.bytes;
-    final caption = Text(
-      bytes == null ? title : '$title · 点按放大',
-      maxLines: 2,
-      overflow: TextOverflow.ellipsis,
-      style: MaeveType.hint.copyWith(color: colors.ink3),
-    );
-    final picture = ColoredBox(
-      color: colors.fill,
-      child: bytes == null
-          ? Center(
-              child: Padding(
-                padding: const EdgeInsets.all(6),
-                child: Text(
-                  '当前任务尚未产生执行画面',
-                  textAlign: TextAlign.center,
-                  style: MaeveType.hint.copyWith(color: colors.ink3),
-                ),
-              ),
-            )
-          : _PointerImage(bytes: bytes, pointer: pointer),
-    );
-    final VoidCallback? openFrame = bytes == null
-        ? null
-        : () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => Scaffold(
-                backgroundColor: Colors.black,
-                appBar: AppBar(
-                  title: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: MaeveType.title.copyWith(color: Colors.white),
-                  ),
-                  backgroundColor: Colors.black,
-                  foregroundColor: Colors.white,
-                ),
-                body: SafeArea(
-                  child: Center(
-                    child: InteractiveViewer(
-                      maxScale: 5,
-                      child: pointer == null
-                          ? Image.memory(bytes, fit: BoxFit.contain)
-                          : AspectRatio(
-                              aspectRatio: pointer!.width / pointer!.height,
-                              child: _PointerImage(
-                                bytes: bytes,
-                                pointer: pointer,
-                              ),
-                            ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-    if (height == null) {
-      return ExecutionSection(
-        title: title,
-        frameKey: const ValueKey('live-preview-frame'),
-        action: SizedBox.square(
-          dimension: 36,
-          child: MaeveGlassButton(
-            icon: Icons.open_in_full_rounded,
-            tooltip: '放大实时画面',
-            visualDiameter: 28,
-            haptic: MaeveHaptic.tick,
-            onPressed: openFrame,
-          ),
-        ),
-        body: InkWell(onTap: openFrame, child: picture),
-      );
-    }
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: openFrame,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            caption,
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(height: height, child: picture),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class RunDetailsPage extends StatefulWidget {
   const RunDetailsPage({
     super.key,
@@ -969,7 +760,7 @@ class _RunDetailsPageState extends State<RunDetailsPage> {
             ExecutionStepView(step: step),
             for (final pointer in step.pointers)
               if (pointer.screenshotId != null)
-                _RecordedFrame(
+                RecordedExecutionFrame(
                   key: ValueKey(
                     'pointer-${widget.runId}-${pointer.screenshotId}',
                   ),
@@ -980,7 +771,7 @@ class _RunDetailsPageState extends State<RunDetailsPage> {
                   pointer: pointer,
                 ),
             if (step.screenshotId != null)
-              _RecordedFrame(
+              RecordedExecutionFrame(
                 key: ValueKey('${widget.runId}-${step.screenshotId}'),
                 bridge: widget.bridge,
                 runId: widget.runId,
@@ -993,60 +784,4 @@ class _RunDetailsPageState extends State<RunDetailsPage> {
       ],
     );
   }
-}
-
-class _RecordedFrame extends StatefulWidget {
-  const _RecordedFrame({
-    super.key,
-    required this.bridge,
-    required this.runId,
-    required this.screenId,
-    required this.stepNumber,
-    this.pointer,
-  });
-  final MaeveChatBridge bridge;
-  final String runId;
-  final int screenId;
-  final int stepNumber;
-  final ExecutionPointer? pointer;
-  @override
-  State<_RecordedFrame> createState() => _RecordedFrameState();
-}
-
-class _RecordedFrameState extends State<_RecordedFrame> {
-  late final Future<Uint8List?> _image = widget.bridge.runScreen(
-    widget.runId,
-    widget.screenId,
-  );
-  @override
-  Widget build(BuildContext context) => FutureBuilder<Uint8List?>(
-    future: _image,
-    builder: (context, snapshot) => snapshot.data == null
-        ? const Text('此步骤暂无可用截图')
-        : _Frame(
-            bytes: snapshot.data!,
-            title: widget.pointer == null
-                ? '步骤 ${widget.stepNumber} 的画面记录'
-                : '步骤 ${widget.stepNumber} · 点击前的位置标注',
-            pointer: widget.pointer,
-          ),
-  );
-}
-
-class _PointerImage extends StatelessWidget {
-  const _PointerImage({required this.bytes, this.pointer});
-  final Uint8List bytes;
-  final ExecutionPointer? pointer;
-  @override
-  Widget build(BuildContext context) => CustomPaint(
-    foregroundPainter: pointer == null
-        ? null
-        : PointerEvidencePainter(pointer!),
-    child: Image.memory(
-      bytes,
-      fit: BoxFit.contain,
-      gaplessPlayback: true,
-      errorBuilder: (_, _, _) => const Center(child: Text('画面暂不可用')),
-    ),
-  );
 }

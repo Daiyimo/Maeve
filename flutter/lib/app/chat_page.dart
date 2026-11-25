@@ -22,7 +22,6 @@ import '../ui/common/pressable.dart';
 import '../ui/common/status.dart';
 import '../ui/settings/settings_components.dart';
 import '../widgets/glass_surface.dart';
-import '../widgets/completed_execution_panel.dart';
 import '../widgets/maeve_mark.dart';
 import '../widgets/execution_view.dart';
 import '../widgets/maeve_markdown.dart';
@@ -38,23 +37,9 @@ part 'chat_composer.dart';
 ///   她的回答是**一条竖线 + 全宽正文**(剧本边注),没有填充卡片。
 /// - 输入条是 16 圆角的纸条,不是胶囊;浮在内容上,下面垫一段渐隐。
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key, required this.onMenu})
-    : shareConversation = null,
-      shareSettlement = null;
-
-  const ChatPage.share({
-    super.key,
-    required Conversation conversation,
-    required SettlementSnapshot settlement,
-  }) : onMenu = _noop,
-       shareConversation = conversation,
-       shareSettlement = settlement;
+  const ChatPage({super.key, required this.onMenu});
 
   final VoidCallback onMenu;
-  final Conversation? shareConversation;
-  final SettlementSnapshot? shareSettlement;
-
-  static void _noop() {}
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -192,19 +177,6 @@ class _ChatPageState extends State<ChatPage> {
         .take(index)
         .where((m) => m.isUser)
         .lastOrNull;
-    final originalMedia = MediaQuery.of(context);
-    final cameraInset = TaskSharePage.portraitTopInset(originalMedia.size);
-    final safePadding = originalMedia.viewPadding.top >= cameraInset
-        ? originalMedia.viewPadding
-        : originalMedia.viewPadding.copyWith(top: cameraInset);
-    final media = originalMedia.copyWith(
-      viewInsets: EdgeInsets.zero,
-      viewPadding: safePadding,
-      padding: safePadding,
-      disableAnimations: true,
-    );
-    final turn = Conversation(id: conversation.id, title: conversation.title);
-    turn.messages.addAll([?prompt, message]);
     _shareOpen = true;
     try {
       await AppPage.open<void>(
@@ -213,11 +185,7 @@ class _ChatPageState extends State<ChatPage> {
           bridge: controller.chatBridge,
           message: message,
           prompt: prompt?.text,
-          viewport: media.size,
-          screen: (settlement) => MediaQuery(
-            data: media,
-            child: ChatPage.share(conversation: turn, settlement: settlement),
-          ),
+          viewport: MediaQuery.sizeOf(context),
         ),
       );
     } finally {
@@ -228,9 +196,8 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     final controller = MaeveScope.of(context);
-    final capturing = widget.shareConversation != null;
-    if (!capturing) _bindDraft(controller);
-    final conversation = widget.shareConversation ?? controller.active;
+    _bindDraft(controller);
+    final conversation = controller.active;
     final last = conversation.messages.lastOrNull;
     final taskSignature =
         '${conversation.id}:${conversation.messages.length}:${last?.executionSteps.length}:${last?.text.length}:${last?.status}';
@@ -248,8 +215,9 @@ class _ChatPageState extends State<ChatPage> {
         MaeveSize.composer +
         (MediaQuery.sizeOf(context).width < 600 ? 4 : MaeveSpace.s12) +
         (MediaQuery.sizeOf(context).width < 600 ? 4 : MaeveSpace.s24) +
+        (conversation.isEmpty ? 0 : MaeveSpace.s24) +
         (_quote != null ? 56 : 0) +
-        (!capturing && controller.blockedNotice != null ? 40 : 0);
+        (controller.blockedNotice != null ? 40 : 0);
     final topInset =
         padding.top +
         MaeveSize.topBarBrand +
@@ -316,11 +284,8 @@ class _ChatPageState extends State<ChatPage> {
                                 onRetry: controller.sendQueued,
                                 onLongPress: (m) =>
                                     _messageSheet(context, controller, m),
-                                onShare: capturing
-                                    ? (_) {}
-                                    : (message) =>
-                                          _openShare(controller, message),
-                                snapshot: widget.shareSettlement,
+                                onShare: (message) =>
+                                    _openShare(controller, message),
                               ),
                       ),
                     ),
@@ -336,10 +301,8 @@ class _ChatPageState extends State<ChatPage> {
           right: 0,
           child: TopBar(
             title: conversation.isEmpty ? 'maeve' : conversation.title,
-            subtitle: capturing ? '本机 · 任务结算' : controller.statusLine,
-            statusTone: capturing
-                ? MaeveTone.ready
-                : !controller.connected
+            subtitle: controller.statusLine,
+            statusTone: !controller.connected
                 ? MaeveTone.idle
                 : controller.generating
                 ? MaeveTone.running
@@ -347,7 +310,7 @@ class _ChatPageState extends State<ChatPage> {
                       controller.native.currentModelId == null
                 ? MaeveTone.warning
                 : MaeveTone.ready,
-            working: !capturing && controller.generating,
+            working: controller.generating,
             brand: true,
             showBack: false,
             leading: _BarAction(
@@ -375,10 +338,9 @@ class _ChatPageState extends State<ChatPage> {
             onClearQuote: () => setState(() => _quote = null),
             onSend: () => _send(controller),
             onStop: controller.stop,
-            capturing: capturing,
           ),
         ),
-        if (!capturing && !conversation.isEmpty && _showJump)
+        if (!conversation.isEmpty && _showJump)
           Positioned(
             right: MaeveSpace.s16,
             bottom: bottomSafe + 104,
@@ -542,7 +504,6 @@ class _MessageList extends StatelessWidget {
     required this.onRetry,
     required this.onLongPress,
     required this.onShare,
-    this.snapshot,
   });
 
   final Conversation conversation;
@@ -551,7 +512,6 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<Message> onRetry;
   final ValueChanged<Message> onLongPress;
   final ValueChanged<Message> onShare;
-  final SettlementSnapshot? snapshot;
 
   @override
   Widget build(BuildContext context) {
@@ -592,7 +552,6 @@ class _MessageList extends StatelessWidget {
             isLatest: isLatest,
             onLongPress: () => onLongPress(message),
             onShare: () => onShare(message),
-            snapshot: snapshot,
           ),
         ),
       );
@@ -723,7 +682,6 @@ class _AssistantTurn extends StatelessWidget {
     required this.isLatest,
     required this.onLongPress,
     required this.onShare,
-    this.snapshot,
   });
 
   final Message message;
@@ -732,7 +690,6 @@ class _AssistantTurn extends StatelessWidget {
   final bool isLatest;
   final VoidCallback onLongPress;
   final VoidCallback onShare;
-  final SettlementSnapshot? snapshot;
 
   @override
   Widget build(BuildContext context) {
@@ -790,7 +747,6 @@ class _AssistantTurn extends StatelessWidget {
               message: message,
               isLatest: isLatest,
               onShare: onShare,
-              snapshot: snapshot,
             ),
             if (message.text.isNotEmpty &&
                 (!message.active || message.detail?.isNotEmpty == true) &&

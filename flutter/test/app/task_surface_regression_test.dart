@@ -677,7 +677,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump(const Duration(milliseconds: 500));
-      final latest = find.text('40  执行步骤 40');
+      final latest = find.text('执行步骤 40');
       expect(latest.hitTestable(), findsOneWidget);
       expect(
         tester.getBottomLeft(latest).dy,

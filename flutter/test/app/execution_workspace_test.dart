@@ -9,7 +9,10 @@ import 'package:maeve_flutter/app/chat_page.dart';
 import 'package:maeve_flutter/app/maeve_app.dart';
 import 'package:maeve_flutter/app/maeve_controller.dart';
 import 'package:maeve_flutter/bridge/maeve_bridge.dart';
+import 'package:maeve_flutter/models/execution.dart';
 import 'package:maeve_flutter/models/task_report.dart';
+import 'package:maeve_flutter/ui/common/app_page.dart';
+import 'package:maeve_flutter/ui/settings/run_history_page.dart';
 import 'package:maeve_flutter/widgets/execution_view.dart';
 import 'package:maeve_flutter/widgets/glass_surface.dart';
 import 'package:maeve_flutter/widgets/task_playback_view.dart';
@@ -20,7 +23,7 @@ import '../support/fake_chat_bridge.dart';
 import '../support/fake_settings_bridge.dart';
 
 final _png = base64Decode(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=',
+  'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAICAIAAABRUclSAAAAFElEQVR4nGNcNmsvAwwwwVlU5wAAzl8CDZzzQqQAAAAASUVORK5CYII=',
 );
 
 class _ShareBridge extends FakeChatBridge {
@@ -42,13 +45,13 @@ TaskReport _report({bool frames = true}) => TaskReport(
   answer: '已打开系统设置。',
   stages: const [
     PlaybackStage(title: '开始', stepIndex: 0),
-    PlaybackStage(title: '完成', stepIndex: 0, screenshotId: 2),
+    PlaybackStage(title: '完成', stepIndex: 1, screenshotId: 2),
   ],
   frames: frames
       ? const [
           ReplayFrame(stepIndex: 0, screenshotId: 1, step: 1, title: '打开设置'),
           ReplayFrame(
-            stepIndex: 0,
+            stepIndex: 1,
             screenshotId: 2,
             step: 1,
             title: '设置已打开',
@@ -89,25 +92,30 @@ Future<MaeveController> _mount(
   return controller;
 }
 
-void _emitWorking(FakeChatBridge bridge, {String? detail, String? line}) =>
-    bridge.emitUi(
-      conversationId: 'live',
-      composer: 'busy',
-      exchanges: [
-        {
-          ...FakeChatBridge.exchange(
-            '打开设置',
-            status: 'working',
-            steps: 1,
-            detail: detail,
-            line: line ?? '',
-          ),
-          'executionSteps': [
-            {'step': 1, 'title': '点击系统设置', 'detail': '操作已送达'},
-          ],
-        },
+void _emitWorking(
+  FakeChatBridge bridge, {
+  String? detail,
+  String? line,
+  String? runId,
+}) => bridge.emitUi(
+  conversationId: 'live',
+  composer: 'busy',
+  exchanges: [
+    {
+      ...FakeChatBridge.exchange(
+        '打开设置',
+        status: 'working',
+        steps: 1,
+        detail: detail,
+        line: line ?? '',
+        runId: runId,
+      ),
+      'executionSteps': [
+        {'step': 1, 'title': '点击系统设置', 'detail': '操作已送达'},
       ],
-    );
+    },
+  ],
+);
 
 void _emitDone(FakeChatBridge bridge, {String? detail}) => bridge.emitUi(
   conversationId: 'live',
@@ -143,7 +151,7 @@ void main() {
     expect(preview.top, records.top);
     expect(preview.bottom, records.bottom);
     final previewTitle = tester.getRect(find.text('实时执行画面'));
-    final recordTitle = tester.getRect(find.text('实时执行记录'));
+    final recordTitle = tester.getRect(find.text('执行时间线'));
     expect(previewTitle.top, recordTitle.top);
     expect(previewTitle.bottom, recordTitle.bottom);
     expect(previewTitle.bottom, lessThan(preview.top));
@@ -151,12 +159,13 @@ void main() {
       of: previewFrame,
       matching: find.byType(Image),
     );
-    expect(tester.getSize(liveImage).height, greaterThan(300));
+    expect(tester.getRect(liveImage).height, greaterThan(300));
+    expect(find.byKey(const ValueKey('stepx-neo-ai-key')), findsOneWidget);
     expect(tester.widget<Image>(liveImage).fit, BoxFit.contain);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Compact live execution keeps preview left of records', (
+  testWidgets('Compact live execution keeps the phone left of the timeline', (
     tester,
   ) async {
     final bridge = FakeChatBridge()..frame = _png;
@@ -171,34 +180,58 @@ void main() {
     final records = tester.getRect(
       find.byKey(const ValueKey('live-execution-feed')),
     );
-    expect(preview.right, lessThanOrEqualTo(records.left));
+    expect(preview.right, lessThan(records.left));
     expect(preview.top, records.top);
     expect(preview.bottom, records.bottom);
-    final previewTitle = tester.getRect(find.text('实时执行画面'));
-    final recordHeading = tester.getRect(find.text('实时执行记录'));
+    final previewTitle = tester.getRect(find.text('实时画面'));
+    final recordHeading = tester.getRect(find.text('执行时间线'));
     expect(previewTitle.top, recordHeading.top);
     expect(previewTitle.bottom, lessThan(preview.top));
     expect(320 - records.right, closeTo(20, .1));
-    expect(records.width / preview.width, closeTo(52 / 48, .01));
     final liveImage = find.descendant(
       of: previewFrame,
       matching: find.byType(Image),
     );
-    expect(tester.getSize(liveImage).height, greaterThan(200));
-    final recordTitle = tester.widget<Text>(find.text('01  点击系统设置'));
-    expect(recordTitle.style?.fontSize, lessThanOrEqualTo(12));
-    expect(
-      find.byIcon(Icons.keyboard_double_arrow_down_rounded),
-      findsOneWidget,
-    );
-    expect(find.byIcon(Icons.vertical_align_bottom_rounded), findsNothing);
+    expect(tester.getRect(liveImage).height, greaterThan(200));
+    expect(find.text('点击系统设置'), findsOneWidget);
+    expect(find.byTooltip('放大实时画面'), findsOneWidget);
+    expect(find.byTooltip('暂停实时画面'), findsOneWidget);
     expect(find.byTooltip('正在跟随最新'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Selecting a recorded step opens its actual saved frame', (
+    tester,
+  ) async {
+    final bridge = FakeChatBridge()
+      ..frame = _png
+      ..record = const RunDetails(
+        available: true,
+        steps: [ExecutionStep(step: 1, title: '点击系统设置', screenshotId: 7)],
+      );
+    await _mount(tester, bridge, size: const Size(1200, 900));
+    _emitWorking(bridge, runId: 'run-live');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+    expect(bridge.detailsRequests, ['run-live']);
+    expect(find.byIcon(Icons.image_outlined), findsOneWidget);
+
+    await tester.tap(find.text('点击系统设置'));
+    await tester.pump();
+    await tester.pump();
+    expect(bridge.screenRequests, ['run-live:7']);
+    expect(find.text('步骤 1 · 历史画面'), findsOneWidget);
+
+    await tester.tap(find.text('返回实时'));
+    await tester.pump();
+    expect(find.text('实时执行画面'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   for (final hasRecording in [false, true]) {
     testWidgets(
-      'Stopping keeps execution columns aligned (recorded: $hasRecording)',
+      'Stopping keeps the execution columns aligned (recorded: $hasRecording)',
       (tester) async {
         final bridge = FakeChatBridge()
           ..frame = _png
@@ -225,6 +258,7 @@ void main() {
         final right = tester.getRect(
           find.byKey(const ValueKey('live-execution-feed')),
         );
+        expect(left.right, lessThan(right.left));
         expect(left.top, right.top);
         expect(left.bottom, right.bottom);
 
@@ -245,6 +279,7 @@ void main() {
         final summary = tester.getRect(
           find.byKey(const ValueKey('stopped-settlement-frame')),
         );
+        expect(replay.right, lessThan(summary.left));
         expect(replay.top, summary.top);
         expect(replay.bottom, summary.bottom);
         expect(replay.left, left.left);
@@ -355,6 +390,18 @@ void main() {
         48,
       );
 
+      final timeline = find.byKey(const ValueKey('live-execution-feed'));
+      await tester.tap(
+        find.descendant(of: timeline, matching: find.text('打开设置')),
+      );
+      await tester.pump();
+      expect(find.text('第 1 / 2 帧 · 来自本机记录'), findsOneWidget);
+      await tester.tap(
+        find.descendant(of: timeline, matching: find.text('设置已打开')),
+      );
+      await tester.pump();
+      expect(find.text('第 2 / 2 帧 · 来自本机记录'), findsOneWidget);
+
       await tester.tap(find.byIcon(Icons.play_arrow_rounded));
       await tester.pump();
       expect(find.text('第 1 / 2 帧 · 来自本机记录'), findsOneWidget);
@@ -427,58 +474,81 @@ void main() {
     expect(find.text('9 秒'), findsNothing);
   });
 
-  testWidgets('Completed narrow task keeps playback left of settlement', (
-    tester,
-  ) async {
-    final bridge = FakeChatBridge()
-      ..frame = _png
-      ..report = _report();
-    await _mount(tester, bridge, size: const Size(390, 844));
-    _emitDone(bridge);
-    await tester.pumpAndSettle();
+  testWidgets(
+    'Completed narrow task keeps replay beside the outcome and timeline',
+    (tester) async {
+      final bridge = FakeChatBridge()
+        ..frame = _png
+        ..report = _report();
+      await _mount(tester, bridge, size: const Size(369, 822));
+      _emitDone(bridge);
+      await tester.pumpAndSettle();
 
-    final playback = tester.getRect(find.byType(TaskPlaybackView));
-    final replayFrame = tester.getRect(
-      find.byKey(const ValueKey('completed-playback-frame')),
-    );
-    final settlement = tester.getRect(
-      find.byKey(const ValueKey('completed-settlement-frame')),
-    );
-    expect(playback.right, lessThanOrEqualTo(settlement.left));
-    expect(replayFrame.top, settlement.top);
-    expect(replayFrame.bottom, settlement.bottom);
-    expect(390 - settlement.right, closeTo(20, .1));
-    final controls = tester.getRect(
-      find.byKey(const ValueKey('playback-controls')),
-    );
-    final play = tester.widget<MaeveGlassButton>(
-      find.widgetWithIcon(MaeveGlassButton, Icons.play_arrow_rounded),
-    );
-    final previous = tester.widget<MaeveGlassButton>(
-      find.widgetWithIcon(MaeveGlassButton, Icons.skip_previous_rounded),
-    );
-    final next = tester.widget<MaeveGlassButton>(
-      find.widgetWithIcon(MaeveGlassButton, Icons.skip_next_rounded),
-    );
-    expect(controls.width, playback.width);
-    expect(play.visualDiameter, lessThan(48));
-    expect(play.visualDiameter, greaterThan(previous.visualDiameter!));
-    expect(previous.visualDiameter, next.visualDiameter);
-    final goal = tester.widget<Text>(
-      find.descendant(
-        of: find.byType(TaskReportCard),
-        matching: find.text('打开设置'),
-      ),
-    );
-    expect(goal.style?.fontSize, lessThanOrEqualTo(15));
-    expect(tester.takeException(), isNull);
-  });
+      final playback = tester.getRect(find.byType(TaskPlaybackView));
+      final replayFrame = tester.getRect(
+        find.byKey(const ValueKey('completed-playback-frame')),
+      );
+      final settlement = tester.getRect(
+        find.byKey(const ValueKey('completed-settlement-frame')),
+      );
+      expect(playback.right, lessThanOrEqualTo(settlement.left));
+      expect(replayFrame.top, settlement.top);
+      expect(replayFrame.bottom, settlement.bottom);
+      expect(369 - settlement.right, closeTo(20, .1));
+      final controls = tester.getRect(
+        find.byKey(const ValueKey('playback-controls')),
+      );
+      final play = tester.widget<MaeveGlassButton>(
+        find.widgetWithIcon(MaeveGlassButton, Icons.play_arrow_rounded),
+      );
+      final previous = tester.widget<MaeveGlassButton>(
+        find.widgetWithIcon(MaeveGlassButton, Icons.skip_previous_rounded),
+      );
+      final next = tester.widget<MaeveGlassButton>(
+        find.widgetWithIcon(MaeveGlassButton, Icons.skip_next_rounded),
+      );
+      expect(controls.width, lessThanOrEqualTo(playback.width));
+      expect(
+        tester
+            .getRect(
+              find.widgetWithIcon(MaeveGlassButton, Icons.play_arrow_rounded),
+            )
+            .bottom,
+        lessThanOrEqualTo(replayFrame.bottom),
+      );
+      expect(play.visualDiameter, lessThan(48));
+      expect(play.visualDiameter, greaterThan(previous.visualDiameter!));
+      expect(previous.visualDiameter, next.visualDiameter);
+      final goal = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(TaskReportCard),
+          matching: find.text('打开设置'),
+        ),
+      );
+      expect(goal.style?.fontSize, lessThanOrEqualTo(15));
+      await tester.tap(find.text('时间线'));
+      await tester.pump();
+      final timeline = find.byKey(const ValueKey('live-execution-feed'));
+      expect(tester.getRect(timeline).left, greaterThan(replayFrame.right));
+      await tester.tap(
+        find.descendant(of: timeline, matching: find.text('打开设置')),
+      );
+      await tester.pump();
+      expect(find.text('第 1 / 2 帧'), findsOneWidget);
+      await tester.tap(find.text('结算'));
+      await tester.pump();
+      expect(find.byType(TaskReportCard), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('Share uses the selected completion and exports an actual PNG', (
     tester,
   ) async {
     const viewport = Size(320, 720);
-    final bridge = _ShareBridge()..report = _report();
+    final bridge = _ShareBridge()
+      ..report = _report()
+      ..frame = _png;
     await _mount(tester, bridge, size: viewport);
     _emitDone(bridge);
     await tester.pumpAndSettle();
@@ -493,23 +563,18 @@ void main() {
     await tester.pumpAndSettle();
 
     final preview = find.byType(TaskSharePage);
-    final screen = find.descendant(
-      of: preview,
-      matching: find.byType(ChatPage),
-    );
-    expect(tester.getSize(screen), viewport);
     expect(
-      MediaQuery.viewPaddingOf(tester.element(screen)).top,
-      greaterThanOrEqualTo(viewport.height * (124 / 2670)),
+      find.descendant(of: preview, matching: find.byType(ChatPage)),
+      findsNothing,
     );
     Rect phonePart(String key) => tester.getRect(
       find.descendant(of: preview, matching: find.byKey(ValueKey(key))),
     );
-    final body = phonePart('share-phone-body');
-    final volume = phonePart('share-volume-rocker');
-    final power = phonePart('share-power-key');
-    final ai = phonePart('share-ai-key');
-    final camera = phonePart('share-front-camera');
+    final body = phonePart('stepx-neo-phone-body');
+    final volume = phonePart('stepx-neo-volume-rocker');
+    final power = phonePart('stepx-neo-power-key');
+    final ai = phonePart('stepx-neo-ai-key');
+    final camera = phonePart('stepx-neo-front-camera');
     for (final button in [volume, power, ai]) {
       expect(button.left, lessThan(body.right));
       expect(button.right, greaterThan(body.right));
@@ -520,15 +585,22 @@ void main() {
     expect((ai.top - body.top) / body.height, closeTo(.387, .002));
     expect(camera.center.dx, closeTo(body.center.dx, .01));
     expect((camera.center.dy - body.top) / body.height, closeTo(.034, .004));
-    final playback = tester.getRect(
-      find.descendant(of: screen, matching: find.byType(TaskPlaybackView)),
+    expect(
+      find.descendant(of: preview, matching: find.byType(Image)),
+      findsOneWidget,
     );
-    final settlement = tester.getRect(
-      find.descendant(of: screen, matching: find.byType(TaskReportCard)),
-    );
-    expect(playback.right, lessThanOrEqualTo(settlement.left));
     expect(bridge.screenRequests, contains('run-1:2'));
     expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('编辑标题'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, '标题'), '设置检查已完成');
+    await tester.tap(find.text('应用'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(of: preview, matching: find.text('设置检查已完成')),
+      findsOneWidget,
+    );
 
     final shareImage = tester.widget<MaeveGlassTextButton>(
       find.widgetWithText(MaeveGlassTextButton, '分享图片'),
@@ -543,6 +615,39 @@ void main() {
     expect(ByteData.sublistView(png).getUint32(16), 1080);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('A report opened from run history can edit its share title', (
+    tester,
+  ) async {
+    final bridge = FakeChatBridge()..report = _report(frames: false);
+    bridge.runRecords.add({
+      'id': 'history-run',
+      'goal': '历史执行',
+      'status': 'succeeded',
+    });
+    await _mount(tester, bridge, size: const Size(390, 844));
+    AppPage.open(
+      tester.element(find.byType(ChatPage)),
+      RunHistoryPage(bridge: bridge),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('历史执行'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('分享图'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('编辑标题'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, '标题'), '历史任务新标题');
+    await tester.tap(find.text('应用'));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(TaskSharePage),
+        matching: find.text('历史任务新标题'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Compact task keeps prompt and execution in one viewport', (
@@ -590,6 +695,84 @@ void main() {
     expect(find.text('这次任务没有记录画面。'), findsOneWidget);
     expect(find.byType(TaskReportCard), findsOneWidget);
     expect(find.byIcon(Icons.play_arrow_rounded), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'A long compact task keeps the outcome visible with a single frame',
+    (tester) async {
+      const goal = '进入手机应用并检查对应页面，然后整理执行结果给我。';
+      final bridge = FakeChatBridge()
+        ..frame = _png
+        ..report = TaskReport(
+          available: true,
+          goal: goal,
+          outcome: '证据不足',
+          frames: [_report().frames.last],
+        );
+      await _mount(tester, bridge, size: const Size(369, 822));
+      _emitDone(bridge);
+      await tester.pumpAndSettle();
+
+      final goalText = tester.widget<Text>(find.text(goal));
+      expect(goalText.maxLines, 2);
+      expect(find.text('证据不足').hitTestable(), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow_rounded), findsNothing);
+      expect(find.text('第 1 / 1 帧'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('Compact playback controls fit with long frame evidence', (
+    tester,
+  ) async {
+    final bridge = FakeChatBridge()
+      ..frame = _png
+      ..report = const TaskReport(
+        available: true,
+        goal: '打开设置',
+        outcome: '部分完成',
+        frames: [
+          ReplayFrame(stepIndex: 0, screenshotId: 1, step: 1, title: '打开设置'),
+          ReplayFrame(
+            stepIndex: 1,
+            screenshotId: 2,
+            step: 2,
+            title: '点击设置列表中的目标项目',
+            failure: '当前页面没有找到对应的控件，已经保留点击之前的画面，请核对页面并确认下一步操作。',
+            pointer: ExecutionPointer(
+              width: 1200,
+              height: 2670,
+              method: 'accessibility',
+              bounds: [110, 230, 1005, 1190],
+            ),
+          ),
+        ],
+      );
+    await _mount(tester, bridge, size: const Size(369, 822));
+    _emitDone(bridge);
+    await tester.pumpAndSettle();
+
+    final frame = find.byKey(const ValueKey('completed-playback-frame'));
+    final controls = find.byKey(const ValueKey('playback-controls'));
+    final controlsRect = tester.getRect(controls);
+    expect(
+      controlsRect.bottom,
+      lessThanOrEqualTo(tester.getRect(frame).bottom),
+    );
+    expect(
+      find.descendant(of: frame, matching: find.byType(Scrollable)),
+      findsNothing,
+    );
+    final play = find.widgetWithIcon(
+      MaeveGlassButton,
+      Icons.play_arrow_rounded,
+    );
+    expect(play.hitTestable(), findsOneWidget);
+    await tester.tap(play);
+    await tester.pump();
+    expect(find.text('第 1 / 2 帧'), findsOneWidget);
+    expect(tester.getRect(controls), controlsRect);
     expect(tester.takeException(), isNull);
   });
 }

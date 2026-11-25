@@ -52,18 +52,21 @@ class TaskReportCard extends StatelessWidget {
       if (detail case final String messageDetail) messageDetail,
     ].where((s) => s.trim().isNotEmpty && s != report.answer).toSet();
     final padding = EdgeInsets.all(compact ? MaeveSpace.s12 : MaeveSpace.s20);
+    final goal = Text(
+      report.goal,
+      maxLines: compact ? 2 : null,
+      overflow: compact ? TextOverflow.ellipsis : null,
+      style: MaeveType.title.copyWith(
+        fontSize: compact ? 14.5 : 21,
+        fontWeight: FontWeight.w700,
+        color: c.ink,
+        height: compact ? 1.3 : 1.35,
+      ),
+    );
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          report.goal,
-          style: MaeveType.title.copyWith(
-            fontSize: compact ? 14.5 : 21,
-            fontWeight: FontWeight.w700,
-            color: c.ink,
-            height: compact ? 1.3 : 1.35,
-          ),
-        ),
+        compact ? Tooltip(message: report.goal, child: goal) : goal,
         if (summary.isNotEmpty) ...[
           SizedBox(height: gap),
           Container(

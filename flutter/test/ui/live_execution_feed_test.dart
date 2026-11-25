@@ -28,8 +28,8 @@ void main() {
       tester.getRect(find.byKey(const ValueKey('live-execution-feed'))).height,
       rect.height,
     );
-    expect(find.text('100  正在执行第 100 步').hitTestable(), findsOneWidget);
-    expect(find.text('01  正在执行第 1 步'), findsNothing);
+    expect(find.text('正在执行第 100 步').hitTestable(), findsOneWidget);
+    expect(find.text('正在执行第 1 步'), findsNothing);
     expect(find.text('正在跟随最新'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -53,7 +53,7 @@ void main() {
     await tester.tap(find.text('回到最新'));
     await tester.pumpAndSettle();
     expect(current.pixels, current.maxScrollExtent);
-    expect(find.text('23  正在执行第 23 步').hitTestable(), findsOneWidget);
+    expect(find.text('正在执行第 23 步').hitTestable(), findsOneWidget);
   });
   testWidgets('Long records fit large text without overflowing', (
     tester,

@@ -20,9 +20,9 @@ void main() {
       ),
     );
     await tester.pump();
-    final first = tester.getTopLeft(find.text('01  步骤 1')).dy;
-    final second = tester.getTopLeft(find.text('02  步骤 2')).dy;
-    final third = tester.getTopLeft(find.text('03  步骤 3')).dy;
+    final first = tester.getTopLeft(find.text('步骤 1')).dy;
+    final second = tester.getTopLeft(find.text('步骤 2')).dy;
+    final third = tester.getTopLeft(find.text('步骤 3')).dy;
     expect(first, lessThan(second));
     expect(second, lessThan(third));
   });

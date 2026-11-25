@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -8,16 +7,15 @@ import 'package:flutter/rendering.dart';
 
 import '../bridge/maeve_chat_bridge.dart';
 import '../design/maeve_accent.dart';
-import '../design/maeve_surfaces.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../models/conversation.dart';
 import '../models/task_report.dart';
 import '../ui/common/app_page.dart';
 import '../ui/common/haptics.dart';
-import 'completed_execution_panel.dart';
 import 'glass_surface.dart';
 import 'maeve_mark.dart';
+import 'stepx_neo_frame.dart';
 
 class TaskSharePage extends StatefulWidget {
   const TaskSharePage({
@@ -26,17 +24,14 @@ class TaskSharePage extends StatefulWidget {
     required this.message,
     required this.prompt,
     required this.viewport,
-    required this.screen,
+    this.report,
   });
 
   final MaeveChatBridge bridge;
   final Message message;
   final String? prompt;
   final Size viewport;
-  final Widget Function(SettlementSnapshot) screen;
-
-  static double portraitTopInset(Size viewport) =>
-      viewport.height > viewport.width ? viewport.height * (124 / 2670) : 0;
+  final TaskReport? report;
 
   @override
   State<TaskSharePage> createState() => _TaskSharePageState();
@@ -44,8 +39,9 @@ class TaskSharePage extends StatefulWidget {
 
 class _TaskSharePageState extends State<TaskSharePage> {
   final _poster = GlobalKey();
-  SettlementSnapshot? _snapshot;
+  ({TaskReport report, Uint8List? frame})? _snapshot;
   bool _sharing = false;
+  String? _editedTitle;
   String? _error;
 
   @override
@@ -58,16 +54,20 @@ class _TaskSharePageState extends State<TaskSharePage> {
     final message = widget.message;
     final runId = message.runId!;
     const timeout = Duration(seconds: 5);
-    var report = TaskReport(
-      available: true,
-      goal: widget.prompt ?? message.planTitle ?? '任务结算',
-      outcome: message.statusLabel,
-      duration: message.elapsedLabel,
-      answer: message.text,
-    );
+    var report =
+        widget.report ??
+        TaskReport(
+          available: true,
+          goal: widget.prompt ?? message.planTitle ?? '任务结算',
+          outcome: message.statusLabel,
+          duration: message.elapsedLabel,
+          answer: message.text,
+        );
     try {
-      final loaded = await widget.bridge.runReport(runId).timeout(timeout);
-      if (loaded.available && !loaded.running) report = loaded;
+      if (widget.report == null) {
+        final loaded = await widget.bridge.runReport(runId).timeout(timeout);
+        if (loaded.available && !loaded.running) report = loaded;
+      }
     } catch (_) {
       // Older or cleared records can still share the saved conversation turn.
     }
@@ -79,12 +79,32 @@ class _TaskSharePageState extends State<TaskSharePage> {
             .runScreen(runId, report.frames.last.screenshotId)
             .timeout(timeout);
         if (!mounted) return;
-        if (frame != null) await precacheImage(MemoryImage(frame), context);
+        final bytes = frame;
+        if (bytes != null) {
+          await precacheImage(
+            MemoryImage(bytes),
+            context,
+            onError: (_, _) => frame = null,
+          );
+        }
       } catch (_) {
         frame = null;
       }
     }
     if (mounted) setState(() => _snapshot = (report: report, frame: frame));
+  }
+
+  String _originalTitle(TaskReport report) => report.goal.trim().isNotEmpty
+      ? report.goal.trim()
+      : widget.prompt ?? '任务结算';
+
+  Future<void> _editTitle(TaskReport report) async {
+    final title = await showDialog<String>(
+      context: context,
+      builder: (_) =>
+          _ShareTitleDialog(title: _editedTitle ?? _originalTitle(report)),
+    );
+    if (mounted && title != null) setState(() => _editedTitle = title);
   }
 
   Future<void> _share() async {
@@ -139,9 +159,11 @@ class _TaskSharePageState extends State<TaskSharePage> {
                         child: _TaskSharePoster(
                           report: snapshot.report,
                           message: widget.message,
-                          title: widget.prompt,
+                          title:
+                              _editedTitle ?? _originalTitle(snapshot.report),
+                          editedTitle: _editedTitle != null,
                           viewport: widget.viewport,
-                          screen: widget.screen(snapshot),
+                          frame: snapshot.frame,
                         ),
                       ),
                     ),
@@ -152,13 +174,29 @@ class _TaskSharePageState extends State<TaskSharePage> {
                       child: Text(error, textAlign: TextAlign.center),
                     ),
                   const SizedBox(height: 12),
-                  MaeveGlassTextButton(
-                    label: _sharing ? '正在分享…' : '分享图片',
-                    icon: Icons.ios_share_outlined,
-                    prominent: true,
-                    enabled: !_sharing,
-                    haptic: MaeveHaptic.light,
-                    onPressed: _share,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: MaeveGlassTextButton(
+                          label: '编辑标题',
+                          icon: Icons.edit_outlined,
+                          onPressed: _sharing
+                              ? null
+                              : () => _editTitle(snapshot.report),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: MaeveGlassTextButton(
+                          label: _sharing ? '正在分享…' : '分享图片',
+                          icon: Icons.ios_share_outlined,
+                          prominent: true,
+                          enabled: !_sharing,
+                          haptic: MaeveHaptic.light,
+                          onPressed: _share,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -167,14 +205,58 @@ class _TaskSharePageState extends State<TaskSharePage> {
   }
 }
 
-/// 暖白画报、紫色玻璃状态签、右侧保留原设备比例的主页结算截屏。
+class _ShareTitleDialog extends StatefulWidget {
+  const _ShareTitleDialog({required this.title});
+  final String title;
+
+  @override
+  State<_ShareTitleDialog> createState() => _ShareTitleDialogState();
+}
+
+class _ShareTitleDialogState extends State<_ShareTitleDialog> {
+  late final _title = TextEditingController(text: widget.title);
+
+  @override
+  void dispose() {
+    _title.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MaeveGlassDialog(
+    title: const Text('编辑分享图标题'),
+    content: TextField(
+      controller: _title,
+      autofocus: true,
+      maxLength: 80,
+      maxLines: 2,
+      decoration: const InputDecoration(labelText: '标题'),
+      onChanged: (_) => setState(() {}),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('取消'),
+      ),
+      FilledButton(
+        onPressed: _title.text.trim().isEmpty
+            ? null
+            : () => Navigator.pop(context, _title.text.trim()),
+        child: const Text('应用'),
+      ),
+    ],
+  );
+}
+
+/// 暖白画报、紫色状态签，右侧展示任务的最后一帧。
 class _TaskSharePoster extends StatelessWidget {
   const _TaskSharePoster({
     required this.report,
     required this.message,
     required this.title,
+    required this.editedTitle,
     required this.viewport,
-    required this.screen,
+    required this.frame,
   });
 
   static const _paper = Color(0xfffaf6f4);
@@ -185,21 +267,24 @@ class _TaskSharePoster extends StatelessWidget {
 
   final TaskReport report;
   final Message message;
-  final String? title;
+  final String title;
+  final bool editedTitle;
   final Size viewport;
-  final Widget screen;
+  final Uint8List? frame;
 
   @override
   Widget build(BuildContext context) {
-    final goal = report.goal.trim().isNotEmpty
-        ? report.goal.trim()
-        : (title ?? '任务结算');
     final outcome = report.outcome.isEmpty
         ? message.statusLabel
         : report.outcome;
     final verdict = report.verdict.trim();
     final duration = message.elapsedLabel ?? report.duration;
-    final deviceHeight = _SharePhone.heightFor(viewport);
+    const phoneWidth = 208.0;
+    final portrait = StepxNeoFrame.portraitViewport;
+    final screen = viewport.width > viewport.height
+        ? portrait.flipped
+        : portrait;
+    final frame = this.frame;
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
       child: ColoredBox(
@@ -233,8 +318,8 @@ class _TaskSharePoster extends StatelessWidget {
                   const ColoredBox(color: _ink, child: SizedBox(height: 1)),
                   const SizedBox(height: 16),
                   Text(
-                    goal,
-                    maxLines: 2,
+                    title,
+                    maxLines: editedTitle ? null : 2,
                     overflow: TextOverflow.ellipsis,
                     style: MaeveType.largeTitle.copyWith(
                       fontSize: 34,
@@ -243,80 +328,92 @@ class _TaskSharePoster extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 17),
-                  SizedBox(
-                    height: math.max(deviceHeight, 248),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              '结算状态',
+                              style: MaeveType.caption.copyWith(color: _muted),
+                            ),
+                            const SizedBox(height: 6),
+                            MaeveThemeScope(
+                              brightness: Brightness.light,
+                              accent: deriveAccent(MaeveAccentPreset.reverie),
+                              child: MaeveGlassSurface(
+                                tier: MaeveGlassTier.card,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(7),
+                                ),
+                                tint: _accent,
+                                tintAlpha: .13,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 6,
+                                ),
+                                child: Text(
+                                  verdict.isEmpty ? outcome : verdict,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: MaeveType.caption.copyWith(
+                                    color: const Color(0xff533182),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            if (verdict.isNotEmpty && verdict != outcome) ...[
+                              const SizedBox(height: 5),
                               Text(
-                                '结算状态',
+                                outcome,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: MaeveType.caption.copyWith(
                                   color: _muted,
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              MaeveThemeScope(
-                                brightness: Brightness.light,
-                                accent: deriveAccent(MaeveAccentPreset.reverie),
-                                child: MaeveGlassSurface(
-                                  tier: MaeveGlassTier.card,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(7),
-                                  ),
-                                  tint: _accent,
-                                  tintAlpha: .13,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 7,
-                                    vertical: 6,
-                                  ),
-                                  child: Text(
-                                    verdict.isEmpty ? outcome : verdict,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: MaeveType.caption.copyWith(
-                                      color: const Color(0xff533182),
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              if (verdict.isNotEmpty && verdict != outcome) ...[
-                                const SizedBox(height: 5),
-                                Text(
-                                  outcome,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: MaeveType.caption.copyWith(
-                                    color: _muted,
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 13),
-                              if (message.steps > 0)
-                                _fact('执行步数', '${message.steps} 步'),
-                              if (duration != null && duration.isNotEmpty)
-                                _fact('任务耗时', duration),
-                              if (report.reviewClaims case (
-                                matched: final matched,
-                                total: final total,
-                              ))
-                                _fact('可核对事实', '$matched / $total 项'),
                             ],
-                          ),
+                            const SizedBox(height: 13),
+                            if (message.steps > 0)
+                              _fact('执行步数', '${message.steps} 步'),
+                            if (duration != null && duration.isNotEmpty)
+                              _fact('任务耗时', duration),
+                            if (report.reviewClaims case (
+                              matched: final matched,
+                              total: final total,
+                            ))
+                              _fact('可核对事实', '$matched / $total 项'),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Center(
-                          child: _SharePhone(
-                            viewport: viewport,
-                            screen: screen,
-                          ),
+                      ),
+                      if (frame != null) ...[
+                        const SizedBox(width: 16),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            StepxNeoFrame(
+                              viewport: screen,
+                              width: phoneWidth,
+                              child: Image.memory(
+                                frame,
+                                fit: BoxFit.contain,
+                                semanticLabel: '最后一帧操作画面',
+                                errorBuilder: (_, _, _) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              '最后一帧操作画面',
+                              style: MaeveType.hint.copyWith(color: _muted),
+                            ),
+                          ],
                         ),
                       ],
-                    ),
+                    ],
                   ),
                   const SizedBox(height: 22),
                   const ColoredBox(color: _rule, child: SizedBox(height: .5)),
@@ -363,162 +460,6 @@ class _TaskSharePoster extends StatelessWidget {
           style: MaeveType.bodyStrong.copyWith(fontSize: 16),
         ),
       ],
-    ),
-  );
-}
-
-class _SharePhone extends StatelessWidget {
-  const _SharePhone({required this.viewport, required this.screen});
-
-  static const _width = 351.0;
-  static const _rim = 5.5;
-  final Size viewport;
-  final Widget screen;
-
-  static double heightFor(Size viewport) =>
-      (_width - _rim * 2) / viewport.aspectRatio + _rim * 2;
-
-  @override
-  Widget build(BuildContext context) {
-    final height = heightFor(viewport);
-    final portrait = viewport.height > viewport.width;
-    return SizedBox(
-      width: _width,
-      height: height,
-      child: Stack(
-        clipBehavior: Clip.none,
-        fit: StackFit.expand,
-        children: [
-          if (portrait) ...[
-            // PZ261A side-profile photo: the rocker, power, and AI key.
-            _sideKey(
-              'share-volume-rocker',
-              height * .13,
-              height * .12,
-              rocker: true,
-            ),
-            _sideKey('share-power-key', height * .285, height * .077),
-            _sideKey(
-              'share-ai-key',
-              height * .387,
-              height * .083,
-              orange: true,
-            ),
-          ],
-          Container(
-            key: const ValueKey('share-phone-body'),
-            padding: const EdgeInsets.all(_rim),
-            decoration: BoxDecoration(
-              color: const Color(0xff211c27),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: const Color(0xff504758),
-                width: .5,
-                strokeAlign: BorderSide.strokeAlignInside,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x402d1838),
-                  offset: Offset(0, 11),
-                  blurRadius: 21,
-                  spreadRadius: -9,
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(22.5),
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final lens = constraints.maxWidth * .043;
-                  return Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.contain,
-                        child: SizedBox.fromSize(
-                          size: viewport,
-                          child: ExcludeSemantics(
-                            child: ExcludeFocus(
-                              child: IgnorePointer(
-                                child: Stack(
-                                  fit: StackFit.expand,
-                                  children: [const MaeveBackdrop(), screen],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (portrait)
-                        Positioned(
-                          // The PZ261A cutout is centered at y=72 on its
-                          // 2670-pixel screen. The visible lens is smaller.
-                          top: constraints.maxHeight * (72 / 2670) - lens / 2,
-                          left: (constraints.maxWidth - lens) / 2,
-                          width: lens,
-                          height: lens,
-                          child: const DecoratedBox(
-                            key: ValueKey('share-front-camera'),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                center: Alignment(-.24, -.26),
-                                colors: [
-                                  Color(0xff393141),
-                                  Color(0xff100d14),
-                                  Color(0xff08080a),
-                                ],
-                                stops: [0, .29, 1],
-                              ),
-                              border: Border.fromBorderSide(
-                                BorderSide(
-                                  color: Color(0xff221d28),
-                                  width: .65,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _sideKey(
-    String key,
-    double top,
-    double height, {
-    bool rocker = false,
-    bool orange = false,
-  }) => Positioned(
-    right: -4.5,
-    top: top,
-    width: 7,
-    height: height,
-    child: DecoratedBox(
-      key: ValueKey(key),
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.horizontal(right: Radius.circular(2)),
-        gradient: LinearGradient(
-          colors: orange
-              ? const [Color(0xff963619), Color(0xffff783a), Color(0xffd85025)]
-              : const [Color(0xff1b161e), Color(0xff625766), Color(0xff372e3b)],
-        ),
-      ),
-      child: rocker
-          ? const Center(
-              child: ColoredBox(
-                color: Color(0xff3c3340),
-                child: SizedBox(height: .55, width: double.infinity),
-              ),
-            )
-          : null,
     ),
   );
 }

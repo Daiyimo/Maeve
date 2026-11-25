@@ -15,6 +15,7 @@ import '../ui/common/app_page.dart';
 import '../ui/common/haptics.dart';
 import 'glass_surface.dart';
 import 'pointer_evidence.dart';
+import 'stepx_neo_frame.dart';
 
 /// 可嵌入执行面板或独立页面的操作回放器。
 class TaskPlaybackView extends StatefulWidget {
@@ -27,7 +28,8 @@ class TaskPlaybackView extends StatefulWidget {
     this.imageHeight = 360,
     this.showStages = true,
     this.compact = false,
-    this.frozenFrame,
+    this.frameSelection,
+    this.phoneStage = false,
   });
 
   final MaeveChatBridge bridge;
@@ -37,7 +39,8 @@ class TaskPlaybackView extends StatefulWidget {
   final double imageHeight;
   final bool showStages;
   final bool compact;
-  final ({Uint8List? bytes})? frozenFrame;
+  final ValueNotifier<int?>? frameSelection;
+  final bool phoneStage;
 
   @override
   State<TaskPlaybackView> createState() => _TaskPlaybackViewState();
@@ -61,12 +64,17 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (widget.frozenFrame == null) unawaited(_fetch(_index));
+    widget.frameSelection?.addListener(_seekFromTimeline);
+    unawaited(_fetch(_index));
   }
 
   @override
   void didUpdateWidget(covariant TaskPlaybackView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.frameSelection != widget.frameSelection) {
+      oldWidget.frameSelection?.removeListener(_seekFromTimeline);
+      widget.frameSelection?.addListener(_seekFromTimeline);
+    }
     if (oldWidget.report.frames.length != widget.report.frames.length &&
         (oldWidget.report.frames.isEmpty ||
             _index >= widget.report.frames.length)) {
@@ -74,13 +82,14 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
         0,
         widget.report.frames.isEmpty ? 0 : widget.report.frames.length - 1,
       );
-      if (widget.frozenFrame == null) unawaited(_fetch(_index));
+      unawaited(_fetch(_index));
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.frameSelection?.removeListener(_seekFromTimeline);
     _timer?.cancel();
     super.dispose();
   }
@@ -97,14 +106,18 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
       if (mounted) setState(() => _ready = id);
       return;
     }
+    Uint8List? data;
     try {
-      final data = await widget.bridge.runScreen(widget.runId, id);
-      if (!mounted) return;
-      if (data != null) _bytes[id] = data;
-      setState(() => _ready = id);
+      data = await widget.bridge.runScreen(widget.runId, id);
     } catch (_) {
-      if (mounted) setState(() => _ready = id);
+      /* This frame may have been cleared. */
     }
+    if (!mounted) return;
+    setState(() {
+      if (data != null) _bytes[id] = data;
+      if (_current?.screenshotId == id) _ready = id;
+    });
+    if (_current?.screenshotId == id && _playing) _schedule();
     if (index + 1 < _frames.length) unawaited(_prefetch(index + 1));
   }
 
@@ -154,8 +167,16 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
     final next = index.clamp(0, _frames.isEmpty ? 0 : _frames.length - 1);
     if (next == _index) return;
     setState(() => _index = next);
+    widget.frameSelection?.value = next;
     unawaited(_fetch(next));
     unawaited(MaeveHaptics.play(MaeveHaptic.tick));
+  }
+
+  void _seekFromTimeline() {
+    final next = widget.frameSelection?.value;
+    if (next == null || next == _index) return;
+    _pause();
+    _go(next);
   }
 
   int _stageFrame(PlaybackStage stage) {
@@ -213,12 +234,30 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
         ),
       );
     }
-    final bytes = widget.frozenFrame != null
-        ? widget.frozenFrame!.bytes
-        : frame == null
-        ? null
-        : _bytes[frame.screenshotId];
+    final bytes = frame == null ? null : _bytes[frame.screenshotId];
     final reduce = MediaQuery.disableAnimationsOf(context);
+    final preview = _PlaybackImage(
+      bytes: bytes,
+      pointer: frame?.pointer,
+      height: widget.phoneStage ? null : widget.imageHeight,
+      phoneStage: widget.phoneStage,
+      transition: reduce ? Duration.zero : MaeveMotion.emphasized,
+      onTap: bytes == null || frame == null
+          ? null
+          : () => _fullscreen(bytes, frame),
+    );
+    Widget evidenceNote(String label, TextStyle style) => widget.phoneStage
+        ? Tooltip(
+            message: label,
+            child: Text(
+              label,
+              style: style,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          )
+        : Text(label, style: style);
+
     return Column(
       key: const ValueKey('task-playback-view'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -230,13 +269,14 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
               frame?.title ?? '记录画面',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: MaeveType.bodyStrong.copyWith(color: c.ink),
+              style: (widget.compact ? MaeveType.caption : MaeveType.bodyStrong)
+                  .copyWith(color: c.ink, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: MaeveSpace.s4),
             Wrap(
               spacing: MaeveSpace.s8,
               children: [
-                if (frame != null)
+                if (frame != null && !widget.compact)
                   Text(
                     frame.beforeAction == true ? '操作前' : '操作后',
                     style: MaeveType.label.copyWith(
@@ -244,7 +284,11 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
                     ),
                   ),
                 Text(
-                  '第 ${_index + 1} / ${_frames.length} 帧 · 来自本机记录',
+                  widget.compact
+                      ? '第 ${_index + 1} / ${_frames.length} 帧'
+                      : '第 ${_index + 1} / ${_frames.length} 帧 · 来自本机记录',
+                  maxLines: widget.compact ? 1 : null,
+                  overflow: widget.compact ? TextOverflow.ellipsis : null,
                   style: MaeveType.label.copyWith(color: c.ink3),
                 ),
               ],
@@ -252,31 +296,25 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
           ],
         ),
         const SizedBox(height: MaeveSpace.s10),
-        _PlaybackImage(
-          bytes: bytes,
-          pointer: frame?.pointer,
-          height: widget.imageHeight,
-          transition: reduce ? Duration.zero : MaeveMotion.emphasized,
-          onTap: bytes == null || frame == null
-              ? null
-              : () => _fullscreen(bytes, frame),
-        ),
+        if (widget.phoneStage) Expanded(child: preview) else preview,
         if (frame?.failed == true) ...[
           const SizedBox(height: MaeveSpace.s8),
-          Text(
+          evidenceNote(
             frame!.failure!,
-            style: MaeveType.caption.copyWith(color: c.bad),
+            MaeveType.caption.copyWith(color: c.bad),
           ),
         ],
         if (frame?.pointer != null) ...[
           const SizedBox(height: MaeveSpace.s6),
-          Text(
+          evidenceNote(
             frame!.pointer!.label,
-            style: MaeveType.hint.copyWith(color: c.ink3),
+            MaeveType.hint.copyWith(color: c.ink3),
           ),
         ],
-        const SizedBox(height: MaeveSpace.s8),
-        _controls(),
+        if (!widget.compact || _frames.length > 1) ...[
+          const SizedBox(height: MaeveSpace.s8),
+          _controls(),
+        ],
 
         if (widget.showStages && widget.report.stages.isNotEmpty) ...[
           const SizedBox(height: MaeveSpace.s12),
@@ -326,8 +364,14 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
           final width = constraints.maxWidth;
           final mix = ((width - 120) / 112).clamp(0.0, 1.0);
           final slot = width / 3;
-          final skipSize = math.min(slot * .82, 30 + 10 * mix);
-          final playSize = math.min(slot * .94, 36 + 12 * mix);
+          final skipSize = math.min(
+            slot * .82,
+            widget.compact ? 27 + 7 * mix : 30 + 10 * mix,
+          );
+          final playSize = math.min(
+            slot * .94,
+            widget.compact ? 33 + 7 * mix : 36 + 12 * mix,
+          );
           final thumbRadius = 6 + 2 * mix;
           final slider = SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -353,7 +397,7 @@ class _TaskPlaybackViewState extends State<TaskPlaybackView>
             key: const ValueKey('playback-controls'),
             children: [
               SizedBox(
-                height: 36 + 8 * mix,
+                height: widget.compact ? 32 : 36 + 8 * mix,
                 width: double.infinity,
                 child: slider,
               ),
@@ -447,42 +491,57 @@ class _PlaybackImage extends StatelessWidget {
     required this.pointer,
     required this.height,
     required this.transition,
+    required this.phoneStage,
     this.onTap,
   });
   final Uint8List? bytes;
   final ExecutionPointer? pointer;
-  final double height;
+  final double? height;
   final Duration transition;
+  final bool phoneStage;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final c = MaeveTheme.of(context).colors;
+    final picture = AnimatedSwitcher(
+      duration: transition,
+      switchInCurve: MaeveMotion.decelerate,
+      child: bytes == null
+          ? Center(
+              key: const ValueKey('loading'),
+              child: Text(
+                '画面没保存或已被清理',
+                style: MaeveType.hint.copyWith(color: c.ink3),
+              ),
+            )
+          : KeyedSubtree(
+              key: ValueKey(identityHashCode(bytes)),
+              child: _PointerCanvas(bytes: bytes!, pointer: pointer),
+            ),
+    );
     return ClipRRect(
       borderRadius: BorderRadius.circular(MaeveRadius.md),
       child: ColoredBox(
-        color: c.fill,
+        color: phoneStage ? c.accentSoft : c.fill,
         child: SizedBox(
           height: height,
           width: double.infinity,
           child: GestureDetector(
             onTap: onTap,
-            child: AnimatedSwitcher(
-              duration: transition,
-              switchInCurve: MaeveMotion.decelerate,
-              child: bytes == null
-                  ? Center(
-                      key: const ValueKey('loading'),
-                      child: Text(
-                        '画面没保存或已被清理',
-                        style: MaeveType.hint.copyWith(color: c.ink3),
+            child: phoneStage
+                ? Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: StepxNeoFrame(
+                        viewport: StepxNeoFrame.portraitViewport,
+                        width: 170,
+                        child: picture,
                       ),
-                    )
-                  : KeyedSubtree(
-                      key: ValueKey(identityHashCode(bytes)),
-                      child: _PointerCanvas(bytes: bytes!, pointer: pointer),
                     ),
-            ),
+                  )
+                : picture,
           ),
         ),
       ),

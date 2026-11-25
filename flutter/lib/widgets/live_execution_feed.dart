@@ -6,6 +6,7 @@ import '../models/execution.dart';
 import '../ui/common/haptics.dart';
 import 'execution_section.dart';
 import 'glass_surface.dart';
+import 'task_preview.dart';
 
 /// 固定高度的实时记录窗口；记录从上到下追加，最新记录停在底部。
 class LiveExecutionFeed extends StatefulWidget {
@@ -14,10 +15,18 @@ class LiveExecutionFeed extends StatefulWidget {
     required this.steps,
     this.height,
     this.compact = false,
+    this.showHeader = true,
+    this.recordings = const {},
+    this.selected,
+    this.onSelect,
   });
   final List<ExecutionStep> steps;
   final double? height;
   final bool compact;
+  final bool showHeader;
+  final Map<int, RecordedPreview> recordings;
+  final RecordedPreview? selected;
+  final ValueChanged<RecordedPreview>? onSelect;
 
   @override
   State<LiveExecutionFeed> createState() => _LiveExecutionFeedState();
@@ -92,35 +101,35 @@ class _LiveExecutionFeedState extends State<LiveExecutionFeed> {
             padding: EdgeInsets.symmetric(horizontal: widget.compact ? 6 : 10),
             itemBuilder: (context, index) {
               final step = widget.steps[index];
+              final last = index == widget.steps.length - 1;
+              final lastInStep =
+                  last || widget.steps[index + 1].step != step.step;
+              final recording = lastInStep
+                  ? widget.recordings[step.step]
+                  : null;
+              final selected =
+                  recording != null && widget.selected == recording;
+              final active = widget.selected == null && last;
               final detail = step.detail.isNotEmpty
                   ? step.detail
                   : step.actions.map((a) => a.label).join(' · ');
-              return Container(
-                key: ValueKey('live-step-${step.step}'),
-                margin: EdgeInsets.only(bottom: widget.compact ? 6 : 8),
-                padding: EdgeInsets.symmetric(
-                  horizontal: widget.compact ? 7 : 10,
-                  vertical: widget.compact ? 6 : 8,
-                ),
-                decoration: BoxDecoration(
-                  color: index == widget.steps.length - 1
-                      ? c.accentSoft
-                      : c.fill,
-                  borderRadius: BorderRadius.circular(10),
-                ),
+              final label = Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      '${step.step.toString().padLeft(2, '0')}  ${step.title}',
+                      step.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: titleStyle.copyWith(
-                        color: step.failed ? c.bad : c.ink,
-                        fontWeight: index == widget.steps.length - 1
-                            ? FontWeight.w600
-                            : FontWeight.w500,
+                        color: step.failed
+                            ? c.bad
+                            : active || selected
+                            ? c.accent
+                            : c.ink,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                     if (step.reason.isNotEmpty && step.reason != step.title)
@@ -142,6 +151,94 @@ class _LiveExecutionFeedState extends State<LiveExecutionFeed> {
                   ],
                 ),
               );
+              return Row(
+                key: ValueKey('live-step-${step.step}'),
+                children: [
+                  SizedBox(
+                    width: 23,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (index > 0 || !last)
+                          Align(
+                            alignment: last
+                                ? Alignment.topCenter
+                                : Alignment.bottomCenter,
+                            child: FractionallySizedBox(
+                              heightFactor: index == 0 || last ? .5 : 1,
+                              child: VerticalDivider(width: 1, color: c.rule),
+                            ),
+                          ),
+                        Center(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: step.failed
+                                  ? c.badSoft
+                                  : last
+                                  ? c.accentSoft
+                                  : c.okSoft,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(3),
+                              child: Icon(
+                                step.failed
+                                    ? Icons.close_rounded
+                                    : last
+                                    ? Icons.circle
+                                    : Icons.check_rounded,
+                                size: 10,
+                                color: step.failed
+                                    ? c.bad
+                                    : last
+                                    ? c.accent
+                                    : c.ok,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Material(
+                        color: selected || active
+                            ? c.accentSoft
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        child: Semantics(
+                          selected: selected,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: recording == null || widget.onSelect == null
+                                ? null
+                                : () => widget.onSelect!(recording),
+                            child: Row(
+                              children: [
+                                Expanded(child: label),
+                                if (recording != null)
+                                  Padding(
+                                    padding: const EdgeInsetsDirectional.only(
+                                      end: 8,
+                                    ),
+                                    child: Icon(
+                                      Icons.image_outlined,
+                                      size: 16,
+                                      color: c.ink3,
+                                      semanticLabel: '回看画面',
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
             },
           );
     final jumpToLatest = _following
@@ -152,7 +249,7 @@ class _LiveExecutionFeedState extends State<LiveExecutionFeed> {
           ? EdgeInsets.zero
           : const EdgeInsets.only(top: 8, bottom: 4),
       child: ExecutionSection(
-        title: '实时执行记录',
+        title: widget.showHeader ? '执行时间线' : null,
         frameKey: const ValueKey('live-execution-feed'),
         bodyHeight: widget.height == null
             ? (_extent * 1.8).clamp(160, 230)

@@ -9,7 +9,6 @@ class _ComposerDock extends StatelessWidget {
     required this.onClearQuote,
     required this.onSend,
     required this.onStop,
-    this.capturing = false,
   });
 
   final MaeveController controller;
@@ -18,7 +17,6 @@ class _ComposerDock extends StatelessWidget {
   final VoidCallback onClearQuote;
   final VoidCallback onSend;
   final VoidCallback onStop;
-  final bool capturing;
 
   @override
   Widget build(BuildContext context) {
@@ -54,8 +52,8 @@ class _ComposerDock extends StatelessWidget {
                         ),
                 ),
                 ExpandReveal(
-                  visible: !capturing && controller.blockedNotice != null,
-                  child: capturing || controller.blockedNotice == null
+                  visible: controller.blockedNotice != null,
+                  child: controller.blockedNotice == null
                       ? const SizedBox.shrink()
                       : Padding(
                           padding: const EdgeInsets.only(bottom: MaeveSpace.s6),
@@ -64,7 +62,7 @@ class _ComposerDock extends StatelessWidget {
                           ),
                         ),
                 ),
-                if (!capturing && controller.draftError != null)
+                if (controller.draftError != null)
                   Row(
                     children: [
                       Expanded(
@@ -81,7 +79,7 @@ class _ComposerDock extends StatelessWidget {
                       ),
                     ],
                   ),
-                if (!capturing && controller.chatError != null)
+                if (controller.chatError != null)
                   Row(
                     children: [
                       Expanded(
@@ -106,7 +104,6 @@ class _ComposerDock extends StatelessWidget {
                   input: input,
                   onSend: onSend,
                   onStop: onStop,
-                  capturing: capturing,
                 ),
               ],
             ),
@@ -124,14 +121,12 @@ class _ComposerBar extends StatefulWidget {
     required this.input,
     required this.onSend,
     required this.onStop,
-    this.capturing = false,
   });
 
   final MaeveController controller;
   final TextEditingController input;
   final VoidCallback onSend;
   final VoidCallback onStop;
-  final bool capturing;
 
   @override
   State<_ComposerBar> createState() => _ComposerBarState();
@@ -161,7 +156,7 @@ class _ComposerBarState extends State<_ComposerBar> {
     final controller = widget.controller;
     final colors = MaeveTheme.of(context).colors;
     final canSend = widget.input.text.trim().isNotEmpty;
-    final busy = !widget.capturing && controller.generating;
+    final busy = controller.generating;
     return AnimatedContainer(
       duration: AppMotion.of(context).quick,
       padding: const EdgeInsets.all(4),

@@ -1,19 +1,19 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../bridge/maeve_chat_bridge.dart';
 import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
+import '../models/execution.dart';
 import '../models/task_report.dart';
 import 'adaptive_execution_layout.dart';
 import 'execution_section.dart';
 import 'glass_surface.dart';
+import 'live_execution_feed.dart';
 import 'task_playback_view.dart';
+import 'task_preview.dart';
 import 'task_settlement_view.dart';
-
-typedef SettlementSnapshot = ({TaskReport report, Uint8List? frame});
 
 /// 任务完成后的同一执行面板：左侧回放，右侧结算。
 class CompletedExecutionPanel extends StatefulWidget {
@@ -23,14 +23,12 @@ class CompletedExecutionPanel extends StatefulWidget {
     required this.runId,
     this.fallbackReport,
     this.detail,
-    this.snapshot,
     this.stopped = false,
   });
   final MaeveChatBridge bridge;
   final String? runId;
   final TaskReport? fallbackReport;
   final String? detail;
-  final SettlementSnapshot? snapshot;
   final bool stopped;
 
   @override
@@ -43,11 +41,19 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
   String? _error;
   bool _loading = false;
   int _attempt = 0;
+  final _frameSelection = ValueNotifier<int?>(null);
+  bool _showTimeline = false;
 
   @override
   void initState() {
     super.initState();
-    if (widget.snapshot == null) unawaited(_load());
+    unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    _frameSelection.dispose();
+    super.dispose();
   }
 
   @override
@@ -57,7 +63,7 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
       _report = null;
       _error = null;
       _attempt = 0;
-      if (widget.snapshot == null) unawaited(_load());
+      unawaited(_load());
     }
   }
 
@@ -90,10 +96,9 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
     final c = MaeveTheme.of(context).colors;
     final loaded = _report;
     final report =
-        widget.snapshot?.report ??
-        (loaded?.available == true && !(widget.stopped && loaded!.running)
-            ? loaded
-            : widget.fallbackReport);
+        loaded?.available == true && !(widget.stopped && loaded!.running)
+        ? loaded
+        : widget.fallbackReport;
     final error = _error;
     final errorView = error == null
         ? null
@@ -124,9 +129,6 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
         ),
       );
     }
-    final frozenFrame = widget.snapshot == null
-        ? null
-        : (bytes: widget.snapshot!.frame);
     final runId = widget.runId;
     Widget playback({required bool compact}) {
       final player = runId == null
@@ -138,13 +140,13 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
               initialFrame: report.frames.isEmpty
                   ? 0
                   : report.frames.length - 1,
-              imageHeight: compact ? 150 : 280,
               showStages: false,
               compact: compact,
-              frozenFrame: frozenFrame,
+              phoneStage: true,
+              frameSelection: _frameSelection,
             );
       return ExecutionSection(
-        title: widget.stopped ? '操作回放' : null,
+        title: widget.stopped || compact ? '操作回放' : null,
         frameKey: ValueKey(
           widget.stopped
               ? 'stopped-playback-frame'
@@ -162,7 +164,7 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
                   ),
                 ),
               )
-            : SingleChildScrollView(
+            : Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: compact ? MaeveSpace.s4 : MaeveSpace.s12,
                   vertical: compact ? MaeveSpace.s8 : MaeveSpace.s12,
@@ -172,7 +174,54 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
       );
     }
 
+    final frameByStep = {
+      for (final entry in report.frames.asMap().entries)
+        entry.value.stepIndex: entry.key,
+    };
+    final recordings = <int, RecordedPreview>{
+      for (final entry in frameByStep.entries)
+        entry.key: (
+          step: entry.key,
+          screenId: report.frames[entry.value].screenshotId,
+          pointer: report.frames[entry.value].pointer,
+        ),
+    };
+    final steps = [
+      for (final entry in frameByStep.entries)
+        ExecutionStep(
+          step: entry.key,
+          title:
+              report.frames[entry.value].title ??
+              '步骤 ${report.frames[entry.value].step}',
+          detail:
+              report.frames[entry.value].failure ?? '第 ${entry.value + 1} 帧',
+          resultFailed: report.frames[entry.value].failed,
+        ),
+    ];
+    final hasTimeline = runId != null && steps.isNotEmpty;
+
+    Widget timeline({required bool showHeader}) => ValueListenableBuilder<int?>(
+      valueListenable: _frameSelection,
+      builder: (context, index, _) => LiveExecutionFeed(
+        steps: steps,
+        height: 175,
+        compact: true,
+        showHeader: showHeader,
+        recordings: recordings,
+        selected:
+            recordings[report
+                .frames[(index ?? report.frames.length - 1).clamp(
+                  0,
+                  report.frames.length - 1,
+                )]
+                .stepIndex],
+        onSelect: (recording) =>
+            _frameSelection.value = frameByStep[recording.step],
+      ),
+    );
+
     Widget settlement({required bool compact}) {
+      final showTimeline = compact && hasTimeline && _showTimeline;
       final card = TaskReportCard(
         key: const ValueKey('task-settlement-view'),
         report: report,
@@ -189,21 +238,46 @@ class _CompletedExecutionPanelState extends State<CompletedExecutionPanel> {
               ),
       );
       return ExecutionSection(
-        title: widget.stopped ? '任务结算' : null,
+        title: showTimeline
+            ? '执行时间线'
+            : widget.stopped || compact
+            ? '任务结算'
+            : null,
+        action: compact && hasTimeline
+            ? MaeveGlassTextButton(
+                label: showTimeline ? '结算' : '时间线',
+                compact: true,
+                onPressed: () => setState(() => _showTimeline = !_showTimeline),
+              )
+            : null,
         frameKey: ValueKey(
           widget.stopped
               ? 'stopped-settlement-frame'
               : 'completed-settlement-frame',
         ),
         glass: true,
-        body: body,
+        body: showTimeline
+            ? timeline(showHeader: false)
+            : !compact && hasTimeline
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: 175, child: timeline(showHeader: true)),
+                  Expanded(child: body),
+                ],
+              )
+            : body,
       );
     }
 
     return AdaptiveExecutionLayout(
       key: const ValueKey('completed-execution-layout'),
       wideHeight: 520,
-      compactHeight: 360,
+      compactHeight: switch (report.frames.length) {
+        0 => 302,
+        1 => 334,
+        _ => 378,
+      },
       left: playback(compact: false),
       compactLeft: playback(compact: true),
       right: settlement(compact: false),
