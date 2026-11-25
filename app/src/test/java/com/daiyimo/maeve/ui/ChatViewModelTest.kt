@@ -48,6 +48,29 @@ import org.junit.rules.TemporaryFolder
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
+    @Test fun flutterSubmissionWhileServiceBusyWaitsForDurableRegistration() = runTest {
+        val vm = ChatViewModel(backgroundScope, state, stage, actions, ConversationStore(tmp.newFolder()),
+            serviceBusy = MutableStateFlow(true), io = StandardTestDispatcher(testScheduler))
+        val responses = mutableListOf<String>()
+        val accepted = vm.submit("下一件事", null, ok) { goal, thread ->
+            assertEquals(vm.ui.value.conversationId, thread)
+            responses += goal
+            true
+        }
+        assertTrue(accepted)
+        assertEquals(listOf("下一件事"), responses)
+        assertTrue(calls.isEmpty())
+        assertFalse(vm.newConversation())
+    }
+
+    @Test fun rejectedRegistrationRestoresIdleConversation() = runTest {
+        val vm = vm()
+        assertFalse(vm.submit("下一件事", null, ok) { _, _ -> false })
+        assertEquals(ComposerMode.Idle, vm.ui.value.composer)
+        assertTrue(vm.ui.value.exchanges.isEmpty())
+        assertNull(vm.ui.value.conversationId)
+    }
+
     @Test fun restoredSummaryKeepsMeasuredCountAndDurationWithoutInventingStepRows() = runTest {
         val store = ConversationStore(tmp.newFolder())
         val id = store.newConversation()

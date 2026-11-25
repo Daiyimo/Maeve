@@ -14,6 +14,7 @@ sealed interface StartResult<out R> {
     data class Queued<R>(val run: R, val position: Int) : StartResult<R>
     /** 已登记过的渠道消息不再次执行，包括进程重启后服务端重投的消息。 */
     data object DuplicateChannelMessage : StartResult<Nothing>
+    data object DuplicateSubmission : StartResult<Nothing>
     /** 这个对话已经有任务(在跑或在排队):照 M1 规则不收,由对话自己排队。 */
     data object AlreadyRunningInConversation : StartResult<Nothing>
 }
@@ -40,7 +41,11 @@ class TaskCenter<R : Any>(
 
     @Synchronized
     fun tryStart(conversationId: String, goal: String, queueInConversation: Boolean = false,
-        channelPeer: ChannelPeer? = null, channelMessageId: String? = null): StartResult<R> {
+        channelPeer: ChannelPeer? = null, channelMessageId: String? = null,
+        submissionId: String? = null): StartResult<R> {
+        if (submissionId != null && store.all().any { it.submissionId == submissionId }) {
+            return StartResult.DuplicateSubmission
+        }
         if (channelMessageId != null && store.all().any {
             it.channelMessageId == channelMessageId && it.channelPeer == channelPeer
         }) return StartResult.DuplicateChannelMessage
@@ -48,7 +53,7 @@ class TaskCenter<R : Any>(
         if (sameConversation && !queueInConversation) return StartResult.AlreadyRunningInConversation
         val run = create(conversationId, goal)
         val record = StoredRun(RunId(keyOf(run)), conversationId, goal, RunPhase.Preparing,
-            channelPeer = channelPeer, channelMessageId = channelMessageId)
+            channelPeer = channelPeer, channelMessageId = channelMessageId, submissionId = submissionId)
         return if (!sameConversation && running.size < limit().max) {
             store.save(record)
             running += run

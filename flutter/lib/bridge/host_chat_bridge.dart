@@ -153,11 +153,16 @@ class HostChatBridge extends MaeveChatBridge {
   }
 
   @override
-  Future<bool?> submissionReceipt(String requestId) async {
+  Future<SubmissionReceiptState> lookupSubmission(String requestId) async {
     final receipt = await MaeveBridge.chatMethods
         .invokeMapMethod('sendReceipt', {'requestId': requestId})
         .timeout(const Duration(seconds: 5));
-    return receipt?['accepted'] as bool?;
+    return switch (receipt?['state']) {
+      'accepted' => SubmissionReceiptState.accepted,
+      'rejected' => SubmissionReceiptState.rejected,
+      'not_received' => SubmissionReceiptState.notReceived,
+      _ => SubmissionReceiptState.unknown,
+    };
   }
 
   @override

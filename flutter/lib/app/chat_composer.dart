@@ -18,6 +18,28 @@ class _ComposerDock extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onStop;
 
+  Future<void> _confirmUnresolved(BuildContext context) async {
+    final key = controller.draftKey;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => MaeveGlassDialog(
+        title: const Text('解除发送等待'),
+        content: const Text('上一条任务可能已执行。请先核对对话和实际结果。解除后会保留草稿，发送前可以继续编辑。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('解除等待'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await controller.dismissUnconfirmedSubmission(key);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = MaeveTheme.of(context).colors;
@@ -76,6 +98,22 @@ class _ComposerDock extends StatelessWidget {
                         compact: true,
                         haptic: MaeveHaptic.tick,
                         onPressed: controller.retryDraftStorage,
+                      ),
+                    ],
+                  ),
+                if (controller.submissionNeedsReview)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '上一条任务的结果待核对',
+                          style: MaeveType.hint.copyWith(color: colors.bad),
+                        ),
+                      ),
+                      MaeveGlassTextButton(
+                        label: '处理未确认的发送',
+                        compact: true,
+                        onPressed: () => _confirmUnresolved(context),
                       ),
                     ],
                   ),

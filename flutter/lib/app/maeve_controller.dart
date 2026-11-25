@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../design/maeve_accent.dart';
 import '../design/maeve_surfaces.dart';
@@ -327,6 +328,9 @@ class MaeveController extends ChangeNotifier {
   String? hostConversationId;
   String? _requestedConversation;
   bool _acceptNewConversation = false;
+  Map? _hostUi;
+  final _uncertainSubmissions = <String>{};
+  bool get submissionNeedsReview => _uncertainSubmissions.contains(draftKey);
   bool _initialChatLoaded = false;
   int _summaryGeneration = 0;
   final _eventRevisions = <String, int>{};
@@ -534,6 +538,7 @@ class MaeveController extends ChangeNotifier {
     if (_deletedIds.contains(incoming) || _deletingIds.contains(incoming)) {
       return;
     }
+    _hostUi = event;
     if (activeId.isEmpty && _acceptNewConversation && incoming.isNotEmpty) {
       _draftKeys[incoming] = draftKey;
     }
@@ -688,23 +693,19 @@ class MaeveController extends ChangeNotifier {
   /// 占位会话——它是"这个入口接到了"的可见证据,不是真实内容。宿主那边的
   /// openConversation 会把真实轮次带回来(对话不存在时是空的)。
   void openThread(String threadId) {
-    _navigationGeneration++;
-    _requestedConversation = threadId;
     if (conversations.every((conversation) => conversation.id != threadId)) {
       conversations.insert(0, Conversation(id: threadId, title: threadId));
     }
-    activeId = threadId;
-    notifyListeners();
-    _navigation = _bridge.openConversation(threadId);
-    unawaited(_navigation.catchError((_) => _navigationFailed()));
+    _openConversation(threadId);
   }
 
   /// 抽屉列表:置顶 → 按天分组,搜索与筛选在这里生效。
   List<Conversation> get visibleConversations {
     final query = search.trim().toLowerCase();
     var items = conversations.where((conversation) {
-      if (!_summaryIds.contains(conversation.id) && conversation.isEmpty)
+      if (!_summaryIds.contains(conversation.id) && conversation.isEmpty) {
         return false;
+      }
       if (listFilter == 1 && !conversation.pinned) return false;
       if (query.isEmpty) return true;
       return conversation.title.toLowerCase().contains(query);
@@ -793,13 +794,23 @@ class MaeveController extends ChangeNotifier {
 
   void select(String id) {
     if (activeId == id) return;
-    _navigationGeneration++;
+    _openConversation(id);
+  }
+
+  void _openConversation(String id) {
+    final generation = ++_navigationGeneration;
+    final previous = activeId;
     chatError = null;
-    activeId = id;
-    notifyListeners();
     _requestedConversation = id;
+    _acceptNewConversation = false;
+    activeId = id;
     _navigation = _bridge.openConversation(id);
-    unawaited(_navigation.catchError((_) => _navigationFailed()));
+    unawaited(
+      _navigation.catchError((error) {
+        _navigationFailed(generation, previous, error);
+      }),
+    );
+    notifyListeners();
   }
 
   /// 新对话:宿主切到新状态(还没说话就没有 id),壳进入空态;第一句话发出去时
@@ -818,9 +829,11 @@ class MaeveController extends ChangeNotifier {
     if (!generating &&
         active.isEmpty &&
         !_summaryIds.contains(activeId) &&
-        hostConversationId == null)
+        hostConversationId == null) {
       return;
+    }
     final generation = ++_navigationGeneration;
+    final previous = activeId;
     chatError = null;
     _rotateUsedFreshDraft();
     final key = _freshDraftKey;
@@ -840,13 +853,28 @@ class MaeveController extends ChangeNotifier {
       }
       notifyListeners();
     });
-    unawaited(_navigation.catchError((_) => _navigationFailed()));
+    unawaited(
+      _navigation.catchError((error) {
+        _navigationFailed(generation, previous, error);
+      }),
+    );
     notifyListeners();
   }
 
-  void _navigationFailed() {
-    if (_disposed) return;
-    chatError = '切换对话失败，请重新选择';
+  void _navigationFailed(int generation, String previous, Object error) {
+    if (_disposed || generation != _navigationGeneration) return;
+    _navigation = Future.value();
+    final hostUi = _hostUi;
+    final host = hostUi == null
+        ? previous
+        : (hostUi['conversationId'] as String? ?? '');
+    _requestedConversation = host;
+    _acceptNewConversation = false;
+    activeId = host;
+    if (hostUi != null) _applyUi(hostUi);
+    chatError = error is PlatformException
+        ? error.message ?? '切换对话失败，请重新选择'
+        : '切换对话失败，请重新选择';
     notifyListeners();
   }
 
@@ -938,20 +966,33 @@ class MaeveController extends ChangeNotifier {
       await _navigation;
       if (_disposed || navigation != _navigationGeneration) return false;
       chatError = null;
+      final conversation = activeId;
       final pending = _pendingSubmissions[key];
+      var id =
+          'ui_${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
       if (pending != null) {
-        final accepted = await _bridge.submissionReceipt(pending.id);
-        if (accepted == null) throw StateError('receipt_unknown');
-        _settleDraft(key, accepted);
-        await flushDrafts();
-        if (pending.text.trim() == text &&
+        final receipt = await _bridge.lookupSubmission(pending.id);
+        if (receipt == SubmissionReceiptState.unknown) {
+          _flagUnknownSubmission(key);
+        }
+        final sameMessage =
+            pending.text.trim() == text &&
             pending.quote == quote &&
-            pending.fromUser == quoteFromUser) {
-          return accepted;
+            pending.fromUser == quoteFromUser;
+        if (receipt == SubmissionReceiptState.notReceived && sameMessage) {
+          id = pending.id;
+        } else {
+          final accepted = receipt == SubmissionReceiptState.accepted;
+          _settleDraft(key, accepted);
+          await flushDrafts();
+          if (sameMessage) return accepted;
         }
       }
-      final id =
-          'ui_${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
+      if (_disposed ||
+          navigation != _navigationGeneration ||
+          activeId != conversation) {
+        return false;
+      }
       _pendingSubmissions[key] = (
         id: id,
         text: raw,
@@ -959,20 +1000,32 @@ class MaeveController extends ChangeNotifier {
         fromUser: quoteFromUser,
       );
       await flushDrafts();
-      _acceptNewConversation = activeId.isEmpty;
+      if (_disposed ||
+          navigation != _navigationGeneration ||
+          activeId != conversation) {
+        // Nothing reached the host on this attempt; preserve the draft.
+        _settleDraft(key, false);
+        await flushDrafts();
+        return false;
+      }
+      _acceptNewConversation = conversation.isEmpty;
       bool? accepted;
       try {
         accepted = await _bridge.submit(
           id,
-          activeId,
+          conversation,
           text,
           quote: quote,
           quoteFromUser: quoteFromUser,
         );
       } catch (_) {
-        accepted = await _bridge.submissionReceipt(id);
+        final receipt = await _bridge.lookupSubmission(id);
+        if (receipt == SubmissionReceiptState.notReceived) return false;
+        accepted = receipt == SubmissionReceiptState.unknown
+            ? null
+            : receipt == SubmissionReceiptState.accepted;
       }
-      if (accepted == null) throw StateError('receipt_unknown');
+      if (accepted == null) _flagUnknownSubmission(key);
       _settleDraft(key, accepted);
       await flushDrafts();
       return accepted;
@@ -981,7 +1034,25 @@ class MaeveController extends ChangeNotifier {
     }
   }
 
+  Never _flagUnknownSubmission(String key) {
+    _uncertainSubmissions.add(key);
+    if (!_disposed) notifyListeners();
+    throw StateError('receipt_unknown');
+  }
+
+  Future<void> dismissUnconfirmedSubmission(String key) async {
+    if (_sending.contains(key) || !_uncertainSubmissions.contains(key)) return;
+    _settleDraft(key, false);
+    try {
+      await flushDrafts();
+    } catch (_) {
+      // The draft storage error is already visible and blocks sending.
+    }
+    if (!_disposed) notifyListeners();
+  }
+
   void _settleDraft(String key, bool accepted) {
+    _uncertainSubmissions.remove(key);
     final sent = _pendingSubmissions.remove(key);
     final current = drafts[key];
     if (accepted &&

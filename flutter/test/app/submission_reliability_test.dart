@@ -1,7 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/services.dart';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maeve_flutter/app/maeve_controller.dart';
+import 'package:maeve_flutter/bridge/maeve_chat_bridge.dart';
 
 import '../support/fake_chat_bridge.dart';
 import '../support/fake_settings_bridge.dart';
@@ -16,6 +20,11 @@ class ReceiptBridge extends FakeChatBridge {
       );
   final reply = Completer<bool?>();
   bool? receipt;
+  bool missing = false;
+  bool navigationBlocked = false;
+  Completer<void>? saving;
+  final sentIds = <String>[];
+  final sentTo = <String>[];
   int submissions = 0, queries = 0;
   String? stored;
   bool diskFails = false;
@@ -39,6 +48,7 @@ class ReceiptBridge extends FakeChatBridge {
   @override
   Future<void> saveDrafts(String state) async {
     if (diskFails) throw StateError('disk full');
+    await saving?.future;
     stored = state;
   }
 
@@ -50,9 +60,30 @@ class ReceiptBridge extends FakeChatBridge {
     String? quote,
     bool quoteFromUser = false,
   }) {
+    sentIds.add(requestId);
+    sentTo.add(conversationId);
     submissions++;
     return reply.future;
   }
+
+  @override
+  Future<void> openConversation(String id) async {
+    if (navigationBlocked) throw PlatformException(code: 'conversation_busy');
+    await super.openConversation(id);
+  }
+
+  @override
+  Future<String?> createConversation() async {
+    if (navigationBlocked) throw PlatformException(code: 'conversation_busy');
+    await newConversation();
+    return null;
+  }
+
+  @override
+  Future<SubmissionReceiptState> lookupSubmission(String requestId) async =>
+      missing
+      ? SubmissionReceiptState.notReceived
+      : super.lookupSubmission(requestId);
 
   @override
   Future<bool?> submissionReceipt(String requestId) async {
@@ -77,6 +108,92 @@ void main() {
     controller.dispose();
     await bridge.dispose();
   });
+
+  test(
+    'switching conversations during the draft write submits nothing',
+    () async {
+      controller.select('a');
+      final key = controller.draftKey;
+      controller.saveDraft(key, '仅属于 A', null);
+      final saving = bridge.saving = Completer<void>();
+      final send = controller.send('仅属于 A');
+      await Future<void>.delayed(Duration.zero);
+      controller.select('b');
+      saving.complete();
+      expect(await send, isFalse);
+      expect(bridge.sentTo, isEmpty);
+      expect(controller.drafts[key]?.text, '仅属于 A');
+    },
+  );
+
+  test('restart before first dispatch reuses the missing request ID', () async {
+    controller.dispose();
+    bridge.missing = true;
+    const id = 'ui_1800000000000000_12';
+    bridge.stored = jsonEncode({
+      'schemaVersion': 1,
+      'generation': 1,
+      'activeKey': 'a',
+      'aliases': {},
+      'drafts': {
+        'a': {'text': '重试', 'quote': null},
+      },
+      'pending': {
+        'a': {'id': id, 'text': '重试', 'quote': null, 'fromUser': false},
+      },
+    });
+    controller = MaeveController(
+      bridge: bridge,
+      settingsBridge: FakeSettingsBridge(),
+    );
+    controller.attach();
+    await Future<void>.delayed(Duration.zero);
+    bridge.reply.complete(true);
+    expect(await controller.send('重试'), isTrue);
+    expect(bridge.sentTo, ['a']);
+    expect(bridge.sentIds, [id]);
+  });
+
+  test(
+    'a truly unknown attempt can be dismissed without dropping the draft',
+    () async {
+      final key = controller.draftKey;
+      controller.saveDraft(key, '保留', null);
+      final send = controller.send('保留');
+      await Future<void>.delayed(Duration.zero);
+      bridge.reply.complete(null);
+      await expectLater(send, throwsStateError);
+      expect(controller.submissionNeedsReview, isTrue);
+      await controller.dismissUnconfirmedSubmission(key);
+      expect(controller.submissionNeedsReview, isFalse);
+      expect(controller.drafts[key]?.text, '保留');
+      expect((jsonDecode(bridge.stored!)['pending'] as Map), isEmpty);
+      expect(bridge.submissions, 1);
+    },
+  );
+
+  test(
+    'host rejection restores the running conversation on open and create',
+    () async {
+      bridge.emitUi(
+        conversationId: 'a',
+        composer: 'busy',
+        exchanges: [FakeChatBridge.exchange('旧任务', status: 'working')],
+      );
+      await Future<void>.delayed(Duration.zero);
+      bridge.navigationBlocked = true;
+      controller.select('b');
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.activeId, 'a');
+      expect(controller.generating, isTrue);
+      expect(controller.chatError, isNotNull);
+      controller.create();
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.activeId, 'a');
+      expect(controller.generating, isTrue);
+      expect(controller.active.messages.first.text, '旧任务');
+    },
+  );
 
   test('double submit waits for the original receipt', () async {
     final first = controller.send('你好');

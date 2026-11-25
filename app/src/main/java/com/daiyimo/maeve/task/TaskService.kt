@@ -13,6 +13,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Bundle
+import android.os.ResultReceiver
+import androidx.core.content.IntentCompat
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -53,6 +56,8 @@ import com.daiyimo.maeve.ui.MainActivity
 import com.daiyimo.maeve.ui.ScreenCopy
 import com.daiyimo.maeve.ui.StatusCopy
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -215,6 +220,7 @@ class TaskService : Service() {
         lastStartId = startId
         // 系统重交旧启动请求、通知按钮或外部入口都可能在完全退出后到这里:不处理动作,也不让服务驻留
         if (FeatureFlags.get(this).quitRequested()) {
+            intent?.submissionReply()?.send(SUBMISSION_REJECTED, null)
             stopSelf(startId)
             return START_NOT_STICKY
         }
@@ -223,6 +229,7 @@ class TaskService : Service() {
         when (intent?.action) {
             ACTION_START -> begin(intent.getStringExtra(EXTRA_GOAL).orEmpty(), intent.getStringExtra(EXTRA_CONVERSATION),
                 messageId = intent.getStringExtra(EXTRA_MESSAGE_ID))
+            ACTION_SUBMIT_UI -> receiveSubmission(intent)
             ACTION_START_TRIGGER -> begin(intent.getStringExtra(EXTRA_GOAL).orEmpty(), intent.getStringExtra(EXTRA_CONVERSATION),
                 provenance = RunProvenance(RunOrigin.Trigger, Attendance.Unattended),
                 triggerKey = intent.getStringExtra(EXTRA_TRIGGER_KEY),
@@ -268,41 +275,66 @@ class TaskService : Service() {
         return START_NOT_STICKY
     }
 
+    private fun Intent.submissionReply(): ResultReceiver? =
+        IntentCompat.getParcelableExtra(this, EXTRA_SUBMISSION_REPLY, ResultReceiver::class.java)
+
+    private fun receiveSubmission(intent: Intent) {
+        val reply = intent.submissionReply() ?: return
+        val goal = intent.getStringExtra(EXTRA_GOAL) ?: return
+        val conversation = intent.getStringExtra(EXTRA_CONVERSATION) ?: return
+        val requestId = intent.getStringExtra(EXTRA_SUBMISSION_ID) ?: return
+        val accepted = try {
+            begin(goal, conversation, submissionId = requestId)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not confirm UI submission", e)
+            reply.send(SUBMISSION_UNKNOWN, null)
+            return
+        }
+        reply.send(if (accepted) SUBMISSION_ACCEPTED else SUBMISSION_REJECTED, null)
+    }
+
     private fun begin(newGoal: String, requestedConversation: String?,
         provenance: RunProvenance = RunProvenance(), triggerKey: String? = null,
         triggerActionGoal: String? = null, triggerThreadId: String? = null, mcpExternalId: String? = null, messageId: String? = null,
-        channelPeer: ChannelPeer? = null, channelMessageId: String? = null) {
-        if (requestedConversation != null && ConversationStore.shared(this).deletionBlocked(requestedConversation)) return
+        channelPeer: ChannelPeer? = null, channelMessageId: String? = null, submissionId: String? = null): Boolean {
+        if (requestedConversation != null && ConversationStore.shared(this).deletionBlocked(requestedConversation)) return false
         parallel = FeatureFlags.get(this).speedFlags().parallelTasks
         // 同一对话里正在执行或排队的任务收到新原话时，交给它的 Inbox。
         requestedConversation?.let(center::byConversation)?.let { existing ->
-            if (provenance.origin == RunOrigin.Ui) {
+            if (provenance.origin == RunOrigin.Ui && submissionId == null) {
                 if (messageId != null) existing.steer(newGoal, messageId) else existing.steer(newGoal)
                 keepForeground()
-                return
+                return true
             }
         }
         // 插话到的时候那个任务已经收尾:作为这个对话的下一件事,不因服务还在收尾而丢掉
         if (messageId != null && requestedConversation != null) {
             deferMessage(requestedConversation, newGoal)
             keepForeground()
-            return
+            return true
         }
         if (triggerKey != null && center.runs().any { it.triggerWindowKey == triggerKey &&
                 it.conditionCheck == (triggerActionGoal != null) }) {
             keepForeground()
-            return
+            return true
         }
         // 别的对话的任务正在跑、并行关着(或已到上限)时不丢:登记处让它排在后面,那个任务收尾时放出来。
         // 对话页先等服务空下来再交过来,但查完到交到之间别处(定时、电脑)可能先开始了一个,这里同样排上
         val store = ConversationStore.shared(this)
         val conversationId = requestedConversation ?: store.newConversation()
         // 定时和电脑交来的任务不丢:这个对话还有任务时排在它后面
-        val queueHere = provenance.origin in setOf(RunOrigin.Trigger, RunOrigin.Mcp, RunOrigin.Channel, RunOrigin.Amoo)
-        when (val r = center.tryStart(conversationId, newGoal, queueInConversation = queueHere,
-            channelPeer = channelPeer, channelMessageId = channelMessageId)) {
-            StartResult.DuplicateChannelMessage -> acknowledgeChannel(channelPeer, channelMessageId)
-            StartResult.AlreadyRunningInConversation -> keepForeground()
+        val queueHere = submissionId != null || provenance.origin in setOf(RunOrigin.Trigger, RunOrigin.Mcp, RunOrigin.Channel, RunOrigin.Amoo)
+        return when (val r = center.tryStart(conversationId, newGoal, queueInConversation = queueHere,
+            channelPeer = channelPeer, channelMessageId = channelMessageId, submissionId = submissionId)) {
+            StartResult.DuplicateSubmission -> true
+            StartResult.DuplicateChannelMessage -> {
+                acknowledgeChannel(channelPeer, channelMessageId)
+                true
+            }
+            StartResult.AlreadyRunningInConversation -> {
+                keepForeground()
+                false
+            }
             is StartResult.Queued -> {
                 nameConversation(store, conversationId, newGoal, provenance)
                 r.run.provenance = provenance
@@ -325,6 +357,7 @@ class TaskService : Service() {
                 if (center.running().none { it.conversationId == conversationId }) r.run.show()
                 r.run.queue(r.position)
                 keepForeground()
+                true
             }
             is StartResult.Started -> {
                 nameConversation(store, conversationId, newGoal, provenance)
@@ -354,6 +387,7 @@ class TaskService : Service() {
                     startInForeground(run, progressNotification(run, run.state.value))
                 }
                 launch(run, store)
+                true
             }
         }
     }
@@ -897,6 +931,12 @@ class TaskService : Service() {
         const val INPUT_TIMEOUT_MS = AgentLoop.DEFAULT_INPUT_TIMEOUT_MS
         const val INPUT_TIMEOUT_MINUTES = INPUT_TIMEOUT_MS / 60_000
         const val ACTION_START = "com.daiyimo.maeve.task.START"
+        private const val ACTION_SUBMIT_UI = "com.daiyimo.maeve.task.SUBMIT_UI"
+        private const val EXTRA_SUBMISSION_REPLY = "submissionReply"
+        private const val EXTRA_SUBMISSION_ID = "submissionId"
+        private const val SUBMISSION_ACCEPTED = 1
+        private const val SUBMISSION_REJECTED = 0
+        private const val SUBMISSION_UNKNOWN = -1
         const val ACTION_START_TRIGGER = "com.daiyimo.maeve.task.START_TRIGGER"
         const val ACTION_START_MCP = "com.daiyimo.maeve.task.START_MCP"
         const val ACTION_START_CHANNEL = "com.daiyimo.maeve.task.START_CHANNEL"
@@ -974,6 +1014,29 @@ class TaskService : Service() {
                     .apply { if (conversationId != null) putExtra(EXTRA_CONVERSATION, conversationId) }
                     .apply { if (messageId != null) putExtra(EXTRA_MESSAGE_ID, messageId) },
             )
+        }
+
+        /** Only the service can acknowledge registration in the durable run store. */
+        internal suspend fun submitUi(context: Context, goal: String, conversationId: String, requestId: String): Boolean {
+            if (FeatureFlags.get(context).quitRequested()) return false
+            val response = CompletableDeferred<Int>()
+            val reply = object : ResultReceiver(null) {
+                override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
+                    response.complete(resultCode)
+                }
+            }
+            try {
+                context.startForegroundService(Intent(context, TaskService::class.java).setAction(ACTION_SUBMIT_UI)
+                    .putExtra(EXTRA_GOAL, goal).putExtra(EXTRA_CONVERSATION, conversationId)
+                    .putExtra(EXTRA_SUBMISSION_ID, requestId).putExtra(EXTRA_SUBMISSION_REPLY, reply))
+            } catch (_: IllegalStateException) {
+                return false
+            }
+            return when (withTimeout(10_000) { response.await() }) {
+                SUBMISSION_ACCEPTED -> true
+                SUBMISSION_REJECTED -> false
+                else -> error("submission_registration_unknown")
+            }
         }
 
         fun startTrigger(context: Context, goal: String, threadId: String, windowKey: String, conditionGoal: String?) {

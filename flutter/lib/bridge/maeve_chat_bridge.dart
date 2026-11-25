@@ -9,6 +9,8 @@ import '../models/task_report.dart';
 
 part 'host_chat_bridge.dart';
 
+enum SubmissionReceiptState { accepted, rejected, notReceived, unknown }
+
 /// 对话桥的接口。壳只认这个接口;真机上由 [HostChatBridge] 走方法通道接宿主,
 /// 测试里换 [FakeChatBridge] 之类的实现,界面代码一行不动。
 abstract class MaeveChatBridge {
@@ -39,6 +41,12 @@ abstract class MaeveChatBridge {
     bool quoteFromUser = false,
   }) => send(text, quote: quote, quoteFromUser: quoteFromUser);
   Future<bool?> submissionReceipt(String requestId) async => null;
+  Future<SubmissionReceiptState> lookupSubmission(String requestId) async =>
+      switch (await submissionReceipt(requestId)) {
+        true => SubmissionReceiptState.accepted,
+        false => SubmissionReceiptState.rejected,
+        null => SubmissionReceiptState.unknown,
+      };
   Future<String?> loadDrafts() async => null;
   Future<void> saveDrafts(String state) async {}
   Future<({int revision, String? state})> loadDraftState() async =>

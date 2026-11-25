@@ -16,6 +16,7 @@ data class StoredRun(
     val channelMessageId: String? = null,
     /** Exact on-disk execution record; distinct from the task identity. */
     val recordId: String? = null,
+    val submissionId: String? = null,
 )
 
 interface RunStore {

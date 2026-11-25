@@ -676,6 +676,47 @@ class ChatViewModel(
         return sent
     }
 
+    /** New tasks submitted by Flutter are acknowledged only after the service registers them. */
+    internal suspend fun submit(
+        text: String,
+        quote: QuoteMessage.Quote?,
+        check: Prerequisites.Check,
+        register: suspend (goal: String, conversationId: String) -> Boolean,
+    ): Boolean {
+        refreshParallel()
+        val ui = _ui.value
+        if (ui.importing || ui.conversationId?.let(store::deletionBlocked) == true) return false
+        val words = text.trim()
+        if (words.isEmpty()) return false
+        if (ui.composer != ComposerMode.Idle) return sendQuoted(words, ui.copy(quote = quote), check)
+        if (!check.canStartTask) {
+            _ui.update { it.copy(blocked = check.blockers) }
+            return false
+        }
+        val id = ui.conversationId ?: store.newConversation()
+        val quoted = QuoteMessage.compose(quote, words)
+        val goal = if (ui.attachments.isEmpty()) quoted else {
+            val imported = importAttachments(id, ui.attachments.map { it.uri })
+            if (_ui.value.conversationId != ui.conversationId || _ui.value.composer != ComposerMode.Idle) return false
+            _ui.update { it.copy(rejectedAttachments = imported.rejected) }
+            withAttachments(quoted, imported.added)
+        }
+        val before = _ui.value
+        showNewTask(goal, id)
+        val optimistic = _ui.value.exchanges[liveIndex]
+        var accepted = false
+        try {
+            accepted = register(goal, id)
+            if (accepted) markCurrent(CurrentChat.Open(id))
+            return accepted
+        } finally {
+            if (!accepted && _ui.value.exchanges.getOrNull(liveIndex) === optimistic) {
+                liveIndex = -1
+                _ui.value = before
+            }
+        }
+    }
+
     private fun sendQuoted(words: String, ui: ChatUi, check: Prerequisites.Check): Boolean {
         // 附件只跟新任务走;回答问题时不带
         if (ui.composer == ComposerMode.Idle && ui.attachments.isNotEmpty()) return sendWithAttachments(QuoteMessage.compose(ui.quote, words), ui.attachments, check)
@@ -721,11 +762,8 @@ class ChatViewModel(
         return true
     }
 
-    /** 在对话 [id] 里开始新任务 [goal]:界面上加一问一答,交给服务(并行关着、服务还忙时排在它收尾后面)。 */
-    private fun begin(goal: String, id: String) {
+    private fun showNewTask(goal: String, id: String) {
         lingerJob?.cancel()
-        // 这个对话的编号定下来了:胶囊之后接着它(新开的对话到这一刻才有编号)
-        markCurrent(CurrentChat.Open(id))
         // 上一个任务收尾时先撤屏再报结束,这里读到的就是新任务开始前的样子;
         // 并行时那是别的对话的任务的屏,新任务还没有屏
         // 新消息开始时不能继承上一次运行的屏；真正建好本次的屏后由 screenOpen 打开小窗。
@@ -742,6 +780,12 @@ class ChatViewModel(
                 composer = ComposerMode.Busy,
             )
         }
+    }
+
+    /** 旧入口沿用对话侧的等待方式；带回执的提交直接交给服务排队。 */
+    private fun begin(goal: String, id: String) {
+        markCurrent(CurrentChat.Open(id))
+        showNewTask(goal, id)
         // 并行时服务忙着(别的对话的任务在跑)也直接交给它
         if (serviceBusy.value && !parallel()) {
             // 等着的这段时间说清楚在等什么,不让它看着像卡住了;交给服务后由任务自己的状态接着写
@@ -1032,8 +1076,8 @@ class ChatViewModel(
         runCatching { store.setCurrent(current) }
     }
 
-    fun newConversation() {
-        if (_ui.value.exchanges.isEmpty() && store.currentChat() == CurrentChat.Fresh) return
+    fun newConversation(): Boolean {
+        if (_ui.value.exchanges.isEmpty() && store.currentChat() == CurrentChat.Fresh) return true
         refreshParallel()
         if (parallel()) {
             // 别的任务可能还在跑:先给新对话编号,它的状态就不会被当成这个对话的
@@ -1043,12 +1087,13 @@ class ChatViewModel(
             _ui.update { ChatUi(conversationId = store.newConversation(), takeoverStage = Takeover.Stage.None, attachEnabled = it.attachEnabled) }
             // 还没说过话:胶囊上是一张新对话卡片(编号等说出来再定,见 begin)
             markCurrent(CurrentChat.Fresh)
-            return
+            return true
         }
-        if (busy()) return
+        if (busy()) return false
         liveIndex = -1
         _ui.update { ChatUi(takeoverStage = it.takeoverStage, attachEnabled = it.attachEnabled) }
         markCurrent(CurrentChat.Fresh)
+        return true
     }
 
     /** 屏上这个对话此刻有没有任务在跑或排队。 */

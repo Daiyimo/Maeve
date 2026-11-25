@@ -21,11 +21,17 @@ class SubmissionReceipts(
         Json.decodeFromString<List<Receipt>>(file.readText())
     }
     @Synchronized fun find(id: String): Receipt? = read().firstOrNull { it.requestId == id }
-    @Synchronized fun begin(id: String, digest: String, conversationId: String): Receipt {
-        val created = createdAt(id) ?: error("bad_request_id")
+    /** Expired IDs might already have had their receipt pruned. */
+    fun canIdentifyMissing(id: String): Boolean {
+        val created = createdAt(id) ?: return false
         val now = clock()
+        return created > now - RETENTION_MS && created <= now + CLOCK_SKEW_MS
+    }
+    @Synchronized fun begin(id: String, digest: String, conversationId: String): Receipt {
+        check(createdAt(id) != null) { "bad_request_id" }
         // ID 本身绑定创建时间；清理过期记录后，旧 ID 也不能重新启动动作。
-        check(created > now - RETENTION_MS && created <= now + CLOCK_SKEW_MS) { "request_expired" }
+        check(canIdentifyMissing(id)) { "request_expired" }
+        val now = clock()
         val rows = read().filter { (createdAt(it.requestId) ?: now) > now - RETENTION_MS }
         rows.firstOrNull { it.requestId == id }?.let {
             require(it.digest == digest && it.conversationId == conversationId) { "request_conflict" }

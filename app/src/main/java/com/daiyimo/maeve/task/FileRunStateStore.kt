@@ -40,6 +40,7 @@ class FileRunStateStore(private val file: File) : RunStore {
                     channelPeer(o),
                     o["channelMessageId"]?.jsonPrimitive?.contentOrNull,
                     o["recordId"]?.jsonPrimitive?.contentOrNull,
+                    o["submissionId"]?.jsonPrimitive?.contentOrNull,
                 )
             }
         }.onFailure {
@@ -50,9 +51,9 @@ class FileRunStateStore(private val file: File) : RunStore {
     }
 
     @Synchronized override fun save(record: StoredRun) {
-        records[record.id] = record
+        val updated = records + (record.id to record)
         file.parentFile?.mkdirs()
-        val json = JsonArray(records.values.map { r -> buildJsonObject {
+        val json = JsonArray(updated.values.map { r -> buildJsonObject {
             put("id", r.id.value); put("threadId", r.threadId); put("goal", r.goal)
             put("phase", code(r.phase)); put("reply", r.reply)
             put("deliveryId", r.deliveryId)
@@ -64,6 +65,7 @@ class FileRunStateStore(private val file: File) : RunStore {
             }) }
             put("channelMessageId", r.channelMessageId)
             put("recordId", r.recordId)
+            r.submissionId?.let { put("submissionId", it) }
         } }).toString()
         val temp = File(file.parentFile, file.name + ".tmp")
         FileOutputStream(temp).use { out -> out.write(json.toByteArray(Charsets.UTF_8)); out.fd.sync() }
@@ -72,6 +74,7 @@ class FileRunStateStore(private val file: File) : RunStore {
         } catch (_: AtomicMoveNotSupportedException) {
             Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
+        records[record.id] = record
     }
 
     @Synchronized override fun get(id: RunId): StoredRun? = records[id]
