@@ -815,7 +815,10 @@ class MaeveController extends ChangeNotifier {
   }
 
   void create() {
-    if (!generating && active.isEmpty && !_summaryIds.contains(activeId))
+    if (!generating &&
+        active.isEmpty &&
+        !_summaryIds.contains(activeId) &&
+        hostConversationId == null)
       return;
     final generation = ++_navigationGeneration;
     chatError = null;

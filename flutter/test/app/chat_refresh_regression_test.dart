@@ -6,6 +6,28 @@ import '../support/fake_settings_bridge.dart';
 
 void main() {
   test(
+    'Creating from an empty shell still synchronizes an old host conversation',
+    () async {
+      final bridge = FakeChatBridge(
+        conversations: [FakeChatBridge.conversation('c1', '旧会话')],
+      );
+      final controller = MaeveController(
+        bridge: bridge,
+        settingsBridge: FakeSettingsBridge(),
+      );
+      addTearDown(controller.dispose);
+      addTearDown(bridge.dispose);
+      controller.hostConversationId = 'c1';
+
+      controller.create();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(bridge.newCalls, 1);
+      expect(controller.activeId, '');
+    },
+  );
+
+  test(
     'A new task gets its title before any turn has completed or persisted',
     () async {
       final bridge = FakeChatBridge();
