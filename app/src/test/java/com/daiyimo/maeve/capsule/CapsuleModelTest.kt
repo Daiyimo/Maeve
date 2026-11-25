@@ -92,6 +92,13 @@ class CapsuleModelTest {
         CapsuleMode.entries.forEach { assertEquals(it, CapsuleMode.parse(it.name)) }
     }
 
+    @Test fun quitTemporarilyOverridesEveryCapsuleMode() {
+        CapsuleMode.entries.forEach { mode ->
+            assertEquals(CapsuleMode.Off, mode.effective(quit = true))
+            assertEquals(mode, mode.effective(quit = false))
+        }
+    }
+
     // ---------- 那一行字 ----------
 
     @Test fun runningTextNarrationThenReasonThenFallback() {

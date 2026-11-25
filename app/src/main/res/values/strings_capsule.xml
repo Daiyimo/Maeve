@@ -50,4 +50,7 @@
     <string name="and_more">" and more"</string>
     <string name="capsule_hide">Turn off capsule</string>
     <string name="capsule_hidden_hint">Floating capsule turned off. You can turn it back on in %1$s › %2$s.</string>
+    <string name="quit_title">Quit Maeve completely</string>
+    <string name="quit_confirm_body">Running tasks will stop, and the floating capsule and notifications will go away. Open Maeve again and everything comes back.</string>
+    <string name="quit_confirm_action">Quit</string>
 </resources>

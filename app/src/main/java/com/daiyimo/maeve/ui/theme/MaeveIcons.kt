@@ -135,6 +135,8 @@ object MaeveIcons {
         "M19.5 8.5 h1 a1.5 1.5 0 0 1 1.5 1.5 v7 a1.5 1.5 0 0 1 -1.5 1.5 h-1",
     )
     val Info = stroke("info", "M3 12 a9 9 0 1 0 18 0 a9 9 0 1 0 -18 0", "M12 11 v5.5 M12 7.8 v0.2")
+    /** 电源:完全退出。 */
+    val Power = stroke("power", "M12 3 v9", "M7.1 5.7 a7 7 0 1 0 9.8 0")
 
     // 关于页:更新记录、反馈问题、聊天(联系作者)、X、说明文档
     val Lines = stroke("lines", "M9 7 h11 M9 12 h11 M9 17 h11", "M4.5 7 h0.01 M4.5 12 h0.01 M4.5 17 h0.01", width = 2f)

@@ -52,4 +52,7 @@
     <string name="and_more">" y más"</string>
     <string name="capsule_hide">Desactivar cápsula</string>
     <string name="capsule_hidden_hint">Cápsula flotante desactivada. Puedes volver a activarla en %1$s › %2$s.</string>
+    <string name="quit_title">Salir completamente de Maeve</string>
+    <string name="quit_confirm_body">Las tareas en curso se detendrán y la cápsula flotante y las notificaciones desaparecerán. Abre Maeve de nuevo y todo volverá.</string>
+    <string name="quit_confirm_action">Salir</string>
 </resources>

@@ -73,7 +73,7 @@ class AmooBridge(private val app: MaeveApp) {
     }
 
     private suspend fun sweep() {
-        if (inFlight.get() >= MAX_IN_FLIGHT) return
+        if (flags.quitRequested() || inFlight.get() >= MAX_IN_FLIGHT) return
         val root = root() ?: return
         val inbox = File(root, IN)
         if (!inbox.isDirectory && !inbox.mkdirs()) return

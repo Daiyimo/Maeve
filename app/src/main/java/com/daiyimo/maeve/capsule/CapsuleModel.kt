@@ -15,6 +15,9 @@ import com.daiyimo.maeve.ui.Exchange
 enum class CapsuleMode {
     Off, DuringTasks, Always;
 
+    /** 完全退出只临时盖掉显示,不改用户保存的模式;重新打开 Maeve 后自动回到原模式。 */
+    fun effective(quit: Boolean): CapsuleMode = if (quit) Off else this
+
     companion object {
         val DEFAULT = Always
         fun parse(name: String?): CapsuleMode = entries.firstOrNull { it.name == name } ?: DEFAULT

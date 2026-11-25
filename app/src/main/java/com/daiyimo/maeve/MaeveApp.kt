@@ -363,21 +363,26 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
             Log.w("MaeveApp", "launcher icon sync failed", e)
         }
         registerActivityLifecycleCallbacks(foreground)
+        val flags = FeatureFlags.get(this)
+        // 用户点了「完全退出」:进程可能被无障碍服务重新拉起。胶囊照样接线(开关按退出算关着,见 CapsuleController),
+        // 但运行环境准备和没结束的运行的善后先不做,免得刚退出就冒出一条通知;用户下次打开 Maeve 时补上(见 [resumeAfterQuit])。
+        val quit = flags.quitRequested()
         // 设置 › 网络代理:Maeve 自己的连接从第一个请求起就按它走;SOCKS 代理的账号密码经全进程的认证器给
         com.daiyimo.maeve.settings.NetProxyStore.get(this)
         com.daiyimo.maeve.core.net.NetProxy.shared.installSocksAuth()
         // 内置浏览器:设了代理才给 WebView 设上(读设置要解密,放到后台;没设代理不为此加载 WebView)
         scope.launch(Dispatchers.IO) { runCatching { com.daiyimo.maeve.cap.web.WebProxy.apply(this@MaeveApp) } }
         capsule.start()
-        // amoo 文件桥:两个 App 之间唯一都读得到的地方是 Android/media,开关关着时它不轮询
-        amooBridge
+        // amoo 文件桥:两个 App 之间唯一都读得到的地方是 Android/media,开关关着时它不轮询;完全退出期间不领新任务
+        if (!quit) amooBridge
         // 内置助手的真实现,并开始看着助手(Maeve 进程起来后,还活着的助手会自己交接 Binder)
         phone.shellManager.start()
         // 连接一可用就补上默认打开的几项能力
         phone.recovery.start()
-        // 告诉内置助手:Maeve 被杀后要不要把它拉起来(胶囊一直显示或有任务在跑时才要)
+        // 告诉内置助手:Maeve 被杀后要不要把它拉起来(胶囊一直显示或有任务在跑时才要;完全退出期间都不要)
         com.daiyimo.maeve.cap.phone.setup.RestoreWishSync(
-            phone.hub, FeatureFlags.get(this).capsuleModeChanges(), taskState.busy, phone.recoverySettings.consent, phone.recovery.accessibility,
+            phone.hub, flags.capsuleModeChanges(), taskState.busy, phone.recoverySettings.consent, phone.recovery.accessibility,
+            flags.quitChanges(),
         ).start()
         // 上次异常退出时留下的改动(App 被静音)在这里恢复
         scope.launch { taskRecovery.recover() }
@@ -390,15 +395,16 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
             }
         }
         // 上次进程被杀时没结束的运行:现在就标为中断并告知,不等任务服务起来
-        // 恢复要读改写整份运行账本并落盘,放后台:Application.onCreate 是启动关键路径
-        scope.launch {
+        // 恢复要读改写整份运行账本并落盘,放后台:Application.onCreate 是启动关键路径;完全退出期间等用户下次打开再做
+        if (!quit) scope.launch {
             val interrupted = runRecovery.recover()
             if (interrupted.isNotEmpty()) Log.w("MaeveTask", "${interrupted.size} runs interrupted by process restart")
         }
         // 用户已绑定并打开微信渠道时恢复监听；服务没任务也会继续收件
         wechat.ensureRunning()
         // 先对一下设备时区:没记过就记下当前的(升级上来的用户也有基线),和记下的不同就重算当地时间计划(关着时改了时区也补上)
-        scope.launch(Dispatchers.IO) { runCatching {
+        // 完全退出期间不排闹钟,重新打开时再补排
+        if (!quit) scope.launch(Dispatchers.IO) { runCatching {
             TriggerRuntime.watchReadiness(this@MaeveApp)
             TriggerRuntime.syncTimeZone(this@MaeveApp)
             TriggerRuntime.rearm(this@MaeveApp)
@@ -418,8 +424,29 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
             com.daiyimo.maeve.ui.haptic.MaeveHaptics.setAppEnabled(this, on)
         }
         // 运行环境没准备好(首次启动、Maeve 升级后)就在后台准备,不联网、对用户不可见
-        RuntimePreparer.ensure(this)
+        if (!quit) RuntimePreparer.ensure(this)
         // 沙箱就绪(启动时已就绪,或刚装好)就把技能目录核对一次:App 更新带来的脚本马上能用
+        if (!quit) scope.launch {
+            SandboxState.get(this@MaeveApp).status.first { it is SandboxStatus.Ready }
+            val state = SandboxState.get(this@MaeveApp)
+            runCatching { SkillsSync.sync(SandboxDirs(this@MaeveApp)) { state.status.value is SandboxStatus.Ready } }
+        }
+    }
+
+    /** 用户重新打开 Maeve:补上退出时略过的启动工作(见 [com.daiyimo.maeve.quit.MaeveQuit])。 */
+    fun resumeAfterQuit() {
+        runRecovery.recover()
+        RuntimePreparer.ensure(this)
+        amooBridge
+        mcp.ensureRunning()
+        wechat.ensureRunning()
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                TriggerRuntime.watchReadiness(this@MaeveApp)
+                TriggerRuntime.syncTimeZone(this@MaeveApp)
+                TriggerRuntime.rearm(this@MaeveApp)
+            }.onFailure { Log.w("MaeveTrigger", "could not restore schedules after quit", it) }
+        }
         scope.launch {
             SandboxState.get(this@MaeveApp).status.first { it is SandboxStatus.Ready }
             val state = SandboxState.get(this@MaeveApp)

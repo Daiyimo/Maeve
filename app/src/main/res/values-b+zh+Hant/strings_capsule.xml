@@ -48,4 +48,7 @@
     <string name="and_more">" 等"</string>
     <string name="capsule_hide">關閉浮動膠囊</string>
     <string name="capsule_hidden_hint">浮動膠囊已關閉，可在「%1$s › %2$s」裡重新開啟</string>
+    <string name="quit_title">完全結束 Maeve</string>
+    <string name="quit_confirm_body">正在進行的任務會停止，浮動膠囊和通知都會收起。下次開啟 Maeve 就回來。</string>
+    <string name="quit_confirm_action">結束</string>
 </resources>

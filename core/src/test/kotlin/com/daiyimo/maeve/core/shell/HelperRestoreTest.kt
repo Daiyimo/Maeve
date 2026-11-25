@@ -20,6 +20,20 @@ class HelperRestoreTest {
     }
 
     @Test
+    fun userExitClearsTheRestoreWish() {
+        assertEquals(
+            RestoreWish.NONE,
+            RestoreWish.of(
+                capsuleAlways = true,
+                taskRunning = true,
+                accessibilityWanted = true,
+                accessibilityOn = true,
+                userExited = true,
+            ),
+        )
+    }
+
+    @Test
     fun accessibilityOnlyWhenWantedAndOn() {
         assertTrue(RestoreWish.of(true, false, accessibilityWanted = true, accessibilityOn = true).accessibility)
         // 用户在 Maeve 里关掉了替我打开无障碍

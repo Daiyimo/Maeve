@@ -20,6 +20,7 @@ import com.daiyimo.maeve.core.run.RunId
 import com.daiyimo.maeve.core.run.RunOrigin
 import com.daiyimo.maeve.core.run.RunProvenance
 import com.daiyimo.maeve.core.run.RunSpec
+import com.daiyimo.maeve.settings.FeatureFlags
 import java.util.UUID
 
 /**
@@ -61,6 +62,7 @@ class RemoteTaskHub(
         launch(taskId, goal, null, RunProvenance(RunOrigin.Amoo, Attendance.Reachable))
 
     @Synchronized private fun launch(id: String, goal: String, conversation: String?, provenance: RunProvenance): RemoteTask {
+        check(!FeatureFlags.get(context).quitRequested()) { "Maeve is quit" }
         receipts.find(id, goal, conversation)?.let { return current(it) }
         val task = RemoteTask(id, conversation ?: RemoteTaskService.newConversation(), goal, clock(), null)
         receipts.insert(task, newChat = conversation == null)

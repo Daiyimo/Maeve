@@ -54,4 +54,7 @@
     <string name="and_more">" и ещё"</string>
     <string name="capsule_hide">Выключить капсулу</string>
     <string name="capsule_hidden_hint">Плавающая капсула выключена. Включить её снова можно в разделе «%1$s › %2$s».</string>
+    <string name="quit_title">Полностью выйти из Maeve</string>
+    <string name="quit_confirm_body">Текущие задачи остановятся, плавающая капсула и уведомления исчезнут. Откройте Maeve снова — всё вернётся.</string>
+    <string name="quit_confirm_action">Выйти</string>
 </resources>

@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.TransformOrigin
 import android.graphics.Rect
 import com.daiyimo.maeve.record.RunStore
+import com.daiyimo.maeve.quit.MaeveQuit
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.cap.web.KeptPage
 import com.daiyimo.maeve.core.cap.web.KeptPageClose
@@ -155,6 +156,8 @@ class CapsuleController(
     private var openedRunKey: String? = null
     /** 空闲卡片接着的最近那段对话(点开空闲图标时读一次)。 */
     private var idle: CardView.Chat? = null
+    /** 卡片标题栏的电源按钮点过:卡片里换成「完全退出」的确认,不马上退。 */
+    private var quitConfirm by mutableStateOf(false)
 
     /** 长按说话;[talkIdle] 是空闲图标上开始说时去读的最近那段对话(说完发给它)。 */
     private val talk = CapsuleTalk(context, { (context.applicationContext as MaeveApp).voice }, scope, ::spoken)
@@ -239,9 +242,11 @@ class CapsuleController(
 
     fun start() {
         val screen = DeviceStateWatcher(context) { -1 }
+        // 用户点了「完全退出」:按开关关着算,直到用户重新打开 Maeve([resume] 清掉标记后再亮出来)
+        val mode = combine(flags.capsuleModeChanges(), flags.quitChanges()) { m, quit -> m.effective(quit) }
         scope.launch {
             combine(
-                combine(runs(), flags.capsuleModeChanges(), foreground.visible, screen.locked, ScreenAccessibility.instance) { r, m, f, l, a -> Snapshot(r, m, f, l, a) },
+                combine(runs(), mode, foreground.visible, screen.locked, ScreenAccessibility.instance) { r, m, f, l, a -> Snapshot(r, m, f, l, a) },
                 ticks,
                 keeper.page,
             ) { s, _, kept -> s.copy(kept = kept) }.collect(::render)
@@ -278,6 +283,18 @@ class CapsuleController(
             @Deprecated("Deprecated in Java")
             override fun onLowMemory() = Unit
         })
+    }
+
+    /** 用户点了「完全退出」:马上拆掉浮层。进程可能被无障碍服务重新拉起,届时按退出标记不再画(见 [start])。 */
+    fun stopNow() {
+        quitConfirm = false
+        hide()
+    }
+
+    /** 用户又打开了 Maeve:退出标记已清掉,按此刻的状态重新画(进程没被杀、又回到前台时用得上)。 */
+    fun resume() {
+        quitConfirm = false
+        refresh()
     }
 
     private data class Snapshot(
@@ -455,6 +472,7 @@ class CapsuleController(
         follow = null
         openedRunKey = null
         zoomed = false
+        quitConfirm = false
         cardHandle = null
         closeInput()
         inputUi = inputUi.collapsed()
@@ -483,6 +501,7 @@ class CapsuleController(
         when {
             inputUi.open -> { haptics.tick(); closeInput() }
             zoomed -> { haptics.tick(); zoom(false) }
+            quitConfirm -> { haptics.tick(); quitConfirm = false }
             expanded -> { haptics.tick(); collapse() }
         }
     }
@@ -1274,6 +1293,19 @@ class CapsuleController(
         override fun dropScreen() {
             inputUi = inputUi.copy(screen = null)
         }
+        override fun askQuit() {
+            closeInput()
+            // 确认卡片没有自己的标题栏可拖,别拿上一张卡片的位置当把手
+            cardHandle = null
+            applyDrag()
+            quitConfirm = true
+        }
+        override fun cancelQuit() {
+            quitConfirm = false
+        }
+        override fun quit() {
+            MaeveQuit.quit(context)
+        }
         override fun closeKeptPage() {
             keeper.close(KeptPageClose.User)
             collapse()
@@ -1285,14 +1317,15 @@ class CapsuleController(
         }
     }
 
-    /** 卡片窗口里:展开时是卡片,收起时什么都没有(窗口没有大小)。 */
+    /** 卡片窗口里:展开时是卡片,收起时什么都没有(窗口没有大小)。标题栏的电源按钮点过时换成退出的确认。 */
     @Composable
     private fun CardOverlay() {
         val c = card ?: return
         MaeveTheme(reduceMotion = animationsOff(context)) {
             val height = if (cardHeight > 0) with(LocalDensity.current) { cardHeight.toDp() } else Dp.Unspecified
             OverlayMotion(open = !closing, origin = ::cardOrigin, onClosed = ::closed, onOpened = { cardOut = true }) {
-                CapsuleCard(c, preview, zoomed, actions, { elapsed(it) }, input = inputUi, thread = thread, height = height, onHandle = ::onHandle)
+                if (quitConfirm) QuitCard(actions, height)
+                else CapsuleCard(c, preview, zoomed, actions, { elapsed(it) }, input = inputUi, thread = thread, height = height, onHandle = ::onHandle)
             }
         }
     }

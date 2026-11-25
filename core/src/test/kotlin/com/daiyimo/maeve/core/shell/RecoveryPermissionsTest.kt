@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.core.shell
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
@@ -224,6 +225,33 @@ class RecoveryPermissionsTest {
         status.value = BuiltinShellStatus.Running
         runCurrent()
         assertEquals(listOf(PermissionCommands.whitelistAdd(pkg), PermissionCommands.whitelistAdd(pkg)), shell.ran)
+        job.cancel()
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun doesNotApplyPendingWhileUserHasQuit() = runTest {
+        val shell = FakeShell()
+        val status = MutableStateFlow<BuiltinShellStatus>(BuiltinShellStatus.Running)
+        val active = MutableStateFlow(false)
+        val store = Store(RecoveryConsent(declined = setOf(a11y, restore, autoOn)))
+        val p = RecoveryPermissions({ shell }, store, pkg)
+        val job = launch { p.applyWhenRunning(status, active) }
+
+        runCurrent()
+        assertTrue(shell.ran.isEmpty())
+        active.value = true
+        runCurrent()
+        assertEquals(listOf(PermissionCommands.whitelistAdd(pkg)), shell.ran)
+
+        // 完全退出后助手再重连,也不替用户补系统设置
+        active.value = false
+        store.save(store.consent.value.copy(applied = emptySet()))
+        status.value = BuiltinShellStatus.Connecting
+        runCurrent()
+        status.value = BuiltinShellStatus.Running
+        runCurrent()
+        assertEquals(1, shell.ran.size)
         job.cancel()
     }
 

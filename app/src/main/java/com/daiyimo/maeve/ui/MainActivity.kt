@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.WindowManager
 import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.i18n.AppLanguage
+import com.daiyimo.maeve.quit.MaeveQuit
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
@@ -37,12 +38,15 @@ open class MainActivity : FlutterActivity() {
 
     override fun onStart() {
         super.onStart()
+        // 用户先前点了「完全退出」:打开 Maeve 就回来,胶囊和退出时略过的启动工作在这里补上
+        MaeveQuit.resume(this)
         (application as MaeveApp).updates.autoCheckInBackground()
         (application as MaeveApp).mcp.ensureRunning()
     }
 
     override fun onResume() {
         super.onResume()
+        (application as MaeveApp).wechat.ensureRunning()
         MaeveUiPlugin.current?.pushStatus()
     }
 

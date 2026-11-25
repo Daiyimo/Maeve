@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -186,9 +188,11 @@ class RecoveryPermissions(
         firstFailure ?: PermissionResult.Done
     }
 
-    /** 一直看着内置助手的状态：每次变成运行中（连接刚可用）就 [applyPending]。 */
-    suspend fun applyWhenRunning(status: Flow<BuiltinShellStatus>) {
-        status.collect { if (it == BuiltinShellStatus.Running) applyPending() }
+    /** 一直看着内置助手的状态：每次变成运行中（连接刚可用）就 [applyPending]；明确退出期间不动系统设置。 */
+    suspend fun applyWhenRunning(status: Flow<BuiltinShellStatus>, active: Flow<Boolean> = flowOf(true)) {
+        combine(status, active, ::Pair).collect { (state, allowed) ->
+            if (allowed && state == BuiltinShellStatus.Running) applyPending()
+        }
     }
 
     /**

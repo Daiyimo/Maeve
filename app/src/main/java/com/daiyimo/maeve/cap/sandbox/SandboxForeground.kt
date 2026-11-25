@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo
 import android.os.IBinder
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.core.cap.sandbox.SandboxStatus
+import com.daiyimo.maeve.settings.FeatureFlags
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -38,6 +39,11 @@ open class SandboxForeground : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // startForegroundService 之后必须尽快进入前台
         startForeground(ID, notification(null), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        if (FeatureFlags.get(this).quitRequested()) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
         if (watcher?.isActive == true) return START_NOT_STICKY
         watcher = scope.launch {
             val nm = getSystemService(NotificationManager::class.java)

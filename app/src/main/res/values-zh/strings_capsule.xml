@@ -48,4 +48,7 @@
     <string name="and_more">" 等"</string>
     <string name="capsule_hide">关闭悬浮胶囊</string>
     <string name="capsule_hidden_hint">悬浮胶囊已关闭，可在「%1$s › %2$s」里重新打开</string>
+    <string name="quit_title">完全退出 Maeve</string>
+    <string name="quit_confirm_body">正在进行的任务会停止，悬浮胶囊和通知都会收起。下次打开 Maeve 就回来。</string>
+    <string name="quit_confirm_action">退出</string>
 </resources>

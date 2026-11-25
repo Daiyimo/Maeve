@@ -118,6 +118,7 @@ class WechatRuntime(
     }
 
     @Synchronized fun sync(): Boolean {
+        if (FeatureFlags.get(context).quitRequested()) return false
         val account = store.account()
         if (!store.enabled() || account == null) {
             _state.value = WechatConnectionState.NeedsBinding.takeIf { account == null } ?: WechatConnectionState.Off
@@ -163,7 +164,7 @@ class WechatRuntime(
     }
 
     @Synchronized fun ensureRunning() {
-        if (!store.enabled() || store.account() == null) return
+        if (FeatureFlags.get(context).quitRequested() || !store.enabled() || store.account() == null) return
         if (monitor?.isActive == true && delivery?.isActive == true) return
         _state.value = WechatConnectionState.Connecting
         runCatching { context.startForegroundService(Intent(context, WechatService::class.java)) }

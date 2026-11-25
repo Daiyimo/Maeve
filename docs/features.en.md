@@ -28,6 +28,7 @@ Most apps installed on your phone work, with no per-app integration: Maeve looks
 ## The screen you are looking at
 
 - While you are in another app, a floating Maeve capsule at the screen edge shows background task progress, things that need you, and results. Tap it to add a message, answer, approve or stop. If you don't want it, open it and tap "Turn off capsule" at the bottom; you can turn it back on in Settings › System access › Other settings › Floating capsule.
+- To stop Maeve for real, tap the power icon in the card's top-right corner and confirm "Quit Maeve completely": running tasks stop, and the capsule and notifications go away. Open Maeve again to restore everything.
 - **Double-tap the capsule** to send the screen you are looking at to Maeve, e.g. "how should I reply to this" or "note this down". You can also take a screenshot from the card and add a line before sending.
 
 ## Scheduled and conditional tasks

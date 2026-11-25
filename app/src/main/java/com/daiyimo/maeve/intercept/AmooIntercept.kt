@@ -72,6 +72,7 @@ class AmooIntercept(private val app: MaeveApp) {
      * 断开期间的窗口切换事件全部丢失,不主动补一笔,amoo 前台就永远发现不了。
      */
     fun onServiceConnected(service: ScreenAccessibility) {
+        if (flags.quitRequested()) return
         scope.launch {
             delay(300) // 刚连上时 rootInActiveWindow 可能还没就绪
             val root = runCatching { service.rootInActiveWindow }.getOrNull() ?: return@launch
@@ -88,6 +89,7 @@ class AmooIntercept(private val app: MaeveApp) {
 
     /** 由 MaeveAccessibilityService 转进来;[service] 就是当前无障碍服务实例。 */
     fun onAccessibilityEvent(event: AccessibilityEvent, service: ScreenAccessibility) {
+        if (flags.quitRequested()) return
         // 一键接入期间即使截获关着也要跑:填输入框要靠这些事件
         if (!enabled && !app.amooSetup.active) return
         when (event.eventType) {
@@ -239,6 +241,7 @@ class AmooIntercept(private val app: MaeveApp) {
     }
 
     private fun startTask(goal: String) {
+        if (flags.quitRequested()) return
         Log.i(TAG, "amoo task intercepted: ${goal.length} chars")
         // 起任务要写账本、可能拉服务,别占主线程
         scope.launch(Dispatchers.IO) {

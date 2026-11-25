@@ -48,4 +48,7 @@
     <string name="and_more">" など"</string>
     <string name="capsule_hide">カプセルをオフ</string>
     <string name="capsule_hidden_hint">フローティングカプセルをオフにしました。「%1$s › %2$s」でもう一度オンにできます</string>
+    <string name="quit_title">Maeveを完全に終了</string>
+    <string name="quit_confirm_body">実行中のタスクは停止し、フローティングカプセルと通知は消えます。次にMaeveを開くと元に戻ります。</string>
+    <string name="quit_confirm_action">終了</string>
 </resources>

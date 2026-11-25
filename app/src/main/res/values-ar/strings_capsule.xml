@@ -58,4 +58,7 @@
     <string name="and_more">" والمزيد"</string>
     <string name="capsule_hide">إيقاف الكبسولة العائمة</string>
     <string name="capsule_hidden_hint">تم إيقاف الكبسولة العائمة. يمكنك إعادة تشغيلها من «%1$s › %2$s»</string>
+    <string name="quit_title">الخروج الكامل من Maeve</string>
+    <string name="quit_confirm_body">ستتوقف المهام الجارية، وستختفي الكبسولة العائمة والإشعارات. افتح Maeve مرة أخرى وسيعود كل شيء.</string>
+    <string name="quit_confirm_action">خروج</string>
 </resources>

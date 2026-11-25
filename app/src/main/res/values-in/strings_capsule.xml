@@ -48,4 +48,7 @@
     <string name="and_more">" dan lainnya"</string>
     <string name="capsule_hide">Matikan kapsul</string>
     <string name="capsule_hidden_hint">Kapsul mengambang dimatikan. Aktifkan lagi di %1$s › %2$s.</string>
+    <string name="quit_title">Keluar sepenuhnya dari Maeve</string>
+    <string name="quit_confirm_body">Tugas yang sedang berjalan akan dihentikan, dan kapsul mengambang serta notifikasi akan hilang. Buka Maeve lagi dan semuanya kembali.</string>
+    <string name="quit_confirm_action">Keluar</string>
 </resources>

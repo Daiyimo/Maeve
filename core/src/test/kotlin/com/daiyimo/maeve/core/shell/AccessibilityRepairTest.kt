@@ -1,5 +1,6 @@
 package com.daiyimo.maeve.core.shell
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -28,8 +29,10 @@ class AccessibilityRepairTest {
         val connectAfterMs: Long = 500,
         val result: PermissionResult = PermissionResult.Done,
         var direct: Boolean = false,
+        var allowed: Boolean = true,
         unlocked: Boolean = true,
     ) {
+        val active = MutableStateFlow(true)
         val userUnlocked = MutableStateFlow(unlocked)
         val service = MutableStateFlow(initial)
         val helper = MutableStateFlow(helperStatus)
@@ -47,11 +50,12 @@ class AccessibilityRepairTest {
             consent = { consent },
             direct = { direct },
             now = { scope.currentTime },
+            allowed = { allowed },
         )
 
         fun start(s: TestScope) {
             scope = s
-            s.backgroundScope.launch { repair.watch(service, helper, userUnlocked) }
+            s.backgroundScope.launch { repair.watch(service, helper, userUnlocked, active) }
             s.runCurrent()
         }
     }
@@ -100,6 +104,23 @@ class AccessibilityRepairTest {
         // 强行停止时系统会把 Maeve 从无障碍列表里拿掉:一样自动打开
         val rig = Rig(initial = off).also { it.start(this) }
         advanceTimeBy(60_000)
+        assertEquals(1, rig.restarts.size)
+        assertTrue(rig.repair.last.value!!.restarted)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun quitStopsRepairUntilMaeveIsOpenedAgain() = runTest {
+        val rig = Rig(allowed = false).also {
+            it.active.value = false
+            it.start(this)
+        }
+        advanceTimeBy(60_000)
+        assertEquals(emptyList<Long>(), rig.restarts)
+
+        rig.allowed = true
+        rig.active.value = true
+        advanceTimeBy(10_000)
         assertEquals(1, rig.restarts.size)
         assertTrue(rig.repair.last.value!!.restarted)
     }

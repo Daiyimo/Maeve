@@ -30,6 +30,7 @@ import com.daiyimo.maeve.core.trigger.ConditionOutcome
 import com.daiyimo.maeve.core.trigger.TriggerSnapshot
 import com.daiyimo.maeve.core.trigger.TriggerWindowState
 import com.daiyimo.maeve.core.trigger.rescheduledTo
+import com.daiyimo.maeve.settings.FeatureFlags
 import java.io.File
 import java.time.ZoneId
 import kotlinx.coroutines.CoroutineScope
@@ -106,7 +107,13 @@ object TriggerRuntime {
             .onFailure { Log.w("MaeveTrigger", "exact alarm prompt failed", it) }.isSuccess
     }
 
-    @Synchronized fun rearm(context: Context) { engine(context, store(context)).rearm(System.currentTimeMillis()) }
+    @Synchronized fun rearm(context: Context) {
+        if (FeatureFlags.get(context).quitRequested()) arm(context, null)
+        else engine(context, store(context)).rearm(System.currentTimeMillis())
+    }
+
+    /** 完全退出时只撤系统闹钟,不改计划与待处理账本;下次打开 App 由 [rearm] 接着排。 */
+    @Synchronized fun suspendAlarms(context: Context) = arm(context, null)
 
     /** 设备时区变化后,跟随旧设备时区的当地时间计划重算到新时区;显式钉了其他时区的不动。没有基线(首次使用)就只记下当前时区。 */
     @Synchronized fun syncTimeZone(context: Context) {
@@ -118,7 +125,14 @@ object TriggerRuntime {
         engine(context, store(context)).rezone(System.currentTimeMillis(), previous, ZoneId.of(current))
     }
 
-    @Synchronized fun fire(context: Context) { engine(context, store(context)).fire(System.currentTimeMillis()) }
+    @Synchronized fun fire(context: Context) {
+        // 已发出的广播可能晚于退出到达:不要认领时段,也不要发提醒,重新打开后仍可按原账本恢复
+        if (FeatureFlags.get(context).quitRequested()) {
+            arm(context, null)
+            return
+        }
+        engine(context, store(context)).fire(System.currentTimeMillis())
+    }
 
     @Synchronized fun delivered(context: Context, key: String) {
         val store = store(context)
@@ -328,9 +342,10 @@ object TriggerRuntime {
         val intent = Intent(context, TriggerAlarmReceiver::class.java).setAction(ACTION)
         val pending = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         alarms.cancel(pending)
-        if (atMs != null) {
-            if (canScheduleExactly(context)) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pending)
-            else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, atMs, pending)
+        val at = atMs?.takeUnless { FeatureFlags.get(context).quitRequested() }
+        if (at != null) {
+            if (canScheduleExactly(context)) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+            else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
         }
     }
 

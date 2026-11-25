@@ -63,6 +63,9 @@ class CapsuleCardContentTest {
         override fun loadEarlier() { calls += "earlier" }
         override fun captureScreen() { calls += "capture" }
         override fun dropScreen() { calls += "drop" }
+        override fun askQuit() { calls += "askQuit" }
+        override fun cancelQuit() { calls += "cancelQuit" }
+        override fun quit() { calls += "quit" }
     }
 
     private fun run(key: String, state: TaskState, kind: CapsuleKind, line: String = "", startedAt: Long? = null, ahead: Int = 0) =
@@ -472,6 +475,49 @@ class CapsuleCardContentTest {
         val card = compose.onNodeWithTag("capsule-card").fetchSemanticsNode().boundsInRoot
         val thread = compose.onNodeWithTag("capsule-thread").fetchSemanticsNode().boundsInRoot
         assertTrue("thread inside card: $thread in $card", thread.right <= card.right && thread.left >= card.left)
+    }
+
+    @Test fun headerPowerOnlyAsksBeforeQuitting() {
+        show(detail(run("a", TaskState.Running(1, "n"), CapsuleKind.Running, "在搜")))
+        compose.onNodeWithContentDescription("完全退出 Maeve").performClick()
+        compose.runOnIdle { assertEquals(listOf("askQuit"), calls) }
+    }
+
+    @Test fun quitConfirmationReplacesTheCardAndCancelRestoresIt() {
+        var confirming by mutableStateOf(false)
+        val switchingActions = object : CardActions by actions {
+            override fun askQuit() { confirming = true }
+            override fun cancelQuit() { confirming = false }
+        }
+        val card = detail(run("a", TaskState.Running(1, "n"), CapsuleKind.Running, "在搜"))
+        compose.setContent {
+            MaeveTheme(dark = false, reduceMotion = true) {
+                if (confirming) QuitCard(switchingActions, 420.dp)
+                else CapsuleCard(card, null, false, switchingActions, { null }, height = 420.dp)
+            }
+        }
+
+        compose.onNodeWithContentDescription("完全退出 Maeve").performClick()
+        compose.onNodeWithTag("capsule-quit").assertIsDisplayed()
+        compose.onNodeWithText("买两支牙膏").assertDoesNotExist()
+
+        compose.onNodeWithTag("capsule-quit-cancel").performClick()
+        compose.onNodeWithText("买两支牙膏").assertIsDisplayed()
+        compose.onNodeWithTag("capsule-quit").assertDoesNotExist()
+    }
+
+    @Test fun quitCardOffersQuitAndCancel() {
+        compose.setContent {
+            MaeveTheme(dark = false, reduceMotion = true) { QuitCard(actions, 420.dp) }
+        }
+        compose.onNodeWithText("完全退出 Maeve").assertIsDisplayed()
+        compose.onNodeWithText("正在进行的任务会停止", substring = true).assertIsDisplayed()
+        val image = compose.onNodeWithTag("capsule-card").captureToImage().asAndroidBitmap()
+        java.io.File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "capsule-quit-preview.png")
+            .outputStream().use { image.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        compose.onNodeWithTag("capsule-quit").performClick()
+        compose.onNodeWithTag("capsule-quit-cancel").performClick()
+        compose.runOnIdle { assertEquals(listOf("quit", "cancelQuit"), calls) }
     }
 
     @Test fun headerReportsItsHandleAndDraggingItTapsNothing() {

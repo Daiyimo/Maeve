@@ -201,9 +201,11 @@ class TaskService : Service() {
             }
         }
         // 没结束的运行在 App 启动时就处理过了;这里只补一道(进程里只做一次),并把此刻在跑的运行排除在外
-        // 恢复读改写整份运行账本并落盘,onCreate 是主线程路径,放后台
-        scope.launch(Dispatchers.IO) {
-            (application as com.daiyimo.maeve.MaeveApp).runRecovery.recover(center.runs().map { RunId(it.key) }.toSet())
+        // 恢复读改写整份运行账本并落盘,onCreate 是主线程路径,放后台;完全退出期间等用户下次打开再做
+        if (!FeatureFlags.get(this).quitRequested()) {
+            scope.launch(Dispatchers.IO) {
+                (application as com.daiyimo.maeve.MaeveApp).runRecovery.recover(center.runs().map { RunId(it.key) }.toSet())
+            }
         }
     }
 
@@ -211,6 +213,11 @@ class TaskService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         lastStartId = startId
+        // 系统重交旧启动请求、通知按钮或外部入口都可能在完全退出后到这里:不处理动作,也不让服务驻留
+        if (FeatureFlags.get(this).quitRequested()) {
+            stopSelf(startId)
+            return START_NOT_STICKY
+        }
         // 通知按钮带着任务编号,只作用于那个任务(它已结束就不起作用);应用内的按钮作用于显示中的任务
         val run = if (intent?.hasExtra(EXTRA_RUN) == true) intent.getStringExtra(EXTRA_RUN)?.let(center::byKey) else taskState.shownRun
         when (intent?.action) {
@@ -961,6 +968,7 @@ class TaskService : Service() {
         /** 开始一个任务;别的对话的任务在跑而不能同时跑时排在它后面。[conversationId] 为空表示新开一个对话(编号见 [conversationId])。 */
         /** [messageId] 给了时这是任务进行中插的话,界面按它跟这句话的去向。 */
         fun start(context: Context, goal: String, conversationId: String? = null, messageId: String? = null) {
+            if (FeatureFlags.get(context).quitRequested()) return
             context.startForegroundService(
                 Intent(context, TaskService::class.java).setAction(ACTION_START).putExtra(EXTRA_GOAL, goal)
                     .apply { if (conversationId != null) putExtra(EXTRA_CONVERSATION, conversationId) }
@@ -969,6 +977,7 @@ class TaskService : Service() {
         }
 
         fun startTrigger(context: Context, goal: String, threadId: String, windowKey: String, conditionGoal: String?) {
+            if (FeatureFlags.get(context).quitRequested()) return
             val checking = conditionGoal != null
             val runGoal = if (checking) "$conditionGoal\nRead-only check. At the end, output only JSON: {\"met\":true or false,\"evidence\":\"short supporting evidence\"}. If you cannot check, report failure; do not guess." else goal
             context.startForegroundService(Intent(context, TaskService::class.java).setAction(ACTION_START_TRIGGER)
@@ -979,6 +988,7 @@ class TaskService : Service() {
 
         /** 渠道交来的任务保留回复地址；消息编号由登记处持久化去重。 */
         fun startChannel(context: Context, peer: ChannelPeer, messageId: String, goal: String) {
+            if (FeatureFlags.get(context).quitRequested()) return
             context.startForegroundService(Intent(context, TaskService::class.java).setAction(ACTION_START_CHANNEL)
                 .putExtra(EXTRA_GOAL, goal).putExtra(EXTRA_CONVERSATION, peer.threadId)
                 .putExtra(EXTRA_CHANNEL_ID, peer.channelId).putExtra(EXTRA_PEER_ID, peer.peerId)
@@ -988,6 +998,7 @@ class TaskService : Service() {
         /** 文件桥与电脑任务共用回执账本，审批仍按各自来源判定。 */
         internal fun startRemote(context: Context, goal: String, conversation: String, externalId: String, provenance: RunProvenance) {
             require(provenance.origin == RunOrigin.Mcp || provenance.origin == RunOrigin.Amoo)
+            if (FeatureFlags.get(context).quitRequested()) return
             context.startForegroundService(Intent(context, TaskService::class.java).setAction(ACTION_START_MCP)
                 .putExtra(EXTRA_GOAL, goal).putExtra(EXTRA_CONVERSATION, conversation)
                 .putExtra(EXTRA_MCP_ID, externalId).putExtra(EXTRA_ATTENDANCE, provenance.attendance.name)

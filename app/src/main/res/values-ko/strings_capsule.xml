@@ -48,4 +48,7 @@
     <string name="and_more">" 외"</string>
     <string name="capsule_hide">캡슐 끄기</string>
     <string name="capsule_hidden_hint">플로팅 캡슐을 껐어요. %1$s › %2$s에서 다시 켤 수 있어요</string>
+    <string name="quit_title">Maeve 완전히 종료</string>
+    <string name="quit_confirm_body">진행 중인 작업이 중지되고 플로팅 캡슐과 알림이 사라집니다. Maeve를 다시 열면 모두 돌아옵니다.</string>
+    <string name="quit_confirm_action">종료</string>
 </resources>

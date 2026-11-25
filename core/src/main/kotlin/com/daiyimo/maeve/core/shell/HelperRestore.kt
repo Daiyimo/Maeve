@@ -22,7 +22,14 @@ data class RestoreWish(val revive: Boolean, val accessibility: Boolean) {
          * 无障碍只在用户没在 Maeve 里关掉「替我打开无障碍」（[accessibilityWanted]）、且当前系统列表里确实有 Maeve
          * （[accessibilityOn]）时才写回：用户趁 Maeve 活着在系统设置里关掉的，不替他打开。
          */
-        fun of(capsuleAlways: Boolean, taskRunning: Boolean, accessibilityWanted: Boolean, accessibilityOn: Boolean): RestoreWish {
+        fun of(
+            capsuleAlways: Boolean,
+            taskRunning: Boolean,
+            accessibilityWanted: Boolean,
+            accessibilityOn: Boolean,
+            userExited: Boolean = false,
+        ): RestoreWish {
+            if (userExited) return NONE
             val revive = capsuleAlways || taskRunning
             val accessibility = revive && accessibilityWanted && accessibilityOn
             return RestoreWish(revive = revive, accessibility = accessibility)

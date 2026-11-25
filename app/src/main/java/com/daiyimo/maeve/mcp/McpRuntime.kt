@@ -11,6 +11,7 @@ import com.daiyimo.maeve.core.remote.RemoteHost
 import com.daiyimo.maeve.core.remote.RemoteEndpoints
 import com.daiyimo.maeve.core.remote.RelayClient
 import com.daiyimo.maeve.core.remote.RelayGateway
+import com.daiyimo.maeve.settings.FeatureFlags
 import com.daiyimo.maeve.settings.RelaySettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -115,7 +116,7 @@ class McpRuntime(
      * 等下次打开 Maeve 的界面再起。
      */
     fun ensureRunning() {
-        if (!active) return
+        if (!active || FeatureFlags.get(context).quitRequested()) return
         runCatching { context.startForegroundService(Intent(context, McpService::class.java)) }
             .onFailure { e ->
                 Log.w(TAG, "could not start computer access service", e)
@@ -128,6 +129,7 @@ class McpRuntime(
      * 本地监听和远程通道均未启用或未能启动时返回 false。
      */
     @Synchronized internal fun sync(): Boolean {
+        if (FeatureFlags.get(context).quitRequested()) return false
         val want = listen()
         if (host != null && hostListen != want) stopListener()
         if (want == McpModes.Listen.Off) _state.value = McpServerState.Off
