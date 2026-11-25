@@ -540,13 +540,13 @@ phone_gesture #b4c09a3789c3
 phone_long_press #7ed1068d19b6
 phone_drag #2c0ff2665e0e
 phone_set_wheel #90671f37593d
-phone_run #be96c90d8b97
+phone_run #eaf1c14e70e6
 phone_system_command #02c411ea091d
 phone_list_apps #701826b59e30
 phone_launch_app #858a22609fed
 phone_app_after_task #1b6ad7e372ef
 phone_share_text #a68241065b81
-phone_open_link #813967d3c064
+phone_open_link #907280ad900d
 phone_set_alarm #b6dbdbebea7f
 phone_set_timer #e43baba93ba9
 phone_show_alarms #204c8e3c11e5

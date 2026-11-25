@@ -4,6 +4,7 @@ import com.daiyimo.maeve.core.gate.IrreversibleDetector
 import com.daiyimo.maeve.core.prompt.Feedback
 import com.daiyimo.maeve.core.prompt.Prompts
 import com.daiyimo.maeve.core.tool.Args
+import com.daiyimo.maeve.core.tool.Entry
 import com.daiyimo.maeve.core.tool.Risk
 import com.daiyimo.maeve.core.tool.ToolContext
 import com.daiyimo.maeve.core.tool.ToolDef
@@ -28,14 +29,15 @@ internal object OpenLink : PhoneTool {
     override val batchable = true
     override val routable = true
     override val risk = Risk.Write
+    override val entry = Entry.Opens
     override val showsScreenAfter = true
     override val logged = true
     override val def = ToolDef("phone_open_link",
         Prompts.tool("phone_open_link", "settings_actions" to LinkPolicy.SETTINGS_ACTIONS.joinToString(), "app_details" to LinkPolicy.APP_DETAILS),
         mapOf(
             "uri" to str("The link to open, e.g. a link from the reference notes, or package:<name> for app details."),
-            "action" to str("An Android settings action from the list above."),
-            "package" to str("Exact package name of the app that should open the link; required for http(s) links."),
+            "action" to str("An Android settings action, or ${LinkPolicy.STEPX_ACCOUNT} for the STEPX account page."),
+            "package" to str("Exact destination package; required for web links and for ${LinkPolicy.STEPX_ACCOUNT}."),
         ))
 
     override fun available(ctx: ToolContext) = ctx.phone.deepLinks
@@ -54,6 +56,9 @@ internal object OpenLink : PhoneTool {
         if (r.content["ok"] != JsonPrimitive(true)) return r
         ctx.appOpened = true
         val s = ctx.session.peek()
+        if (action == LinkPolicy.STEPX_ACCOUNT && s?.packageName != pkg) {
+            return fail("link_unresolved", "STEPX account page did not open. Use the Settings route instead.")
+        }
         val pay = s?.let { IrreversibleDetector.paymentPage(it) }
         val hints = listOfNotNull((r.content["hint"] as? JsonPrimitive)?.content)
         return ToolExecution(JsonObject(r.content.filterKeys { it != "hint" } + buildMap {

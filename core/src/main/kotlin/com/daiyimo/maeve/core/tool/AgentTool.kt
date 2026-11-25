@@ -101,6 +101,7 @@ internal interface AgentTool : ToolInfo {
      * 不是入口为 null。
      */
     val entry: Entry? get() = null
+    fun entry(ctx: ToolContext): Entry? = entry
     /** 不属于哪个能力、只在有屏幕的那几组展开时才提供的通用工具(接管、报障碍、回看画面)。 */
     val withScreens: Boolean get() = false
     /**

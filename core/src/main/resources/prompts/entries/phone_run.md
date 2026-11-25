@@ -1,0 +1,1 @@
+Run a known sequence of phone commands locally. Start with op=launch or op=open_link, then use op=tap with targetText for a known unique label. Use only links supported by phone_open_link. Check the returned screen before deciding what to do next.

@@ -37,6 +37,7 @@ import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.Surface
 import com.daiyimo.maeve.core.shell.DevtoolsSocket
+import com.daiyimo.maeve.core.tool.LinkPolicy
 import com.daiyimo.maeve.core.uistate.AppCopies
 import com.daiyimo.maeve.core.uistate.PressKeys
 import java.io.File
@@ -461,6 +462,8 @@ class ShellService(
         if (!ownDisplay(displayId)) return START_ERROR
         ShellLinks.refuse(action, uri, packageName)?.let { return it }
         val intent = Intent(action ?: Intent.ACTION_VIEW).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val transientAccount = action == LinkPolicy.STEPX_ACCOUNT
+        if (transientAccount) intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
         uri?.let { intent.data = Uri.parse(it) }
         packageName?.let { intent.setPackage(it) }
         // 网页式链接只交给声明了可从链接打开的页面,不碰 App 的内部页面
@@ -488,10 +491,11 @@ class ShellService(
         } catch (t: Throwable) {
             Log.w(TAG, "startActivityAsUser unavailable, falling back to am start", t)
             // action 可能为 null(无 component 也无 action 的 intent):不再 !! 抛 NPE,缺 action 时只回退到 -d/-p
-            val target = intent.component?.let { listOf("-n", it.flattenToShortString()) }
-                ?: (listOfNotNull(intent.action?.let { "-a" }, intent.action) + listOfNotNull(uri?.let { "-d" }, uri) + listOfNotNull(packageName?.let { "-p" }, packageName) +
-                    (if (action == null) listOf("-c", Intent.CATEGORY_BROWSABLE) else emptyList()))
-            exec("am", "start", "--display", "$displayId", *target.toTypedArray()) == 0
+            val target = listOfNotNull(intent.action?.let { "-a" }, intent.action) + listOfNotNull(uri?.let { "-d" }, uri) +
+                (intent.component?.let { listOf("-n", it.flattenToShortString()) } ?: listOfNotNull(packageName?.let { "-p" }, packageName)) +
+                (if (action == null) listOf("-c", Intent.CATEGORY_BROWSABLE) else emptyList())
+            val flags = if (transientAccount) listOf("--activity-no-history") else emptyList()
+            exec("am", "start", "--display", "$displayId", *(flags + target).toTypedArray()) == 0
         }
         if (ok) START_OK else START_ERROR
     }

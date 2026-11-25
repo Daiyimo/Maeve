@@ -47,6 +47,7 @@
 
     <!-- list_apps 列出可启动的 App;解析系统权限框所在的包,用于判断「被切走」 -->
     <queries>
+        <package android:name="com.stepos.account" />
         <!-- Amoo setup targets this system app, including installations with no launcher entry. -->
         <package android:name="com.stepos.ailauncher" />
         <intent>

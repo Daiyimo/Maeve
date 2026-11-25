@@ -43,6 +43,7 @@ import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.action.ConfirmChoice
 import com.daiyimo.maeve.core.agent.AgentLoop
 import com.daiyimo.maeve.core.tool.TaskPlan
+import com.daiyimo.maeve.core.tool.LinkPolicy
 import com.daiyimo.maeve.core.agent.SystemPrompt
 import com.daiyimo.maeve.core.agent.FailKind
 import com.daiyimo.maeve.core.agent.ModelRouter
@@ -717,7 +718,20 @@ class TaskRun(
             }
             // 装了哪些 App:每个任务读一次,读不到就当没有;参考资料用
             val apps = try { phoneScreen.listApps() } catch (e: CancellationException) { throw e } catch (e: Exception) { emptyList() }
-            val speed = FeatureFlags.get(service).speedFlags()
+            val expectsGrowthPlan = goal.contains("成长计划") && (goal.contains("amoo", ignoreCase = true) || goal.contains("签到"))
+                || goal.contains("amoo", ignoreCase = true) && goal.contains("签到")
+            if (expectsGrowthPlan) {
+                // Keep the task's temporary pages off the main display so the next scheduled run can reopen them.
+                phoneScreen.afterTask.mark(LinkPolicy.STEPX_ACCOUNT_PACKAGE, null, keep = false, reason = "Amoo Growth Plan navigation")
+                phoneScreen.afterTask.mark("com.stepos.ailauncher", null, keep = false, reason = "Amoo Growth Plan navigation")
+            }
+            val speed = FeatureFlags.get(service).speedFlags().let {
+                if (expectsGrowthPlan && !it.deepLinks && runCatching {
+                    service.packageManager.getApplicationInfo(LinkPolicy.STEPX_ACCOUNT_PACKAGE, 0).enabled
+                }.getOrDefault(false)) {
+                    it.copy(deepLinks = true)
+                } else it
+            }
             // 记忆与个人技能:进程内同一份;总开关关着就不给记忆(不检索、不注入、不提取、没有记忆工具)
             val switches = memoryRuntime.settings().switches.value.let { sw ->
                 sw.copy(learnSkills = env.evalHooks.learnSkills ?: sw.learnSkills, autoRemember = env.evalHooks.rememberMemory ?: sw.autoRemember)

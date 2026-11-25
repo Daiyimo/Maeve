@@ -22,13 +22,14 @@ import com.daiyimo.maeve.core.assembly.toolDispatcher
 private class LinkScreen(
     var result: ActionResult = ActionResult.Ok(),
     var elements: List<String> = listOf("WLAN"),
+    var packageName: String = "com.android.settings",
     private val inner: FakeScreen = FakeScreen(),
 ) : ScreenPort by inner {
     val opened = mutableListOf<Triple<String?, String?, String?>>()
     override suspend fun openLink(action: String?, uri: String?, packageName: String?): ActionResult {
         opened += Triple(action, uri, packageName); return result
     }
-    private fun snap() = ScreenSnapshot("l1", "com.android.settings",
+    private fun snap() = ScreenSnapshot("l1", packageName,
         elements.mapIndexed { i, n -> UiElement("@e${i + 1}", "text", n, 10, 10 + i * 50, listOf(0, i * 20, 999, i * 20 + 10), null, false, false, false) }, 1080, 2400)
     override suspend fun snapshot() = snap()
     override suspend fun peek() = snap()
@@ -87,6 +88,23 @@ class OpenLinkTest {
             assertNull(a, LinkPolicy.check(a, uri, null))
         }
         assertEquals(14, LinkPolicy.SETTINGS_ACTIONS.size)
+    }
+
+    @Test fun stepxAccountRequiresPinnedPackageAndVerifiesTheLandingPage() = runTest {
+        val screen = LinkScreen(packageName = LinkPolicy.STEPX_ACCOUNT_PACKAGE)
+        val dispatcher = d(screen)
+        val action = LinkPolicy.STEPX_ACCOUNT
+        val pkg = LinkPolicy.STEPX_ACCOUNT_PACKAGE
+        for (args in listOf("\"action\":\"$action\"", "\"action\":\"$action\",\"package\":\"com.example.app\"",
+            "\"action\":\"$action\",\"package\":\"$pkg\",\"uri\":\"stepx://account\"")) {
+            assertEquals("invalid_link", dispatcher.execute(call("{$args}")).content.s("error"))
+        }
+        assertTrue(screen.opened.isEmpty())
+        val account = call("""{"action":"$action","package":"$pkg"}""")
+        assertEquals(pkg, dispatcher.execute(account).content.s("currentApp"))
+        assertEquals(listOf(Triple(action, null, pkg)), screen.opened)
+        val wrongScreen = d(LinkScreen())
+        assertEquals("link_unresolved", wrongScreen.execute(account).content.s("error"))
     }
 
     @Test fun appDetailsNeedsPackageUri() = runTest {

@@ -237,15 +237,16 @@ class ToolDispatcher internal constructor(
         val tool = registry[call.name] ?: return unknown(call.name, parseArgs(call.argsJson))
         // 收着的组里的工具(入口,或模型凭记忆调了没给它看的)照常执行;它那一组就此展开,结果里说一句,下一次调用起看得到整组
         val group = groupOf(tool)
-        if (group != null && group != ToolGroups.SCREENS && tool.entry != Entry.Alone) usedGroups += group
+        val entry = tool.entry(ctx)
+        if (group != null && group != ToolGroups.SCREENS && entry != Entry.Alone) usedGroups += group
         val opening = when {
-            group == null || tool.entry == Entry.Alone -> null
+            group == null || entry == Entry.Alone -> null
             group == ToolGroups.SCREENS -> surfaces.current.takeIf { it in screenGroups }
             else -> group
         }?.takeIf(::expand)
         val result = dispatchTool(tool, call, step, sub)
         return if (opening == null) result else result.with(content = JsonObject(result.content + (MORE_TOOLS to JsonPrimitive(Feedback.format("group_opened",
-            "group" to opening, "examples" to registry.members(opening).filter { registry[it]?.entry == null }.take(4).joinToString())))))
+            "group" to opening, "examples" to registry.members(opening).filter { registry[it]?.entry(ctx) == null }.take(4).joinToString())))))
     }
 
     private suspend fun dispatchTool(tool: AgentTool, call: Part.ToolCall, step: Int?, sub: SubActions?): ToolExecution {

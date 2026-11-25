@@ -8,6 +8,8 @@ package com.daiyimo.maeve.core.tool
  */
 object LinkPolicy {
     const val APP_DETAILS = "android.settings.APPLICATION_DETAILS_SETTINGS"
+    const val STEPX_ACCOUNT = "com.stepos.account.ACCOUNTCENTER"
+    const val STEPX_ACCOUNT_PACKAGE = "com.stepos.account"
 
     val SETTINGS_ACTIONS: Set<String> = setOf(
         "android.settings.SETTINGS", "android.settings.WIFI_SETTINGS", "android.settings.BLUETOOTH_SETTINGS",
@@ -31,6 +33,10 @@ object LinkPolicy {
             return "uri must be at most $MAX_URI characters without spaces."
         }
         if (action != null) {
+            if (action == STEPX_ACCOUNT) {
+                return if (pkg == STEPX_ACCOUNT_PACKAGE && uri == null) null
+                    else "$STEPX_ACCOUNT requires package $STEPX_ACCOUNT_PACKAGE and no uri."
+            }
             if (action !in SETTINGS_ACTIONS) return "action must be one of the Android settings actions: ${SETTINGS_ACTIONS.joinToString()}."
             if (pkg != null) return "package is not used with action."
             if (action == APP_DETAILS) {

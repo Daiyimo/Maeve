@@ -8,6 +8,8 @@ import org.junit.Test
 import java.io.File
 import com.daiyimo.maeve.core.testing.BATCHABLE
 import com.daiyimo.maeve.core.assembly.allTools
+import com.daiyimo.maeve.core.assembly.toolDispatcher
+import com.daiyimo.maeve.core.tool.FakeScreen
 
 /** prompts/ 的分层规矩(见 prompts/README.md):高层不点工具名、每个工具一份说明、没有多余的文件、反馈自成一体;各层大小写进金样。 */
 class PromptLayoutTest {
@@ -51,9 +53,12 @@ class PromptLayoutTest {
     /** 入口工具(能力那一组收着时也提供的)各有一份短说明,没有多余的;短说明只点名本任务登记的工具。 */
     @Test fun everyEntryToolHasShortDescription() {
         val entries = allTools().filter { it.entry != null }.map { it.name }
-        assertEquals(setOf("phone_launch_app", "phone_list_apps", "phone_set_alarm", "phone_set_timer", "phone_add_calendar_event", "web_navigate", "web_read_page", "run_command"), entries.toSet())
-        assertEquals(entries.map { "$it.md" }.toSet(), files("entries"))
-        for (e in entries) {
+        assertEquals(setOf("phone_launch_app", "phone_open_link", "phone_list_apps", "phone_set_alarm", "phone_set_timer", "phone_add_calendar_event", "web_navigate", "web_read_page", "run_command"), entries.toSet())
+        val withLinks = toolDispatcher(FakeScreen(), deepLinks = true).offeredNow().map { it.name }
+        assertTrue(withLinks.containsAll(listOf("phone_open_link", "phone_run")))
+        val allEntries = entries + "phone_run"
+        assertEquals(allEntries.map { "$it.md" }.toSet(), files("entries"))
+        for (e in allEntries) {
             val text = File(root, "entries/$e.md").readText()
             val named = Regex("(?<![A-Za-z_])(?:phone|web)_[a-z_]+").findAll(text).map { it.value }.filter { it !in toolNames }.toList()
             assertTrue("entries/$e.md names unknown tools $named", named.isEmpty())

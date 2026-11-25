@@ -27,7 +27,7 @@ internal class ToolRegistry(private val ctx: ToolContext, all: List<AgentTool>, 
     private val frozen: List<ToolGroups.Slot> by lazy {
         tools.values.filter { it.offered(ctx) }.map { t ->
             val d = t.def(ctx)
-            ToolGroups.Slot(d.spec(), t.entry?.let { ToolDef(d.name, Prompts.entry(d.name), d.props, d.required).spec() }, groupOf(t))
+            ToolGroups.Slot(d.spec(), t.entry(ctx)?.let { ToolDef(d.name, Prompts.entry(d.name), d.props, d.required).spec() }, groupOf(t))
         }
     }
 

@@ -7,6 +7,7 @@ import com.daiyimo.maeve.core.run.waitOrSteer
 import com.daiyimo.maeve.core.tool.failCode
 import com.daiyimo.maeve.core.tool.ArgError
 import com.daiyimo.maeve.core.tool.Args
+import com.daiyimo.maeve.core.tool.Entry
 import com.daiyimo.maeve.core.tool.Risk
 import com.daiyimo.maeve.core.tool.SubActions
 import com.daiyimo.maeve.core.tool.ToolContext
@@ -29,29 +30,42 @@ import com.daiyimo.maeve.core.uistate.session
 internal object PhoneRun : PhoneTool {
     override val verb = Verb.PhoneRun
     override val risk = Risk.Write
+    override fun entry(ctx: ToolContext) = Entry.Opens.takeIf { ctx.phone.deepLinks }
     override val composite = true
     override val label = "连续操作手机"
-    override val def = ToolDef("phone_run", Prompts.tool("phone_run"), mapOf(
-        "commands" to buildJsonObject {
-            put("type", "array"); put("minItems", 1); put("maxItems", 30)
-            put("description", "Ordered commands. Each target is found again on the current screen before acting.")
-            put("items", buildJsonObject {
-                put("type", "object")
-                put("properties", buildJsonObject {
-                    put("op", buildJsonObject { put("type", "string"); put("enum", JsonArray(listOf("launch", "tap", "type", "clear", "scroll", "swipe", "key", "back", "wait", "assert", "observe").map(::JsonPrimitive))) })
-                    for (key in listOf("targetText", "resourceId", "role", "text", "packageName", "direction", "whenText", "key"))
-                        put(key, buildJsonObject { put("type", "string") })
-                    for (key in listOf("x", "y", "amount", "timeoutMs", "startX", "startY", "endX", "endY", "durationMs"))
-                        put(key, buildJsonObject { put("type", "integer") })
-                    put("present", buildJsonObject { put("type", "boolean") })
-                    put("pressEnter", buildJsonObject { put("type", "boolean") })
-                    put("cold", buildJsonObject { put("type", "boolean") })
+    private val operations = setOf("launch", "tap", "type", "clear", "scroll", "swipe", "key", "back", "wait", "assert", "observe")
+    override val def = definition(deepLinks = false)
+    private val withLinks = definition(deepLinks = true)
+    override fun def(ctx: ToolContext) = if (ctx.phone.deepLinks) withLinks else def
+
+    private fun definition(deepLinks: Boolean): ToolDef {
+        val ops = if (deepLinks) operations + "open_link" else operations
+        val fields = listOf("targetText", "resourceId", "role", "text", "packageName", "direction", "whenText", "key")
+        val tap = "tap(targetText/resourceId/role or x+y)"
+        val description = Prompts.tool("phone_run", "navigation_commands" to
+            if (deepLinks) "open_link(action or uri, packageName), $tap" else tap)
+        return ToolDef("phone_run", description, mapOf(
+            "commands" to buildJsonObject {
+                put("type", "array"); put("minItems", 1); put("maxItems", 30)
+                put("description", "Ordered commands. Each target is found again on the current screen before acting.")
+                put("items", buildJsonObject {
+                    put("type", "object")
+                    put("properties", buildJsonObject {
+                        put("op", buildJsonObject { put("type", "string"); put("enum", JsonArray(ops.map(::JsonPrimitive))) })
+                        for (key in if (deepLinks) fields + listOf("action", "uri") else fields)
+                            put(key, buildJsonObject { put("type", "string") })
+                        for (key in listOf("x", "y", "amount", "timeoutMs", "startX", "startY", "endX", "endY", "durationMs"))
+                            put(key, buildJsonObject { put("type", "integer") })
+                        put("present", buildJsonObject { put("type", "boolean") })
+                        put("pressEnter", buildJsonObject { put("type", "boolean") })
+                        put("cold", buildJsonObject { put("type", "boolean") })
+                    })
+                    put("required", JsonArray(listOf(JsonPrimitive("op"))))
+                    put("additionalProperties", false)
                 })
-                put("required", JsonArray(listOf(JsonPrimitive("op"))))
-                put("additionalProperties", false)
-            })
-        },
-    ), listOf("commands"))
+            },
+        ), listOf("commands"))
+    }
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution = ctx.session.textOnly {
         runCommands(a, ctx)
@@ -69,7 +83,7 @@ internal object PhoneRun : PhoneTool {
         for ((index, raw) in commands.withIndex()) {
             val command = raw as? JsonObject ?: throw ArgError("commands[$index]", "must be an object")
             val op = command.string("op") ?: throw ArgError("commands[$index].op", "required")
-            if (op !in setOf("launch", "tap", "type", "clear", "scroll", "swipe", "key", "back", "wait", "assert", "observe"))
+            if (op !in operations && !(op == "open_link" && ctx.phone.deepLinks))
                 throw ArgError("commands[$index].op", "unknown operation")
             val currentPackage = ctx.screen.currentPackage()
             val visual = ctx.session.visualFirst()
@@ -89,6 +103,11 @@ internal object PhoneRun : PhoneTool {
                     val pkg = command.string("packageName") ?: throw ArgError("commands[$index].packageName", "required")
                     run(sub, callId, index, "phone_launch_app", buildJsonObject { put("package", pkg); if (command.boolean("cold") == true) put("cold", true) })
                 }
+                "open_link" -> run(sub, callId, index, "phone_open_link", buildJsonObject {
+                    command.string("action")?.let { put("action", it) }
+                    command.string("uri")?.let { put("uri", it) }
+                    command.string("packageName")?.let { put("package", it) }
+                })
                 "tap", "type", "clear" -> {
                     val description = command.string("targetText")
                     val described = description != null && op != "clear" && command.string("resourceId") == null
@@ -173,6 +192,7 @@ internal object PhoneRun : PhoneTool {
             if (op == "observe") finalScreen = content
             if (!ok) { stop = error ?: "failed"; break }
             if (op == "launch") expectedPackage = command.string("packageName")
+            else if (op == "open_link") expectedPackage = (content["currentApp"] as? JsonPrimitive)?.contentOrNull
             else if (expectedPackage == null) expectedPackage = currentPackage
             if (content["app_switched"] != null) { stop = "app_switched"; break }
             if (content["opened"] != null) { stop = "opened_elsewhere"; break }
