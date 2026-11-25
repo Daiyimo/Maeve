@@ -137,6 +137,10 @@ class TaskCenter<R : Any>(
             deliveryId = deliveryId, runSucceeded = successful)) }
     }
 
+    @Synchronized fun markOutcome(run: R, successful: Boolean?) {
+        store.get(RunId(keyOf(run)))?.let { store.save(it.copy(runSucceeded = successful)) }
+    }
+
     @Synchronized fun markDelivered(run: R) {
         store.get(RunId(keyOf(run)))?.let { store.save(it.copy(phase = RunPhase.Ended, roundInProgress = false)) }
     }

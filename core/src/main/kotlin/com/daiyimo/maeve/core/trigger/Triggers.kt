@@ -444,6 +444,30 @@ class TriggerEngine(
         rearm(nowMs)
     }
 
+    /** Close the execution window once its outcome is known, independently of result notification. */
+    fun finish(key: String, state: TriggerWindowState, nowMs: Long, reason: String? = null) {
+        require(state in SETTLED_STATES || state == TriggerWindowState.Unknown)
+        if (store.mark(key, state, reason) && state == TriggerWindowState.Delivered) {
+            store.retireDeliveredOneShots()
+        }
+        rearm(nowMs)
+    }
+
+    /** Change the clock time or next occurrence while preserving the plan's enabled state. */
+    fun editTime(id: String, nowMs: Long, localTime: LocalTime?, nextAtMs: Long?): Boolean {
+        val trigger = store.get(id) ?: return false
+        if (trigger.preset != null || store.windows().any { it.triggerId == id && it.inFlight }) return false
+        val time = if (trigger.isCalendar) {
+            CALENDAR_CLOCK.format(localTime ?: return false)
+        } else null
+        val next = if (time != null) nextCalendarAt(time, trigger.calendarZone!!, trigger.calendarDays, nowMs)
+            else nextAtMs ?: return false
+        if (next <= nowMs) return false
+        store.upsert(trigger.copy(calendarTime = time, nextAtMs = next))
+        rearm(nowMs)
+        return true
+    }
+
     /** 闹钟到点：认领到期时段并派发，随后重排下一次闹钟。 */
     fun fire(nowMs: Long) {
         val idle = isIdle()

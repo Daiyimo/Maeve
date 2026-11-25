@@ -34,6 +34,7 @@ import com.daiyimo.maeve.core.trigger.rescheduledTo
 import com.daiyimo.maeve.settings.FeatureFlags
 import java.io.File
 import java.time.ZoneId
+import java.time.LocalTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -135,18 +136,17 @@ object TriggerRuntime {
         engine(context, store(context)).fire(System.currentTimeMillis())
     }
 
-    @Synchronized fun delivered(context: Context, key: String) {
-        val store = store(context)
-        store.mark(key, TriggerWindowState.Delivered)
-        store.retireDeliveredOneShots()
-        engine(context, store).rearm(System.currentTimeMillis())
+    @Synchronized fun finishTask(context: Context, key: String, successful: Boolean?, reason: String? = null) {
+        val state = when (successful) {
+            true -> TriggerWindowState.Delivered
+            false -> TriggerWindowState.Failed
+            null -> TriggerWindowState.Unknown
+        }
+        engine(context, store(context)).finish(key, state, System.currentTimeMillis(), reason?.take(160))
     }
 
-    @Synchronized fun actionFailed(context: Context, key: String, reason: String) {
-        val store = store(context)
-        if (store.windows().none { it.key == key }) return
-        store.mark(key, TriggerWindowState.Failed, reason.take(160))
-        engine(context, store).rearm(System.currentTimeMillis())
+    @Synchronized fun cancelQueued(context: Context, key: String) {
+        engine(context, store(context)).finish(key, TriggerWindowState.Skipped, System.currentTimeMillis(), "cancelled")
     }
 
     /** A dispatched run may wait in TaskService's queue before it can touch the device. */
@@ -240,6 +240,9 @@ object TriggerRuntime {
         engine(context, store).rearm(System.currentTimeMillis())
     }
 
+    @Synchronized fun editTime(context: Context, id: String, time: LocalTime?, nextAtMs: Long?): Boolean =
+        engine(context, store(context)).editTime(id, System.currentTimeMillis(), time, nextAtMs)
+
     @Synchronized fun runNow(context: Context, id: String): String? {
         val store = store(context)
         val trigger = store.get(id) ?: error(tr(R.string.trigger_deleted))
@@ -265,6 +268,10 @@ object TriggerRuntime {
     private fun store(context: Context): FileTriggerStore {
         val store = FileTriggerStore(File(context.filesDir, "triggers-v3.json"))
         if (!recovered) {
+            val results = (context.applicationContext as MaeveApp).runStore.all()
+                .filter { it.triggerWindowKey != null && it.reply != null }
+                .associateBy { it.triggerWindowKey }
+            var recoveredCompletion = false
             store.windows().filter { it.state in setOf(TriggerWindowState.Claimed,
                 TriggerWindowState.Dispatched, TriggerWindowState.ActionDispatched) }.forEach {
                 val trigger = store.get(it.triggerId)
@@ -272,12 +279,20 @@ object TriggerRuntime {
                     runCatching { deliverReminder(context, store, trigger, it.key) }
                         .onFailure { error -> store.mark(it.key, TriggerWindowState.Unknown, error::class.simpleName) }
                 } else {
-                    store.mark(it.key, TriggerWindowState.Unknown, "process restarted before result was confirmed")
-                    if (trigger != null && !hasSavedResult(context, it.key))
+                    val result = results[it.key]
+                    val state = when (result?.runSucceeded) {
+                        true -> TriggerWindowState.Delivered
+                        false -> TriggerWindowState.Failed
+                        null -> TriggerWindowState.Unknown
+                    }
+                    val marked = store.mark(it.key, state, result?.reply?.take(160) ?: "process restarted before result was confirmed")
+                    if (marked && state == TriggerWindowState.Delivered) recoveredCompletion = true
+                    if (trigger != null && result == null)
                         runCatching { reportUncertain(context, trigger, it.key) }
                             .onFailure { error -> Log.w("MaeveTrigger", "could not report recovered task", error) }
                 }
             }
+            if (recoveredCompletion) store.retireDeliveredOneShots()
             recovered = true
         }
         return store
@@ -321,7 +336,7 @@ object TriggerRuntime {
     }
 
     private fun hasSavedResult(context: Context, key: String): Boolean =
-        FileRunStateStore(File(context.filesDir, "runs-v3.json")).all().any {
+        (context.applicationContext as MaeveApp).runStore.all().any {
             it.triggerWindowKey == key && it.reply != null
         }
 

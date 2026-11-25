@@ -193,8 +193,8 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
         }
         RunRecovery(runStore, outbox, { id -> if (id == LocalChannel.ID) local else wechat.channelFor(id) }, object : TriggerOutcomes {
             override fun interrupted(key: String, reason: String) = TriggerRuntime.interrupted(app, key, reason)
-            override fun delivered(key: String) = TriggerRuntime.delivered(app, key)
-            override fun actionFailed(key: String, reason: String) = TriggerRuntime.actionFailed(app, key, reason)
+            override fun finishTask(key: String, successful: Boolean?, reason: String?) =
+                TriggerRuntime.finishTask(app, key, successful, reason)
         }, conversations, scope)
     }
 

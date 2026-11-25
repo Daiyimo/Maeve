@@ -36,10 +36,12 @@ class RunRecoveryTest {
         override suspend fun send(peer: ChannelPeer, delivery: Delivery): SendOutcome { peers += peer; sent += delivery; return SendOutcome.Delivered }
     }
 
-    private object NoTriggers : TriggerOutcomes {
+    private class RecordingTriggers : TriggerOutcomes {
+        val results = mutableListOf<Pair<String, Boolean?>>()
         override fun interrupted(key: String, reason: String) {}
-        override fun delivered(key: String) {}
-        override fun actionFailed(key: String, reason: String) {}
+        override fun finishTask(key: String, successful: Boolean?, reason: String?) {
+            results += key to successful
+        }
     }
 
     private inner class Rig(val scope: TestScope, channelId: String = LocalChannel.ID) {
@@ -47,7 +49,8 @@ class RunRecoveryTest {
         val channel = RecordingChannel(channelId)
         val outbox = Outbox()
         val conversations = ConversationStore(tmp.newFolder())
-        val recovery = RunRecovery(store, outbox, { channel }, NoTriggers, conversations, scope)
+        val triggers = RecordingTriggers()
+        val recovery = RunRecovery(store, outbox, { channel }, triggers, conversations, scope)
     }
 
     private fun run(id: String, phase: RunPhase = RunPhase.Running) = StoredRun(RunId(id), "thread-$id", "目标 $id", phase)
@@ -100,6 +103,15 @@ class RunRecoveryTest {
 
         assertEquals(listOf("d1"), rig.channel.sent.map { it.id })
         assertEquals(RunPhase.Ended, rig.store.get(RunId("a"))?.phase)
+    }
+
+    @Test fun deliveringRestoredReplyDoesNotConfirmAnUnverifiedScheduledTask() = runTest(UnconfinedTestDispatcher()) {
+        val rig = Rig(this)
+        rig.store.save(run("a", RunPhase.Aftercare).copy(reply = "只完成部分步骤", deliveryId = "d1",
+            triggerWindowKey = "schedule:1", runSucceeded = null))
+        rig.recovery.recover()
+        assertEquals(listOf("d1"), rig.channel.sent.map { it.id })
+        assertEquals(listOf<Pair<String, Boolean?>>("schedule:1" to null), rig.triggers.results)
     }
 
     @Test fun interruptedChannelRunRecoversToItsOriginalPeer() = runTest(UnconfinedTestDispatcher()) {

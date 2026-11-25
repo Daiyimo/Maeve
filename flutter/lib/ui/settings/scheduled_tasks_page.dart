@@ -84,8 +84,11 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
         }
       });
       if (action == 'runNow') {
-        final plans = (value['plans'] as List?)?.whereType<Map>() ?? const <Map>[];
-        final plan = plans.where((item) => item['id'] == args['id']).firstOrNull;
+        final plans =
+            (value['plans'] as List?)?.whereType<Map>() ?? const <Map>[];
+        final plan = plans
+            .where((item) => item['id'] == args['id'])
+            .firstOrNull;
         final threadId = plan?['threadId'] as String?;
         if (threadId != null && threadId.isNotEmpty) {
           final controller = MaeveScope.of(context);
@@ -134,6 +137,55 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
     );
   }
 
+  Future<void> _editTime(Map plan) async {
+    final id = plan['id'] as String;
+    final clock = plan['time'] as String?;
+    final next = DateTime.fromMillisecondsSinceEpoch(plan['nextAt'] as int);
+    if (clock != null) {
+      final parts = clock.split(':');
+      final selected = await showTimePicker(
+        context: context,
+        helpText: '修改执行时间 · ${plan['calendarZone'] ?? '设备时区'}',
+        initialTime: TimeOfDay(
+          hour: int.parse(parts[0]),
+          minute: int.parse(parts[1]),
+        ),
+      );
+      if (selected == null || !mounted) return;
+      String two(int value) => value.toString().padLeft(2, '0');
+      await _update(
+        'reschedule',
+        args: {
+          'id': id,
+          'time': '${two(selected.hour)}:${two(selected.minute)}',
+        },
+      );
+      return;
+    }
+    final now = DateTime.now();
+    final initial = next.isAfter(now)
+        ? next
+        : now.add(const Duration(hours: 1));
+    final day = await showDatePicker(
+      context: context,
+      helpText: '修改下次执行日期',
+      initialDate: initial,
+      firstDate: DateUtils.dateOnly(now),
+      lastDate: DateTime(initial.year + 10, 12, 31),
+    );
+    if (day == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+    final at = DateTime(day.year, day.month, day.day, time.hour, time.minute);
+    await _update(
+      'reschedule',
+      args: {'id': id, 'nextAt': at.millisecondsSinceEpoch},
+    );
+  }
+
   Future<void> _remove(String id) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -158,9 +210,14 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
   String _status(Map plan) {
     final date = DateTime.fromMillisecondsSinceEpoch(plan['nextAt'] as int);
     String two(int value) => value.toString().padLeft(2, '0');
+    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
+    final days = (plan['calendarDays'] as List?)?.cast<int>() ?? const [];
+    final recurrence = days.isEmpty
+        ? '每日'
+        : '每周${days.map((day) => weekdays[day - 1]).join('、')}';
     final when = plan['time'] == null
         ? '${date.month}月${date.day}日 ${two(date.hour)}:${two(date.minute)}'
-        : '每日 ${plan['time']}';
+        : '$recurrence ${plan['time']}';
     final status = switch (plan['state']) {
       'waiting' => switch (plan['blocked']) {
         'locked' => '等待手机解锁',
@@ -272,6 +329,13 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
                 onTap: () =>
                     _update('runNow', args: {'id': plan['id'] as String}),
               ),
+              if (plan['timeEditable'] != false)
+                SettingsTile(
+                  title: '改时间',
+                  icon: Icons.edit_calendar_outlined,
+                  enabled: !_busy && plan['inFlight'] != true,
+                  onTap: () => _editTime(plan),
+                ),
               SettingsTile(
                 title: '删除计划',
                 icon: Icons.delete_outline,

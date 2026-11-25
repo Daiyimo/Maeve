@@ -8,6 +8,49 @@ import java.time.Instant
 import java.time.ZoneId
 
 class TriggerEngineTest {
+    @Test fun cancellingQueuedWindowLetsTheNextOccurrenceRun() {
+        val store = MemoryTriggerStore()
+        store.upsert(TriggerDefinition("daily", "chat", "check in", 1000, intervalMs = 1000))
+        val dispatched = mutableListOf<TriggerWindow>()
+        val engine = TriggerEngine(store, {}) { _, window -> dispatched += window }
+        engine.fire(1000)
+        engine.finish(dispatched.single().key, TriggerWindowState.Skipped, 1100, "cancelled")
+        engine.fire(2000)
+        assertEquals(listOf(1000L, 2000L), dispatched.map { it.dueAtMs })
+    }
+
+    @Test fun onlyVerifiedCompletionRetiresAOneShot() {
+        for (outcome in listOf(TriggerWindowState.Failed, TriggerWindowState.Delivered)) {
+            val store = MemoryTriggerStore()
+            store.upsert(TriggerDefinition("once", "chat", "check in", 1000))
+            val engine = TriggerEngine(store, {}) { _, _ -> }
+            engine.fire(1000)
+            val window = store.windows().single()
+            assertEquals(TriggerWindowState.Dispatched, window.state)
+            engine.finish(window.key, outcome, 1200)
+            if (outcome == TriggerWindowState.Delivered) {
+                assertEquals(null, store.get("once"))
+            } else {
+                assertEquals(outcome, store.windows().single().state)
+                assertEquals("once", store.get("once")?.id)
+            }
+        }
+    }
+
+    @Test fun editingCalendarTimeKeepsWeekdaysAndPausedStateAcrossDaylightSaving() {
+        val store = MemoryTriggerStore()
+        val now = Instant.parse("2026-03-28T12:00:00Z").toEpochMilli()
+        store.upsert(TriggerDefinition("weekly", "chat", "check in", now, enabled = false,
+            calendarTime = "09:00", calendarZone = "Europe/Berlin", calendarDays = listOf(7)))
+        val engine = TriggerEngine(store, {}) { _, _ -> }
+        assertTrue(engine.editTime("weekly", now, java.time.LocalTime.of(2, 30), null))
+        val plan = store.get("weekly")!!
+        assertEquals(false, plan.enabled)
+        assertEquals("02:30", plan.calendarTime)
+        assertEquals(listOf(7), plan.calendarDays)
+        assertEquals(Instant.parse("2026-03-29T01:30:00Z").toEpochMilli(), plan.nextAtMs)
+    }
+
     @Test fun overduePlanWaitsForUnlockAndNetworkAndRunsOnlyOnce() {
         val store = MemoryTriggerStore()
         store.upsert(TriggerDefinition("daily", "t", "每日签到", 1_000, intervalMs = 1_000))

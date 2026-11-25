@@ -22,8 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** 恢复时要告诉定时触发的几件事;产品里转给 [TriggerRuntime]。 */
 interface TriggerOutcomes {
     fun interrupted(key: String, reason: String)
-    fun delivered(key: String)
-    fun actionFailed(key: String, reason: String)
+    fun finishTask(key: String, successful: Boolean?, reason: String?)
 }
 
 /**
@@ -74,7 +73,10 @@ class RunRecovery(
     private fun told(run: StoredRun) = noticeIds(run).any { outbox.get(it) != null }
 
     private suspend fun settle(run: StoredRun) {
-        run.triggerWindowKey?.let { triggers.interrupted(it, "run interrupted before the result was confirmed") }
+        run.triggerWindowKey?.let { key ->
+            if (run.reply == null) triggers.interrupted(key, "run interrupted before the result was confirmed")
+            else triggers.finishTask(key, run.runSucceeded, run.reply)
+        }
         val peer = run.channelPeer ?: ChannelPeer(LocalChannel.ID, "phone-owner", run.threadId)
         val channel = channels(peer.channelId) ?: return
         val deliveryId = run.deliveryId
@@ -88,7 +90,7 @@ class RunRecovery(
                 else -> prior.state
             }
             when (state) {
-                DeliveryState.Delivered -> finish(run, reply)
+                DeliveryState.Delivered -> store.save(run.copy(phase = RunPhase.Ended, roundInProgress = false))
                 DeliveryState.Failed -> outbox.deliver(channel, peer, Delivery.Notice("failed:$deliveryId", run.threadId,
                     tr(R.string.recover_delivery_failed)))
                 else -> outbox.deliver(channel, peer, Delivery.Notice("uncertain:$deliveryId", run.threadId,
@@ -104,10 +106,4 @@ class RunRecovery(
         }
     }
 
-    private fun finish(run: StoredRun, reply: String) {
-        store.save(run.copy(phase = RunPhase.Ended, roundInProgress = false))
-        run.triggerWindowKey?.let { key ->
-            if (run.runSucceeded == false) triggers.actionFailed(key, reply) else triggers.delivered(key)
-        }
-    }
 }

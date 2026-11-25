@@ -473,35 +473,38 @@ class TaskService : Service() {
                 return@launch
             }
             val deliveryId = "result:${run.key}"
-            center.markResult(run, describe(end).second, deliveryId, successful = end is TaskState.Succeeded)
+            val reply = describe(end).second
+            val verifiesSchedule = window != null && end is TaskState.Succeeded
+            center.markResult(run, reply, deliveryId, successful = if (verifiesSchedule) null else end is TaskState.Succeeded)
             run.clearTakeoverStage()
             synchronized(notifyLock) { getSystemService(NotificationManager::class.java).cancel(id(ID_ATTENTION, run)) }
-            // 先发结果通知,再在后台学(提取记忆、记技能结果、起草技能);用进程级作用域,服务退出也做完
             var delivered = false
             val app = applicationContext
-            runCatching {
-                RunLearning.launchAfter(MemoryRuntime.of(this@TaskService).scope, {
-                    delivered = notifyResult(run, end, deliveryId) == DeliveryState.Delivered
-                    // 定时任务的结果当场按结局记(和以前一样),判下来没办成再改记;不靠服务一直在
-                    if (delivered) run.triggerWindowKey?.let { key ->
-                        runCatching {
-                            if (end is TaskState.Succeeded) TriggerRuntime.delivered(app, key)
-                            else TriggerRuntime.actionFailed(app, key, describe(end).second)
-                        }.onFailure { Log.w(TAG, "could not record trigger result", it) }
+            if (window != null && !verifiesSchedule) {
+                runCatching { TriggerRuntime.finishTask(app, window, false, reply) }
+                    .onFailure { Log.w(TAG, "could not record trigger result", it) }
+            }
+            // The result notification and the eventual task outcome have different lifecycles.
+            RunLearning.launchAfter(MemoryRuntime.of(this@TaskService).scope, {
+                delivered = runCatching { notifyResult(run, end, deliveryId) == DeliveryState.Delivered }
+                    .onFailure { Log.w(TAG, "result notification failed", it) }.getOrDefault(false)
+            }) {
+                val judged = runCatching { run.settleOutcome(end, store) }
+                    .onFailure { Log.w(TAG, "outcome judging failed", it) }.getOrNull()
+                if (window != null && verifiesSchedule) {
+                    val successful = when (judged?.outcome) {
+                        RunOutcome.Done -> true
+                        RunOutcome.Partial, RunOutcome.NotPossible -> false
+                        else -> null
                     }
-                }) {
-                    // 交出之后:回答按用户的要求判结局(记进运行记录和这一轮对话),只从办成的学
-                    val judged = runCatching { run.settleOutcome(end, store) }.onFailure { Log.w(TAG, "outcome judging failed", it) }.getOrNull()
-                    // 回答如实说没办成、只办了一部分的,和放弃一样记成没办成;没判成的照交出算
-                    val notDone = judged?.outcome == RunOutcome.Partial || judged?.outcome == RunOutcome.NotPossible
-                    if (delivered && notDone && end is TaskState.Succeeded) run.triggerWindowKey?.let { key ->
-                        runCatching { TriggerRuntime.actionFailed(app, key, judged?.reason?.ifBlank { null } ?: describe(end).second) }
-                            .onFailure { Log.w(TAG, "could not downgrade trigger result", it) }
-                    }
-                    if (run.provenance.origin == RunOrigin.Ui) runCatching { run.learnAfter(end, judged?.outcome, store) }
-                        .onFailure { Log.w(TAG, "learning after run failed", it) }
+                    runCatching { center.markOutcome(run, successful) }
+                        .onFailure { Log.w(TAG, "could not save run outcome", it) }
+                    runCatching { TriggerRuntime.finishTask(app, window, successful, judged?.reason?.ifBlank { null } ?: reply) }
+                        .onFailure { Log.w(TAG, "could not record trigger result", it) }
                 }
-            }.onFailure { Log.w(TAG, "result notification failed", it) }
+                if (run.provenance.origin == RunOrigin.Ui) runCatching { run.learnAfter(end, judged?.outcome, store) }
+                    .onFailure { Log.w(TAG, "learning after run failed", it) }
+            }
             if (delivered) center.markDelivered(run)
             onRunEnded(run, store)
         }
@@ -591,6 +594,10 @@ class TaskService : Service() {
         run.handoffUnconsumed(cancelled = true)
         run.mcpExternalId?.let { (application as com.daiyimo.maeve.MaeveApp).remoteTasks.ended(it, TaskState.Cancelled, run.steers.value) }
         run.end(TaskState.Cancelled)
+        run.triggerWindowKey?.let { window ->
+            runCatching { TriggerRuntime.cancelQueued(applicationContext, window) }
+                .onFailure { Log.w(TAG, "could not close cancelled trigger window", it) }
+        }
         recordTurn(ConversationStore.shared(this), run.conversationId, run.goal, TaskState.Cancelled, null)
         publishRuns()
         center.queued().forEachIndexed { i, q -> q.queue(i + 1) }
@@ -844,7 +851,10 @@ class TaskService : Service() {
     }
 
     private suspend fun notifyResult(run: TaskRun, end: TaskState, deliveryId: String): DeliveryState {
-        val (title, text) = describe(end)
+        val (statusTitle, text) = describe(end)
+        val title = if (run.triggerWindowKey != null && !run.conditionCheck && end is TaskState.Succeeded) {
+            tr(R.string.notif_result_title)
+        } else statusTitle
         val peer = run.channelPeer ?: ChannelPeer(LocalChannel.ID, "phone-owner", run.conversationId)
         val started = SystemClock.elapsedRealtime()
         val delivered = outbox.deliver(channelFor(peer), peer, Delivery.Result(deliveryId, run.conversationId, text, title = title))

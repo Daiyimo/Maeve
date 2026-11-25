@@ -43,6 +43,13 @@ internal class FlutterScheduleSettings(private val app: MaeveApp) {
             "setEnabled" -> require(TriggerRuntime.setEnabled(app, id(call), requireNotNull(call.argument<Boolean>("enabled")))) {
                 "这个计划无法更改启用状态"
             }
+            "reschedule" -> {
+                val time = call.argument<String>("time")?.let { LocalTime.parse(it) }
+                val nextAt = call.argument<Number>("nextAt")?.toLong()
+                require(TriggerRuntime.editTime(app, id(call), time, nextAt)) {
+                    "这个计划无法改期，请确认时间仍在未来且任务未在执行"
+                }
+            }
             "runNow" -> deferred = TriggerRuntime.runNow(app, id(call))
             "remove" -> TriggerRuntime.remove(app, id(call))
             else -> throw IllegalArgumentException("未知定时任务操作")
@@ -64,6 +71,9 @@ internal class FlutterScheduleSettings(private val app: MaeveApp) {
                     "title" to plan.preset?.title,
                     "preset" to plan.preset?.key,
                     "time" to plan.calendarTime, "nextAt" to plan.nextAtMs,
+                    "timeEditable" to (plan.preset == null),
+                    "calendarDays" to plan.calendarDays,
+                    "calendarZone" to plan.calendarZone,
                     "inFlight" to (latest?.inFlight == true),
                     "state" to (if (waiting || (due && blocked != null && plan.reminderText == null)) "waiting" else latest?.state?.name),
                     "blocked" to blocked.takeIf { waiting || (due && plan.reminderText == null) },

@@ -120,6 +120,49 @@ void main() {
     );
   });
 
+  testWidgets('A saved calendar schedule sends an edit for the same plan', (
+    tester,
+  ) async {
+    final settings = FakeSettingsBridge();
+    final edits = <Map<String, Object>>[];
+    settings.scheduleHandler = (args) async {
+      if (args['action'] == 'reschedule') edits.add(args);
+      return {
+        'exactAlarm': true,
+        'plans': [
+          {
+            'id': 'weekly',
+            'threadId': 'same-thread',
+            'goal': '每周核对进展',
+            'nextAt': 2000000000000,
+            'time': '09:30',
+            'calendarZone': 'Asia/Shanghai',
+            'calendarDays': [1, 5],
+            'enabled': false,
+          },
+        ],
+      };
+    };
+    await mount(tester, settings);
+    await tester.tap(find.byTooltip('定时任务'));
+    await tester.pumpAndSettle();
+    expect(find.text('每周一、五 09:30 · 已暂停'), findsOneWidget);
+    await tester.ensureVisible(find.text('改时间'));
+    await tester.tap(find.text('改时间'));
+    await tester.pumpAndSettle();
+    final picker = find.byType(TimePickerDialog);
+    expect(picker, findsOneWidget);
+    final context = tester.element(picker);
+    await tester.tap(
+      find.text(MaterialLocalizations.of(context).okButtonLabel),
+    );
+    await tester.pumpAndSettle();
+    expect(edits, [
+      {'action': 'reschedule', 'id': 'weekly', 'time': '09:30'},
+    ]);
+    expect(find.text('每周一、五 09:30 · 已暂停'), findsOneWidget);
+  });
+
   testWidgets('Amoo example creates the built-in check-in preset on enable', (
     tester,
   ) async {
