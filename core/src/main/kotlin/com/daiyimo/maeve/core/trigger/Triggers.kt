@@ -55,6 +55,12 @@ enum class TriggerWindowState {
     /** 已认领，等待派发。 */
     Claimed,
 
+    /** 已手动触发，等待设备解锁和联网，还没有派发。 */
+    Deferred,
+
+    /** 条件已经检查通过，等待设备恢复后派发实际任务。 */
+    DeferredAction,
+
     /** 已派发给执行方。 */
     Dispatched,
 
@@ -98,9 +104,7 @@ data class TriggerWindow(
 
     /** 尚未尘埃落定的中间状态。 */
     val inFlight: Boolean
-        get() = state == TriggerWindowState.Claimed ||
-            state == TriggerWindowState.Dispatched ||
-            state == TriggerWindowState.ActionDispatched
+        get() = state in IN_FLIGHT_STATES
 
     /** 已经终结，不再接受状态流转。 */
     val settled: Boolean
@@ -147,6 +151,8 @@ data class TriggerSnapshot(
 /** 触发窗口的三种进行中状态，用于判断计划是否已有未完成时段。 */
 private val IN_FLIGHT_STATES = setOf(
     TriggerWindowState.Claimed,
+    TriggerWindowState.Deferred,
+    TriggerWindowState.DeferredAction,
     TriggerWindowState.Dispatched,
     TriggerWindowState.ActionDispatched,
 )
@@ -344,6 +350,7 @@ class TriggerEngine(
     private val scheduleAlarm: (Long?) -> Unit,
     private val isIdle: () -> Boolean = { true },
     private val idleRetryMs: Long = 60_000L,
+    private val blocked: (TriggerDefinition) -> String? = { null },
     private val dispatch: (TriggerDefinition, TriggerWindow) -> Unit,
 ) {
     /** 重排闹钟，并把停留在 Claimed 的时段标记为结果不明。 */
@@ -355,14 +362,17 @@ class TriggerEngine(
         val windows = store.windows()
         val inFlight = windows.filter { it.inFlight }.map { it.triggerId }.toSet()
         // 已有未完成时段的计划不会再次认领，为它排「到期即响」只会空转，改为按重试间隔排
-        scheduleAlarm(
-            store.all()
+        val deferred = windows.filter { it.state == TriggerWindowState.Deferred || it.state == TriggerWindowState.DeferredAction }
+        val due = store.all()
                 .filter { it.enabled && (it.triggerIdIn(inFlight) || !it.slotTaken(windows)) }
                 .minOfOrNull {
                     if (it.triggerIdIn(inFlight)) nowMs + idleRetryMs
-                    else maxOf(if (it.idleOnly && !idle) nowMs + idleRetryMs else nowMs, it.nextAtMs)
+                    else if (it.nextAtMs <= nowMs && ((it.idleOnly && !idle) || blocked(it) != null)) nowMs + idleRetryMs
+                    else maxOf(nowMs, it.nextAtMs)
                 }
-        )
+        val pending = deferred.mapNotNull { store.get(it.triggerId) }
+            .minOfOrNull { if ((it.idleOnly && !idle) || blocked(it) != null) nowMs + idleRetryMs else nowMs }
+        scheduleAlarm(listOfNotNull(due, pending).minOrNull())
     }
 
     /**
@@ -374,6 +384,9 @@ class TriggerEngine(
         val trigger = store.get(id) ?: return false
         if (enabled && trigger.slotTaken(store.windows())) return false
         store.upsert(trigger.copy(enabled = enabled))
+        if (!enabled) store.windows().filter {
+            it.triggerId == id && it.state in setOf(TriggerWindowState.Deferred, TriggerWindowState.DeferredAction)
+        }.forEach { store.mark(it.key, TriggerWindowState.Skipped, "paused") }
         rearm(nowMs)
         return true
     }
@@ -397,11 +410,23 @@ class TriggerEngine(
     /** 闹钟到点：认领到期时段并派发，随后重排下一次闹钟。 */
     fun fire(nowMs: Long) {
         val idle = isIdle()
-        store.claimDue(nowMs) { !it.idleOnly || idle }.forEach { window ->
-            val trigger = store.get(window.triggerId) ?: return@forEach
+        val previouslyDeferred = store.windows().filter { it.state == TriggerWindowState.Deferred || it.state == TriggerWindowState.DeferredAction }
+        val due = store.claimDue(nowMs) { (!it.idleOnly || idle) && blocked(it) == null }
+        for (window in previouslyDeferred + due) {
+            val trigger = store.get(window.triggerId) ?: continue
+            val reason = blocked(trigger)
+            if (reason != null || (window.state != TriggerWindowState.Claimed && trigger.idleOnly && !idle)) {
+                val waiting = if (window.state == TriggerWindowState.DeferredAction) window.state else TriggerWindowState.Deferred
+                store.mark(window.key, waiting, reason ?: "busy")
+                continue
+            }
+            val checked = window.state == TriggerWindowState.DeferredAction
+            if (window.state != TriggerWindowState.Claimed) {
+                store.mark(window.key, if (checked) TriggerWindowState.ActionDispatched else TriggerWindowState.Claimed)
+            }
             try {
                 dispatch(trigger, window)
-                store.mark(window.key, TriggerWindowState.Dispatched)
+                if (!checked) store.mark(window.key, TriggerWindowState.Dispatched)
             } catch (e: Exception) {
                 store.mark(window.key, TriggerWindowState.Unknown, e::class.simpleName)
             }

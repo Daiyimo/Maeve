@@ -219,6 +219,8 @@ abstract class MaeveSettingsBridge {
   Future<void> openAccess(String target);
   Future<NativeAmooStatus> amoo(String action);
   Future<Map<String, dynamic>> wechat(String action, {bool? enabled});
+  Future<Map<String, dynamic>> schedules(Map<String, Object> values) =>
+      throw UnsupportedError('schedules');
   Future<NativeSettings> setAutonomous(bool enabled);
 }
 
@@ -273,6 +275,15 @@ class HostSettingsBridge extends MaeveSettingsBridge {
       _data('listModels', values);
   @override
   Future<Map<String, dynamic>> modelUsage() => _data('modelUsage');
+  @override
+  Future<Map<String, dynamic>> schedules(Map<String, Object> values) async {
+    final response = await channel.invokeMapMethod<String, dynamic>(
+      'schedules',
+      values,
+    );
+    if (response == null) throw StateError('定时任务状态未返回');
+    return response;
+  }
   @override
   Future<NativeSettings> setOperatingPace(String pace) =>
       _call('setOperatingPace', {'pace': pace});

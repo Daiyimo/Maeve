@@ -62,6 +62,59 @@ void main() {
     expect(groupTop - headerBottom, inInclusiveRange(12, 28));
   });
 
+  testWidgets('Daily plan can be enabled from home and run independently', (
+    tester,
+  ) async {
+    final settings = FakeSettingsBridge();
+    final actions = <Map<String, Object>>[];
+    Map<String, dynamic>? plan;
+    settings.scheduleHandler = (args) async {
+      actions.add(args);
+      if (args['action'] == 'create') {
+        plan = {
+          'id': 'daily',
+          'goal': args['goal'],
+          'time': args['time'],
+          'nextAt': 2000000000000,
+          'enabled': true,
+        };
+      }
+      if (args['action'] == 'runNow') {
+        plan!.addAll({
+          'state': 'waiting',
+          'blocked': 'offline',
+          'inFlight': true,
+        });
+      }
+      return {
+        'exactAlarm': true,
+        'plans': [?plan],
+        'deferred': args['action'] == 'runNow' ? 'offline' : null,
+      };
+    };
+    await mount(tester, settings);
+    await tester.tap(find.byTooltip('定时任务'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('新建定时任务'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '每日签到');
+    await tester.pump();
+    await tester.tap(find.text('启用'));
+    await tester.pumpAndSettle();
+    expect(
+      actions.singleWhere((action) => action['action'] == 'create')['time'],
+      '09:00',
+    );
+    expect(find.text('每日签到'), findsOneWidget);
+    await tester.tap(find.text('立即执行'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('等待网络恢复'), findsOneWidget);
+    expect(
+      actions.singleWhere((action) => action['action'] == 'runNow')['id'],
+      'daily',
+    );
+  });
+
   testWidgets(
     'WeChat lives under Amoo and execution can be disabled without stopping chat',
     (tester) async {

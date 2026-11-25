@@ -21,6 +21,7 @@ import '../ui/common/haptics.dart';
 import '../ui/common/pressable.dart';
 import '../ui/common/status.dart';
 import '../ui/settings/settings_components.dart';
+import '../ui/settings/scheduled_tasks_page.dart';
 import '../widgets/glass_surface.dart';
 import '../widgets/maeve_mark.dart';
 import '../widgets/execution_view.dart';
@@ -319,6 +320,11 @@ class _ChatPageState extends State<ChatPage> {
               onTap: widget.onMenu,
             ),
             actions: [
+              _BarAction(
+                icon: Icons.schedule_rounded,
+                label: '定时任务',
+                onTap: () => AppPage.open(context, ScheduledTasksPage(conversationId: controller.activeId)),
+              ),
               _BarAction(
                 icon: Icons.add_rounded,
                 label: '新对话',

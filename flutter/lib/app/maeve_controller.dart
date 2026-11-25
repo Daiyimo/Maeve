@@ -626,6 +626,7 @@ class MaeveController extends ChangeNotifier {
       failed: status == 'failed',
       status: status,
       runId: exchange['runId'] as String?,
+      scheduleGoal: exchange['scheduleGoal'] as String?,
       executionSteps: executionSteps,
       detail: exchange['detail'] as String?,
       confirmationKey: (exchange['confirmationKey'] as num?)?.toInt(),

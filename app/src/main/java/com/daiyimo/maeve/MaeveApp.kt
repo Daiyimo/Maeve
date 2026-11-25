@@ -398,7 +398,11 @@ class MaeveApp : Application(), WebOwner, SandboxOwner, TaskEnvironment.Owner, P
         // 用户已绑定并打开微信渠道时恢复监听；服务没任务也会继续收件
         wechat.ensureRunning()
         // 先对一下设备时区:没记过就记下当前的(升级上来的用户也有基线),和记下的不同就重算当地时间计划(关着时改了时区也补上)
-        scope.launch(Dispatchers.IO) { runCatching { TriggerRuntime.syncTimeZone(this@MaeveApp); TriggerRuntime.rearm(this@MaeveApp) } }
+        scope.launch(Dispatchers.IO) { runCatching {
+            TriggerRuntime.watchReadiness(this@MaeveApp)
+            TriggerRuntime.syncTimeZone(this@MaeveApp)
+            TriggerRuntime.rearm(this@MaeveApp)
+        } }
         // 给电脑跑的「经 USB 连接」脚本;顺带清掉上次开机留下的 USB 连接信息
         scope.launch(Dispatchers.IO) { runCatching { mcp.writeUsbScript() }.onFailure { Log.w("MaeveMcp", "cannot write USB script", it) } }
         // 上次导出写到一半被杀留下的空壳条目

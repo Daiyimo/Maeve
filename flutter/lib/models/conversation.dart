@@ -15,6 +15,7 @@ class Message {
     this.status = 'done',
     this.executionSteps = const [],
     this.runId,
+    this.scheduleGoal,
     this.detail,
     this.confirmationKey,
     this.resumable = false,
@@ -29,6 +30,7 @@ class Message {
   final String status;
   final List<ExecutionStep> executionSteps;
   final String? runId, detail;
+  final String? scheduleGoal;
   final int? confirmationKey;
   final bool resumable;
   final bool waitingForModel;

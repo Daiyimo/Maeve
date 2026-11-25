@@ -1,6 +1,12 @@
 import 'package:maeve_flutter/bridge/maeve_settings_bridge.dart';
 
 class FakeSettingsBridge extends MaeveSettingsBridge {
+  Future<Map<String, dynamic>> Function(Map<String, Object>)? scheduleHandler;
+
+  @override
+  Future<Map<String, dynamic>> schedules(Map<String, Object> values) async =>
+      scheduleHandler?.call(values) ?? {'exactAlarm': true, 'plans': []};
+
   final wechatActions = <String>[];
   final wechatStatus = <String, dynamic>{
     'bound': false,

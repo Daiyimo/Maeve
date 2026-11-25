@@ -4,6 +4,7 @@ package com.daiyimo.maeve.ui
 internal object FlutterTaskDetails {
     fun exchange(ex: Exchange): Map<String, Any?> = mapOf(
         "runId" to ex.runId?.takeUnless { it.startsWith("interrupted:") },
+        "scheduleGoal" to ex.scheduleGoal,
         "executionSteps" to ex.steps.map { step ->
             mapOf("step" to step.step, "title" to step.title, "detail" to step.subtitle,
                 "state" to step.state.name.lowercase(java.util.Locale.ROOT), "reason" to step.reason,

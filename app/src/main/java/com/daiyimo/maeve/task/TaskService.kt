@@ -375,6 +375,12 @@ class TaskService : Service() {
 
     private fun launch(run: TaskRun, store: ConversationStore) {
         run.job = scope.launch {
+            val window = run.triggerWindowKey
+            if (!run.cancelRequested && window != null && TriggerRuntime.deferBeforeStart(applicationContext, window)) {
+                center.markDelivered(run)
+                onRunEnded(run, store)
+                return@launch
+            }
             center.markRunning(run)
             val result = if (run.cancelRequested) {
                 // 取消落在「出队已登记、协程未执行」窗口:execute 没跑、没建资源,直接按取消收尾,

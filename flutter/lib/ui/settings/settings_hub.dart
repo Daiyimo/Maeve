@@ -19,6 +19,7 @@ import 'phone_readiness_page.dart';
 import 'execution_settings_page.dart';
 import 'app_access_page.dart';
 import 'run_history_page.dart';
+import 'scheduled_tasks_page.dart';
 import 'update_page.dart';
 import 'welcome_page.dart';
 
@@ -124,6 +125,12 @@ class SettingsHubPage extends StatelessWidget {
                 context,
                 RunHistoryPage(bridge: controller.chatBridge),
               ),
+            ),
+            SettingsTile(
+              icon: Icons.schedule_rounded,
+              title: '定时任务',
+              subtitle: '设置每日任务或立即执行',
+              onTap: () => AppPage.open(context, const ScheduledTasksPage()),
             ),
             SettingsTile(
               icon: Icons.verified_user_outlined,

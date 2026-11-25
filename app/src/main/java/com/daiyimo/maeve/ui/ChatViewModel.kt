@@ -186,6 +186,8 @@ data class Exchange(
     val stepActions: Map<Int, List<StepAction>> = emptyMap(),
     /** Historical summary count, without synthesizing step rows. */
     val recordedStepCount: Int? = null,
+    /** The run's original goal, available once the saved outcome confirms completion. */
+    val scheduleGoal: String? = null,
     /** 模型显式报告的计划;终态由界面按结果标记,不从步数猜。 */
     val plan: TaskPlan? = null,
 ) {
@@ -899,6 +901,8 @@ class ChatViewModel(
             val summary = t.runId?.let { id -> runCatching { runSummary(id) }.getOrNull()?.takeIf { it.id == id } }
             val restored = fromTurn(t).copy(files = files,
                 recordedStepCount = summary?.steps?.takeIf { it >= 0 },
+                scheduleGoal = summary?.takeIf { it.outcome == "succeeded" && it.judged !in setOf("partial", "not_possible") }
+                    ?.goal?.takeIf(String::isNotBlank),
                 elapsedMs = summary?.endedAtMs?.let { end -> (end - summary.startedAtMs).takeIf { it >= 0 } })
             withSummarizing(withNotes(restored, runNotes.value))
         }
@@ -923,7 +927,7 @@ class ChatViewModel(
                 val m = if (mine.status is ExchangeStatus.Cancelled && s.status is ExchangeStatus.Cancelled && s.status.summary != null) mine.copy(status = s.status) else mine
                 // 留页的记录(留下的站点、后来关掉的原因)也只在存下的那份里
                 val k = if (s.keptPage != null) m.copy(keptPage = s.keptPage, keptPageClosed = s.keptPageClosed) else m
-                if (k.goal.isEmpty()) k.copy(goal = s.goal) else k
+                k.copy(goal = k.goal.ifEmpty { s.goal }, scheduleGoal = s.scheduleGoal)
             }.asReversed()
             val exchanges = merged + tracked + listOfNotNull(live)
             if (exchanges == ui.exchanges) return@update ui

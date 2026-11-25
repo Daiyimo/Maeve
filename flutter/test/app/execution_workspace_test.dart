@@ -65,6 +65,7 @@ Future<MaeveController> _mount(
   WidgetTester tester,
   FakeChatBridge bridge, {
   required Size size,
+  FakeSettingsBridge? settings,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -76,7 +77,7 @@ Future<MaeveController> _mount(
   );
   final controller = MaeveController(
     bridge: bridge,
-    settingsBridge: FakeSettingsBridge(mode: 'light'),
+    settingsBridge: settings ?? FakeSettingsBridge(mode: 'light'),
   );
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
@@ -132,6 +133,72 @@ void _emitDone(FakeChatBridge bridge, {String? detail}) => bridge.emitUi(
 );
 
 void main() {
+  testWidgets('A completed run can be scheduled using its original goal', (
+    tester,
+  ) async {
+    const goal = '打开 Amoo 成长计划，未签到时签到';
+    final requests = <Map<String, Object>>[];
+    final settings = FakeSettingsBridge(mode: 'light');
+    settings.scheduleHandler = (request) async {
+      requests.add(request);
+      return {'exactAlarm': true, 'plans': []};
+    };
+    final bridge = FakeChatBridge();
+    await _mount(
+      tester,
+      bridge,
+      size: const Size(390, 844),
+      settings: settings,
+    );
+    bridge.emitUi(
+      conversationId: 'amoo-thread',
+      composer: 'idle',
+      exchanges: [
+        {
+          ...FakeChatBridge.exchange(
+            goal,
+            status: 'done',
+            answer: '已签到',
+            runId: 'amoo-success',
+            steps: 4,
+          ),
+          'scheduleGoal': goal,
+        },
+        FakeChatBridge.exchange(
+          '把这个任务存为定时任务',
+          status: 'done',
+          answer: '你希望每天什么时间签到？',
+          runId: 'needs-time',
+          steps: 1,
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    final schedule = find.widgetWithText(MaeveGlassTextButton, '设为定时');
+    expect(schedule, findsNothing);
+    await tester.tap(find.textContaining('4 步'));
+    await tester.pumpAndSettle();
+    expect(schedule, findsOneWidget);
+    await tester.ensureVisible(schedule);
+    await tester.tap(schedule);
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<TextField>(find.byType(TextField).last).controller!.text,
+      goal,
+    );
+    expect(requests.where((request) => request['action'] == 'create'), isEmpty);
+
+    await tester.tap(find.text('启用'));
+    await tester.pumpAndSettle();
+    final create = requests.singleWhere(
+      (request) => request['action'] == 'create',
+    );
+    expect(create['goal'], goal);
+    expect(create['time'], '09:00');
+    expect(create['conversationId'], 'amoo-thread');
+  });
+
   testWidgets('Wide live execution puts preview left and records right', (
     tester,
   ) async {

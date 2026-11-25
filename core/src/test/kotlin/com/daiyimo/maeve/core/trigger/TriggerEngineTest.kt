@@ -8,6 +8,47 @@ import java.time.Instant
 import java.time.ZoneId
 
 class TriggerEngineTest {
+    @Test fun overduePlanWaitsForUnlockAndNetworkAndRunsOnlyOnce() {
+        val store = MemoryTriggerStore()
+        store.upsert(TriggerDefinition("daily", "t", "每日签到", 1_000, intervalMs = 1_000))
+        var blocked: String? = "locked"
+        var armed: Long? = null
+        val sent = mutableListOf<TriggerWindow>()
+        val engine = TriggerEngine(store, { armed = it }, idleRetryMs = 200, blocked = { blocked }) { _, w -> sent += w }
+        engine.fire(1_000)
+        assertEquals(1_200L, armed)
+        assertTrue(store.windows().isEmpty())
+        blocked = "offline"
+        engine.fire(1_200)
+        assertTrue(sent.isEmpty())
+        blocked = null
+        engine.rearm(1_230)
+        assertEquals(1_230L, armed)
+        engine.fire(1_230)
+        engine.fire(1_230)
+        assertEquals(1_000L, sent.single().dueAtMs)
+    }
+
+    @Test fun deferredManualRunSurvivesAStoreReloadAndPersistsBeforeDispatch() {
+        val original = MemoryTriggerStore()
+        original.upsert(TriggerDefinition("daily", "t", "签到", 10_000, intervalMs = 10_000, enabled = false))
+        val window = original.claimNow("daily", 500)!!
+        original.mark(window.key, TriggerWindowState.Deferred, "offline")
+        val store = MemoryTriggerStore(original.snapshot())
+        var armed: Long? = null
+        var sent = 0
+        val engine = TriggerEngine(store, { armed = it }) { _, w ->
+            assertEquals(TriggerWindowState.Claimed, store.windows().single().state)
+            assertEquals(window.key, w.key)
+            sent++
+        }
+        engine.rearm(700)
+        assertEquals(700L, armed)
+        engine.fire(700)
+        engine.fire(700)
+        assertEquals(1, sent)
+        assertEquals(10_000L, store.get("daily")!!.nextAtMs)
+    }
     @Test fun idleOnlyDueWindowWaitsForWatchdogWithoutBeingClaimed() {
         val store = MemoryTriggerStore()
         store.upsert(TriggerDefinition("idle", "t", "do", 1_000, idleOnly = true))

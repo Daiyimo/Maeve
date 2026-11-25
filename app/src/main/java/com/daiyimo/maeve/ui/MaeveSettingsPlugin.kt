@@ -97,6 +97,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                 "developer" -> DeveloperSettings.developerOptionsPage()
                 "about" -> DeveloperSettings.aboutPhone()
                 "wifi" -> DeveloperSettings.wifiPage()
+                "exactAlarm" -> listOf(com.daiyimo.maeve.task.TriggerRuntime.exactAlarmSettings(app))
                 else -> return result.error("bad_args", "Unknown system settings target", null)
             }
             for (intent in intents) {
@@ -143,6 +144,7 @@ class MaeveSettingsPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCa
                 val value = settingsMutex.withLock { withContext(Dispatchers.IO) {
                     when (call.method) {
                         "snapshot" -> snapshot()
+                        "schedules" -> FlutterScheduleSettings(app).change(call)
                         "reloadProviders" -> { app.providers.reload(); snapshot() }
                         "recoverProviders" -> { app.providers.recoverSnapshot(); snapshot() }
                         "appAccess" -> FlutterAppAccessSettings(app).change(

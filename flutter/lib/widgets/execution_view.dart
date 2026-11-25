@@ -12,7 +12,7 @@ import '../design/maeve_theme.dart';
 import '../design/maeve_type.dart';
 import '../ui/common/app_page.dart';
 import '../ui/common/haptics.dart';
-import 'execution_section.dart';
+import '../ui/settings/scheduled_tasks_page.dart';
 import 'execution_token_usage_view.dart';
 import 'glass_surface.dart';
 import 'live_elapsed_text.dart';
@@ -161,6 +161,7 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
         message.active &&
         controller.hostConversationId != null;
     final showCompleted = widget.isLatest && message.hasSettlement;
+    final scheduleGoal = message.status == 'done' ? message.scheduleGoal : null;
     MaeveGlassTextButton executionAction({
       required String label,
       required IconData? icon,
@@ -500,6 +501,18 @@ class _ExecutionPanelState extends State<ExecutionPanel> {
                         label: '分享图',
                         icon: icons ? Icons.ios_share_outlined : null,
                         onPressed: widget.onShare,
+                      ),
+                    if (scheduleGoal != null)
+                      executionAction(
+                        label: '设为定时',
+                        icon: icons ? Icons.schedule_rounded : null,
+                        onPressed: () => AppPage.open(
+                          context,
+                          ScheduledTasksPage(
+                            conversationId: controller.hostConversationId,
+                            initialGoal: scheduleGoal,
+                          ),
+                        ),
                       ),
                   ],
                 );

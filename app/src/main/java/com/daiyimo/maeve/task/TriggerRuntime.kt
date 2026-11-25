@@ -5,11 +5,17 @@ import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import com.daiyimo.maeve.MaeveApp
@@ -33,6 +39,41 @@ import kotlinx.coroutines.launch
 /** 安卓闹钟的薄壳；时间与去重由持久化 TriggerStore 决定，闹钟广播可以重复来。 */
 object TriggerRuntime {
     private var recovered = false
+    private var watching = false
+    private val restoreScope = CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
+
+    /** A ready edge rearms through AlarmManager, which owns background task dispatch. */
+    @Synchronized fun watchReadiness(context: Context) {
+        if (watching) return
+        val app = context.applicationContext
+        fun changed() { restoreScope.launch { rearm(app) } }
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) = changed()
+        }
+        val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
+        if (Build.VERSION.SDK_INT >= 33) app.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        else app.registerReceiver(receiver, filter)
+        val network = app.getSystemService(ConnectivityManager::class.java)
+        runCatching { network.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) changed()
+            }
+        }) }.onFailure { Log.w("MaeveTrigger", "network readiness observer unavailable", it) }
+        watching = true
+    }
+
+    fun blockedReason(context: Context): String? {
+        val power = context.getSystemService(PowerManager::class.java)
+        val keyguard = context.getSystemService(KeyguardManager::class.java)
+        if (!power.isInteractive || keyguard.isDeviceLocked || keyguard.isKeyguardLocked) return "locked"
+        val network = context.getSystemService(ConnectivityManager::class.java)
+        val online = network.getNetworkCapabilities(network.activeNetwork)
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+        return if (online) null else "offline"
+    }
+
+    private fun blockedReason(context: Context, trigger: TriggerDefinition): String? =
+        if (trigger.reminderText != null) null else blockedReason(context)
     /** 存下并布置闹钟;系统没准许准时闹钟(到点可能不准时或起不来)时引导用户去开一次,结果里照实说有没有提示到。 */
     @Synchronized fun schedule(context: Context, definition: TriggerDefinition): Scheduled {
         val store = store(context)
@@ -93,6 +134,18 @@ object TriggerRuntime {
         engine(context, store).rearm(System.currentTimeMillis())
     }
 
+    /** A dispatched run may wait in TaskService's queue before it can touch the device. */
+    @Synchronized fun deferBeforeStart(context: Context, key: String): Boolean {
+        val blocked = blockedReason(context) ?: return false
+        val store = store(context)
+        val window = store.windows().firstOrNull { it.key == key } ?: return false
+        val waiting = if (window.state == TriggerWindowState.ActionDispatched) TriggerWindowState.DeferredAction
+            else TriggerWindowState.Deferred
+        if (!store.mark(key, waiting, blocked)) return false
+        engine(context, store).rearm(System.currentTimeMillis())
+        return true
+    }
+
     @Synchronized fun interrupted(context: Context, key: String, reason: String) {
         val store = store(context)
         store.mark(key, TriggerWindowState.Unknown, reason)
@@ -118,6 +171,12 @@ object TriggerRuntime {
         store.upsert(trigger.copy(lastConditionMet = outcome.met))
         if (!outcome.met || wasMet) {
             store.mark(window.key, TriggerWindowState.Skipped, if (wasMet) "condition_unchanged" else "condition_not_met")
+            return
+        }
+        val blocked = blockedReason(context, trigger)
+        if (blocked != null) {
+            store.mark(window.key, TriggerWindowState.DeferredAction, blocked)
+            engine(context, store).rearm(System.currentTimeMillis())
             return
         }
         store.mark(window.key, TriggerWindowState.ActionDispatched)
@@ -152,14 +211,20 @@ object TriggerRuntime {
         engine(context, store).rearm(System.currentTimeMillis())
     }
 
-    @Synchronized fun runNow(context: Context, id: String) {
+    @Synchronized fun runNow(context: Context, id: String): String? {
         val store = store(context)
         val trigger = store.get(id) ?: error(tr(R.string.trigger_deleted))
         val window = store.claimNow(id, System.currentTimeMillis()) ?: error(tr(R.string.trigger_busy))
         try {
+            val blocked = blockedReason(context, trigger)
+            if (blocked != null) {
+                store.mark(window.key, TriggerWindowState.Deferred, blocked)
+                return blocked
+            }
+            store.mark(window.key, TriggerWindowState.Dispatched)
             if (trigger.reminderText != null) deliverReminder(context, store, trigger, window.key)
             else TaskService.startTrigger(context, trigger.goal, trigger.threadId, window.key, trigger.conditionGoal)
-            store.mark(window.key, TriggerWindowState.Dispatched)
+            return null
         } catch (e: Exception) {
             reportStartFailure(context, store, trigger, window.key, e)
             throw e
@@ -190,10 +255,14 @@ object TriggerRuntime {
     }
 
     private fun engine(context: Context, store: FileTriggerStore) = TriggerEngine(store,
-        { at -> arm(context, at) }, isIdle = { !((context.applicationContext as MaeveApp).taskState.busy.value) }) { trigger, window ->
+        { at -> arm(context, at) }, isIdle = { !((context.applicationContext as MaeveApp).taskState.busy.value) },
+        blocked = { blockedReason(context, it) }) { trigger, window ->
             if (trigger.reminderText != null) deliverReminder(context, store, trigger, window.key)
-            else try { TaskService.startTrigger(context, trigger.goal, trigger.threadId, window.key, trigger.conditionGoal) }
-                catch (e: Exception) { reportStartFailure(context, store, trigger, window.key, e); throw e }
+            else {
+                val checked = window.state == TriggerWindowState.DeferredAction
+                try { TaskService.startTrigger(context, trigger.goal, trigger.threadId, window.key, trigger.conditionGoal.takeUnless { checked }) }
+                catch (e: Exception) { reportStartFailure(context, store, trigger, window.key, e, resetCondition = checked); throw e }
+            }
         }
 
     private fun deliverReminder(context: Context, store: FileTriggerStore, trigger: TriggerDefinition, key: String) {
