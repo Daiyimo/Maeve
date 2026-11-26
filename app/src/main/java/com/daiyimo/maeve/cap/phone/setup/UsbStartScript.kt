@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Process
 import android.util.Log
 import com.daiyimo.maeve.cap.phone.shell.HelperHub
+import com.daiyimo.maeve.core.io.AtomicFiles
 import com.daiyimo.maeve.core.shell.HelperHandoff
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,14 +56,8 @@ class UsbStartScript(context: Context, private val hub: HelperHub) {
             return
         }
         // 先写临时文件再改名:电脑那边正在读时不会读到半截
-        runCatching {
-            val tmp = File(f.parentFile, f.name + ".tmp")
-            tmp.writeText(text)
-            if (!tmp.renameTo(f)) {
-                f.delete()
-                check(tmp.renameTo(f)) { "rename failed" }
-            }
-        }.onFailure { Log.w(TAG, "cannot write ${f.name}", it) }
+        runCatching { AtomicFiles.write(f, text.toByteArray(Charsets.UTF_8)) }
+            .onFailure { Log.w(TAG, "cannot write ${f.name}", it) }
     }
 
     private companion object {

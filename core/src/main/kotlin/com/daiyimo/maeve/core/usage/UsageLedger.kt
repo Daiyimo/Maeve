@@ -1,6 +1,7 @@
 package com.daiyimo.maeve.core.usage
 
 import com.daiyimo.maeve.core.model.Usage
+import com.daiyimo.maeve.core.io.AtomicFiles
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -277,13 +278,8 @@ class UsageLedger(
     }
 
     private fun replaceFile(payload: String) {
-        val directory = file.parentFile
-        directory?.mkdirs()
-        val staging = File(directory, file.name + ".tmp")
-        staging.writeText(payload)
-        if (staging.renameTo(file)) return
-        file.delete()
-        check(staging.renameTo(file)) { "cannot write ${file.name}" }
+        file.parentFile?.mkdirs()
+        AtomicFiles.write(file, payload.toByteArray(Charsets.UTF_8))
     }
 
     companion object {

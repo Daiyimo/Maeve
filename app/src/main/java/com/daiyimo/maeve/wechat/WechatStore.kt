@@ -1,12 +1,12 @@
 package com.daiyimo.maeve.wechat
 
 import com.daiyimo.maeve.core.run.ChannelPeer
+import com.daiyimo.maeve.core.io.AtomicFiles
 import com.daiyimo.maeve.core.wechat.WechatAccount
 import com.daiyimo.maeve.settings.KeyCipher
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.io.FileOutputStream
 import java.util.UUID
 
 @Serializable
@@ -97,11 +97,6 @@ class WechatStore(private val dir: File, private val cipher: KeyCipher) {
 
     private fun writeAtomic(file: File, bytes: ByteArray) {
         file.parentFile?.mkdirs()
-        val temp = File(file.parentFile, file.name + ".tmp")
-        FileOutputStream(temp).use { it.write(bytes); it.fd.sync() }
-        if (!temp.renameTo(file)) {
-            file.delete()
-            check(temp.renameTo(file)) { "WeChat state rename failed" }
-        }
+        AtomicFiles.write(file, bytes)
     }
 }

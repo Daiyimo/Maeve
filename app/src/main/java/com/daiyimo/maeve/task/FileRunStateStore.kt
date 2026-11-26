@@ -3,6 +3,7 @@ package com.daiyimo.maeve.task
 import com.daiyimo.maeve.core.run.RunId
 import com.daiyimo.maeve.core.run.ChannelPeer
 import com.daiyimo.maeve.core.run.RunStore
+import com.daiyimo.maeve.core.run.RunPhase
 import com.daiyimo.maeve.core.run.StoredRun
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -21,10 +22,11 @@ import java.nio.file.AtomicMoveNotSupportedException
 import android.util.Log
 
 /** App 私有目录里的运行账本；每次转阶段后原子替换，异常重启不会把半份 JSON 当成记录。 */
-class FileRunStateStore(private val file: File) : RunStore {
+class FileRunStateStore(private val file: File, private val maxEndedRuns: Int = MAX_ENDED_RUNS) : RunStore {
     private val records = linkedMapOf<RunId, StoredRun>()
 
     init {
+        require(maxEndedRuns > 0)
         if (file.isFile) runCatching {
             Json.parseToJsonElement(file.readText()).jsonArray.forEach { item ->
                 val o = item.jsonObject
@@ -51,8 +53,17 @@ class FileRunStateStore(private val file: File) : RunStore {
 
     @Synchronized override fun save(record: StoredRun) {
         val updated = records + (record.id to record)
+        val kept = updated.values.toMutableList()
+        val ended = kept.count { it.phase == RunPhase.Ended }
+        if (ended > maxEndedRuns) {
+            var remove = ended - maxEndedRuns
+            val iterator = kept.iterator()
+            while (iterator.hasNext()) {
+                if (iterator.next().phase == RunPhase.Ended && remove-- > 0) iterator.remove()
+            }
+        }
         file.parentFile?.mkdirs()
-        val json = JsonArray(updated.values.map { r -> buildJsonObject {
+        val json = JsonArray(kept.map { r -> buildJsonObject {
             put("id", r.id.value); put("threadId", r.threadId); put("goal", r.goal)
             put("phase", encodeRunPhase(r.phase)); put("reply", r.reply)
             put("deliveryId", r.deliveryId)
@@ -73,7 +84,8 @@ class FileRunStateStore(private val file: File) : RunStore {
         } catch (_: AtomicMoveNotSupportedException) {
             Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
-        records[record.id] = record
+        records.clear()
+        kept.forEach { records[it.id] = it }
     }
 
     @Synchronized override fun get(id: RunId): StoredRun? = records[id]
@@ -85,5 +97,9 @@ class FileRunStateStore(private val file: File) : RunStore {
             ChannelPeer(peer.getValue("channelId").jsonPrimitive.content,
                 peer.getValue("peerId").jsonPrimitive.content, peer.getValue("threadId").jsonPrimitive.content)
         }.getOrNull()
+    }
+
+    private companion object {
+        const val MAX_ENDED_RUNS = 500
     }
 }

@@ -6,6 +6,7 @@ import com.daiyimo.maeve.core.run.RunPhase
 import com.daiyimo.maeve.core.run.StoredRun
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 import java.nio.file.Files
 
@@ -46,6 +47,23 @@ class FileRunStateStoreTest {
             assertEquals(true, store.get(RunId("run-1"))?.roundInProgress)
             store.save(store.get(RunId("run-1"))!!.copy(phase = RunPhase.Ended))
             assertFalse(file.readText().contains("\"context\""))
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test fun endedRunsArePrunedButUnfinishedRunsRemain() {
+        val dir = Files.createTempDirectory("maeve-run-store").toFile()
+        try {
+            val store = FileRunStateStore(dir.resolve("runs.json"), maxEndedRuns = 2)
+            store.save(StoredRun(RunId("run-1"), "t", "g1", RunPhase.Ended))
+            store.save(StoredRun(RunId("run-2"), "t", "g2", RunPhase.Ended))
+            store.save(StoredRun(RunId("run-3"), "t", "g3", RunPhase.Ended))
+            store.save(StoredRun(RunId("run-4"), "t", "g4", RunPhase.Running))
+            assertNull(store.get(RunId("run-1")))
+            assertEquals(RunPhase.Ended, store.get(RunId("run-2"))?.phase)
+            assertEquals(RunPhase.Ended, store.get(RunId("run-3"))?.phase)
+            assertEquals(RunPhase.Running, store.get(RunId("run-4"))?.phase)
         } finally {
             dir.deleteRecursively()
         }

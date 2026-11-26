@@ -8,6 +8,7 @@ import com.daiyimo.maeve.core.run.Delivery
 import com.daiyimo.maeve.core.run.DeliveryRecord
 import com.daiyimo.maeve.core.run.DeliveryState
 import com.daiyimo.maeve.core.run.OutboxStore
+import com.daiyimo.maeve.core.io.AtomicFiles
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -17,13 +18,13 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import java.io.File
-import java.io.FileOutputStream
 
 /** 送达账本持久化；Attempting 在进程重启后是结果不明，不能自动重发。 */
-class FileOutboxStore(private val file: File) : OutboxStore {
+class FileOutboxStore(private val file: File, private val maxDelivered: Int = MAX_DELIVERED) : OutboxStore {
     private val records = linkedMapOf<String, DeliveryRecord>()
 
     init {
+        require(maxDelivered > 0)
         if (file.isFile) runCatching {
             Json.parseToJsonElement(file.readText()).jsonArray.forEach { item ->
                 val o = item.jsonObject
@@ -53,9 +54,18 @@ class FileOutboxStore(private val file: File) : OutboxStore {
     @Synchronized override fun all(): List<DeliveryRecord> = records.values.toList()
 
     @Synchronized override fun save(record: DeliveryRecord) {
-        records[record.delivery.id] = record
+        val updated = records + (record.delivery.id to record)
+        val kept = updated.values.toMutableList()
+        val delivered = kept.count { it.state == DeliveryState.Delivered }
+        if (delivered > maxDelivered) {
+            var remove = delivered - maxDelivered
+            val iterator = kept.iterator()
+            while (iterator.hasNext()) {
+                if (iterator.next().state == DeliveryState.Delivered && remove-- > 0) iterator.remove()
+            }
+        }
         file.parentFile?.mkdirs()
-        val json = JsonArray(records.values.map { r -> buildJsonObject {
+        val json = JsonArray(kept.map { r -> buildJsonObject {
             val d = r.delivery
             put("id", d.id); put("threadId", d.threadId)
             put("channelId", r.peer.channelId); put("peerId", r.peer.peerId)
@@ -72,8 +82,12 @@ class FileOutboxStore(private val file: File) : OutboxStore {
                 is Delivery.Notice -> { put("kind", "notice"); put("text", d.text) }
             }
         } }).toString()
-        val temp = File(file.parentFile, file.name + ".tmp")
-        FileOutputStream(temp).use { out -> out.write(json.toByteArray(Charsets.UTF_8)); out.fd.sync() }
-        check(temp.renameTo(file)) { "outbox rename failed" }
+        AtomicFiles.write(file, json.toByteArray(Charsets.UTF_8))
+        records.clear()
+        kept.forEach { records[it.delivery.id] = it }
+    }
+
+    private companion object {
+        const val MAX_DELIVERED = 2_000
     }
 }
