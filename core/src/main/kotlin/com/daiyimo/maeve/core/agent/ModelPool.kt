@@ -171,9 +171,16 @@ class GroupPool(
 
     override val groupName: String get() = groupId
     override val name: String get() = groupId
-    /** 提示词/工具形状保持首选模型的能力;每个成员自己的窗口在 ModelCaller 里独立处理。 */
+    /** 提示词/工具形状按池内能力合并；每个成员自己的窗口仍在 ModelCaller 里独立处理。 */
     override val capabilities: Capabilities = members.first().model.capabilities.let { primary ->
-        primary.copy(toolCalls = members.all { it.model.capabilities.toolCalls })
+        primary.copy(
+            toolCalls = members.all { it.model.capabilities.toolCalls },
+            vision = members.any { it.model.capabilities.vision },
+            contextTokens = members.maxOf { it.model.capabilities.contextTokens },
+            reasoning = members.any { it.model.capabilities.reasoning },
+            groundingVerified = members.any { it.model.capabilities.groundingVerified },
+            maxImages = members.maxOf { it.model.capabilities.maxImages },
+        )
     }
     private val stickyKey: String? get() = sessionId?.takeIf { it.isNotBlank() }?.let { "$groupId:$it" }
     private val order = members.withIndex().associate { it.value.key to it.index }

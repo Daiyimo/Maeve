@@ -204,4 +204,16 @@ class ModelPoolTest {
         assertNull(table.get("b"))
         assertEquals(MemberKey("p", "a"), table.get("a"))
     }
+
+    @Test fun poolCapabilitiesIncludeVisionFromAnyMemberAndLargestContext() {
+        val primary = fakeModel("primary", contextTokens = 4_000, vision = false) { answer("primary") }
+        val backup = fakeModel("backup", contextTokens = 128_000, vision = true) { answer("backup") }
+        val pool = GroupPool("main", listOf(
+            PoolMember(MemberKey("p", "primary"), primary, 0),
+            PoolMember(MemberKey("p", "backup"), backup, 1),
+        ), ModelHealthRegistry { 0 }, StickyTable(), "s")
+        assertTrue(pool.capabilities.vision)
+        assertEquals(128_000, pool.capabilities.contextTokens)
+        assertEquals(listOf("backup"), pool.ordered(ModelNeed(vision = true)).map { it.key.model })
+    }
 }

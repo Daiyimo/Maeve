@@ -18,7 +18,11 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 
 /** 私有副作用账本，与 UI/task 提交回执分开；只存身份和摘要，不存参数/正文或凭据。 */
-class ActionEffectStore(private val directory: File, private val clock: () -> Long = System::currentTimeMillis) {
+class ActionEffectStore(
+    private val directory: File,
+    private val clock: () -> Long = System::currentTimeMillis,
+    private val maxReceipts: Int = MAX_RECEIPTS,
+) {
     @Serializable enum class State { Started, Applied, NotApplied, Unknown }
     @Serializable data class Receipt(
         val invocation: String, val intentId: String, val effectId: String, val runId: String,
@@ -28,6 +32,7 @@ class ActionEffectStore(private val directory: File, private val clock: () -> Lo
         val evidence: String? = null,
     )
     @Serializable private data class Journal(val schemaVersion: Int = 1, val sequence: Long = 0, val receipts: List<Receipt> = emptyList())
+    init { require(maxReceipts > 0) }
     /** 同一会话同时只开始一个写动作；其他会话仍可独立操作各自的后端。 */
     private val locks = mutableMapOf<String, Mutex>()
     internal fun lock(scope: String): Mutex = synchronized(locks) { locks.getOrPut(scope) { Mutex() } }
@@ -37,7 +42,7 @@ class ActionEffectStore(private val directory: File, private val clock: () -> Lo
         if (!file.exists()) return Journal()
         check(file.length() <= MAX_BYTES) { "effect_receipts_unavailable" }
         return Json.decodeFromString<Journal>(file.readText()).also { journal ->
-            check(journal.schemaVersion == 1 && journal.receipts.size <= MAX_RECEIPTS && journal.sequence >= 0)
+            check(journal.schemaVersion == 1 && journal.receipts.size <= maxReceipts && journal.sequence >= 0)
             check(journal.receipts.map { it.invocation }.distinct().size == journal.receipts.size)
             check(journal.receipts.map { it.effectId }.distinct().size == journal.receipts.size)
             check(journal.receipts.all {
@@ -54,8 +59,19 @@ class ActionEffectStore(private val directory: File, private val clock: () -> Lo
         AtomicFiles.write(file(scope), bytes)
     }
 
+    private fun pruneSettled(journal: Journal): Journal {
+        if (journal.receipts.size < maxReceipts) return journal
+        val unresolved = journal.receipts.filter { it.state in setOf(State.Started, State.Unknown) }
+            .mapTo(HashSet()) { it.effectId }
+        val settledKeep = (maxReceipts - 1 - unresolved.size).coerceAtLeast(0)
+        val settled = journal.receipts.filter { it.state !in setOf(State.Started, State.Unknown) }
+            .takeLast(settledKeep).mapTo(HashSet()) { it.effectId }
+        val keep = unresolved + settled
+        return journal.copy(receipts = journal.receipts.filter { it.effectId in keep })
+    }
+
     @Synchronized internal fun begin(scope: String, runId: String, invocation: String, call: Part.ToolCall, backend: String, approval: String?): Receipt {
-        val journal = read(scope)
+        val journal = pruneSettled(read(scope))
         require(runId.length in 1..160 && call.name.length in 1..160)
         val params = digest(canonical(Json.parseToJsonElement(call.argsJson)).toString())
         journal.receipts.firstOrNull { it.invocation == invocation }?.let { old ->
@@ -64,7 +80,7 @@ class ActionEffectStore(private val directory: File, private val clock: () -> Lo
         }
         // 换 API/GUI、换调用 ID 或换运行编号都不能清掉同一会话的 unknown。
         if (journal.receipts.any { it.state in setOf(State.Started, State.Unknown) }) throw ActionEffects.Blocked("effect_unknown")
-        if (journal.receipts.size >= MAX_RECEIPTS) throw ActionEffects.Blocked("effect_receipts_capacity")
+        if (journal.receipts.size >= maxReceipts) throw ActionEffects.Blocked("effect_receipts_capacity")
         val receipt = Receipt(invocation, UUID.randomUUID().toString(), UUID.randomUUID().toString(), runId,
             call.name, params, approval, backend, journal.sequence + 1, clock())
         write(scope, Journal(sequence = receipt.startedSequence, receipts = journal.receipts + receipt))

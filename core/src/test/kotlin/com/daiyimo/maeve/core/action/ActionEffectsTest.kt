@@ -146,4 +146,17 @@ class ActionEffectsTest {
         assertEquals(1, screen.calls.count { it.startsWith("tap") })
     }
 
+    @Test fun settledReceiptsArePrunedWhileUnknownIsKept() = runTest {
+        val store = ActionEffectStore(temp.root, maxReceipts = 3)
+        repeat(3) { i ->
+            ActionEffects(store, "c", "run").execute(call.copy(id = "call-$i"), Origin.Model(i + 1)) { result() }
+        }
+        val first = store.receipts("c").first().effectId
+        runCatching { ActionEffects(store, "c", "run").execute(call.copy(id = "unknown"), Origin.Model(4)) { malformed() } }
+        val receipts = store.receipts("c")
+        assertEquals(3, receipts.size)
+        assertTrue(receipts.any { it.state == ActionEffectStore.State.Unknown })
+        assertFalse(receipts.any { it.effectId == first })
+    }
+
 }
