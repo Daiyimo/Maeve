@@ -9,7 +9,7 @@ user:
 
 ## main #2
 system: len=31323 #50944e4f | You are Maeve, the user's personal assistant on their phone. Your job is to get ⏎…
-tools: #c52ba04a [wait, report_plan, ask_user, request_confirmation, end_not_done, view_past_screens, hand_to_user, handle_obstacle, phone_list_apps, phone_launch_app, phone_set_alarm, phone_set_timer, phone_add_calendar_event, web_observe, web_list_elements, web_tap, web_scroll, web_swipe, web_type_text, web_clear_text, web_back, web_press_key, web_diagnose, web_navigate, web_read_page, web_evaluate_js, web_tabs, web_downloads, web_upload, web_site_mode, web_script, web_interact, web_capture, web_wait_for, web_keep_open]
+tools: #7e43b1c4 [wait, report_plan, ask_user, request_confirmation, end_not_done, view_past_screens, hand_to_user, handle_obstacle, phone_list_apps, phone_launch_app, phone_set_alarm, phone_set_timer, phone_add_calendar_event, web_observe, web_list_elements, web_tap, web_scroll, web_swipe, web_type_text, web_clear_text, web_back, web_press_key, web_diagnose, web_navigate, web_read_page, web_evaluate_js, web_tabs, web_downloads, web_upload, web_site_mode, web_script, web_interact, web_capture, web_wait_for, web_keep_open]
 … 1 messages unchanged
 assistant:
   call main_1 web_navigate {"url":"https://shop.example.com/"}

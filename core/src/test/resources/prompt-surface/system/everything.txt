@@ -523,7 +523,7 @@ phone_list_elements #25a7cf83dc2b
 phone_screenshot #656e9d1a3170
 phone_describe #a6da21d90e34
 phone_find_visually #74aee14b3fef
-phone_tap #2f363f525e2b
+phone_tap #83edcdf3c44a
 phone_scroll #6fcba6db7c10
 phone_swipe #7573c5a3249b
 phone_type_text #339c29df2c69
@@ -558,7 +558,7 @@ web_list_elements #b47dc224f313
 web_screenshot #1d456168c115
 web_describe #ef0dd66ef7c4
 web_find_visually #f7de11d4586f
-web_tap #6be2eacff6ac
+web_tap #feaefb43ed65
 web_scroll #e4f038cd7734
 web_swipe #74cf733404f9
 web_type_text #9d8e83d1cf2f

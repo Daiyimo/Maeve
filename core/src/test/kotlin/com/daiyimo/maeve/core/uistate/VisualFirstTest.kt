@@ -34,7 +34,6 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-
 class VisualFirstTest {
     private class CountingScreen(
         var packageName: String? = "com.xingin.xhs",
@@ -75,6 +74,7 @@ class VisualFirstTest {
             shots++
             return JvmTestImageOps.encode(108, 240) { _, _ -> 128 }
         }
+        override suspend fun screenshotPngStable(): ByteArray = screenshotPng()
         override suspend fun readVisibleText(): List<VisibleTextLine>? {
             ocrReads++
             return ocr

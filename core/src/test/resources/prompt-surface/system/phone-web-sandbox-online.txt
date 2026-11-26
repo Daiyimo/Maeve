@@ -490,7 +490,7 @@ hand_to_user #26582d67eb46
 handle_obstacle #31695598de59
 phone_observe #4afaedb18d15
 phone_list_elements #25a7cf83dc2b
-phone_tap #2f363f525e2b
+phone_tap #83edcdf3c44a
 phone_scroll #6fcba6db7c10
 phone_swipe #7573c5a3249b
 phone_type_text #339c29df2c69
@@ -521,7 +521,7 @@ phone_show_alarms #204c8e3c11e5
 phone_add_calendar_event #7ffcf9931fdc
 web_observe #a9c658a2ef1a
 web_list_elements #b47dc224f313
-web_tap #6be2eacff6ac
+web_tap #feaefb43ed65
 web_scroll #e4f038cd7734
 web_swipe #74cf733404f9
 web_type_text #9d8e83d1cf2f
