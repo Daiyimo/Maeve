@@ -31,8 +31,9 @@ class LocateRegistry(private val capacity: Int = 20) {
     internal fun locateTextFrame(
         target: String, hash: Long, lines: List<VisibleTextLine>, packageName: String?, viewport: Pair<Int, Int>?,
     ): LocateResult? {
-        val want = target.filterNot(Char::isWhitespace).lowercase()
-        val hits = lines.filter { it.text.filterNot(Char::isWhitespace).lowercase() == want && it.bounds.size == 4 }.distinctBy { it.bounds }
+        val want = normalizeLabel(target)
+        if (want.isEmpty()) return null
+        val hits = lines.filter { normalizeLabel(it.text) == want && it.bounds.size == 4 }.distinctBy { it.bounds }
         if (hits.size > 1) {
             val positions = hits.take(4).joinToString { line ->
                 "(" + center(line.bounds[0], line.bounds[2]) + ", " + center(line.bounds[1], line.bounds[3]) + ")"
@@ -47,6 +48,9 @@ class LocateRegistry(private val capacity: Int = 20) {
         val (ref, id) = put(x, y, hash, packageName, viewport)
         return LocateResult.Found(ref, id, x, y, b.toIntArray(), hit.text, "ocr", null, unverified = true)
     }
+
+    private fun normalizeLabel(value: String): String =
+        value.filterNot(Char::isWhitespace).lowercase().trim { !it.isLetterOrDigit() }
 
     private fun center(a: Int, b: Int): Int = (a + b) / 2
 

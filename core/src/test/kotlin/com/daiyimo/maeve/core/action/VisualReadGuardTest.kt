@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.core.action
 
+import com.daiyimo.maeve.core.access.AppAccessPolicy
+import com.daiyimo.maeve.core.access.AppAccessState
 import com.daiyimo.maeve.core.assembly.toolDispatcher
 import com.daiyimo.maeve.core.guard.OperationGuards
 import com.daiyimo.maeve.core.model.Part
@@ -17,6 +19,7 @@ import org.junit.Test
 /** Visual-first reads have no element refs; their OCR text is the screen fingerprint. */
 class VisualReadGuardTest {
     private class VisualScreen : ScreenPort by FakeScreen() {
+        override val appAccess = AppAccessPolicy { AppAccessState() }
         var text = "first screen"
         override suspend fun currentPackage() = "com.tencent.mm"
         override suspend fun viewport() = 1080 to 2400

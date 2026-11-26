@@ -21,6 +21,7 @@ import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.tool.argStr
 import com.daiyimo.maeve.core.tool.fail
 import com.daiyimo.maeve.core.tool.failCode
+import com.daiyimo.maeve.core.tool.notSent
 import com.daiyimo.maeve.core.tool.writesScreen
 import com.daiyimo.maeve.core.visual.Shots
 import com.daiyimo.maeve.core.vision.LocateResult
@@ -164,6 +165,8 @@ internal class Interfaces(
 
     override suspend fun around(tool: AgentTool, args: JsonObject, inlineScreen: Boolean, body: suspend (reportsEffect: Boolean) -> ToolExecution): ToolExecution {
         if (tool.offScreen || tool.verb == Verb.ListApps) return body(false)
+        // 只读工具也经过这里;设置 revision 变化时先清掉旧模式的定位、画面和树判断缓存。
+        sessionOf(tool).checkAppAccess(current = false)
         // 按目标启动得以离开受限应用;这时不采集旧页面,只在启动之后附上放行的页面。
         if (tool.verb in APP_TARGET_VERBS) {
             val raw = body(false)
@@ -315,6 +318,10 @@ internal class Interfaces(
         DESCRIBED_CONFLICTS.firstOrNull { it in args }?.let {
             return Described.Failed(fail("invalid_arguments", "$DESCRIBED_ELEMENT: give either $DESCRIBED_ELEMENT or $it, not both"))
         }
+        // 已拿到视觉定位的 @vN 时,element 只是标签;去掉描述参数后交给原有 ref 校验,不再重新读屏/问视觉模型。
+        if (args.argStr("ref")?.let(LOCATED_REF::matches) == true && args.argStr("snapshotId") != null) {
+            return Described.Resolved(JsonObject(args.filterKeys { it != DESCRIBED_ELEMENT && it != DESCRIBED_ROLE }), null)
+        }
         val roleFilter = args.argStr(DESCRIBED_ROLE)?.trim()?.ifEmpty { null }
         // 内部读的一屏:模型没瞧见,不算它读过(不动「手里那屏已过时」);这一屏留给接下来的动作当「动作前」
         val fresh = screenAttempt { session.snapshot(internal = true) }
@@ -365,15 +372,15 @@ internal class Interfaces(
         session: ScreenSession, locator: Locator?, args: JsonObject, shown: String, role: String?, field: Boolean,
     ): Described {
         val result = waitOrSteer {
-            withTimeoutOrNull(12_000L) {
-                val local = if (role == null && !field && session.visualFirst()) session.locateVisualText(shown) else null
+            withTimeoutOrNull(5_000L) {
+                val local = if (role == null && !field) session.locateVisualText(shown) else null
                 local ?: locator?.locate(shown, null, role, field)
                     ?: LocateResult.NotFound("vision_unavailable", "Use a current on-screen label or ask the user to review the screen.")
             } ?: LocateResult.NotFound("vision_timeout", "Target resolution exceeded its time limit. Read the current screen again.")
         } ?: return Described.Failed(failCode(SKIPPED_FOR_NEW_MESSAGE))
         return when (val r = result) {
             // 看了却没找到(或看图这一下出错):换个说法,或给个坐标;画面拿不到、不能看(受保护、还没开 App)时,说明与 find_visually 一致
-            is LocateResult.NotFound -> Described.Failed(fail(if (r.reason == "element_ambiguous") r.reason else "element_not_found", Feedback.format("described.not_seen",
+            is LocateResult.NotFound -> Described.Failed(notSent(if (r.reason == "element_ambiguous") r.reason else "element_not_found", Feedback.format("described.not_seen",
                 "text" to shown, "reason" to r.reason,
                 "next" to if (r.reason in SIGHT_MISSED) Feedback["described.not_seen.retry"] else r.message)))
             is LocateResult.Found -> {
@@ -400,6 +407,19 @@ internal class Interfaces(
 
     suspend fun approvalFrame(tool: AgentTool?, app: String, withImage: Boolean): VisualFrame? =
         sessionOf(tool).approvalFrame(app, withImage)
+
+    /** 当前动作所在屏是否需要用户亲自处理秘密输入(树节点或视觉 OCR)。 */
+    suspend fun secretPage(tool: AgentTool?): Boolean = sessionOf(tool).secretPage()
+
+    /** 最近一次观察的 OCR 是否已显示登录/验证码/CAPTCHA 页面。 */
+    fun cachedSecretPage(tool: AgentTool?): Boolean = sessionOf(tool).cachedSecretPage()
+
+    /** 当前动作所在屏是否走视觉优先。 */
+    suspend fun visualFirst(tool: AgentTool?): Boolean = sessionOf(tool).visualFirst()
+
+    /** 视觉风险判定用的 OCR 证据;打字可复用秘密页检查刚读的一帧。 */
+    suspend fun visualEvidence(tool: AgentTool?, base: ScreenSnapshot, reuseOcr: Boolean): ScreenSnapshot? =
+        sessionOf(tool).visualEvidence(base, reuseOcr)
 
     /** 那次读屏距今多少毫秒;不在任何一块屏最近的几次里时为 null。 */
     private fun readAgeOf(snapshotId: String?): Long? = sessions.values.firstNotNullOfOrNull { s ->

@@ -17,9 +17,11 @@ import com.daiyimo.maeve.core.uistate.ScreenFamily
 import com.daiyimo.maeve.core.uistate.described
 import com.daiyimo.maeve.core.uistate.locatedInfo
 import com.daiyimo.maeve.core.uistate.locator
+import com.daiyimo.maeve.core.uistate.session
 import com.daiyimo.maeve.core.vision.LocateResult
 import com.daiyimo.maeve.core.vision.ScreenUnavailable
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -39,6 +41,24 @@ private const val FIND_TEXT_NOTE = "The element's exact on-screen label, if it h
 
 /** 看图模型配没配:两个看图工具提供不提供都看这一项。 */
 private fun visionConfigured(ctx: ToolContext) = ctx.config.vision != null
+
+/** OCR 命中立即返回；未命中才调用视觉模型，但整条链不能无限拖住后续动作。 */
+private const val VISUAL_LOCATE_TIMEOUT_MS = 8_000L
+
+private val OCR_SHORTCUT_SPATIAL = listOf(
+    "top", "bottom", "left", "right", "upper", "lower", "icon", "图标",
+    "上方", "下方", "左上", "右上", "左下", "右下", "中间", "中央",
+)
+private val OCR_SHORTCUT_ROLE = Regex("(按钮|入口|菜单项|控件|button|tab|menuitem|control)$")
+
+/** OCR 只能证明文字存在,不能证明空间位置或图标身份;有这些约束时仍问视觉模型。 */
+private fun ocrShortcutSafe(target: String, label: String): Boolean {
+    fun norm(s: String) = s.lowercase().filterNot(Char::isWhitespace)
+    val t = norm(target); val l = norm(label)
+    if (t == l) return true
+    if (OCR_SHORTCUT_SPATIAL.any { it in t }) return false
+    return t.replace(OCR_SHORTCUT_ROLE, "") == l
+}
 
 /**
  * 让看图模型描述这块屏:要设置里有看图模型(视觉角色)才提供,和主模型能不能看图无关。
@@ -109,13 +129,18 @@ internal class FindVisually(f: ScreenFamily) : ScreenTool(f, "find_visually") {
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
         val looking = a.str("target", max = 120)!!
         val label = a.str("text", max = 60)
-        return when (val r = ctx.locator!!.locate(looking, label?.trim())) {
-            is LocateResult.NotFound -> notFoundResult(r)
-            is LocateResult.Found -> {
-                ctx.locatedInfo[r.ref] = Located(looking, label?.trim(), r.seen, r.unverified)
-                foundResult(r)
+        return withTimeoutOrNull(VISUAL_LOCATE_TIMEOUT_MS) {
+            val exact = label?.trim()?.takeIf { it.isNotEmpty() && ocrShortcutSafe(looking, it) }
+                ?.let { ctx.session.locateVisualText(it) }
+            when (val r = exact ?: ctx.locator!!.locate(looking, label?.trim())) {
+                is LocateResult.NotFound -> notFoundResult(r)
+                is LocateResult.Found -> {
+                    ctx.locatedInfo[r.ref] = Located(looking, label?.trim(), r.seen, r.unverified)
+                    foundResult(r)
+                }
             }
-        }
+        } ?: notFoundResult(LocateResult.NotFound("vision_timeout",
+            "Locating by sight exceeded 8 seconds. Wait briefly and retry once, or use a visibleText center."))
     }
 }
 

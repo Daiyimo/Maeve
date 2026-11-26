@@ -14,7 +14,7 @@ import com.daiyimo.maeve.core.tool.ToolDef
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.tool.argStr
-import com.daiyimo.maeve.core.tool.fail
+import com.daiyimo.maeve.core.tool.notSent
 import com.daiyimo.maeve.core.tool.int
 import com.daiyimo.maeve.core.tool.refExpired
 import com.daiyimo.maeve.core.tool.str
@@ -101,7 +101,7 @@ internal class Tap(f: ScreenFamily) : ScreenTool(f, "tap") {
     /** 按坐标点:视觉优先直接取视口,不为了换算尺寸读树。 */
     private suspend fun tapByPoint(ctx: ToolContext, x: Int, y: Int, doubleTap: Boolean): ToolExecution {
         val viewport = coordinateViewport(ctx)
-            ?: return fail("viewport_unavailable", "The screen viewport is unavailable; wait and retry the coordinate tap.")
+            ?: return notSent("viewport_unavailable", "The screen viewport is unavailable; wait and retry the coordinate tap.")
         return ctx.action(tapAt(ctx, toPx(x, viewport.first), toPx(y, viewport.second), doubleTap))
     }
 

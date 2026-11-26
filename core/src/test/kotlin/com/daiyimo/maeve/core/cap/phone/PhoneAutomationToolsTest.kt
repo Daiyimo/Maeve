@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.core.cap.phone
 
+import com.daiyimo.maeve.core.access.AppAccessPolicy
+import com.daiyimo.maeve.core.access.AppAccessState
 import com.daiyimo.maeve.core.assembly.toolDispatcher
 import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.tool.Args
@@ -75,6 +77,7 @@ class PhoneAutomationToolsTest {
     @Test fun treeToolsFailFastOnVisualFirstAppsWithoutReadingTree() = runTest {
         var reads = 0
         val screen = object : ScreenPort by FakeScreen() {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
             override suspend fun currentPackage(): String? = "com.xingin.xhs"
             override suspend fun snapshot(): ScreenSnapshot { reads++; return tree() }
         }
@@ -83,6 +86,22 @@ class PhoneAutomationToolsTest {
         val result = PhoneQuery.execute(args, dispatcher.ctx).content
         assertEquals("visual_first", result["error"]!!.jsonPrimitive.content)
         assertEquals(0, reads)
+    }
+
+    @Test fun treeToolsRespectPerAppVisualOptOut() = runTest {
+        var reads = 0
+        val screen = object : ScreenPort by FakeScreen() {
+            override val appAccess = AppAccessPolicy {
+                AppAccessState(visualFirstDefault = true, visualFirstOverrides = mapOf("com.xingin.xhs" to false))
+            }
+            override suspend fun currentPackage(): String? = "com.xingin.xhs"
+            override suspend fun snapshot(): ScreenSnapshot { reads++; return tree() }
+        }
+        val dispatcher = toolDispatcher(screen)
+        val args = Args(PhoneQuery.def, Json.parseToJsonElement("""{"text":"午餐"}""").jsonObject)
+        val result = PhoneQuery.execute(args, dispatcher.ctx).content
+        assertEquals("true", result["ok"]!!.jsonPrimitive.content)
+        assertEquals(1, reads)
     }
 
     @Test fun collectMergesOverlapAndStopsAfterTwoPagesWithoutNewText() = runTest {
@@ -111,6 +130,50 @@ class PhoneAutomationToolsTest {
         assertEquals(4, scrolls)
         assertTrue(result["text"]!!.jsonPrimitive.content.contains("甲\n乙\n丙\n丁"))
         assertFalse(result["truncated"]!!.jsonPrimitive.content.toBoolean())
+    }
+
+    @Test fun collectUsesObserveOnVisualFirstApps() = runTest {
+        val screen = object : ScreenPort by FakeScreen() {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
+            override suspend fun currentPackage(): String? = "com.xingin.xhs"
+        }
+        val dispatcher = toolDispatcher(screen)
+        val calls = mutableListOf<String>()
+        dispatcher.ctx.sub = SubActions { call ->
+            calls += call.name
+            ToolExecution(buildJsonObject {
+                put("ok", true); put("currentApp", "com.xingin.xhs"); put("snapshotId", "p1")
+                put("visibleText", JsonArray(listOf(buildJsonObject {
+                    put("text", "游戏任务")
+                    put("bounds", JsonArray(listOf(100, 200, 900, 250).map(::JsonPrimitive)))
+                })))
+            })
+        }
+        val args = Args(PhoneCollect.def, Json.parseToJsonElement("""{"direction":"down","pages":1}""").jsonObject)
+        val result = PhoneCollect.execute(args, dispatcher.ctx).content
+        assertEquals(listOf("phone_observe"), calls)
+        assertTrue(result["text"]!!.jsonPrimitive.content.contains("游戏任务"))
+    }
+
+    @Test fun collectKeepsTreeReadForOptOutApps() = runTest {
+        val screen = object : ScreenPort by FakeScreen() {
+            override val appAccess = AppAccessPolicy {
+                AppAccessState(visualFirstDefault = true, visualFirstOverrides = mapOf("com.example.app" to false))
+            }
+            override suspend fun currentPackage(): String? = "com.example.app"
+        }
+        val dispatcher = toolDispatcher(screen)
+        val calls = mutableListOf<String>()
+        dispatcher.ctx.sub = SubActions { call ->
+            calls += call.name
+            ToolExecution(buildJsonObject {
+                put("ok", true); put("currentApp", "com.example.app"); put("snapshotId", "p1")
+                put("elements", JsonArray(emptyList()))
+            })
+        }
+        val args = Args(PhoneCollect.def, Json.parseToJsonElement("""{"direction":"down","pages":1}""").jsonObject)
+        PhoneCollect.execute(args, dispatcher.ctx)
+        assertEquals(listOf("phone_list_elements"), calls)
     }
 
     @Test fun collectInterleavesOcrOnlyLinesInVisualOrder() = runTest {
@@ -181,6 +244,7 @@ class PhoneAutomationToolsTest {
 
     @Test fun visualRunStopsBeforeTheNextCommandWhenInputCannotBeVerified() = runTest {
         val screen = object : ScreenPort by FakeScreen() {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
             override suspend fun currentPackage() = "com.xingin.xhs"
         }
         val dispatcher = toolDispatcher(screen)

@@ -1,6 +1,6 @@
 package com.daiyimo.maeve.core.uistate
 
-import com.daiyimo.maeve.core.tool.fail
+import com.daiyimo.maeve.core.tool.notSent
 
 import com.daiyimo.maeve.core.tool.ToolDispatcher
 import com.daiyimo.maeve.core.visual.FrameDiff
@@ -108,7 +108,6 @@ internal class ScreenSession(
     private var lastOcr: List<VisibleTextLine> = emptyList()
     private var visualImagePackage: String? = null
     private var visualImageDigest: ByteArray? = null
-    @Volatile private var visualMode = false
     private data class VisualRead(
         val snapshot: ScreenSnapshot,
         val ocr: List<VisibleTextLine>?,
@@ -143,7 +142,11 @@ internal class ScreenSession(
             readAt.clear()
             handed = null
             diffChain.clear()
-            visualMode = false
+            treeVerdict = null
+            lastOcr = emptyList()
+            pendingVisionNote = null
+            visualImagePackage = null
+            visualImageDigest = null
             stale = true
             accessSeen = state.revision
         }
@@ -173,8 +176,10 @@ internal class ScreenSession(
     /** 当前前台包名是否命中视觉优先策略;只问低开销包名探针。 */
     suspend fun visualFirst(): Boolean = visualModeFor(foregroundPackage())
 
-    private fun visualModeFor(packageName: String?): Boolean =
-        (surface.id == "phone" && VisualFirstPolicy.applies(packageName)).also { visualMode = it }
+    private fun visualModeFor(packageName: String?): Boolean = isVisualFirst(packageName)
+
+    private fun isVisualFirst(packageName: String?): Boolean =
+        surface.id == "phone" && VisualFirstPolicy.applies(packageName, screen.appAccess.current())
 
     private fun visualSnapshotId(): String = surface.family.snapshotPrefix + UUID.randomUUID()
 
@@ -271,6 +276,28 @@ internal class ScreenSession(
     suspend fun currentVisualText(timeoutMs: Long = OCR_WAIT_MS): List<VisibleTextLine>? =
         captureVisual(withPng = false, withOcr = true, register = false, waitMs = timeoutMs).ocr
 
+    /** 把 OCR 文字合成风险判定用的临时元素;打字可复用刚读的一帧,点击按需新读。 */
+    suspend fun visualEvidence(base: ScreenSnapshot, reuseOcr: Boolean): ScreenSnapshot? {
+        val lines = if (reuseOcr) lastOcr else currentVisualText(2_000) ?: return null
+        if (lines.isEmpty()) return null
+        return base.copy(elements = lines.mapIndexedNotNull { i, line ->
+            val b = line.bounds.takeIf { it.size == 4 } ?: return@mapIndexedNotNull null
+            UiElement("ocr$i", "Text", line.text, (b[0] + b[2]) / 2, (b[1] + b[3]) / 2, b,
+                null, clickable = false, editable = false, scrollable = false)
+        })
+    }
+
+    /** 复用最近一次观察的 OCR,点击前不额外读屏。 */
+    fun cachedSecretPage(): Boolean = ScreenDiagnosis.secretText(lastOcr.map { it.text }) != null
+
+    /** 视觉优先页没有树节点;打字/清空前用一帧 OCR 守密码、验证码和 CAPTCHA 边界。 */
+    suspend fun secretPage(): Boolean {
+        if (lastSnapshot?.elements?.any { it.secret } == true) return true
+        if (!visualFirst()) return false
+        val fresh = currentVisualText(2_500) ?: return true
+        return ScreenDiagnosis.secretText(fresh.map { it.text }) != null
+    }
+
     /** 用同一张当前画面核对本机确认的动作和页面，不登记截图。 */
     suspend fun approvalFrame(app: String, withImage: Boolean): VisualFrame? {
         if (!visualModeFor(app)) return null
@@ -290,13 +317,29 @@ internal class ScreenSession(
             place = snap.packageName?.let(Place::app), trust = Trust.Trusted, inputs = InputHints(emptyList()),
             regions = ocr.orEmpty().map { ReadRegion(it.text.replace('\n', ' '), it.bounds) })
 
+    /** 视觉模式下拒绝树工具时复用最近一次视觉结果,不再产生一次完整读屏。 */
+    suspend fun visualTreeRead(): ToolExecution? {
+        val snap = lastSnapshot ?: return null
+        if (stale || snap.protected || foregroundPackage() != snap.packageName) return null
+        return ToolExecution(okObj {
+            snap?.packageName?.let { put("currentApp", it) }
+            snap?.snapshotId?.let { put("snapshotId", it) }
+            put("visualOnly", true)
+            put("readMode", "vision")
+            put("treeQuality", "unusable")
+            put("elements", JsonArray(emptyList()))
+            if (lastOcr.isNotEmpty()) put("visibleText", VisibleText.json(lastOcr))
+            put("hint", "Visual-first mode: the UI tree was intentionally not read. Use the latest screenshot/visibleText, or call phone_observe for a fresh visual read. Do not request element refs.")
+        })
+    }
+
     private fun visualHint(visionAvailable: Boolean, png: ByteArray?, ocr: List<VisibleTextLine>?, protected: Boolean): String = when {
         protected -> HINT_PROTECTED
         visionAvailable && png != null -> "Visual-first read: the UI tree was intentionally not read. Use the screenshot and visibleText, and tap by coordinates; do not call list_elements or rely on refs."
         visionAvailable && !ocr.isNullOrEmpty() -> "Visual-first OCR-only read: the screenshot is unavailable. Use visibleText centers and coordinates; the UI tree was intentionally not read, so do not call list_elements."
-        visionAvailable -> "Visual-first read: neither a screenshot nor recognized text is available. The UI tree was intentionally not read; wait and retry observe or hand_to_user, but do not call list_elements."
+        visionAvailable -> "Visual-first read: neither a screenshot nor recognized text is available yet. The UI tree was intentionally not read; wait and retry observe or phone_screenshot, but do not call list_elements."
         !ocr.isNullOrEmpty() -> "OCR-only read: no vision model is configured. Use visibleText centers and coordinates; the UI tree was intentionally not read, so do not call list_elements."
-        else -> "OCR-only read: no vision model is configured and no screen text was recognized. The UI tree was intentionally not read; wait and retry observe or hand_to_user, but do not call list_elements."
+        else -> "OCR-only read: no vision model is configured and no screen text was recognized yet. The UI tree was intentionally not read; wait and retry observe or phone_screenshot, but do not call list_elements."
     }
 
     private suspend fun observeVisual(recordFrame: Boolean, automatic: Boolean = false): ToolExecution {
@@ -757,7 +800,7 @@ internal class ScreenSession(
      * 最近一次读屏判的树读不出内容(自绘界面,如微信):再读一遍 a11y 是纯阻塞浪费(原生读不响应超时,
      * 复杂页面要 5–8 秒),而画面格子 + 端口事实就是变化信号。判效果时据此跳过 a11y 重读,只读画面格子。
      */
-    fun treeUnusable(): Boolean = visualMode || VisualFirstPolicy.applies(lastSnapshot?.packageName) ||
+    fun treeUnusable(): Boolean = isVisualFirst(lastSnapshot?.packageName) ||
         treeVerdict?.quality == TreeQuality.Unusable
 
     /**
@@ -765,7 +808,7 @@ internal class ScreenSession(
      * 按描述找目标(输入框或要点的东西)在树里找不到时,据此改看图找。
      */
     fun treeBlind(s: ScreenSnapshot): Boolean = surface.id == "phone" &&
-        (visualMode || VisualFirstPolicy.applies(s.packageName) ||
+        (isVisualFirst(s.packageName) ||
             (TreeAdequacy.ofTree(s).quality ?: treeVerdict?.quality).let { it == TreeQuality.Partial || it == TreeQuality.Unusable })
 
     private suspend fun settle(ms: Long) {
@@ -819,9 +862,12 @@ internal class ScreenSession(
 
     /** A named OCR-only target must not be dispatched at a contradictory point. This is not icon recognition. */
     suspend fun checkTextPoint(target: String?, x: Int, y: Int): ToolExecution? {
-        if (surface.id != "phone" || lastSnapshot?.elements?.isNotEmpty() != false || target == null) return null
+        if (surface.id != "phone" || target == null) return null
+        if (target.contains("图标") || target.lowercase().contains("icon")) return null
         val label = ocrLabel(target) ?: return null
-        if (matchTarget(label, lastOcr) == null) return null
+        val blind = lastSnapshot?.let(::treeBlind) == true
+        // 树够用时不会读 OCR;盲树还要防止目标不存在时把另一段文字误当成目标。
+        if (!blind && matchTarget(label, lastOcr) == null) return null
         val visual = visualFirst()
         val fresh = if (visual) lastSnapshot else screenAttempt { screen.peek() }
         if (fresh == null || fresh.protected) return null
@@ -829,15 +875,19 @@ internal class ScreenSession(
             if (foregroundPackage() != fresh.packageName) return null
         } else if (fresh.packageName != lastSnapshot?.packageName) return null
         val (lines, _) = readScreenText(fresh, 2_500)
-        val match = matchTarget(label, lines.orEmpty().filter { it.confidence == null || it.confidence >= .6f }) ?: return null
+        val readable = lines.orEmpty().filter { it.confidence == null || it.confidence >= .6f }
+        val match = matchTarget(label, readable) ?: readable.singleOrNull { line ->
+            blind && line.bounds.size == 4 && x in line.bounds[0]..line.bounds[2] && y in line.bounds[1]..line.bounds[3]
+        } ?: return null
         val b = match.bounds
-        if (x in (b[0] - 12)..(b[2] + 12) && y in (b[1] - 12)..(b[3] + 12)) return null
+        if (matchTarget(label, readable) != null && x in (b[0] - 12)..(b[2] + 12) && y in (b[1] - 12)..(b[3] + 12)) return null
         val center = listOf((b[0] + b[2]) / 2, (b[1] + b[3]) / 2)
-        val failure = fail("tap_text_mismatch", Feedback.format("tap_text_mismatch", "text" to match.text, "x" to center[0], "y" to center[1]))
+        val failure = notSent("tap_text_mismatch", Feedback.format("tap_text_mismatch", "text" to match.text, "x" to center[0], "y" to center[1]))
         return failure.with(content = JsonObject(failure.content + buildJsonObject {
             put("center", JsonArray(center.map(::JsonPrimitive)))
             put("bounds", JsonArray(b.map(::JsonPrimitive)))
             put("inputDispatched", false)
+            put("counts_as_failure", false)
         }))
     }
 
@@ -846,7 +896,7 @@ internal class ScreenSession(
      * 视觉模型慢时不挡路);读不到、树够用、或目标不在落点处 → 不确认(照旧走视觉核查)。点后核对与矛盾检查不受影响。
      */
     fun ocrConfirmsPoint(target: String?, x: Int, y: Int): Boolean {
-        if (surface.id != "phone" || lastSnapshot?.elements?.isNotEmpty() != false || target == null) return false
+        if (surface.id != "phone" || target == null) return false
         val label = ocrLabel(target) ?: return false
         val match = matchTarget(label, lastOcr) ?: return false
         val b = match.bounds
@@ -857,7 +907,7 @@ internal class ScreenSession(
     /** 把目标文字归一成可比对的标签(去空白小写、去掉「标签/按钮/入口」这类后缀);不合条件为 null。 */
     private fun ocrLabel(target: String?): String? {
         if (target == null) return null
-        val label = target.lowercase().filter(Char::isLetterOrDigit).replace(Regex("(标签|按钮|入口|选项|button|tab)$"), "")
+        val label = target.lowercase().filter(Char::isLetterOrDigit).replace(Regex("(标签|按钮|入口|选项|菜单项|图标|button|tab|menu(?:item)?)$"), "")
         return label.takeIf { it.length in 2..30 }
     }
 

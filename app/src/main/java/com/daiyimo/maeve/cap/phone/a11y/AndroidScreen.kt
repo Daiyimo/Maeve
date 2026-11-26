@@ -132,6 +132,11 @@ class AndroidScreen(
     private val awaitApp: suspend (packageName: String, user: Int?, timeoutMs: Long, free: suspend () -> Boolean) -> AppWait =
         { _, _, _, _ -> AppWait.Unsupported },
 ) : ScreenPort {
+    private fun visualFirst(packageName: String?): Boolean =
+        VisualFirstPolicy.applies(packageName, appAccess.current())
+    private val blackFrameGuard = BlackFrameGuard({ SystemClock.uptimeMillis() })
+    private var blackFramePackage: String? = null
+
     /** 屏还没建时为 -1;只在确认屏已建好之后用。 */
     private val displayId get() = display.current?.displayId ?: -1
     /** 屏已经建好(不等于打开过 App)。 */
@@ -206,7 +211,7 @@ class AndroidScreen(
             width = screenWidth,
             height = screenHeight,
             changedDuringRead = after != r.hash,
-            protected = r.hasAppWindow && frameBlack() == true,
+            protected = r.hasAppWindow && isProtected(),
             hasWindow = r.anyAppWindow,
             unreadableApp = if (r.topPackage == null) foregroundTaskPackage() else null,
             windows = r.windows,
@@ -254,27 +259,33 @@ class AndroidScreen(
         }
     }
 
-    override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long): VisualFrame = withContext(Dispatchers.IO) {
-        val target = display.current ?: return@withContext VisualFrame(null, null); val pkg = foregroundTaskPackage() ?: return@withContext VisualFrame(null, null)
-        StillFrameRead.awaitStill(SystemClock::uptimeMillis, { delay(it) }, ::frameSignature)
-        val bitmap = target.latestFrameBitmap() ?: return@withContext VisualFrame(null, null)
-        try {
-            if (frameBlack() == true) return@withContext VisualFrame(null, null); val before = frameSignature()
-            val png = if (!withImage) null else ByteArrayOutputStream().use { output ->
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output); output.toByteArray()
+    override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long): VisualFrame =
+        withTimeoutOrNull(timeoutMs.coerceAtLeast(1)) {
+            withContext(Dispatchers.IO) {
+                val target = display.current ?: return@withContext VisualFrame(null, null)
+                val pkg = foregroundTaskPackage() ?: return@withContext VisualFrame(null, null)
+                StillFrameRead.awaitStill(SystemClock::uptimeMillis, { delay(it) }, ::frameSignature)
+                while (frameBlack() == true) delay(50)
+                val bitmap = target.latestFrameBitmap() ?: return@withContext VisualFrame(null, null)
+                try {
+                    if (frameBlack() == true) return@withContext VisualFrame(null, null)
+                    val before = frameSignature()
+                    val png = if (!withImage) null else ByteArrayOutputStream().use { output ->
+                        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output); output.toByteArray()
+                    }
+                    val text = try {
+                        PhoneOcr.readFresh(bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false))
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
+                        null
+                    }
+                    if (display.current !== target || foregroundTaskPackage() != pkg ||
+                        frameBlack() == true || FrameMath.pageChanged(before, frameSignature())) VisualFrame(null, null)
+                    else VisualFrame(png, text, bitmap.width, bitmap.height)
+                } finally {
+                    bitmap.recycle()
+                }
             }
-            val text = try {
-                withTimeoutOrNull(timeoutMs) { PhoneOcr.readFresh(bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false)) }
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
-                null
-            }
-            if (display.current !== target || foregroundTaskPackage() != pkg ||
-                frameBlack() == true || FrameMath.pageChanged(before, frameSignature())) VisualFrame(null, null)
-            else VisualFrame(png, text, bitmap.width, bitmap.height)
-        } finally {
-            bitmap.recycle()
-        }
-    }
+        } ?: VisualFrame(null, null)
 
     override suspend fun frameGrid(): FrameGrid? = withContext(Dispatchers.IO) {
         val bmp = display.current?.frames?.value ?: return@withContext null
@@ -282,7 +293,12 @@ class AndroidScreen(
     }
 
     override suspend fun isProtected(): Boolean = withContext(Dispatchers.IO) {
-        hasDisplay && foregroundTaskPackage() != null && frameBlack() == true
+        val pkg = foregroundTaskPackage()
+        if (pkg != blackFramePackage) {
+            blackFrameGuard.reset()
+            blackFramePackage = pkg
+        }
+        hasDisplay && pkg != null && blackFrameGuard.isProtected(frameBlack())
     }
 
     override suspend fun checkScreen(): ScreenCheck = withContext(Dispatchers.IO) {
@@ -366,7 +382,7 @@ class AndroidScreen(
                 suspend fun matched(): Boolean = when (condition) {
                     "activity" -> runCatching { shell.topActivity(displayId)?.contains(value, true) == true }.getOrDefault(false)
                     else -> {
-                        val exists = if (VisualFirstPolicy.applies(foregroundTaskPackage())) {
+                        val exists = if (visualFirst(foregroundTaskPackage())) {
                             readVisibleText()?.any { it.text.contains(value, true) } == true
                         } else {
                             val r = read()
@@ -535,7 +551,7 @@ class AndroidScreen(
      * 弹着输入法、输入框拿着焦点、上面盖着别的窗口(弹框、浮层)、没有够大的可滚动内容时不滚。
      */
     override suspend fun idleScroll(fraction: Double): Boolean = withContext(Dispatchers.IO) {
-        val visual = VisualFirstPolicy.applies(foregroundTaskPackage())
+        val visual = visualFirst(foregroundTaskPackage())
         if (!hasDisplay || imeBox() != null || (!visual && focusedEditable() != null)) return@withContext false
         if (visual) {
             val dist = (screenHeight * kotlin.math.abs(fraction)).roundToInt().coerceAtMost(screenHeight / 2)
@@ -582,7 +598,7 @@ class AndroidScreen(
 
     override suspend fun typeText(ref: String?, snapshotId: String?, text: String): ActionResult = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext NO_APP_OPEN
-        if (ref == null && VisualFirstPolicy.applies(foregroundTaskPackage())) return@withContext typeUnseen(text)
+        if (ref == null && visualFirst(foregroundTaskPackage())) return@withContext typeUnseen(text)
         val found = when (val f = findField(ref, snapshotId)) {
             is Field.Found -> f
             is Field.Missing -> return@withContext when {
@@ -673,7 +689,7 @@ class AndroidScreen(
 
     override suspend fun clearText(ref: String?, snapshotId: String?): ActionResult = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext NO_APP_OPEN
-        if (ref == null && VisualFirstPolicy.applies(foregroundTaskPackage())) return@withContext clearUnseen()
+        if (ref == null && visualFirst(foregroundTaskPackage())) return@withContext clearUnseen()
         val found = when (val f = findField(ref, snapshotId, tapToFocus = false)) {
             is Field.Found -> f
             is Field.Missing -> return@withContext when {
@@ -717,7 +733,7 @@ class AndroidScreen(
         // 点了开出了别的 App(开到用户主屏上又挪回来的也是):不打字,照实报这一下点的结果
         if (tapped.opened != null) return@withContext tapped
         tapped.appSwitched?.takeIf { !tapped.switchedByTarget }?.let { return@withContext UnseenField.tapSwitched(it) }
-        if (!VisualFirstPolicy.applies(foregroundTaskPackage()) && focusedEditable() != null) return@withContext typeText(null, null, text)
+        if (!visualFirst(foregroundTaskPackage()) && focusedEditable() != null) return@withContext typeText(null, null, text)
         typeUnseen(text, atPoint = true)
     }
 
@@ -729,7 +745,7 @@ class AndroidScreen(
         // 点了开出了别的 App(开到用户主屏上又挪回来的也是):不清空,照实报这一下点的结果
         if (tapped.opened != null) return@withContext tapped
         tapped.appSwitched?.takeIf { !tapped.switchedByTarget }?.let { return@withContext UnseenField.tapSwitched(it) }
-        if (!VisualFirstPolicy.applies(foregroundTaskPackage()) && focusedEditable() != null) return@withContext clearText(null, null)
+        if (!visualFirst(foregroundTaskPackage()) && focusedEditable() != null) return@withContext clearText(null, null)
         clearUnseen(atPoint = true)
     }
 
@@ -742,7 +758,7 @@ class AndroidScreen(
     private suspend fun typeUnseen(text: String, atPoint: Boolean = false): ActionResult {
         val ime = imeBox()
         val before = readVisibleText()?.let { UnseenField.outside(it, ime) }
-        val beforeTree = if (VisualFirstPolicy.applies(foregroundTaskPackage())) null else treeHash()
+        val beforeTree = if (visualFirst(foregroundTaskPackage())) null else treeHash()
         val beforeFrame = frameSignature()
         var pasted: Boolean? = null
         val changed = withEventClock { clock ->
@@ -1056,7 +1072,7 @@ class AndroidScreen(
             if (expected != null) return top == expected
             if (top == null) return false
             if (top != before) return true
-            return if (VisualFirstPolicy.applies(top)) FrameMath.differs(beforeFrame, frameSignature()) else treeHash() != beforeTree
+            return if (visualFirst(top)) FrameMath.differs(beforeFrame, frameSignature()) else treeHash() != beforeTree
         }
         val deadline = SystemClock.uptimeMillis() + LAUNCH_WAIT_MS
         while (!landed() && SystemClock.uptimeMillis() < deadline) delay(POLL_MS)
@@ -1289,7 +1305,7 @@ class AndroidScreen(
      */
     private suspend fun verified(relocatedTo: String? = null, action: suspend () -> Boolean): ActionResult {
         lateSpill()?.let { return ActionResult.Failed("opened_elsewhere", hintLateSpill(it.opened)) }
-        val beforeTree = if (VisualFirstPolicy.applies(foregroundTaskPackage())) null else treeHash()
+        val beforeTree = if (visualFirst(foregroundTaskPackage())) null else treeHash()
         val beforeFrame = frameSignature()
         val w = armSpillWatch()
         val change = withEventClock { clock ->

@@ -57,6 +57,15 @@ object ScreenDiagnosis {
     private val CODE_WORDS = listOf(
         "获取验证码", "发送验证码", "短信验证码", "get code", "send code", "verification code",
     )
+    private val SECRET_WORDS = CAPTCHA_WORDS + CODE_WORDS + listOf(
+        "密码", "验证码", "登录", "password", "passcode", "otp", "sign in", "log in",
+    )
+
+    /** 视觉优先没有树节点时,用 OCR 文字识别密码/验证码/CAPTCHA 页。 */
+    fun secretText(texts: List<String>): String? {
+        val folded = Hant.fold(texts.joinToString("\n")).lowercase()
+        return SECRET_WORDS.firstOrNull { it in folded }
+    }
 
     /** 屏上文字里第一个付款字样(确认支付、支付密码之类);没有为 null。 */
     fun paymentText(texts: List<String>): String? {

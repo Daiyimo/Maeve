@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.core.action
 
+import com.daiyimo.maeve.core.access.AppAccessPolicy
+import com.daiyimo.maeve.core.access.AppAccessState
 import com.daiyimo.maeve.core.agent.FakeModel
 import com.daiyimo.maeve.core.assembly.toolDispatcher
 import com.daiyimo.maeve.core.gate.ConfirmationGate
@@ -10,10 +12,17 @@ import com.daiyimo.maeve.core.model.StopReason
 import com.daiyimo.maeve.core.prompt.Feedback
 import com.daiyimo.maeve.core.record.RunEvent
 import com.daiyimo.maeve.core.record.RunSink
+import com.daiyimo.maeve.core.tool.FakeScreen
+import com.daiyimo.maeve.core.tool.execute
+import com.daiyimo.maeve.core.testing.button
 import com.daiyimo.maeve.core.testing.field
 import com.daiyimo.maeve.core.uistate.ActionResult
 import com.daiyimo.maeve.core.uistate.ScreenPort
+import com.daiyimo.maeve.core.uistate.ScreenSnapshot
 import com.daiyimo.maeve.core.uistate.Verification
+import com.daiyimo.maeve.core.uistate.VisualFrame
+import com.daiyimo.maeve.core.uistate.VisibleTextLine
+import com.daiyimo.maeve.core.vision.FRAME_A
 import com.daiyimo.maeve.core.vision.JvmTestImageOps
 import com.daiyimo.maeve.core.vision.LocScreen
 import com.daiyimo.maeve.core.vision.VisionService
@@ -71,6 +80,23 @@ class DescribedBySightTest {
         assertEquals(2, vision.requests.size)
     }
 
+    @Test fun treeBlindTextTargetUsesCurrentOcrBeforeTheVisionModel() = runTest {
+        val inner = LocScreen()
+        val screen = object : ScreenPort by inner {
+            override suspend fun currentPackage() = "com.tencent.jkchess"
+            override suspend fun viewport() = 2400 to 1080
+            override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long) =
+                VisualFrame(if (withImage) FRAME_A else null, listOf(VisibleTextLine("@魔典", listOf(20, 500, 100, 540))), 2400, 1080)
+        }
+        val vision = model()
+        val c = content(tap(executor(screen, vision, backgroundScope), """{"element":"魔典"}"""))
+        assertEquals(c.toString(), "true", c.s("ok"))
+        assertEquals("true", c.s("foundBySight"))
+        assertEquals("@魔典", c.s("seen"))
+        assertEquals(1, inner.taps.size)
+        assertTrue(vision.requests.isEmpty())
+    }
+
     @Test fun roleSurvivesVisualFallbackAndPreflightTimingIsRecorded() = runTest {
         val screen = Blind()
         val vision = model("null")
@@ -96,13 +122,113 @@ class DescribedBySightTest {
         assertTrue(screen.calls.isEmpty())
     }
 
-    @Test fun boxFoundOnASendButtonRequiresApproval() = runTest {
-        // 判过不可逆:是发送,不花钱,不先问
+    @Test fun boxFoundOnASendButtonRunsWithoutApproval() = runTest {
         val screen = Blind()
         val vision = model("""{"bbox_2d":[800,880,999,940],"seen":"发送"}""", "是")
         val o = type(executor(screen, vision, backgroundScope), """{"element":"右下角的框","text":"明天见"}""")
+        assertTrue("$o", o is ActionOutcome.Ran)
+        assertEquals("true", content(o).s("ok"))
+        assertTrue(screen.calls.single().startsWith("typeAt "))
+    }
+
+    @Test fun visualOcrPasswordPageBlocksTyping() = runTest {
+        val blind = Blind()
+        val screen = object : ScreenPort by blind {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
+            override suspend fun currentPackage() = "com.tencent.jkchess"
+            override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long) = VisualFrame(
+                if (withImage) FRAME_A else null,
+                listOf(VisibleTextLine("密码", listOf(100, 100, 900, 200))),
+                2400, 1080,
+            )
+        }
+        val vision = model()
+        val tools = toolDispatcher(screen, vision = VisionService(vision, JvmTestImageOps))
+        tools.execute(Part.ToolCall("o", "phone_observe", "{}"))
+        val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {}, recorder = ActionRecorder(sink))
+        val o = executor.run(Part.ToolCall("c", "phone_type_text", """{"x":500,"y":500,"text":"123456"}"""), Origin.Model(1))
         assertTrue("$o", o is ActionOutcome.Refused)
-        assertTrue(screen.calls.isEmpty())
+        assertEquals("secret_page", (o as ActionOutcome.Refused).code)
+        assertTrue(blind.calls.isEmpty())
+    }
+
+    @Test fun visualCachedCaptchaPageBlocksGenericTap() = runTest {
+        val blind = Blind()
+        val screen = object : ScreenPort by blind {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
+            override suspend fun currentPackage() = "com.tencent.jkchess"
+            override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long) = VisualFrame(
+                if (withImage) FRAME_A else null,
+                listOf(VisibleTextLine("获取验证码", listOf(100, 100, 900, 200))),
+                2400, 1080,
+            )
+        }
+        val vision = model()
+        val tools = toolDispatcher(screen, vision = VisionService(vision, JvmTestImageOps))
+        tools.execute(Part.ToolCall("o", "phone_observe", "{}"))
+        val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {}, recorder = ActionRecorder(sink))
+        val o = executor.run(Part.ToolCall("c", "phone_tap", """{"x":500,"y":500,"target":"继续"}"""), Origin.Model(1))
+        assertTrue("$o", o is ActionOutcome.Refused)
+        assertEquals("secret_page", (o as ActionOutcome.Refused).code)
+        assertTrue(blind.taps.isEmpty())
+    }
+
+    @Test fun androidPermissionDialogBlocksTap() = runTest {
+        val screen = object : ScreenPort by FakeScreen() {
+            override val appAccess = AppAccessPolicy { AppAccessState(visualFirstDefault = false) }
+            override suspend fun currentPackage() = "com.android.permissioncontroller"
+            override suspend fun snapshot() = ScreenSnapshot("s1", "com.android.permissioncontroller",
+                listOf(button("@e1", "允许", y = 500)), 1080, 2400)
+            override suspend fun peek() = snapshot()
+        }
+        val tools = toolDispatcher(screen)
+        tools.execute(Part.ToolCall("o", "phone_observe", "{}"))
+        val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {}, recorder = ActionRecorder(sink))
+        val o = executor.run(Part.ToolCall("c", "phone_tap", """{"x":500,"y":500,"target":"允许"}"""), Origin.Model(1))
+        assertTrue("$o", o is ActionOutcome.Refused)
+        assertEquals("system_permission", (o as ActionOutcome.Refused).code)
+    }
+
+    @Test fun visualGenericConfirmWithAmountIsBlockedAsPayment() = runTest {
+        val blind = Blind()
+        val screen = object : ScreenPort by blind {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
+            override suspend fun currentPackage() = "com.tencent.jkchess"
+            override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long) = VisualFrame(
+                if (withImage) FRAME_A else null,
+                listOf(
+                    VisibleTextLine("合计 ¥25", listOf(100, 100, 900, 200)),
+                    VisibleTextLine("确定", listOf(100, 800, 900, 900)),
+                ),
+                2400, 1080,
+            )
+        }
+        val vision = model()
+        val tools = toolDispatcher(screen, vision = VisionService(vision, JvmTestImageOps))
+        tools.execute(Part.ToolCall("o", "phone_observe", "{}"))
+        val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {}, recorder = ActionRecorder(sink))
+        val o = executor.run(Part.ToolCall("c", "phone_tap", """{"element":"确定"}"""), Origin.Model(1))
+        assertTrue("$o", o is ActionOutcome.Refused)
+        assertEquals("confirmation_required", (o as ActionOutcome.Refused).code)
+        assertTrue(blind.taps.isEmpty())
+    }
+
+    @Test fun visualTypingIsBlockedWhenOcrCannotVerifyThePage() = runTest {
+        val blind = Blind()
+        val screen = object : ScreenPort by blind {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
+            override suspend fun currentPackage() = "com.tencent.jkchess"
+            override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long) =
+                VisualFrame(if (withImage) FRAME_A else null, null, 2400, 1080)
+        }
+        val vision = model()
+        val tools = toolDispatcher(screen, vision = VisionService(vision, JvmTestImageOps))
+        tools.execute(Part.ToolCall("o", "phone_observe", "{}"))
+        val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {}, recorder = ActionRecorder(sink))
+        val o = executor.run(Part.ToolCall("c", "phone_type_text", """{"x":500,"y":500,"text":"123456"}"""), Origin.Model(1))
+        assertTrue("$o", o is ActionOutcome.Refused)
+        assertEquals("secret_page", (o as ActionOutcome.Refused).code)
+        assertTrue(blind.calls.isEmpty())
     }
 
     @Test fun readableTreeWithoutAMatchDoesNotLookBySight() = runTest {

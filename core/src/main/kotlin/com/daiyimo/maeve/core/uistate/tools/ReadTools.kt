@@ -51,7 +51,10 @@ internal class ListElements(f: ScreenFamily) : ScreenTool(f, "list_elements") {
     override val risk = Risk.Read
     override val def by lazy { ToolDef(name, describe()) }
 
-    override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution = ctx.session.observe(withImage = false, recordFrame = false)
+    override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution =
+        if (ctx.session.visualFirst()) ctx.session.visualTreeRead()
+            ?: ctx.session.observe(withImage = false, recordFrame = false)
+        else ctx.session.observe(withImage = false, recordFrame = false)
 }
 
 /** 主模型能看图才提供;受保护的页面(系统防截屏)截不到,按 protected_content 回。 */

@@ -10,7 +10,7 @@ import com.daiyimo.maeve.core.tool.ToolDef
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.tool.argStr
-import com.daiyimo.maeve.core.tool.fail
+import com.daiyimo.maeve.core.tool.notSent
 import com.daiyimo.maeve.core.tool.int
 import com.daiyimo.maeve.core.tool.str
 import com.daiyimo.maeve.core.uistate.DEFAULT_SWIPE_MS
@@ -142,7 +142,7 @@ private fun bound(v: Double) = max(50, min(949, v.roundToInt()))
 private suspend fun swipeBetween(ctx: ToolContext, fromX: Int, fromY: Int, toX: Int, toY: Int, durationMs: Long = DEFAULT_SWIPE_MS): ToolExecution {
     if (ctx.session.visualFirst()) {
         val viewport = ctx.screen.viewport()
-            ?: return fail("viewport_unavailable", "The screen viewport is unavailable; wait and retry the swipe.")
+            ?: return notSent("viewport_unavailable", "The screen viewport is unavailable; wait and retry the swipe.")
         return ctx.action(ctx.screen.swipe(toPx(fromX, viewport.first), toPx(fromY, viewport.second),
             toPx(toX, viewport.first), toPx(toY, viewport.second), durationMs))
     }

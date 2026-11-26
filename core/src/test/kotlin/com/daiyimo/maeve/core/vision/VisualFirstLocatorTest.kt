@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.core.vision
 
+import com.daiyimo.maeve.core.access.AppAccessPolicy
+import com.daiyimo.maeve.core.access.AppAccessState
 import com.daiyimo.maeve.core.agent.FakeModel
 import com.daiyimo.maeve.core.uistate.ScreenFamily
 import com.daiyimo.maeve.core.uistate.ScreenPort
@@ -25,11 +27,26 @@ class VisualFirstLocatorTest {
     private fun locator(screen: ScreenPort, model: FakeModel) =
         Locator(screen, VisionService(model, JvmTestImageOps), LocateRegistry(), ScreenFamily("phone", "p"))
 
+    @Test fun ocrLabelIgnoresDecorativeBoundarySymbols() {
+        val registry = LocateRegistry()
+        val result = registry.locateTextFrame("魔典", 11L,
+            listOf(com.daiyimo.maeve.core.uistate.VisibleTextLine("@魔典", listOf(20, 500, 100, 540))),
+            "com.tencent.jkchess", 2400 to 1080) as LocateResult.Found
+        assertEquals(60 to 520, result.x to result.y)
+        assertEquals("@魔典", result.seen)
+        val ambiguous = registry.locateTextFrame("魔典", 11L, listOf(
+            com.daiyimo.maeve.core.uistate.VisibleTextLine("@魔典", listOf(20, 500, 100, 540)),
+            com.daiyimo.maeve.core.uistate.VisibleTextLine("@魔典", listOf(20, 700, 100, 740)),
+        ), "com.tencent.jkchess", 2400 to 1080) as LocateResult.NotFound
+        assertEquals("element_ambiguous", ambiguous.reason)
+    }
+
     @Test fun visualFirstLocateNeverReadsTree() = runTest {
         val base = LocScreen()
         var snapshotReads = 0
         var peekReads = 0
         val screen = object : ScreenPort by base {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
             override suspend fun currentPackage(): String? = "com.xingin.xhs"
             override suspend fun snapshot(): ScreenSnapshot {
                 snapshotReads++
@@ -53,6 +70,7 @@ class VisualFirstLocatorTest {
     @Test fun visualFirstMissingScreenshotUsesPackageWithoutPeek() = runTest {
         val base = LocScreen(emptyList(), null)
         val screen = object : ScreenPort by base {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
             override suspend fun currentPackage(): String? = "com.xingin.xhs"
         }
         val result = locator(screen, says()).locate("搜索", "搜索")

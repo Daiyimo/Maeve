@@ -124,6 +124,39 @@ class TreeQualityTest {
         assertEquals(1, s.taps.size)
     }
 
+    @Test fun partialSurfaceViewCoordinateCannotMissAUniqueOcrLabel() = runTest {
+        val surface = UiElement("@e1", "SurfaceView", "Game view", 500, 500, listOf(0, 0, 999, 999), null, true, false, false)
+        val s = OcrScreen(listOf(surface), listOf(VisibleTextLine("@魔典", listOf(20, 550, 100, 610))))
+        val d = toolDispatcher(s)
+        val observed = d.executeRead(Part.ToolCall("o", "phone_observe", "{}")).content
+        assertTrue(observed["visibleText"]!!.jsonArray.isNotEmpty())
+        val miss = d.execute(Part.ToolCall("t", "phone_tap", """{"x":65,"y":626,"target":"魔典"}"""))
+        assertEquals("tap_text_mismatch", miss.content.s("error"))
+        assertTrue(s.taps.isEmpty())
+        val hit = d.execute(Part.ToolCall("t2", "phone_tap", """{"x":60,"y":580,"target":"魔典"}"""))
+        assertEquals("true", hit.content.s("ok"))
+        assertEquals(1, s.taps.size)
+    }
+
+    @Test fun partialSurfaceViewRejectsPointCoveringAnotherLabelWhenTargetIsAbsent() = runTest {
+        val surface = UiElement("@e1", "SurfaceView", "Game view", 500, 500, listOf(0, 0, 999, 999), null, true, false, false)
+        val lines = listOf(
+            VisibleTextLine("K/DA不朽", listOf(30, 240, 100, 290)),
+            VisibleTextLine("巨星之路", listOf(30, 420, 100, 470)),
+            VisibleTextLine("霓裳天阙", listOf(30, 610, 100, 650)),
+            VisibleTextLine("盛世长安", listOf(30, 780, 100, 820)),
+            VisibleTextLine("奖池", listOf(170, 30, 220, 70)),
+        )
+        val s = OcrScreen(listOf(surface), lines)
+        val d = toolDispatcher(s)
+        val observed = d.executeRead(Part.ToolCall("o", "phone_observe", "{}")).content
+        assertEquals("partial", observed.s("treeQuality"))
+        val miss = d.execute(Part.ToolCall("t", "phone_tap", """{"x":65,"y":626,"target":"魔典菜单项"}"""))
+        assertEquals("tap_text_mismatch", miss.content.s("error"))
+        assertTrue(s.taps.isEmpty())
+        assertTrue(miss.content.s("message")!!.contains("霓裳天阙"))
+    }
+
     @Test fun coordinateTextCheckUsesFreshPositionAndLeavesUnlabeledIconsAlone() = runTest {
         val s = OcrScreen(emptyList(), listOf(VisibleTextLine("制作推荐", listOf(272, 451, 367, 461))))
         val d = toolDispatcher(s)

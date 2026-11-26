@@ -1,5 +1,15 @@
 package com.daiyimo.maeve.core.uistate
 
+import com.daiyimo.maeve.core.access.AppAccessPolicy
+import com.daiyimo.maeve.core.access.AppAccessState
+import com.daiyimo.maeve.core.action.ActionExecutor
+import com.daiyimo.maeve.core.action.ActionOutcome
+import com.daiyimo.maeve.core.action.ActionRecorder
+import com.daiyimo.maeve.core.action.Origin
+import com.daiyimo.maeve.core.gate.ConfirmationGate
+import com.daiyimo.maeve.core.guard.OperationGuards
+import com.daiyimo.maeve.core.record.RunSink
+import com.daiyimo.maeve.core.agent.FakeModel
 import com.daiyimo.maeve.core.assembly.toolDispatcher
 import com.daiyimo.maeve.core.model.Part
 import com.daiyimo.maeve.core.tool.FakeScreen
@@ -30,6 +40,8 @@ class VisualFirstTest {
         var packageName: String? = "com.xingin.xhs",
         private val ocr: List<VisibleTextLine>? = listOf(VisibleTextLine("搜索", listOf(100, 100, 300, 160), .9f)),
     ) : ScreenPort by FakeScreen() {
+        var access = AppAccessState()
+        override val appAccess = AppAccessPolicy { access }
         private var result = ActionResult.Ok(changed = true)
         var snapshots = 0
         var peeks = 0
@@ -61,7 +73,7 @@ class VisualFirstTest {
             1080, 2400)
         override suspend fun screenshotPng(): ByteArray {
             shots++
-            return byteArrayOf(1, 2, 3)
+            return JvmTestImageOps.encode(108, 240) { _, _ -> 128 }
         }
         override suspend fun readVisibleText(): List<VisibleTextLine>? {
             ocrReads++
@@ -108,12 +120,61 @@ class VisualFirstTest {
     private fun JsonObject.text(key: String) = this[key]!!.jsonPrimitive.content
     private fun JsonObject.flag(key: String) = this[key]!!.jsonPrimitive.boolean
 
-    @Test fun policyMatchesOnlyConfiguredPackages() {
-        assertTrue(VisualFirstPolicy.applies("com.xingin.xhs"))
-        assertTrue(VisualFirstPolicy.applies("com.tencent.mm"))
-        assertTrue(VisualFirstPolicy.applies("  COM.TENCENT.MM  "))
-        assertFalse(VisualFirstPolicy.applies("com.example.app"))
-        assertFalse(VisualFirstPolicy.applies(null))
+    @Test fun policyUsesGlobalDefaultAndPerAppOverride() {
+        val defaults = AppAccessState()
+        assertTrue(VisualFirstPolicy.applies("com.example.app", defaults))
+        assertTrue(VisualFirstPolicy.applies("  COM.TENCENT.JKCHESS  ", defaults))
+        assertFalse(VisualFirstPolicy.applies(null, defaults))
+        val custom = AppAccessState(visualFirstDefault = false,
+            visualFirstOverrides = mapOf("com.tencent.mm" to true, "com.example.app" to false))
+        assertTrue(VisualFirstPolicy.applies("com.tencent.mm", custom))
+        assertFalse(VisualFirstPolicy.applies("com.example.app", custom))
+        assertFalse(VisualFirstPolicy.applies("com.tencent.jkchess", custom))
+    }
+
+    @Test fun visualModeSwitchAppliesToAnExistingSession() = runTest {
+        val screen = CountingScreen(packageName = "com.example.app")
+        screen.access = AppAccessState(visualFirstDefault = false)
+        val state = session(screen)
+        state.observe(withImage = false)
+        assertEquals(1, screen.snapshots)
+
+        screen.access = AppAccessState(visualFirstDefault = true, revision = screen.access.revision + 1)
+        state.checkAppAccess(false)
+        assertNull(state.lastSnapshot)
+        assertFalse(state.treeUnusable())
+        val visual = state.observe(withImage = false)
+        assertTrue(visual.content.flag("ocrOnly"))
+        assertEquals(1, screen.snapshots)
+
+        screen.access = AppAccessState(visualFirstDefault = false, revision = screen.access.revision + 1)
+        state.checkAppAccess(false)
+        state.observe(withImage = false)
+        assertEquals(2, screen.snapshots)
+    }
+
+    @Test fun visualModeSwitchThroughReadToolsClearsPreviousModeCache() = runTest {
+        val screen = CountingScreen(packageName = "com.example.app")
+        screen.access = AppAccessState(visualFirstDefault = false)
+        val dispatcher = toolDispatcher(screen, visionEnabled = true,
+            vision = VisionService(says(), JvmTestImageOps))
+        dispatcher.executeRead(Part.ToolCall("tree", "phone_observe", "{}"))
+        assertEquals(1, screen.snapshots)
+
+        screen.access = AppAccessState(visualFirstDefault = true, revision = screen.access.revision + 1)
+        val firstVisual = dispatcher.executeRead(Part.ToolCall("visual-1", "phone_observe", "{}"))
+        assertNotNull(firstVisual.image)
+        assertEquals(1, screen.snapshots)
+
+        screen.access = AppAccessState(visualFirstDefault = false, revision = screen.access.revision + 1)
+        dispatcher.executeRead(Part.ToolCall("tree-2", "phone_observe", "{}"))
+        assertEquals(2, screen.snapshots)
+
+        screen.access = AppAccessState(visualFirstDefault = true, revision = screen.access.revision + 1)
+        val secondVisual = dispatcher.executeRead(Part.ToolCall("visual-2", "phone_observe", "{}"))
+        assertNotNull("switching back to visual mode must not reuse the old frame digest", secondVisual.image)
+        assertFalse((secondVisual.content["screen"] as? JsonObject)?.flag("imageUnchanged") == true)
+        assertEquals(2, screen.snapshots)
     }
 
     @Test fun visualObserveUsesScreenshotAndOcrWithoutTree() = runTest {
@@ -142,6 +203,7 @@ class VisualFirstTest {
 
     @Test fun visualFrameIsDiscardedIfTheForegroundChangesDuringCapture() = runTest {
         val screen = object : ScreenPort by FakeScreen() {
+            override val appAccess = AppAccessPolicy { AppAccessState() }
             private var pkg = "com.xingin.xhs"
             override suspend fun currentPackage() = pkg
             override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long): VisualFrame {
@@ -179,6 +241,7 @@ class VisualFirstTest {
 
     @Test fun nonVisualAppKeepsTreeObserveBehavior() = runTest {
         val screen = CountingScreen(packageName = "com.example.app")
+        screen.access = AppAccessState(visualFirstDefault = false)
         val result = session(screen).observe(withImage = false)
 
         assertEquals(1, screen.snapshots)
@@ -215,6 +278,7 @@ class VisualFirstTest {
         assertTrue(visual.viewportReads > 0)
 
         val normal = CountingScreen(packageName = "com.example.app")
+        normal.access = AppAccessState(visualFirstDefault = false)
         toolDispatcher(normal).execute(Part.ToolCall("s2", "phone_scroll", scrollArgs))
         assertEquals(1, normal.scrolls)
         assertTrue(normal.swipes.isEmpty())
@@ -241,6 +305,86 @@ class VisualFirstTest {
         assertEquals("true", result.content["usable"]!!.jsonPrimitive.content)
         assertEquals(0, screen.snapshots)
         assertEquals(0, screen.peeks)
+    }
+
+    @Test fun findVisuallyUsesSameFrameOcrBeforeVisionModel() = runTest {
+        val screen = CountingScreen()
+        val model = FakeModel()
+        val dispatcher = toolDispatcher(screen, visionEnabled = true, vision = VisionService(model, JvmTestImageOps))
+        val result = dispatcher.executeRead(Part.ToolCall("find", "phone_find_visually",
+            """{"target":"搜索","text":"搜索"}""")).content
+
+        assertEquals(result.toString(), "true", result["found"]?.jsonPrimitive?.content)
+        assertEquals("ocr", result["source"]?.jsonPrimitive?.content)
+        assertTrue(model.requests.isEmpty())
+    }
+
+    @Test fun findVisuallyDoesNotUseOcrWhenTargetAddsSpatialConstraint() = runTest {
+        val screen = CountingScreen()
+        val model = says("null")
+        val dispatcher = toolDispatcher(screen, visionEnabled = true, vision = VisionService(model, JvmTestImageOps))
+        val result = dispatcher.executeRead(Part.ToolCall("find", "phone_find_visually",
+            """{"target":"右上角搜索图标","text":"搜索"}""")).content
+        assertEquals("false", result["found"]!!.jsonPrimitive.content)
+        assertTrue(model.requests.isNotEmpty())
+    }
+
+    @Test fun describedVisualRefBypassesRepeatedResolution() = runTest {
+        val screen = CountingScreen()
+        val dispatcher = toolDispatcher(screen, visionEnabled = true)
+        val args = buildJsonObject {
+            put("element", "搜索")
+            put("ref", "@v1")
+            put("snapshotId", "loc_existing")
+        }
+        val described = dispatcher.ctx.interfaces.described(dispatcher.declared("phone_tap"), args) as Described.Resolved
+
+        assertFalse("element" in described.args)
+        assertFalse("role" in described.args)
+        assertEquals("@v1", described.args["ref"]!!.jsonPrimitive.content)
+        assertEquals(0, screen.shots)
+        assertEquals(0, screen.ocrReads)
+    }
+
+    @Test fun locatedRefWithElementLabelExecutesWithoutReResolving() = runTest {
+        val screen = CountingScreen()
+        val model = FakeModel()
+        val dispatcher = toolDispatcher(screen, visionEnabled = true, vision = VisionService(model, JvmTestImageOps))
+        val found = dispatcher.executeRead(Part.ToolCall("find", "phone_find_visually",
+            """{"target":"搜索","text":"搜索"}""")).content
+        val args = buildJsonObject {
+            put("element", "搜索"); put("ref", found["ref"]!!.jsonPrimitive.content)
+            put("snapshotId", found["snapshotId"]!!.jsonPrimitive.content)
+        }
+        val executor = ActionExecutor(dispatcher, OperationGuards(), ConfirmationGate(), gate = {}, recorder = ActionRecorder(RunSink.NONE))
+        val outcome = executor.run(Part.ToolCall("tap", "phone_tap", args.toString()), Origin.Model(1))
+        assertTrue(outcome.toString(), outcome is ActionOutcome.Ran)
+        assertEquals(1, screen.taps.size)
+    }
+
+    @Test fun listElementsInVisualModeDoesNotCaptureScreenOrReadTree() = runTest {
+        val screen = CountingScreen()
+        val dispatcher = toolDispatcher(screen, visionEnabled = true)
+        dispatcher.executeRead(Part.ToolCall("observe", "phone_observe", "{}"))
+        val result = dispatcher.executeRead(Part.ToolCall("list", "phone_list_elements", "{}")).content
+
+        assertTrue(result.flag("visualOnly"))
+        assertEquals("vision", result.text("readMode"))
+        assertTrue(result["elements"]!!.jsonArray.isEmpty())
+        assertEquals(0, screen.snapshots)
+        assertEquals(0, screen.peeks)
+        assertEquals(1, screen.shots)
+        assertEquals(1, screen.ocrReads)
+    }
+
+    @Test fun visualTreeReadDoesNotReuseAnotherAppsCachedText() = runTest {
+        val screen = CountingScreen()
+        val dispatcher = toolDispatcher(screen, visionEnabled = true)
+        dispatcher.executeRead(Part.ToolCall("list-1", "phone_list_elements", "{}"))
+        screen.packageName = "com.tencent.mm"
+        val result = dispatcher.executeRead(Part.ToolCall("list-2", "phone_list_elements", "{}")).content
+        assertEquals("com.tencent.mm", result.text("currentApp"))
+        assertTrue(screen.ocrReads >= 2)
     }
 
     @Test fun screenshotToolDoesNotReadTree() = runTest {

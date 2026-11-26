@@ -41,9 +41,9 @@ class ScreenUnavailable(val reason: String, message: String) : Exception(message
 private class LocateMessages(f: ScreenFamily) {
     private val describe = f.tool("describe")
     private val dump = f.tool("list_elements")
-    val notFoundNext = "Try another description or pass the exact on-screen label as text, look with $describe, or call hand_to_user."
+    val notFoundNext = "Try another description or pass the exact on-screen label as text, look with $describe, or observe again."
     val protectedScreen = "This screen is protected and cannot be captured, so nothing on it can be located by sight. " +
-        "Use $dump and tap by ref, or call hand_to_user."
+        "Wait briefly and retry once; if it remains protected, use another route or call hand_to_user only when unavoidable."
     val noApp = "Nothing is open on this screen yet, so there is nothing to look at. Open an app or a page first."
     val noShot = "The screen could not be captured right now. Wait a moment and try again, or use $dump."
     val unchecked = "The screen could not be read, so its picture was not sent to the vision model. " +
@@ -79,7 +79,7 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
     private val m = LocateMessages(family)
     private class Box(val l: Int, val t: Int, val r: Int, val b: Int, val seen: String?)
 
-    private suspend fun visualFirst(): Boolean = VisualFirstPolicy.applies(screen.currentPackage())
+    private suspend fun visualFirst(): Boolean = VisualFirstPolicy.applies(screen.currentPackage(), screen.appAccess.current())
 
     suspend fun locate(target: String, text: String?, role: String? = null, field: Boolean = false, preferVision: Boolean = false): LocateResult {
         val description = buildString {
