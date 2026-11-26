@@ -19,6 +19,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import android.graphics.Bitmap
@@ -328,7 +329,10 @@ class MaeveChatPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, EventCha
                 populated = id
             }
         }
-        changesJob = s.launch { app.conversations.changes.collect { pushConversations() } }
+        changesJob = s.launch {
+            // 新的远程任务先出现在活跃列表，标题和对话正文可能稍后才写入。
+            merge(app.conversations.changes, app.taskState.activeConversations).collect { pushConversations() }
+        }
     }
 
     private fun stopWatching() {
