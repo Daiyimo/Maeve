@@ -1,5 +1,7 @@
 package com.daiyimo.maeve.core.action
 
+import com.daiyimo.maeve.core.access.AppAccessPolicy
+import com.daiyimo.maeve.core.access.AppAccessState
 import com.daiyimo.maeve.core.agent.AgentLoop
 import com.daiyimo.maeve.core.agent.FakeModel
 import com.daiyimo.maeve.core.agent.SpeedFlags
@@ -28,6 +30,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.daiyimo.maeve.core.assembly.toolDispatcher
@@ -69,6 +72,7 @@ private val donationPage = listOf(
 )
 
 private class Chat(var app: String = "com.chat", var web: WebInfo? = null, var page: List<UiElement> = chatPage()) : ScreenPort {
+    override val appAccess = AppAccessPolicy { AppAccessState(visualFirstDefault = false) }
     val taps = mutableListOf<String>()
     val typed = mutableListOf<String>()
     var opened = mutableListOf<String>()
@@ -123,15 +127,15 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
     ) = AgentLoop(m, toolDispatcher(s), "BASE", sink = sink, confirmations = ConfirmationGate(),
         approvals = approvals, confirmTimeoutMs = timeout, flags = flags, selfPackage = self)
 
-    @Test fun sendIsBlockedAndAuditedWithoutApproval() = runTest {
+    @Test fun sendIsAllowedAndAuditedWithoutApproval() = runTest {
         val s = Chat(); val sink = Events()
         val m = FakeModel(OBSERVE, tap("@e3"), FINISH)
         loop(m, s, sink = sink).run("t")
-        assertTrue(s.taps.isEmpty())
+        assertEquals(listOf("@e3"), s.taps)
         val audit = sink.all.filterIsInstance<RunEvent.Approval>().single()
-        assertEquals(listOf("model", "send", "External", "false", "required"),
+        assertEquals(listOf("model", "send", "External", "false", "allowed"),
             listOf(audit.source, audit.action, audit.risk, audit.payment.toString(), audit.decision))
-        assertTrue(sink.all.any { it is RunEvent.Confirmation })
+        assertFalse(sink.all.any { it is RunEvent.Confirmation })
     }
 
     /**
@@ -139,11 +143,11 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
      * (2026-11-10 P0-2 起,往密码框里打字从这一列里移出:密码 / 验证码页交还用户,见
      * [typingIntoASecretFieldIsHandedToTheUser];原断言「密码框打字放行」随行为一并更新。)
      */
-    @Test fun deleteAndUninstallNeedApprovalButPlainTapsRemainAllowed() = runTest {
+    @Test fun deleteUninstallAndPlainTapsRunWithoutApproval() = runTest {
         val s = Chat()
         val m = FakeModel(OBSERVE, tap("@e7"), tap("@e4"), tap("@e6"), FINISH)
         loop(m, s).run("t")
-        assertEquals(listOf("@e6"), s.taps)
+        assertEquals(m.result(2).toString(), listOf("@e7", "@e4", "@e6"), s.taps)
     }
 
     /** 密码 / 验证码页上要打字:交还用户,不代填;询问模式也不例外(硬规则)。 */
@@ -170,13 +174,12 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
         assertEquals(listOf("true", "required"), listOf(audit.payment.toString(), audit.decision))
     }
 
-    @Test fun greetingRequiresApprovalWithoutTreatingSalaryAsPayment() = runTest {
+    @Test fun greetingRunsWithoutTreatingSalaryAsPayment() = runTest {
         val s = Chat(page = applicationPage); val sink = Events()
         val m = FakeModel(OBSERVE, tap("@e3"), FINISH)
         loop(m, s, sink = sink).run("t")
-        assertTrue(s.taps.isEmpty())
-        assertEquals("confirmation_required", m.result(2).s("error"))
-        assertTrue(sink.all.any { it is RunEvent.Confirmation })
+        assertEquals(listOf("@e3"), s.taps)
+        assertFalse(sink.all.any { it is RunEvent.Confirmation })
     }
 
     @Test fun donationStillRequiresUserTakeover() = runTest {
@@ -211,19 +214,13 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
         assertEquals("confirmation_required", m.result(4).s("error"))
     }
 
-    @Test fun approvedSendRunsOnceWithoutRequiringAnAmount() = runTest {
+    @Test fun sendRunsWithoutConfirmation() = runTest {
         val s = Chat()
-        val send = tools(call("request_confirmation", """{"action":"send","target":"张三","content":"明天见","app":"com.chat"}"""))
-        val m = FakeModel(OBSERVE, send, tap("@e3"), tap("@e3"), GIVE_UP)
-        val l = loop(m, s)
-        val run = async { l.run("t") }
-        advanceUntilIdle()
-        assertTrue(l.state.value is TaskState.WaitingConfirmation)
-        l.answerConfirmation(ConfirmChoice.Once)
-        run.await()
-        assertEquals("true", m.result(2).s("ok"))
+        val m = FakeModel(OBSERVE, tap("@e3"), FINISH)
+        loop(m, s).run("t")
         assertEquals(listOf("@e3"), s.taps)
-        assertEquals("confirmation_required", m.result(4).s("error"))
+        assertFalse(m.requests.flatten().any { msg -> msg.role == Role.Tool &&
+            msg.parts.filterIsInstance<Part.ToolResult>().any { "confirmation_required" in it.content } })
     }
 
     @Test fun switchingToAutonomousCannotBypassOrderApproval() = runTest {
@@ -242,11 +239,11 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
         assertTrue(s.taps.isEmpty())
     }
 
-    @Test fun batchStepsCannotBypassExternalActionApproval() = runTest {
+    @Test fun batchStepsRunsExternalActionsButStillBlocksPayment() = runTest {
         val s = Chat()
         val send = tools(call("do_steps", """{"steps":[{"tool":"phone_tap","args":{"ref":"@e3","snapshotId":"s1"}}]}"""))
         loop(FakeModel(OBSERVE, send, FINISH), s, flags = SpeedFlags(batchSteps = true)).run("t")
-        assertTrue(s.taps.isEmpty())
+        assertEquals(listOf("@e3"), s.taps)
         val shop = Chat(page = checkoutPage)
         val order = tools(call("do_steps", """{"steps":[{"tool":"phone_tap","args":{"ref":"@e3","snapshotId":"s1"}}]}"""))
         val m = FakeModel(OBSERVE, order, GIVE_UP)
@@ -322,18 +319,12 @@ private class Settable(var auto: Boolean = false) : ApprovalSettings {
         }
     }
 
-    /** 微信(每步确认名单):询问时每一步写操作都要用户同意;自主模式豁免(软规则)。 */
-    @Test fun weChatAsksForEveryWriteStepButAutonomousModeRuns() = runTest {
+    /** 微信普通写入也不再逐步确认;只有付款等硬边界会停下。 */
+    @Test fun weChatRunsEveryWriteStepWithoutConfirmation() = runTest {
         val s = Chat(app = "com.tencent.mm")
-        // 普通按钮也算一步:两步写操作先后都被拦下,每一步都要先问
         val m = FakeModel(OBSERVE, tap("@e6"), tap("@e7"), FINISH)
         loop(m, s).run("t")
-        assertTrue(s.taps.isEmpty())
-        val r = m.result(2)
-        assertEquals("confirmation_required", r.s("error"))
-        assertTrue(r.s("message"), "confirm-every-write" in r.s("message"))
-        assertEquals("confirmation_required", m.result(3).s("error"))
-        // 自主模式:软规则,照常做
+        assertEquals(listOf("@e6", "@e7"), s.taps)
         val auto = Chat(app = "com.tencent.mm")
         val m2 = FakeModel(OBSERVE, tap("@e6"), FINISH)
         loop(m2, auto, approvals = Settable(auto = true)).run("t")

@@ -16,11 +16,19 @@ internal object StopRules {
         else -> stop?.let(::guard)
     }
 
-    /** 步数用完后的最后一轮调了工具(只给了 end_not_done):放弃按它结束,否则算步数用完。 */
-    fun afterFinalTurn(outcome: Outcome?, maxSteps: Int): TaskState = when (outcome) {
+    /** 最后一轮调了工具(只给了 end_not_done):放弃按它结束,否则按实际收尾原因归类。 */
+    fun afterFinalTurn(outcome: Outcome?, maxSteps: Int): TaskState.Failed =
+        afterFinalTurn(outcome, maxSteps, FinalTurnReason.StepLimit)
+
+    fun afterFinalTurn(outcome: Outcome?, maxSteps: Int, reason: FinalTurnReason): TaskState.Failed = when (outcome) {
         is Outcome.Failure -> TaskState.Failed(outcome.message, FailKind.GaveUp)
-        else -> stepLimit(maxSteps)
+        else -> when (reason) {
+            FinalTurnReason.StepLimit -> stepLimit(maxSteps)
+            FinalTurnReason.NoNewState -> noNewState()
+        }
     }
+
+    fun noNewState() = TaskState.Failed("连续操作未产生新的界面状态,任务已安全停止。", FailKind.Guard)
 
     fun stepLimit(maxSteps: Int) = TaskState.Failed("已达到 $maxSteps 步上限,任务没有完成。", FailKind.StepLimit)
 

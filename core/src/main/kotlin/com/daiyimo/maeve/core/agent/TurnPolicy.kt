@@ -10,6 +10,9 @@ internal data class Notice(val source: String, val text: String)
 /** 回合策略看的快照:第几步、步数上限。 */
 internal data class TurnSnapshot(val step: Int, val maxSteps: Int)
 
+/** 最后一轮为什么收尾:真正的步数上限,还是连续动作没有产生新界面状态。 */
+internal enum class FinalTurnReason { StepLimit, NoNewState }
+
 /** 和基础提示词同一条规则:要的结果缺了要用的功能、条目或值是做不成;只有问「有没有」时,App 的搜索明确说没有才是答案。 */
 internal val ANSWER_OR_FAILURE: String get() = Feedback["answer_or_failure"]
 
@@ -63,8 +66,13 @@ internal object TurnPolicy {
     /** 用户同意了、或回答了([what]),之后却什么也没做就要交回答:提醒一次照做,或说清为什么不做。 */
     fun followUp(what: String): Notice = Notice(Feedback["followup_source"], Feedback.format("followup_nudge", "what" to what))
 
-    /** 步数用完后最后一轮之前的提醒。 */
-    fun finalTurn(): Notice = Notice(Feedback["final_source"], Feedback["final_turn"])
+    /** 最后一轮之前的提醒;无进展收尾不能冒充步数耗尽。 */
+    fun finalTurn(): Notice = finalTurn(FinalTurnReason.StepLimit)
+
+    fun finalTurn(reason: FinalTurnReason): Notice = when (reason) {
+        FinalTurnReason.StepLimit -> Notice(Feedback["final_source"], Feedback["final_turn"])
+        FinalTurnReason.NoNewState -> Notice(Feedback["no_new_state_source"], Feedback["no_new_state_final_turn"])
+    }
 
     /** 最后一轮给模型的工具:只有放弃;做完了就直接用文字回答。 */
     fun finalTools(specs: List<ToolSpec>, verbOf: (String) -> Verb?): List<ToolSpec> = specs.filter { verbOf(it.name) in FINAL_VERBS }

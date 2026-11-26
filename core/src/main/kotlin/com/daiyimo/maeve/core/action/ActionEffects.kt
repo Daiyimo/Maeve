@@ -142,9 +142,12 @@ class ActionEffects(
         val uncertain = result.delivery == ActionDelivery.Unknown || content["delivery"] == JsonPrimitive("unknown") ||
             content["submissionUnconfirmed"] == JsonPrimitive(true) || content["error"] == JsonPrimitive("action_timeout") ||
             outward && effect == JsonPrimitive("no_effect")
+        val error = (content["error"] as? JsonPrimitive)?.contentOrNull
         val state = when {
             // 只有明确未投递/未执行才能证明 NotApplied;sent + ok=false 仍可能已经产生副作用。
             result.delivery == ActionDelivery.NotSent || content["delivery"] == JsonPrimitive("not_sent") || content["executed"] == JsonPrimitive(false) -> ActionEffectStore.State.NotApplied
+            // 旧工具在发送前解析失败时可能只回 unknown;这些错误码本身证明输入没有投递。
+            error in PRE_DISPATCH_ERRORS -> ActionEffectStore.State.NotApplied
             uncertain -> ActionEffectStore.State.Unknown
             content["ok"] == JsonPrimitive(true) -> ActionEffectStore.State.Applied
             else -> ActionEffectStore.State.Unknown
@@ -160,5 +163,14 @@ class ActionEffects(
         } catch (_: Exception) { throw Blocked("effect_receipts_unavailable") }
         if (state == ActionEffectStore.State.Unknown) throw Blocked("effect_unknown")
         result
+    }
+
+    companion object {
+        private val PRE_DISPATCH_ERRORS = setOf(
+            "invalid_arguments", "screen_unavailable", "element_not_found", "element_ambiguous",
+            "vision_timeout", "vision_unavailable", "target_unresolved", "ref_expired",
+            "tap_text_mismatch", "viewport_unavailable", "no_app_open", "invalid_gesture",
+            "launch_failed", "app_not_found", "no_focus",
+        )
     }
 }

@@ -18,8 +18,14 @@ internal fun fail(error: String, message: String, recoverable: Boolean = true) =
  * 编号用不了:动作没做。[cause] 说清是哪一种,运行记录和模型都看得到:[com.daiyimo.maeve.core.uistate.StaleCause] 的几种,
  * 端口找不回元素的 element_lost,看图找到的点过期的 located_stale,把 screenshotId 当 snapshotId 的 screenshot_id。
  */
+internal fun notSent(error: String, message: String, recoverable: Boolean = true) = ToolExecution(
+    JsonObject(fail(error, message, recoverable).content + mapOf(
+        "executed" to JsonPrimitive(false), "delivery" to JsonPrimitive(ActionDelivery.NotSent.wire),
+    )), delivery = ActionDelivery.NotSent,
+)
+
 internal fun refExpired(message: String, cause: String) =
-    ToolExecution(JsonObject(fail("ref_expired", message).content + ("cause" to JsonPrimitive(cause))))
+    ToolExecution(JsonObject(notSent("ref_expired", message).content + ("cause" to JsonPrimitive(cause))), delivery = ActionDelivery.NotSent)
 
 internal fun invalid(e: ArgError) = ToolExecution(JsonObject(fail("invalid_arguments", e.message ?: "invalid arguments").content + mapOf(
     "executed" to JsonPrimitive(false), "delivery" to JsonPrimitive(ActionDelivery.NotSent.wire),

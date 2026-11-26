@@ -128,7 +128,7 @@ class AgentLoopGateTest {
     private fun loop(m: FakeModel, s: ChatScreen, sink: RunSink = RunSink.NONE, gate: ConfirmationGate? = ConfirmationGate(), maxSteps: Int = 60) =
         AgentLoop(m, toolDispatcher(s), "BASE", maxSteps = maxSteps, sink = sink, confirmations = gate)
 
-    @Test fun blockedWithoutConfirmation() = runTest {
+    @Test fun paymentIsBlockedButSendViaEnterRunsWithoutConfirmation() = runTest {
         val s = ChatScreen(); val sink = ListSink()
         val m = FakeModel(OBSERVE, TYPE, tapSend(), tools(call("phone_type_text", """{"text":"明天见","pressEnter":true}""")), failure("没发"))
         assertEquals(TaskState.Failed("没发", FailKind.GaveUp), loop(m, s, sink).run("给张三发明天见"))
@@ -140,9 +140,8 @@ class AgentLoopGateTest {
         assertTrue(r.s("message").contains("external or irreversible step (order)"))
         assertTrue(r.s("message"), "uses it up whether it succeeds or not" in r.s("message"))
         // 打字后回车是发送:发消息不花钱,屏上有金额也照常做
-        assertEquals("confirmation_required", m.result(4).s("error"))
-        assertTrue("request_confirmation" in m.offeredTools[0])
-        assertEquals(listOf("required", "required"), sink.events.filterIsInstance<RunEvent.Confirmation>().map { it.decision })
+        assertEquals("true", m.result(4).s("ok"))
+        assertEquals(listOf("required"), sink.events.filterIsInstance<RunEvent.Confirmation>().map { it.decision })
     }
 
     // C1:读屏后界面变了(「+」变「提交订单」),不带 target 的坐标点击也要拦
@@ -317,13 +316,14 @@ class AgentLoopGateTest {
     private fun lookFor(target: String) = step(tools(call("phone_find_visually", """{"target":"$target"}""")))
 
     // 自绘界面上(读屏没有元素)看图找到的点:视觉模型看到「发送」,不花钱,直接点
-    @Test fun locatedSendOnBlankScreenNeedsApproval() = runTest {
+    @Test fun locatedSendOnBlankScreenRunsWithoutApproval() = runTest {
         val s = ChatScreen().apply { png = FRAME_A; blank = true }
         lateinit var m: StepModel
         m = StepModel(lookFor("右下角的图标"), { m.tapLocated()(it) }, step(failure("停")))
         visionLoop(m, s, """{"bbox_2d":[800,900,990,990],"seen":"发送"}""", "是").run("t")
         assertEquals("vision", m.results[0].s("source"))
-        assertTrue(s.taps.isEmpty())
+        assertEquals("true", m.results[1].s("ok"))
+        assertEquals(1, s.taps.size)
     }
 
     // 读屏没有文字、视觉模型也没给所见文字:看不出要花钱,照样点

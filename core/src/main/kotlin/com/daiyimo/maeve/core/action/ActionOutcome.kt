@@ -56,6 +56,7 @@ internal object Refusals {
     const val OWN_APP = "own_app"
     const val APP_DENIED = "app_denied"
     const val SECRET_PAGE = "secret_page"
+    const val SYSTEM_PERMISSION = "system_permission"
     const val PAYMENT_TAKEOVER = "The user completes payment with their own hands; do not use request_confirmation: after opening the payment page, call hand_to_user(reason=payment), " +
         "with item as the product (variant, quantity), amount as the amount due shown on screen, and address as the delivery address."
 
@@ -70,6 +71,7 @@ internal object Refusals {
             OWN_APP -> Feedback["own_app"]
             APP_DENIED -> Feedback["app_denied"]
             SECRET_PAGE -> Feedback.format("screen.needs_human", "reason" to "login")
+            SYSTEM_PERMISSION -> Feedback.format("screen.needs_human", "reason" to "system_permission")
             "target_unresolved" -> "The target cannot be confirmed. The action was not run. Read a fresh snapshot or locate and verify a named target before trying again. Do not repeat blind coordinates."
             "approval_revoked" -> "Approval settings changed before execution. The action was not run; request fresh local approval if it is still needed."
             "approval_screen_changed" -> "The approved page changed before execution. The action was not run. Read the current page and retry the step if it is still needed."
@@ -91,6 +93,7 @@ internal object Refusals {
                 OWN_APP -> Feedback["own_app"]
                 APP_DENIED -> Feedback["app_denied"]
                 SECRET_PAGE -> "this page has a password or verification-code input and needs the user"
+                SYSTEM_PERMISSION -> "this is an Android system authorization dialog and needs the user"
                 else -> error("unknown refusal $code")
             }
             notRun(code, message) { hit?.let { put("action", it.action.name); put("matched", it.matched) } }

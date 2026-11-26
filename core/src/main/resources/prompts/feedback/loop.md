@@ -49,6 +49,9 @@ Progress check: {{used}} of {{max}} steps used and the task is not finished. If 
 ## final_turn
 You are out of steps; no more phone actions are possible. If the task is done, reply to the user with the result in text, stating only what you read. If it is not done or only partly done, call end_not_done with the confirmed partial result, what you checked and what is missing.
 
+## no_new_state_final_turn
+Exploration is being stopped because repeated actions have not produced a new interface state. The step budget is not exhausted. Do not say or imply that steps or budget ran out. If the task is done, reply with only the result you read. Otherwise call end_not_done with the confirmed partial result, what you checked, and what is still missing.
+
 ## screenshot_note
 Current screenshot for the observation above.
 
@@ -88,6 +91,9 @@ step check
 
 ## final_source
 out of steps
+
+## no_new_state_source
+no new interface state
 
 ## replay_source
 earlier way of doing this

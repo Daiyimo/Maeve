@@ -181,6 +181,7 @@ class ActionExecutor(
             Decision.OwnApp -> return ownApp(call, args, origin, before, followUp)
             Decision.DeniedApp -> return deniedApp(call, args, origin, before, followUp)
             Decision.SecretPage -> return secretPage(call, args, origin, before, followUp)
+            Decision.SystemPermission -> return systemPermission(call, args, origin, before, followUp)
             else -> Unit
         }
         // 对外动作:和同一网站、App 里的上一次隔开(等的时候任务还能取消,动作还没开始)
@@ -415,6 +416,15 @@ class ActionExecutor(
             recorder.result(origin.step, call.name, tools.verb(call.name), content, tools.portRecord(call.name, args), null, null, 0, origin.policy.source, call.id)
         }
         return ActionOutcome.Refused(Refusals.SECRET_PAGE, content, before)
+    }
+
+    private fun systemPermission(call: Part.ToolCall, args: JsonObject, origin: Origin, before: List<GuardVerdict>, followUp: FollowUp): ActionOutcome {
+        val content = Refusals.content(Refusals.SYSTEM_PERMISSION, origin.policy.refusals, before, null, null)
+        if (origin.policy.recordsRefusal) {
+            followUp.refused(content)
+            recorder.result(origin.step, call.name, tools.verb(call.name), content, tools.portRecord(call.name, args), null, null, 0, origin.policy.source, call.id)
+        }
+        return ActionOutcome.Refused(Refusals.SYSTEM_PERMISSION, content, before)
     }
 
     private fun refuse(code: String, origin: Origin, before: List<GuardVerdict>) =

@@ -488,9 +488,9 @@ class AgentLoop(
             return result
         }
         val explicitLaunch = if (opening == null && provenance == RunProvenance() && maxSteps > 1 && inbox?.hasSteers() != true) {
-            ExplicitWeChatLaunch.call(task, labels, specs.firstOrNull { tools.verb(it.name) == Verb.LaunchApp }?.name)
+            ExplicitAppLaunch.call(task, labels, specs.firstOrNull { tools.verb(it.name) == Verb.LaunchApp }?.name)
         } else null
-        // 有合适的路线就先照着做；明示的微信启动先完成本地动作。
+        // 有合适的路线就先照着做；明示的 App 启动先完成本地动作。
         if (explicitLaunch == null && flags.replay && replay != null && !task.trimStart().startsWith(WEB_CHANNEL_PREFIX)) {
             val reviewRoute = provenance.origin == RunOrigin.Ui && intentGate != null && routeMatcher?.candidates(task)?.isNotEmpty() == true
             if (reviewRoute) intent = assessIntent()
@@ -500,10 +500,10 @@ class AgentLoop(
         }
 
         val firstModelStep = if (explicitLaunch != null && inbox?.hasSteers() != true) {
-            val running = TaskState.Running(1, "正在打开微信", explicitLaunch.name)
+            val running = TaskState.Running(1, "正在打开${explicitLaunch.appName}", explicitLaunch.call.name)
             gateState = running
             _state.value = running
-            val launched = ExplicitWeChatLaunch.execute(explicitLaunch, executor, tools, history)
+            val launched = ExplicitAppLaunch.execute(explicitLaunch, executor, tools, history)
             if (launched is ActionOutcome.Cancelled) return TaskState.Cancelled
             guards.stop?.let { return StopRules.guard(it) }
             if (launched is ActionOutcome.Ran) {
@@ -512,7 +512,7 @@ class AgentLoop(
             }
             // The direct request is enough to establish current intent. All later actions keep their usual guards.
             intentAssessed = true
-            emit(RunEvent.State(now(), "intent_gate", "explicit_wechat_launch"))
+            emit(RunEvent.State(now(), "intent_gate", "explicit_app_launch"))
             track.markRecovery()
             2
         } else 1
@@ -787,7 +787,8 @@ class AgentLoop(
             // 连续无新状态说明正常探索已经在兜圈:立刻收束到 final turn,不再让软提醒被模型忽略。
             if (StuckAdvice.forceFinalTurn(ran.verdicts)) {
                 emit(RunEvent.State(now(), "loop_finalized", "no_new_state"))
-                return finalTurn(task, history, specs, step + 1, labels, place, recorder, facts(), inbox)
+                val reason = if (step >= maxSteps) FinalTurnReason.StepLimit else FinalTurnReason.NoNewState
+                return finalTurn(task, history, specs, step + 1, labels, place, recorder, facts(), inbox, reason)
             }
 
             if (exec.images.isNotEmpty()) {
@@ -1066,14 +1067,14 @@ class AgentLoop(
     }
 
     /**
-     * 步数用完后最后给一轮,工具只剩 end_not_done:做完了就用文字回答(照样核对,但不再退回,没对上的标成未确认),
-     * 做不成就如实说查过什么。这一轮什么也没给(或被截断)仍算步数用完。
+     * 收尾最后给一轮,工具只剩 end_not_done:做完了就用文字回答(照样核对,但不再退回,没对上的标成未确认),
+     * 做不成就如实说查过什么。空回复或非法调用按实际收尾原因归类,不把无进展冒充步数耗尽。
      */
     private suspend fun finalTurn(
         task: String, history: MutableList<Message>, specs: List<ToolSpec>, step: Int, labels: Map<String, String>, place: Place?, recorder: ActionRecorder,
-        facts: ReviewFacts, inbox: RunInbox?,
+        facts: ReviewFacts, inbox: RunInbox?, reason: FinalTurnReason = FinalTurnReason.StepLimit,
     ): TaskState {
-        TurnPolicy.finalTurn().let { history += ctx.notice(it.source, it.text) }
+        TurnPolicy.finalTurn(reason).let { history += ctx.notice(it.source, it.text) }
         repeat(3) { attempt ->
             appendSteers(history, inbox)
             appendRuntimeState(history, place, labels, step)
@@ -1103,16 +1104,16 @@ class AgentLoop(
             // 收尾模型也可能正在生成时收到插话。最多重答两次，其余交给下一任务。
             if (attempt < 2 && keepFinished(history, inbox)) return@repeat
             if (call == null) {
-                if (calls.isNotEmpty() || text.isEmpty() || reply.stopReason == StopReason.MaxTokens) return StopRules.stepLimit(maxSteps)
+                if (calls.isNotEmpty() || text.isEmpty() || reply.stopReason == StopReason.MaxTokens) return StopRules.afterFinalTurn(null, maxSteps, reason)
                 return deliver(conclude(task, text, step, facts, history = null)!!)
             }
             val started = now()
             // 只剩放弃,不改变手机
             val exec = tools.executeRead(call)
             recorder.result(step, call.name, tools.verb(call.name), exec.content, exec.record, null, null, now() - started, "model", call.id)
-            return StopRules.afterFinalTurn(exec.outcome, maxSteps)
+            return StopRules.afterFinalTurn(exec.outcome, maxSteps, reason)
         }
-        return StopRules.stepLimit(maxSteps)
+        return StopRules.afterFinalTurn(null, maxSteps, reason)
     }
 
     companion object {

@@ -1,6 +1,9 @@
 package com.daiyimo.maeve.core.action
 
 import com.daiyimo.maeve.core.model.Part
+import com.daiyimo.maeve.core.uistate.ScreenSnapshot
+import com.daiyimo.maeve.core.uistate.UiElement
+import com.daiyimo.maeve.core.uistate.VisibleTextLine
 import com.daiyimo.maeve.core.tool.ActionDelivery
 import com.daiyimo.maeve.core.tool.ToolExecution
 import kotlinx.coroutines.test.runTest
@@ -42,6 +45,21 @@ class ActionEffectsDeliveryTest {
         val error = runCatching { effects.execute(call, Origin.Model(1)) { unknown } }.exceptionOrNull() as ActionEffects.Blocked
         assertEquals("effect_unknown", error.code)
         assertEquals(ActionEffectStore.State.Unknown, store.receipts("c").single().state)
+    }
+
+    @Test fun knownPreDispatchErrorsAreNotAppliedEvenWhenLegacyDeliveryIsUnknown() = runTest {
+        for (code in listOf("element_not_found", "vision_timeout", "element_ambiguous", "screen_unavailable")) {
+            val store = ActionEffectStore(temp.root)
+            val effects = ActionEffects(store, code, "run")
+            val legacy = ToolExecution(buildJsonObject {
+                put("ok", false); put("error", code); put("delivery", "unknown")
+            }, delivery = ActionDelivery.Unknown)
+            effects.execute(call, Origin.Model(1)) { legacy }
+            assertEquals(code, ActionEffectStore.State.NotApplied, store.receipts(code).single().state)
+
+            effects.execute(call.copy(id = "next"), Origin.Model(2)) { result() }
+            assertEquals(code, listOf(ActionEffectStore.State.NotApplied, ActionEffectStore.State.Applied), store.receipts(code).map { it.state })
+        }
     }
 
     @Test fun explicitNotSentIsNotApplied() = runTest {
@@ -114,6 +132,55 @@ class ActionEffectsDeliveryTest {
             assertTrue(reason, executor.run(tap.copy(id = "next"), Origin.Model(2)) is ActionOutcome.Ran)
             assertEquals(reason, listOf(ActionEffectStore.State.NotApplied, ActionEffectStore.State.Applied), store.receipts(reason).map { it.state })
         }
+    }
+
+    @Test fun ocrMismatchBeforeDispatchIsNotAppliedAndDoesNotPoisonNextWrite() = runTest {
+        val surface = UiElement("@e1", "SurfaceView", "Game view", 500, 500, listOf(0, 0, 999, 999), null, true, false, false)
+        var lines = listOf(
+            VisibleTextLine("K/DA不朽", listOf(30, 240, 100, 290)),
+            VisibleTextLine("巨星之路", listOf(30, 420, 100, 470)),
+            VisibleTextLine("霓裳天阙", listOf(30, 610, 100, 650)),
+            VisibleTextLine("盛世长安", listOf(30, 780, 100, 820)),
+            VisibleTextLine("奖池", listOf(170, 30, 220, 70)),
+        )
+        val base = com.daiyimo.maeve.core.tool.FakeScreen()
+        val screen = object : com.daiyimo.maeve.core.uistate.ScreenPort by base {
+            override suspend fun snapshot() = ScreenSnapshot("s1", "com.tencent.jkchess", listOf(surface), 2670, 1200)
+            override suspend fun peek() = snapshot()
+            override suspend fun readVisibleText() = lines
+        }
+        val store = ActionEffectStore(temp.root)
+        val tools = com.daiyimo.maeve.core.assembly.toolDispatcher(screen)
+        tools.executeRead(Part.ToolCall("observe", "phone_observe", "{}"))
+        val executor = ActionExecutor(tools, com.daiyimo.maeve.core.guard.OperationGuards(), null, gate = {},
+            recorder = ActionRecorder(com.daiyimo.maeve.core.record.RunSink.NONE), effects = ActionEffects(store, "c", "run"))
+        val tap = call.copy(name = "phone_tap", argsJson = """{"x":65,"y":626,"target":"魔典菜单项"}""")
+        val rejected = executor.run(tap, Origin.Model(1)) as ActionOutcome.Ran
+        assertEquals(JsonPrimitive("tap_text_mismatch"), rejected.content["error"])
+        assertEquals(JsonPrimitive("not_sent"), rejected.content["delivery"])
+        assertEquals(JsonPrimitive(false), rejected.content["executed"])
+        assertTrue(base.calls.none { it.startsWith("tap") })
+        assertEquals(ActionEffectStore.State.NotApplied, store.receipts("c").single().state)
+
+        lines = listOf(VisibleTextLine("@魔典", listOf(20, 550, 100, 610)))
+        val next = executor.run(tap.copy(id = "next", argsJson = """{"x":60,"y":580,"target":"魔典菜单项"}"""), Origin.Model(2)) as ActionOutcome.Ran
+        assertEquals(JsonPrimitive(true), next.content["ok"])
+        assertEquals(1, base.calls.count { it.startsWith("tap") })
+        assertEquals(listOf(ActionEffectStore.State.NotApplied, ActionEffectStore.State.Applied), store.receipts("c").map { it.state })
+    }
+
+    @Test fun staleLocatedPointIsRefusedBeforeEffectsAndDoesNotPoisonNextWrite() = runTest {
+        val store = ActionEffectStore(temp.root)
+        val screen = com.daiyimo.maeve.core.tool.FakeScreen()
+        val tools = com.daiyimo.maeve.core.assembly.toolDispatcher(screen)
+        val executor = ActionExecutor(tools, com.daiyimo.maeve.core.guard.OperationGuards(), null, gate = {},
+            recorder = ActionRecorder(com.daiyimo.maeve.core.record.RunSink.NONE), effects = ActionEffects(store, "c", "run"))
+        val stale = call.copy(name = "phone_tap", argsJson = """{"ref":"@v1","snapshotId":"loc_missing"}""")
+        val rejected = executor.run(stale, Origin.Model(1)) as ActionOutcome.Refused
+        assertEquals("target_unresolved", rejected.code)
+        assertEquals(ActionDelivery.NotSent, rejected.execution().delivery)
+        assertTrue(store.receipts("c").isEmpty())
+        assertTrue(screen.calls.none { it.startsWith("tap") })
     }
 
     @Test fun sentFailureWithoutProofOfNoEffectRemainsUnknown() = runTest {

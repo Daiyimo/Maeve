@@ -163,6 +163,7 @@ internal object PromptSurfaceFeedback {
         val leaked = TurnPolicy.leakedToolCall("ask_user")
         val progress = TurnPolicy.beforeStep(TurnSnapshot(11, 20))!!
         val final = TurnPolicy.finalTurn()
+        val noNewState = TurnPolicy.finalTurn(FinalTurnReason.NoNewState)
         val stuck = GuardVerdict("no_progress", Severity.Warn, JsonObject(emptyMap()))
         val giveUp = StuckAdvice.next(StuckState(warnings = 1), StuckInput(listOf(stuck), null, null)).second!!
         val typedAgain = StuckAdvice.next(StuckState(typed = mapOf("null\u0000外卖" to 2)), StuckInput(listOf(stuck), "外卖", null)).second!!
@@ -177,6 +178,7 @@ internal object PromptSurfaceFeedback {
             "repeated_input_advice" to typedAgain,
             "progress_check" to progress.text,
             "final_turn" to final.text,
+            "no_new_state_final_turn" to noNewState.text,
             "screenshot_note" to NoticePolicy.imageNote(Verb.Screenshot, offScreen = false),
             "file_image_note" to NoticePolicy.imageNote(Verb.ReadFile, offScreen = true),
             "action_frame_note" to NoticePolicy.imageNote(Verb.Tap, offScreen = false),
@@ -188,6 +190,7 @@ internal object PromptSurfaceFeedback {
             "leaked_call_source" to leaked.source,
             "progress_source" to progress.source,
             "final_source" to final.source,
+            "no_new_state_source" to noNewState.source,
             "replay_source" to fileCall("RouteReplayKt", "getREPLAY_SOURCE"),
             "approved_step_first" to AgentLoop.APPROVED_STEP_FIRST,
             "replay_screen_header" to fileCall("RouteReplayKt", "getREPLAY_SCREEN_HEADER"),

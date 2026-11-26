@@ -231,7 +231,7 @@ class McpClientTest {
         assertEquals(10, result.observations.single().text.length)
     }
 
-    @Test fun unattendedExternalMcpCallIsNotAskedAndNotCalledByTheJudge() = runBlocking {
+    @Test fun unattendedExternalMcpCallIsAllowedButNotCalledByTheJudge() = runBlocking {
         val endpoint = FakeEndpoint().apply {
             offered = listOf(McpToolDescriptor("send", "Send", buildJsonObject { put("type", "object") },
                 McpAnnotations(openWorldHint = true)))
@@ -240,7 +240,7 @@ class McpClientTest {
         // 不花钱的对外调用:无人值守也直接做(只记审批),不在判定时就调服务端
         val decision = ConfirmDecision(tools, null, provenance = RunProvenance(RunOrigin.Trigger, Attendance.Unattended))
             .judge("mcp_demo__send", buildJsonObject {}, Origin.Model(1))
-        assertTrue(decision is Decision.Denied)
+        assertTrue(decision is Decision.Clear)
         assertEquals(0, endpoint.calls)
     }
 

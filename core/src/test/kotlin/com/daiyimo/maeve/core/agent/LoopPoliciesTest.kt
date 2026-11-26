@@ -61,6 +61,10 @@ class LoopPoliciesTest {
         val verbs = mapOf("ask_user" to Verb.AskUser, "end_not_done" to Verb.EndNotDone, "phone_tap" to Verb.Tap)
         assertEquals(listOf("end_not_done"), TurnPolicy.finalTools(specs, verbs::get).map { it.name })
         assertEquals(Feedback["final_turn"], TurnPolicy.finalTurn().text)
+        val noNewState = TurnPolicy.finalTurn(FinalTurnReason.NoNewState)
+        assertEquals(Feedback["no_new_state_final_turn"], noNewState.text)
+        assertTrue(noNewState.text, "budget is not exhausted" in noNewState.text)
+        assertFalse(noNewState.text, "out of steps" in noNewState.text)
     }
 
     // ---- 停止 ----
@@ -72,9 +76,12 @@ class LoopPoliciesTest {
         assertNull(StopRules.afterAction(null, null))
     }
 
-    @Test fun finalTurnWithoutCallIsStepLimit() {
+    @Test fun finalTurnWithoutCallUsesTheActualStopReason() {
         assertEquals(StopRules.stepLimit(3), StopRules.afterFinalTurn(null, 3))
         assertEquals(FailKind.StepLimit, StopRules.stepLimit(3).kind)
+        val noNewState = StopRules.afterFinalTurn(null, 500, FinalTurnReason.NoNewState)
+        assertEquals(FailKind.Guard, noNewState.kind)
+        assertFalse(noNewState.reason, "500" in noNewState.reason || "上限" in noNewState.reason)
     }
 
     @Test fun modelFailureReasons() {

@@ -16,9 +16,8 @@ enum class ActionRisk { Read, Change, External, Irreversible, Unknown;
 }
 
 /**
- * [payment] 为 true 时这一步要花钱(付款、下单,或屏上有应付金额时的对外动作):询问时先问用户。
- * [ask] 不为空时是不在屏上、改了收不回的一步(工具按这次的参数声明,如会改动东西的 root 命令),询问时也先问用户,
- * 给用户看的就是它;同意只放行一字不差的这一步。
+ * [payment] 为 true 时这一步要花钱(付款、下单,或屏上有应付金额时的对外动作):必须交由用户处理。
+ * [ask] 是工具声明的系统级授权(如 shell/root 写命令),仍需单次确认。
  */
 data class Risk(val level: ActionRisk, val payment: Boolean = false, val ask: ConfirmationRequest? = null)
 
@@ -30,12 +29,12 @@ enum class ConfirmChoice { Once, Deny;
 
 /** 询问 / 自主:此刻是不是自主模式(中途换成自主时,正在跑的任务从下一步起照它)。由设置提供,测试里换成固定值。 */
 fun interface ApprovalSettings {
-    /** 自主只影响可恢复的普通写入，对外与不可逆动作仍需单次授权。 */
+    /** 兼容现有设置；非支付动作不再因自主模式改变审批策略。 */
     fun autonomous(): Boolean
     fun revision(): Long = 0
 
     companion object {
-        /** 询问(默认):付款和工具声明要问的那几步(见 [Risk.ask])先问。 */
+        /** 询问(默认):只有付款需要用户接手或确认。 */
         val ASK = ApprovalSettings { false }
     }
 }
@@ -50,15 +49,14 @@ sealed interface Approval {
 }
 
 /**
- * 审批判定:纯函数。付款和工具声明要问的(见 [Risk.ask])要问;[everyWrite] 为 true 时(每步确认名单里的 App,
- * 如微信)每一步写操作都要问。Amoo 文件桥的普通界面写入可由手机主人逐次确认。
+ * 审批判定:纯函数。付款与工具声明的系统级授权需要用户介入;发送、提交、删除、下单前提交与普通界面写入直接执行。
+ * 密码 / 验证码、系统授权和默认不碰名单由 [ConfirmDecision] 的硬规则单独保护。
  */
 object ApprovalPolicy {
     fun decide(risk: Risk, run: RunProvenance = RunProvenance(), everyWrite: Boolean = false): Approval = when {
-        !risk.payment && risk.ask == null && !risk.level.outward && !everyWrite -> Approval.Allow
+        !risk.payment && risk.ask == null -> Approval.Allow
         run.attendance == Attendance.Unattended -> Approval.Deny
         run.origin == RunOrigin.Ui -> Approval.Ask
-        run.origin == RunOrigin.Amoo && everyWrite && !risk.payment && risk.ask == null && !risk.level.outward -> Approval.Ask
         else -> Approval.Deny
     }
 }

@@ -73,17 +73,17 @@ class ActionExecutorOriginsTest(private val label: String, private val action: I
         assertTrue(events.none { it is RunEvent.Confirmation })
     }
 
-    @Test fun outwardActionsNeedSingleUseApproval() = runTest {
+    @Test fun outwardActionsRunWithoutApproval() = runTest {
         for (free in listOf("发送", "删除", "提交")) {
             val screen = OneButton(free)
             val tools = toolDispatcher(screen)
             tools.execute(Part.ToolCall("o", "phone_observe", "{}"))
             val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {}, recorder = ActionRecorder(sink))
             val out = executor.run(Part.ToolCall("c4", "phone_tap", """{"ref":"@e1","snapshotId":"s1"}"""), origin)
-            assertTrue("$free $out", out is ActionOutcome.Refused)
-            assertTrue(screen.taps.isEmpty())
+            assertTrue("$free $out", out is ActionOutcome.Ran)
+            assertEquals(listOf("@e1"), screen.taps)
         }
-        assertTrue(events.any { it is RunEvent.Confirmation })
+        assertTrue(events.none { it is RunEvent.Confirmation })
     }
 
     @Test fun autonomousActionsCannotBypassApproval() = runTest {

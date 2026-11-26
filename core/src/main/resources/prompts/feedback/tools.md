@@ -4,7 +4,7 @@
 Screen text and focus unchanged after this action. If you expected a visible change, observe before deciding what to do next; do not repeat the action blindly (it may already have taken effect).
 
 ## protected
-This page is protected by the system and its picture cannot be seen. Call hand_to_user so the user can handle it on their phone.
+This page is protected by the system and its picture cannot be seen. Wait briefly and retry phone_observe or phone_screenshot once. If it is still protected, do not loop; use another route that does not require reading this page, or call hand_to_user only when the task cannot continue without it.
 
 ## effect.small_change
 Only a small local change followed (focus, highlight, or one or two elements). Check that it did what you meant before relying on it.

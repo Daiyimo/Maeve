@@ -22,6 +22,8 @@ You have already typed "外卖" 3 times in this task; typing it again will show 
 Progress check: 10 of 20 steps used and the task is not finished. If what you have checked so far (search inside the app, its main menus) shows the target is not there or cannot be reached, stop now. If the result the task asks for needs a feature, menu, setting, page, item or value that is not there, call end_not_done listing what you checked. Only a yes/no question about whether something exists is answered by its absence: if the app's own search gave a definitive none, reply that it does not exist, quoting the text it showed. Continue only if you have a concrete, untried next place to look.
 ### final_turn
 You are out of steps; no more phone actions are possible. If the task is done, reply to the user with the result in text, stating only what you read. If it is not done or only partly done, call end_not_done with the confirmed partial result, what you checked and what is missing.
+### no_new_state_final_turn
+Exploration is being stopped because repeated actions have not produced a new interface state. The step budget is not exhausted. Do not say or imply that steps or budget ran out. If the task is done, reply with only the result you read. Otherwise call end_not_done with the confirmed partial result, what you checked, and what is still missing.
 ### screenshot_note
 Current screenshot for the observation above.
 ### file_image_note
@@ -45,6 +47,8 @@ tool call as text
 step check
 ### final_source
 out of steps
+### no_new_state_source
+no new interface state
 ### replay_source
 earlier way of doing this
 ### approved_step_first

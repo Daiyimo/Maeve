@@ -10,6 +10,7 @@ import com.daiyimo.maeve.core.gate.IrreversibleDetector
 import com.daiyimo.maeve.core.gate.Permit
 import com.daiyimo.maeve.core.gate.SelfAppGuard
 import com.daiyimo.maeve.core.guard.exactCallSignature
+import com.daiyimo.maeve.core.uistate.ScreenDiagnosis
 import com.daiyimo.maeve.core.uistate.ScreenSnapshot
 import com.daiyimo.maeve.core.uistate.UiElement
 import com.daiyimo.maeve.core.uistate.VisibleTextLine
@@ -33,8 +34,8 @@ sealed interface Decision {
     /** 找不到点在哪个元素上,这一来源不盲点。 */
     data object Unresolved : Decision
     /**
-     * 这一步要用户这一次的同意(花钱,或 [ask] 不为空时是工具声明要问的不在屏上的一步),没有可用的。
-     * [everyWrite] 为 true 时是每步确认名单里的 App(如微信)里的写操作:每一步都要问。
+     * 这一步要用户这一次的同意(当前仅付款),没有可用的。
+     * [everyWrite] 保留每步确认名单标记用于兼容与审计;当前审批策略不因它询问。
      * 有 [ask] 时调用方可问人就当场问(见 [FollowUp.approve])。
      */
     data class Required(val hit: Irreversible, val ask: ConfirmationRequest? = null, val everyWrite: Boolean = false) : Decision
@@ -48,12 +49,13 @@ sealed interface Decision {
     data object DeniedApp : Decision
     /** 密码 / 验证码页上要打字或清空:交还用户,不代填;自主模式也不例外。 */
     data object SecretPage : Decision
+    /** Android 运行时权限/系统授权弹窗:交还用户,自主模式也不例外。 */
+    data object SystemPermission : Decision
 }
 
 /**
  * 不可逆判定、审批与同意核对。整个代码库里只有这里调用 [IrreversibleDetector] 的判定和 [ConfirmationGate.permits]
- * (有测试守着),各来源只在 [OriginPolicy] 里写明哪里不同;问不问由 [ApprovalPolicy.decide] 定(付款、工具声明要问的、
- * 每步确认名单里的 App 的问)。
+ * (有测试守着),各来源只在 [OriginPolicy] 里写明哪里不同;问不问由 [ApprovalPolicy.decide] 定(当前仅付款)。
  */
 class ConfirmDecision(
     private val tools: ToolDispatcher,
@@ -87,16 +89,27 @@ class ConfirmDecision(
         val verb = tools.verb(tool)
         // 打字、清空:密码 / 验证码页上交还用户(页上有秘密输入框时就不代填)
         val entering = writing && (verb == Verb.TypeText || verb == Verb.ClearText)
+        val targetText = listOfNotNull(
+            aim.seen,
+            (args["target"] as? JsonPrimitive)?.contentOrNull,
+            (args["element"] as? JsonPrimitive)?.contentOrNull,
+        ).joinToString("\n")
+        val visualSecret = writing && (
+            ScreenDiagnosis.secretText(listOf(targetText)) != null ||
+                tools.interfaces.cachedSecretPage(tools.declared(tool)) ||
+                (entering && tools.interfaces.secretPage(tools.declared(tool)))
+            )
         // 硬规则先于一切放行(含下面自主模式的提前返回):不对 Maeve 自己动手、默认不碰名单里的 App 不写、
         // 密码 / 验证码页不代填;都按模型手里那一屏判,不另读屏
         if (SelfAppGuard.targetsSelf(selfPackage, writing, args, aim.aimed)) return Decision.OwnApp
         if (writing && AppTiers.tierOf(aim.aimed?.packageName) == AppTier.Deny) return Decision.DeniedApp
-        if (entering && aim.aimed?.elements?.any { it.secret } == true) return Decision.SecretPage
-        // 每步确认名单里的 App(微信):询问时每一步写操作都要用户同意;软规则,自主模式豁免
+        if (writing && systemPermissionPage(aim.aimed?.packageName)) return Decision.SystemPermission
+        if (visualSecret || (entering && aim.aimed?.elements?.any { it.secret } == true)) return Decision.SecretPage
+        // 保留每步确认名单标记供审计/兼容;当前仅付款策略不因它弹确认
         val approvalScreen = if (writing && provenance.origin == RunOrigin.Amoo) aim.now() else null
         if (SelfAppGuard.targetsSelf(selfPackage, writing, args, approvalScreen)) return Decision.OwnApp
         if (AppTiers.tierOf(approvalScreen?.packageName) == AppTier.Deny) return Decision.DeniedApp
-        if (entering && approvalScreen?.elements?.any { it.secret } == true) return Decision.SecretPage
+        if (visualSecret || (entering && approvalScreen?.elements?.any { it.secret } == true)) return Decision.SecretPage
         val everyWrite = writing && !approvals.autonomous() &&
             AppTiers.tierOf((approvalScreen ?: aim.aimed)?.packageName) == AppTier.ConfirmEveryWrite
         val policy = origin.policy
@@ -108,6 +121,14 @@ class ConfirmDecision(
         val needsCheck = IrreversibleDetector.needsCheck(target, args)
         val amooAutonomous = provenance.origin == RunOrigin.Amoo && approvals.autonomous()
         val app = approvalScreen?.packageName
+        val visualEvidence = if ((needsCheck || entering) && tools.interfaces.visualFirst(tools.declared(tool))) {
+            val base = aim.aimed ?: aim.now()
+            val pkg = base?.packageName
+            if (base != null && pkg != null && base.elements.isEmpty()) {
+                tools.interfaces.visualEvidence(tools.declared(tool), base, reuseOcr = entering)
+                    ?: return Decision.Unresolved
+            } else null
+        } else null
         val riskScreen = if (amooAutonomous && approvalScreen != null && app != null &&
             AppTiers.tierOf(app) == AppTier.ConfirmEveryWrite && (needsCheck || entering)) {
             val evidence = if (approvalScreen.elements.isNotEmpty()) approvalScreen else {
@@ -120,9 +141,8 @@ class ConfirmDecision(
                     ?: Decision.Denied(hit)
             }
             evidence
-        } else approvalScreen
-        // 每步确认名单里的 App(微信):每一步写操作都要用户同意,和看起来可不可逆无关;
-        // 问不到人时按 Approval.Deny 停下(见 [ApprovalPolicy]),不擅自放行
+        } else visualEvidence ?: approvalScreen
+        // 保留每步确认名单标记供审计/兼容;当前仅付款策略不因它弹确认
         if (everyWrite && !needsCheck) {
             return approve(tool, checked, origin, null, Risk(ActionRisk.Change), approvalScreen ?: aim.aimed, typing, null, everyWrite) ?: Decision.Clear
         }
@@ -133,7 +153,7 @@ class ConfirmDecision(
         // 复看此刻的一屏:硬规则按它再判一次(动作之前换到了受保护的 App 或页面)
         if (SelfAppGuard.targetsSelf(selfPackage, writing, args, fresh)) return Decision.OwnApp
         if (writing && AppTiers.tierOf(fresh?.packageName) == AppTier.Deny) return Decision.DeniedApp
-        if (entering && fresh?.elements?.any { it.secret } == true) return Decision.SecretPage
+        if (visualSecret || (entering && fresh?.elements?.any { it.secret } == true)) return Decision.SecretPage
         // 复看确认过的所见文字(@vN 才有):读屏里没有文字时(自绘界面)付款的同意按它核对象
         val seen = aim.seen
         val hit = IrreversibleDetector.classify(target, checked, snap, fresh)
@@ -150,6 +170,10 @@ class ConfirmDecision(
         if (if (provenance.origin == RunOrigin.Amoo) amooAutonomous else autonomous) return Decision.Clear
         return Decision.Unresolved
     }
+
+    private fun systemPermissionPage(packageName: String?): Boolean = packageName in setOf(
+        "com.android.permissioncontroller", "com.google.android.permissioncontroller",
+    )
 
     /** 命中的是发送、提交时这一屏的网站或 App。 */
     private fun outward(hit: Irreversible?, screen: ScreenSnapshot?): String? =
