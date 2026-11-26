@@ -3,6 +3,7 @@ package com.daiyimo.maeve.ui
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
+import android.provider.MediaStore
 import android.util.Base64
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -19,6 +20,51 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class TaskShareImageDeviceTest {
+    @Test fun downloadBridgeSavesThePngToDownloads() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val png = Base64.decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=",
+            Base64.DEFAULT,
+        )
+        ActivityScenario.launch<MainActivity>(Intent(context, MainActivity::class.java)).use { scenario ->
+            val result = CompletableFuture<Any?>()
+            scenario.onActivity { activity ->
+                val plugin = requireNotNull(activity.provideFlutterEngine(activity).plugins.get(MaeveUiPlugin::class.java))
+                    as MaeveUiPlugin
+                plugin.onMethodCall(MethodCall("downloadTaskImage", png), object : MethodChannel.Result {
+                    override fun success(value: Any?) { result.complete(value) }
+                    override fun error(code: String, message: String?, details: Any?) {
+                        result.completeExceptionally(AssertionError(code))
+                    }
+                    override fun notImplemented() { result.completeExceptionally(AssertionError("Missing download bridge")) }
+                })
+            }
+            assertEquals(true, result.get(15, TimeUnit.SECONDS))
+            val saved = context.contentResolver.query(
+                MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                arrayOf(MediaStore.Downloads._ID),
+                "${MediaStore.Downloads.DISPLAY_NAME} LIKE ?",
+                arrayOf("Maeve-%.png"),
+                "${MediaStore.Downloads.DATE_ADDED} DESC",
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val uri = android.content.ContentUris.withAppendedId(
+                        MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+                        cursor.getLong(0),
+                    )
+                    try {
+                        assertArrayEquals(png, context.contentResolver.openInputStream(uri)?.use { it.readBytes() })
+                        true
+                    } finally {
+                        context.contentResolver.delete(uri, null, null)
+                    }
+                } else false
+            } ?: false
+            assertTrue(saved)
+        }
+    }
+
     @Test fun shareBridgeOpensAnImageChooserWithAReadablePng() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext

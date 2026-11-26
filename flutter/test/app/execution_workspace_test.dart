@@ -33,6 +33,14 @@ const _guizangAnswer =
 
 class _ShareBridge extends FakeChatBridge {
   late Completer<Uint8List> png;
+  int downloads = 0;
+
+  @override
+  Future<bool> downloadTaskImage(Uint8List image) async {
+    downloads++;
+    png.complete(image);
+    return true;
+  }
 
   @override
   Future<bool> shareTaskImage(Uint8List image) async {
@@ -775,7 +783,7 @@ void main() {
     );
     expect(tester.takeException(), isNull);
 
-    await tester.tap(find.text('编辑标题'));
+    await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, '标题'), '设置检查已完成');
     await tester.tap(find.text('应用'));
@@ -786,7 +794,7 @@ void main() {
     );
 
     final shareImage = tester.widget<MaeveGlassTextButton>(
-      find.widgetWithText(MaeveGlassTextButton, '分享图片'),
+      find.widgetWithText(MaeveGlassTextButton, '分享'),
     );
     final png = await tester.runAsync(() async {
       bridge.png = Completer<Uint8List>();
@@ -798,6 +806,20 @@ void main() {
     expect(ByteData.sublistView(png).getUint32(16), 1080);
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+
+    final downloadImage = tester.widget<MaeveGlassTextButton>(
+      find.widgetWithText(MaeveGlassTextButton, '下载'),
+    );
+    final downloaded = await tester.runAsync(() async {
+      bridge.png = Completer<Uint8List>();
+      downloadImage.onPressed!();
+      return bridge.png.future.timeout(const Duration(seconds: 15));
+    });
+    expect(downloaded, isNotNull);
+    expect(bridge.downloads, 1);
+    expect(downloaded!.take(8), [137, 80, 78, 71, 13, 10, 26, 10]);
+    await tester.pumpAndSettle();
+    expect(find.text('图片已保存到下载/Maeve'), findsOneWidget);
   });
 
   testWidgets('A report opened from run history can edit its share title', (
@@ -819,7 +841,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('分享图'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('编辑标题'));
+    await tester.tap(find.text('编辑'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, '标题'), '历史任务新标题');
     await tester.tap(find.text('应用'));

@@ -105,6 +105,7 @@ class MaeveUiPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHand
             // 报告导出通过系统文件选择器与 ActivityResultListener。
             "exportRunReport" -> exportReport(call, result)
             "shareTaskImage" -> scope.launch { result.success(TaskShareImage.open(activity?.activity, call.arguments as? ByteArray)) }
+            "downloadTaskImage" -> scope.launch { result.success(TaskShareImage.download(activity?.activity, call.arguments as? ByteArray)) }
             // 「获取更新」:检查、下载、安装都交给 about 包里已有的那套实现,
             // 这里只转发和推状态,不重写节流/选包/校验规则(见 UpdateBridge)。
             "updateState" -> scope.launch {

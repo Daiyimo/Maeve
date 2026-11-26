@@ -126,9 +126,11 @@ class _TaskSharePageState extends State<TaskSharePage> {
   final _poster = GlobalKey();
   ({TaskReport report, Uint8List? frame, int selectedIndex})? _snapshot;
   final Map<int, Future<Uint8List?>> _frames = {};
-  bool _sharing = false;
+  bool _exporting = false;
+  String? _exportLabel;
   String? _editedTitle;
   String? _error;
+  String? _success;
 
   @override
   void initState() {
@@ -235,11 +237,13 @@ class _TaskSharePageState extends State<TaskSharePage> {
     if (mounted && title != null) setState(() => _editedTitle = title);
   }
 
-  Future<void> _share() async {
-    if (_sharing) return;
+  Future<void> _export({required bool download}) async {
+    if (_exporting) return;
     setState(() {
-      _sharing = true;
+      _exporting = true;
+      _exportLabel = download ? '正在下载…' : '正在分享…';
       _error = null;
+      _success = null;
     });
     try {
       final boundary =
@@ -252,19 +256,43 @@ class _TaskSharePageState extends State<TaskSharePage> {
         image.dispose();
       }
       if (!mounted) return;
-      if (png == null ||
-          !await widget.bridge.shareTaskImage(
-            png.buffer.asUint8List(png.offsetInBytes, png.lengthInBytes),
-          )) {
-        throw StateError('Image share is unavailable');
+      final bytes = png?.buffer.asUint8List(
+        png.offsetInBytes,
+        png.lengthInBytes,
+      );
+      final saved =
+          bytes != null &&
+          await (download
+              ? widget.bridge.downloadTaskImage(bytes)
+              : widget.bridge.shareTaskImage(bytes));
+      if (!saved) {
+        throw StateError(
+          download
+              ? 'Image download is unavailable'
+              : 'Image share is unavailable',
+        );
+      }
+      if (mounted) {
+        setState(() => _success = download ? '图片已保存到下载/Maeve' : '图片已交给系统分享');
       }
     } catch (error) {
       debugPrint('Task share image: ${error.runtimeType}');
-      if (mounted) setState(() => _error = '未能分享图片，请重试。');
+      if (mounted) {
+        setState(() => _error = download ? '未能下载图片，请重试。' : '未能分享图片，请重试。');
+      }
     } finally {
-      if (mounted) setState(() => _sharing = false);
+      if (mounted) {
+        setState(() {
+          _exporting = false;
+          _exportLabel = null;
+        });
+      }
     }
   }
+
+  Future<void> _download() => _export(download: true);
+
+  Future<void> _share() => _export(download: false);
 
   Widget _framePicker(TaskReport report, int selectedIndex) => SizedBox(
     height: 92,
@@ -360,25 +388,42 @@ class _TaskSharePageState extends State<TaskSharePage> {
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(error, textAlign: TextAlign.center),
                     ),
+                  if (_success case final success?)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(success, textAlign: TextAlign.center),
+                    ),
                   const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
                         child: MaeveGlassTextButton(
-                          label: '编辑标题',
+                          label: '编辑',
                           icon: Icons.edit_outlined,
-                          onPressed: _sharing
-                              ? null
-                              : () => _editTitle(snapshot.report),
+                          compact: true,
+                          enabled: !_exporting,
+                          onPressed: () => _editTitle(snapshot.report),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: MaeveGlassTextButton(
-                          label: _sharing ? '正在分享…' : '分享图片',
+                          label: _exportLabel ?? '下载',
+                          icon: Icons.download_outlined,
+                          compact: true,
+                          enabled: !_exporting,
+                          haptic: MaeveHaptic.light,
+                          onPressed: _download,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: MaeveGlassTextButton(
+                          label: _exportLabel ?? '分享',
                           icon: Icons.ios_share_outlined,
                           prominent: true,
-                          enabled: !_sharing,
+                          compact: true,
+                          enabled: !_exporting,
                           haptic: MaeveHaptic.light,
                           onPressed: _share,
                         ),

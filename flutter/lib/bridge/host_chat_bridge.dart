@@ -103,6 +103,11 @@ class HostChatBridge extends MaeveChatBridge {
       false;
 
   @override
+  Future<bool> downloadTaskImage(Uint8List png) async =>
+      await MaeveBridge.methods.invokeMethod<bool>('downloadTaskImage', png) ??
+      false;
+
+  @override
   Future<Uint8List?> runScreen(String runId, int screenId) =>
       MaeveBridge.chatMethods.invokeMethod<Uint8List>('runScreen', {
         'runId': runId,

@@ -94,6 +94,7 @@ abstract class MaeveChatBridge {
     String redaction = 'secrets',
   });
   Future<bool> shareTaskImage(Uint8List png) async => false;
+  Future<bool> downloadTaskImage(Uint8List png) async => false;
   Future<List<Map<String, dynamic>>> runs();
   Future<Uint8List?> runScreen(String runId, int screenId);
   Future<bool> taskAction(String conversationId, String action, {int? key});
