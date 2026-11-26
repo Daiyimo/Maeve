@@ -79,6 +79,15 @@ class ToolDispatcherSandboxTest {
         assertTrue(sb.runs.isEmpty())
     }
 
+    @Test fun brokenSandboxTellsModelNotToRetry() = runTest {
+        sb.status = SandboxStatus.Broken("运行环境无法启动:退出码 139")
+        sb.afterWait = SandboxStatus.Broken("运行环境无法启动:退出码 139")
+        val r = dispatcher().execute(call("run_command", buildJsonObject { put("command", "python3 sum.py") })).content
+        assertEquals("sandbox_unavailable", r.s("error"))
+        assertTrue(r.s("message"), "Do not retry sandbox commands in this task" in r.s("message"))
+        assertTrue(sb.runs.isEmpty())
+    }
+
     @Test fun runCommandWrapsInShell() = runTest {
         sb.next = { CommandResult(0, false, false, 1200, "hi\n", 0, false) }
         val r = dispatcher().execute(call("run_command", buildJsonObject {

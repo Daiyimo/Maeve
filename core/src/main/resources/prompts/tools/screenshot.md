@@ -1,1 +1,1 @@
-Capture the current screen as an image.
+Capture the current screen as an image. For dense text, formulas, tiny symbols or an unreadable OCR line, provide x, y, w and h together to crop a region before it is sent to you; all four use the same normalized 0-999 screen coordinates as tap. The crop keeps the source pixels and is for reading only: never use its coordinates to act on the current screen. Omit all four for the full screen. If OCR and the image disagree about a symbol or operator, trust the image and verify the crop before computing; never guess.

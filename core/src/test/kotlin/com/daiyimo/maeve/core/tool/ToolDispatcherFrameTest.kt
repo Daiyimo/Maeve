@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -177,6 +178,28 @@ class ToolDispatcherFrameTest {
         val action = d.execute(call("phone_back"))
         assertEquals(1, action.images.size)
         assertEquals("unlabeled_controls", action.content["screen"]!!.jsonObject.s("imageReason"))
+    }
+
+    @Test fun screenshotCropPreservesDenseTextPixelsAndRecall() = runTest {
+        val d = toolDispatcher(FrameScreen(), visionEnabled = true, imageOps = JvmTestImageOps)
+        val r = d.execute(call("phone_screenshot", """{"x":0,"y":0,"w":480,"h":500}"""))
+        val image = JvmTestImageOps.decode(r.images.single())
+        assertEquals(589, image.w)
+        assertEquals(1352, image.h)
+        assertTrue("crop must keep the source pixels, not resample them", image.px.all { (it.toInt() and 0xff) == 40 })
+        assertEquals("589", r.content.s("width"))
+        assertEquals("1352", r.content.s("height"))
+        assertEquals("480", (r.content["crop"] as JsonObject).s("w"))
+        val id = r.content.s("screenshotId").toInt()
+        assertArrayEquals(r.images.single(), d.execute(call("view_past_screens", """{"ids":[$id]}""")).images.single())
+    }
+
+    @Test fun screenshotCropRejectsPartialAndOutOfBoundsRegions() = runTest {
+        val d = toolDispatcher(FrameScreen(), visionEnabled = true, imageOps = JvmTestImageOps)
+        val partial = d.execute(call("phone_screenshot", """{"x":0}""")).content
+        assertEquals("invalid_arguments", partial.s("error"))
+        val outside = d.execute(call("phone_screenshot", """{"x":900,"y":0,"w":200,"h":100}""")).content
+        assertEquals("invalid_region", outside.s("error"))
     }
 
     @Test fun screenshotToolIsRecallable() = runTest {

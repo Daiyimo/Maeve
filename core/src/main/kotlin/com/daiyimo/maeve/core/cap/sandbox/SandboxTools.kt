@@ -119,6 +119,7 @@ internal class SandboxTools(
         }
         val ready = status as? SandboxStatus.Ready ?: return fail("sandbox_unavailable",
             if (status is SandboxStatus.Unsupported) "These tools are not supported on this device. Do the task without them."
+            else if (status is SandboxStatus.Broken) "The Linux environment is broken (${status.reason}). Do not retry sandbox commands in this task; use the evidence already read, compute directly, or finish without these tools."
             else "The Linux environment is not ready yet (${describe(status)}). Try again in a minute, or do the task without these tools.",
             recoverable = status !is SandboxStatus.Unsupported)
         val ws = workspace()

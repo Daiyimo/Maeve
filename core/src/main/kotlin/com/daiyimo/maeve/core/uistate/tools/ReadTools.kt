@@ -9,6 +9,7 @@ import com.daiyimo.maeve.core.tool.ToolDef
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.tool.fail
+import com.daiyimo.maeve.core.tool.int
 import com.daiyimo.maeve.core.tool.okObj
 import com.daiyimo.maeve.core.uistate.ScreenFamily
 import com.daiyimo.maeve.core.uistate.ScreenSnapshot
@@ -63,15 +64,41 @@ internal class Screenshot(f: ScreenFamily) : ScreenTool(f, "screenshot") {
     override val label = "截图"
     override val risk = Risk.Read
     override fun usable(ctx: ToolContext): Boolean = ctx.config.visionEnabled
-    override val def by lazy { ToolDef(name, describe()) }
+    override val def by lazy { ToolDef(name, describe(), mapOf(
+        "x" to int("Crop left edge on the latest screen; provide x, y, w and h together.", 0, 999),
+        "y" to int("Crop top edge on the latest screen.", 0, 999),
+        "w" to int("Crop width on the latest screen.", 1, 999),
+        "h" to int("Crop height on the latest screen.", 1, 999),
+    )) }
 
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
         val device = ctx.screen
         if (device.isProtected()) return protectedScreenResult()
         val png = (if (ctx.session.visualFirst()) device.screenshotPngStable() else device.screenshotPng()) ?: return fail("screenshot_unavailable", Feedback["screenshot_unavailable"])
         val snap = ctx.lastSnapshot
-        val shotId = recallFrame(ctx, snap, png)
-        return ToolExecution(okObj { snap?.let { put("width", it.width); put("height", it.height) }; put("screenshotId", shotId) }, image = png, imageIds = listOf(shotId))
+        val x = a.int("x", 0, 999)
+        val y = a.int("y", 0, 999)
+        val w = a.int("w", 1, 999)
+        val h = a.int("h", 1, 999)
+        val cropArgs = listOf(x, y, w, h)
+        val image = if (cropArgs.all { it == null }) png else {
+            if (cropArgs.any { it == null }) return fail("invalid_arguments", "Provide x, y, w and h together, or omit all four for a full screenshot.")
+            val right = x!! + w!!
+            val bottom = y!! + h!!
+            if (right > 999 || bottom > 999) return fail("invalid_region", "The crop must stay inside the 0-999 screen bounds.")
+            val ops = ctx.config.imageOps ?: return fail("crop_unavailable", "This screen cannot be cropped here; use the full screenshot and state any unreadable symbols.")
+            try { ops.crop(png, intArrayOf(x, y, right, bottom)) }
+            catch (e: Exception) { return fail("crop_failed", "The screenshot region could not be cropped: ${e.message}") }
+        }
+        val size = ctx.config.imageOps?.size(image) ?: snap?.let { it.width to it.height }
+        val shotId = recallFrame(ctx, snap, image)
+        return ToolExecution(okObj {
+            size?.let { put("width", it.first); put("height", it.second) }
+            put("screenshotId", shotId)
+            if (cropArgs.all { it != null }) put("crop", buildJsonObject {
+                put("x", x!!); put("y", y!!); put("w", w!!); put("h", h!!)
+            })
+        }, image = image, imageIds = listOf(shotId))
     }
 
     /** 和读屏一样登记进回看:旧记录被裁掉之后,模型还能凭 screenshotId 找回这一张;返回这一张的编号。 */
