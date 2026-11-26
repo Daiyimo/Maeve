@@ -5,11 +5,10 @@
 > User-approved settings guide this project. Features and requirements are records that can be checked and corrected.
 
 ## Amoo 自动签到
-<!-- card id=amoo kind=setting category=workflow rev=2 updated=2026-11-26T01:41:23.856Z -->
+<!-- card id=amoo kind=setting category=workflow rev=3 updated=2026-11-26T01:45:36.216Z -->
 
 - **R1** StepX 账号页 → Amoo 成长计划页的自动签到实例每天 09:00（Asia/Shanghai）执行。
 - **R2** Amoo 自动签到优先使用已配置且可用的 API 视觉；API 视觉不可用时回退到 UI 签到。
-- **R3** 所有任务执行完成后，必须按逻辑批次创建中文 commit 信息并提交到本地 Git；不得执行 git push。
 
 
 ## Amoo 自动签到
