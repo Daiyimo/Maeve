@@ -3,14 +3,16 @@ package com.daiyimo.maeve.ui.viewer
 import com.daiyimo.maeve.ui.theme.MazeRing
 import com.daiyimo.maeve.R
 import androidx.compose.ui.res.stringResource
-import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -97,6 +99,9 @@ import kotlin.math.roundToInt
 /** 文本类和 Markdown 最多读这么多字节,再多只显示前面一部分。 */
 private const val TEXT_CAP = 1 shl 20
 
+/** HTML 不执行脚本，读取上限避免不可信大文件占满内存。 */
+private const val HTML_CAP = 2 shl 20
+
 /** 图片解码的最长边,超过就按比例缩小,免得大图占满内存。 */
 private const val IMAGE_MAX_SIDE = 4096
 
@@ -161,7 +166,17 @@ private fun LoadedView(uri: Uri, kind: ViewerKind, openElsewhere: () -> Unit) {
 }
 
 private fun load(context: Context, uri: Uri, kind: ViewerKind): Loaded = when (kind) {
-    ViewerKind.Html -> Loaded.Html(open(context, uri).use { it.readBytes() }.toString(Charsets.UTF_8))
+    ViewerKind.Html -> Loaded.Html(open(context, uri).use { input ->
+        val buf = ByteArray(HTML_CAP + 1)
+        var n = 0
+        while (n < buf.size) {
+            val r = input.read(buf, n, buf.size - n)
+            if (r < 0) break
+            n += r
+        }
+        check(n <= HTML_CAP) { "html_too_large" }
+        buf.copyOf(n).toString(Charsets.UTF_8)
+    })
     ViewerKind.Image -> Loaded.Picture(
         ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
             val longest = maxOf(info.size.width, info.size.height)
@@ -224,19 +239,33 @@ private fun PlainTextView(l: Loaded.Text) {
     }
 }
 
-/** 网页:一个新的 WebView,脚本打开、可双指缩放、按宽视口排版;点链接交给系统处理。 */
-@SuppressLint("SetJavaScriptEnabled")
+/** 网页:只渲染静态 HTML；链接交给系统处理，禁止脚本、文件与 ContentProvider 访问。 */
 @Composable
 private fun HtmlView(html: String) {
     AndroidView(
         factory = { ctx ->
             WebView(ctx).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
+                settings.javaScriptEnabled = false
+                settings.domStorageEnabled = false
+                settings.allowFileAccess = false
+                settings.allowContentAccess = false
+                settings.setSupportMultipleWindows(false)
                 settings.useWideViewPort = true
                 settings.loadWithOverviewMode = true
                 settings.builtInZoomControls = true
                 settings.displayZoomControls = false
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                        val uri = request.url
+                        if (uri.scheme == "http" || uri.scheme == "https") {
+                            runCatching {
+                                view.context.startActivity(Intent(Intent.ACTION_VIEW, uri)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                        }
+                        return true
+                    }
+                }
                 setBackgroundColor(android.graphics.Color.WHITE)
                 loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
             }
