@@ -28,7 +28,7 @@ class BootRestoreReceiver : BootRestoreHandler() {
                     Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED,
                     Intent.ACTION_TIMEZONE_CHANGED,
                     AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED ->
-                        TriggerRuntime.rearm(context)
+                        TriggerRuntime.rearmAfterSystemChange(context)
                     // 换了时区:跟随设备时区的当地时间计划立刻按新时区重算(内部会重新布置闹钟),显式钉了其他时区的不动
                     Intent.ACTION_TIMEZONE_CHANGED -> TriggerRuntime.syncTimeZone(context)
                     // 开机时局域网那种电脑连接开着就重新监听(USB 那种不跨重启:换了开机编号,这里已按关着算,上次的连接信息也清掉)

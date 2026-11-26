@@ -5,7 +5,6 @@ import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -15,7 +14,7 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
-import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import com.daiyimo.maeve.MaeveApp
@@ -43,13 +42,23 @@ import kotlinx.coroutines.launch
 object TriggerRuntime {
     private var recovered = false
     private var watching = false
+    private var lastReadinessFireAt = 0L
+    @Volatile private var armedAtMs: Long? = null
     private val restoreScope = CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
 
-    /** A ready edge rearms through AlarmManager, which owns background task dispatch. */
+    /** 亮屏或网络恢复时直接补跑到期任务，再重排下一次闹钟。 */
     @Synchronized fun watchReadiness(context: Context) {
         if (watching) return
         val app = context.applicationContext
-        fun changed() { restoreScope.launch { rearm(app) } }
+        fun changed() {
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastReadinessFireAt < 5_000L) return
+            lastReadinessFireAt = now
+            restoreScope.launch {
+                // 系统可能在 Doze 中推迟精确闹钟；亮屏/网络恢复时直接把到期任务跑掉，不再等第二次闹钟。
+                runCatching { fire(app) }.onFailure { Log.w("MaeveTrigger", "readiness dispatch failed", it) }
+            }
+        }
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) = changed()
         }
@@ -66,9 +75,7 @@ object TriggerRuntime {
     }
 
     fun blockedReason(context: Context): String? {
-        val power = context.getSystemService(PowerManager::class.java)
-        val keyguard = context.getSystemService(KeyguardManager::class.java)
-        if (!power.isInteractive || keyguard.isDeviceLocked || keyguard.isKeyguardLocked) return "locked"
+        // 锁屏由 TaskGate 处理（可无人值守解锁，否则等待解锁）；这里只拦截模型确实无法工作的离线状态。
         val network = context.getSystemService(ConnectivityManager::class.java)
         val online = network.getNetworkCapabilities(network.activeNetwork)
             ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
@@ -112,6 +119,12 @@ object TriggerRuntime {
     @Synchronized fun rearm(context: Context) {
         if (FeatureFlags.get(context).quitRequested()) arm(context, null)
         else engine(context, store(context)).rearm(System.currentTimeMillis())
+    }
+
+    /** 开机、改时间、精确闹钟权限变化后，系统可能已撤掉旧闹钟；强制重新登记。 */
+    @Synchronized fun rearmAfterSystemChange(context: Context) {
+        armedAtMs = null
+        rearm(context)
     }
 
     /** 完全退出时只撤系统闹钟,不改计划与待处理账本;下次打开 App 由 [rearm] 接着排。 */
@@ -368,11 +381,14 @@ object TriggerRuntime {
     }
 
     private fun arm(context: Context, atMs: Long?) {
+        val at = atMs?.takeUnless { FeatureFlags.get(context).quitRequested() }
+        // 网络/亮屏回调可能连续来多次；同一个到期时间不再取消重设，避免把系统即将投递的闹钟反复推后。
+        if (armedAtMs == at) return
+        armedAtMs = at
         val alarms = context.getSystemService(AlarmManager::class.java)
         val intent = Intent(context, TriggerAlarmReceiver::class.java).setAction(ACTION)
         val pending = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         alarms.cancel(pending)
-        val at = atMs?.takeUnless { FeatureFlags.get(context).quitRequested() }
         if (at != null) {
             if (canScheduleExactly(context)) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
             else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
