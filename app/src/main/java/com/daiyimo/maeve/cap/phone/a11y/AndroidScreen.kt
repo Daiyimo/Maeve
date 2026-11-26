@@ -198,8 +198,11 @@ class AndroidScreen(
 
     private suspend fun capture(register: Boolean): ScreenSnapshot = withContext(Dispatchers.IO) {
         if (!hasDisplay) return@withContext ScreenSnapshot(snapshotId(), null, emptyList(), screenWidth, screenHeight, hasWindow = false)
-        // 上一个动作过了一会儿才开到用户主屏上的:先挪回来再读(只在模型要读的这一屏上做,不在判效果的那一眼里做)
-        val late = if (register) lateSpill() else null
+        // 上一个动作过了一会儿才引发跨屏跳转:先挪回来再读(只在模型要读的这一屏上做)。
+        val late = if (register) {
+            restoreDisplacedTask(watch)
+            lateSpill()
+        } else null
         val r = read()
         val after = treeHash()
         val snap = NodeSnapshot(snapshotId(), r.entries)
@@ -1303,6 +1306,7 @@ class AndroidScreen(
      * 结果里报 opened(见 [takeSpill])。上一个动作过了一会儿才开到主屏上的,这一个动作不做,先说屏幕变了。
      */
     private suspend fun verified(relocatedTo: String? = null, action: suspend () -> Boolean): ActionResult {
+        if (restoreDisplacedTask(watch)) return ActionResult.Failed("ref_expired")
         lateSpill()?.let { return ActionResult.Failed("opened_elsewhere", hintLateSpill(it.opened)) }
         val beforeTree = if (visualFirst(foregroundTaskPackage())) null else treeHash()
         val beforeFrame = frameSignature()
@@ -1311,11 +1315,21 @@ class AndroidScreen(
             clock.mark()
             if (timedActionPhase("inputDispatch", action)) awaitChange(clock, beforeTree, beforeFrame) else null
         } ?: return ActionResult.Failed("dispatch_unknown")
+        val restored = restoreDisplacedTask(w)
         // 从挪回来的任务里又打开了一个的,一并算进来
         val profile = adoptFromAdopted(w)
         val spill = takeSpill(w)
-        return ok(changed = change.changed || spill?.opened?.pulledBack == true, relocatedTo = relocatedTo, spill = spill, inProfile = profile,
-            settled = true.takeIf { change.settled && profile == null && spill == null })
+        return ok(changed = change.changed || restored || spill?.opened?.pulledBack == true, relocatedTo = relocatedTo, spill = spill, inProfile = profile,
+            settled = true.takeIf { change.settled && !restored && profile == null && spill == null })
+    }
+
+    /** 应用跨包打开页面时，系统可能把原任务一起迁到目标应用已在用的虚拟屏。 */
+    private suspend fun restoreDisplacedTask(w: Watch?): Boolean {
+        if (w == null || w.agentTopBefore < 0 || handedOver() || SystemClock.uptimeMillis() > w.since + SPILL_WINDOW_MS) return false
+        if (!runCatching { shell.restoreDisplacedTask(w.agentTopBefore, displayId) }.getOrDefault(false)) return false
+        Log.i(TAG, "restored displaced task ${w.agentTopBefore} to display $displayId")
+        waitStable(SETTLE_CAP_MS)
+        return true
     }
 
     // ---------- 开到用户主屏上的 ----------

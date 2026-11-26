@@ -732,6 +732,13 @@ class ShellService(
         exec("am", "display", "move-stack", "$taskId", "$displayId") == 0
     }
 
+    override fun restoreDisplacedTask(taskId: Int, originalDisplayId: Int): Boolean = synchronized(launchLock) {
+        if (taskId < 0 || !ownDisplay(originalDisplayId) || tasksOn(originalDisplayId).isNotEmpty()) return false
+        val currentDisplay = displayOfTask(taskId)
+        if (currentDisplay == originalDisplayId || !ownDisplay(currentDisplay) || topTaskId(currentDisplay) != taskId) return false
+        moveTask(taskId, originalDisplayId)
+    }
+
     /**
      * 任务结束时留在主屏后面的任务:任务编号 → 键([AppsAfterTask.keyOf])。下次 Maeve 打开同一份 App 时把它挪回来([resumeKept])。
      * 只在内存里:助手重启后不认得,打开时照常走启动入口(系统多半也会把这个后台任务拉过来)。

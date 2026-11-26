@@ -113,6 +113,8 @@ interface IMaeveShell {
     Bundle finishDisplay(int displayId, in String[] keep, in String[] close) = 48;
     // 安全锁屏还停在通知/指纹页时,做一次定向给 SystemUI 的通用上滑;不含凭据。
     boolean revealDeviceCredential() = 49;
+    // 把动作前记录的任务从另一块 Maeve 屏送回原本已空的 Maeve 屏。
+    boolean restoreDisplacedTask(int taskId, int originalDisplayId) = 50;
 
     // 沿用早先定下的销毁事务号;AIDL 要求要么全部方法编号要么都不编号
     void destroy() = 16777114;
