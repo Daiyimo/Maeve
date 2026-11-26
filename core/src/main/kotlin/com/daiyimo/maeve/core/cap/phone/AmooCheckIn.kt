@@ -135,7 +135,7 @@ internal class AmooCheckIn(private val ctx: ToolContext, private val sub: SubAct
     })
 
     private companion object {
-        const val GROWTH_PACKAGE = "com.stepos.ailauncher"
+        const val GROWTH_PACKAGE = LinkPolicy.AMOO_GROWTH_PACKAGE
         const val CHECK_IN = "签到"
         const val SIGNED = "已签到"
     }

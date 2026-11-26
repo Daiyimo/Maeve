@@ -20,6 +20,33 @@ import com.daiyimo.maeve.settings.FeatureFlags
 
 @RunWith(AndroidJUnit4::class)
 class SettingsBridgeDeviceTest {
+    @Test fun appAccessVisualModeUsesLiveStoreAndPerAppOverride() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val app = context.applicationContext as MaeveApp
+        val settings = FlutterAppAccessSettings(app)
+        val before = app.appAccess.current()
+        val pkg = "com.tencent.jkchess"
+        try {
+            val snapshot = settings.snapshot()
+            assertEquals(before.visualFirstDefault, snapshot["visualFirstDefault"])
+            val overridden = settings.change("setVisualFirstOverride", pkg, false)
+            val appRow = (overridden["apps"] as List<*>).map { it as Map<*, *> }.single { it["packageName"] == pkg }
+            assertEquals(false, appRow["visualFirstOverride"])
+            assertEquals(false, appRow["visualFirst"])
+            assertFalse(app.appAccess.current().visualFirst(pkg))
+
+            settings.change("setVisualFirstDefault", null, true)
+            assertFalse(app.appAccess.current().visualFirst(pkg))
+            val cleared = settings.change("clearVisualFirstOverride", pkg, null)
+            val clearedRow = (cleared["apps"] as List<*>).map { it as Map<*, *> }.single { it["packageName"] == pkg }
+            assertEquals(null, clearedRow["visualFirstOverride"])
+            assertEquals(true, clearedRow["visualFirst"])
+        } finally {
+            app.appAccess.setVisualFirstDefault(before.visualFirstDefault)
+            app.appAccess.setVisualFirstOverride(pkg, before.visualFirstOverrides[pkg])
+        }
+    }
+
     @Test fun amooEntryReadsTheNativeBridgeWithoutStartingSetup() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         FlutterLaunchDeviceTest().prepareInteractiveDisplay()

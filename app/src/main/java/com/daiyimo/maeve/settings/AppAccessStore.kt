@@ -4,6 +4,7 @@ import com.daiyimo.maeve.core.access.AppAccessPolicy
 import com.daiyimo.maeve.core.access.AppAccessState
 import com.daiyimo.maeve.core.access.AppCategory
 import com.daiyimo.maeve.core.access.AppClassification
+import com.daiyimo.maeve.core.tool.LinkPolicy
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -35,6 +36,15 @@ class AppAccessStore(private val file: File) : AppAccessPolicy {
         it.copy(blocked = if (blocked) it.blocked + pkg else it.blocked - pkg, shareAllowed = it.shareAllowed - pkg)
     }
 
+    @Synchronized fun setVisualFirstDefault(enabled: Boolean) = update { it.copy(visualFirstDefault = enabled) }
+
+    @Synchronized fun setVisualFirstOverride(pkg: String, enabled: Boolean?) = update {
+        val key = pkg.trim().lowercase()
+        val overrides = it.visualFirstOverrides.toMutableMap()
+        if (enabled == null) overrides.remove(key) else overrides[key] = enabled
+        it.copy(visualFirstOverrides = overrides)
+    }
+
     @Synchronized fun allowAll() = update { it.copy(blocked = emptySet(), shareAllowed = emptySet()) }
     @Synchronized fun setShareAllowed(pkg: String, allowed: Boolean) = update {
         it.copy(shareAllowed = if (allowed) it.shareAllowed + pkg else it.shareAllowed - pkg)
@@ -48,7 +58,7 @@ class AppAccessStore(private val file: File) : AppAccessPolicy {
         it.copy(blocked = it.blocked + packages, shareAllowed = it.shareAllowed - packages)
     }
 
-    @Synchronized fun reset() = persist(AppAccessState(revision = current().revision + 1))
+    @Synchronized fun reset() = persist(defaultState().copy(revision = current().revision + 1))
 
     private fun update(change: (AppAccessState) -> AppAccessState) {
         check(current().available) { "Application access settings must be reset before editing." }
@@ -58,13 +68,17 @@ class AppAccessStore(private val file: File) : AppAccessPolicy {
     private fun persist(next: AppAccessState) {
         file.parentFile?.mkdirs()
         val json = buildJsonObject {
-            put("version", 1)
+            put("version", 2)
             put("blocked", JsonArray(next.blocked.sorted().map(::JsonPrimitive)))
             put("shareAllowed", JsonArray(next.shareAllowed.sorted().map(::JsonPrimitive)))
             putJsonObject("classifications") {
                 next.classifications.toSortedMap().forEach { (pkg, c) ->
                     putJsonObject(pkg) { put("category", c.category.name); put("reason", c.reason); put("manual", c.manual) }
                 }
+            }
+            put("visualFirstDefault", next.visualFirstDefault)
+            putJsonObject("visualFirstOverrides") {
+                next.visualFirstOverrides.toSortedMap().forEach { (pkg, enabled) -> put(pkg, enabled) }
             }
         }
         val tmp = File(file.parentFile, file.name + ".tmp")
@@ -74,17 +88,33 @@ class AppAccessStore(private val file: File) : AppAccessPolicy {
     }
 
     private fun load(): AppAccessState {
-        if (!file.exists()) return AppAccessState()
+        if (!file.exists()) return defaultState()
         return runCatching {
             val o = Json.parseToJsonElement(file.readText()).jsonObject
-            require(o["version"]?.jsonPrimitive?.int == 1)
+            require(o["version"]?.jsonPrimitive?.int in setOf(1, 2))
             fun strings(key: String) = o.getValue(key).jsonArray.map { it.jsonPrimitive.content }.toSet()
             val classes = o.getValue("classifications").jsonObject.mapValues { (_, value) ->
                 val c = value.jsonObject
                 AppClassification(AppCategory.valueOf(c.getValue("category").jsonPrimitive.content),
                     c.getValue("reason").jsonPrimitive.content, c.getValue("manual").jsonPrimitive.boolean)
             }
-            AppAccessState(strings("blocked"), strings("shareAllowed"), classes)
+            val visualDefault = if (o.containsKey("visualFirstDefault")) o.getValue("visualFirstDefault").jsonPrimitive.boolean else true
+            val storedVisualOverrides = o["visualFirstOverrides"]?.jsonObject.orEmpty().mapValues { (_, value) -> value.jsonPrimitive.boolean }
+                .mapKeys { (pkg, _) -> pkg.trim().lowercase() }
+            val visualOverrides = if (o["version"]?.jsonPrimitive?.int == 1) {
+                defaultVisualOverrides() + storedVisualOverrides
+            } else storedVisualOverrides
+            AppAccessState(strings("blocked"), strings("shareAllowed"), classes,
+                visualFirstDefault = visualDefault, visualFirstOverrides = visualOverrides)
         }.getOrElse { AppAccessState(available = false) }
+    }
+
+    private companion object {
+        fun defaultVisualOverrides() = mapOf(
+            LinkPolicy.STEPX_ACCOUNT_PACKAGE to false,
+            LinkPolicy.AMOO_GROWTH_PACKAGE to false,
+        )
+
+        fun defaultState() = AppAccessState(visualFirstOverrides = defaultVisualOverrides())
     }
 }

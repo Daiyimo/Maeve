@@ -36,6 +36,8 @@ data class AppClassification(
  * @property classifications 包名到分类的映射
  * @property available 应用访问设置本身是否可用（系统组件异常时为 false）
  * @property revision 单调递增版本号，用于判断设置是否发生过变化
+ * @property visualFirstDefault 所有应用默认是否使用截图/OCR/视觉模型读屏
+ * @property visualFirstOverrides 单应用读屏模式覆盖;true 视觉优先,false 使用无障碍树
  */
 data class AppAccessState(
     val blocked: Set<String> = emptySet(),
@@ -43,7 +45,16 @@ data class AppAccessState(
     val classifications: Map<String, AppClassification> = emptyMap(),
     val available: Boolean = true,
     val revision: Long = 0,
+    val visualFirstDefault: Boolean = true,
+    val visualFirstOverrides: Map<String, Boolean> = emptyMap(),
 ) {
+    /** 单应用设置优先于全局默认;未知包名保持原来的树读屏行为。 */
+    fun visualFirst(packageName: String?): Boolean {
+        val pkg = packageName?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return false
+        val override = visualFirstOverrides.entries.firstOrNull { it.key.trim().lowercase() == pkg }?.value
+        return override ?: visualFirstDefault
+    }
+
     /**
      * 针对 [packageName] 给出拒绝原因；可以放行时返回 null。
      * 包名未知但有黑名单时按「无法确认」处理：宁可多问一次，也不放过未知应用。
@@ -73,8 +84,8 @@ fun interface AppAccessPolicy {
     fun current(): AppAccessState
 
     companion object {
-        /** 不做任何限制的默认策略。 */
-        val ALLOW: AppAccessPolicy = AppAccessPolicy { AppAccessState() }
+        /** 不做任何限制的默认策略;通用端口/测试保持树读屏,产品 Store 默认视觉优先。 */
+        val ALLOW: AppAccessPolicy = AppAccessPolicy { AppAccessState(visualFirstDefault = false) }
     }
 }
 

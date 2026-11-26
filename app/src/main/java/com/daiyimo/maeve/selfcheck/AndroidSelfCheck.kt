@@ -13,6 +13,7 @@ import android.view.Display
 import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import com.daiyimo.maeve.BuildConfig
+import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.AppLanguage
 import com.daiyimo.maeve.i18n.tr
@@ -31,6 +32,7 @@ import com.daiyimo.maeve.cap.sandbox.SandboxState
 import com.daiyimo.maeve.cap.web.WebHost
 import com.daiyimo.maeve.cap.web.WebScreen
 import com.daiyimo.maeve.cap.web.WebTabPool
+import com.daiyimo.maeve.core.access.AppAccessPolicy
 import com.daiyimo.maeve.core.cap.sandbox.CommandResult
 import com.daiyimo.maeve.core.cap.sandbox.SandboxStatus
 import com.daiyimo.maeve.core.selfcheck.Advice
@@ -192,7 +194,8 @@ class AndroidSelfCheck(context: Context, private val status: () -> SystemStatus)
         val sh = shell ?: return CheckOutcome.fail("no helper", Advice.SetUpPhoneControl)
         val d = display ?: return CheckOutcome.fail("no display", Advice.DisplayFailed)
         val a11y = ScreenAccessibility.instance.value ?: return CheckOutcome.fail("accessibility service not connected", Advice.RestartAccessibility)
-        val s = screen ?: AndroidScreen(a11y, sh, LazyAgentDisplay(d.width, d.height) { d }.also { it.get() }).also { screen = it }
+        val access = (app as? MaeveApp)?.appAccess ?: AppAccessPolicy.ALLOW
+        val s = screen ?: AndroidScreen(a11y, sh, LazyAgentDisplay(d.width, d.height) { d }.also { it.get() }, appAccess = access).also { screen = it }
         val own = s.openOwnPage(SelfCheckTargetActivity.intent(app))
         if (own !is ActionResult.Ok || topPackage(sh, d.displayId) != app.packageName) {
             return CheckOutcome.fail("Maeve's test page did not open on Maeve's display (${reason(own)})", Advice.LaunchFailed)

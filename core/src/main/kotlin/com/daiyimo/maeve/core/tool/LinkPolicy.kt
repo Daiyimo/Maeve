@@ -10,6 +10,7 @@ object LinkPolicy {
     const val APP_DETAILS = "android.settings.APPLICATION_DETAILS_SETTINGS"
     const val STEPX_ACCOUNT = "com.stepos.account.ACCOUNTCENTER"
     const val STEPX_ACCOUNT_PACKAGE = "com.stepos.account"
+    const val AMOO_GROWTH_PACKAGE = "com.stepos.ailauncher"
 
     val SETTINGS_ACTIONS: Set<String> = setOf(
         "android.settings.SETTINGS", "android.settings.WIFI_SETTINGS", "android.settings.BLUETOOTH_SETTINGS",
