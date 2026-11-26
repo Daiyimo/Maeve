@@ -194,6 +194,14 @@ class ToolDispatcherFrameTest {
         assertArrayEquals(r.images.single(), d.execute(call("view_past_screens", """{"ids":[$id]}""")).images.single())
     }
 
+    @Test fun formulaScreenAutomaticallyAttachesEvidenceCrop() = runTest {
+        val s = FrameScreen(listOf("体验码#01", "数组 A=[166,220]", "规则 ASCII=(A-i^2)/3", "校验 sum=411"))
+        val d = toolDispatcher(s, visionEnabled = true, imageOps = JvmTestImageOps)
+        val r = d.execute(call("phone_back"))
+        assertEquals(2, r.images.size)
+        assertEquals("dense_text", (r.content["evidenceCrop"] as JsonObject).s("reason"))
+    }
+
     @Test fun screenshotCropRejectsPartialAndOutOfBoundsRegions() = runTest {
         val d = toolDispatcher(FrameScreen(), visionEnabled = true, imageOps = JvmTestImageOps)
         val partial = d.execute(call("phone_screenshot", """{"x":0}""")).content

@@ -244,7 +244,7 @@ class ToolDispatcher internal constructor(
             group == ToolGroups.SCREENS -> surfaces.current.takeIf { it in screenGroups }
             else -> group
         }?.takeIf(::expand)
-        val result = dispatchTool(tool, call, step, sub)
+        val result = DenseTextCrop.attach(dispatchTool(tool, call, step, sub), ctx.config.imageOps, shots, ctx.currentStep)
         return if (opening == null) result else result.with(content = JsonObject(result.content + (MORE_TOOLS to JsonPrimitive(Feedback.format("group_opened",
             "group" to opening, "examples" to registry.members(opening).filter { registry[it]?.entry(ctx) == null }.take(4).joinToString())))))
     }

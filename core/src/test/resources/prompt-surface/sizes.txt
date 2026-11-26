@@ -1,5 +1,5 @@
 system: 13865 bytes, 2 files
-capabilities: 37721 bytes, 11 files
+capabilities: 37859 bytes, 11 files
 tools: 46233 bytes, 84 files
 entries: 2471 bytes, 10 files
 feedback: 50179 bytes, 2 files
