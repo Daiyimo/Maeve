@@ -40,7 +40,8 @@ class RunMetricsTest {
         assertEquals(1_000L, m.startedAtMs)
         assertEquals(9_000L, m.totalMs)
         assertTrue(m.ended)
-        assertEquals(2_200L, m.firstFeedbackMs)
+        assertEquals(2_900L, m.firstFeedbackMs)
+        assertEquals(2_200L, m.firstModelArrivalMs)
         assertEquals(3, m.modelCalls)
         assertEquals(6_000L, m.inputTokens)
         assertEquals(290L, m.outputTokens)
@@ -126,14 +127,27 @@ class RunMetricsTest {
             reply(4_000, 1, "phone_observe", repliedAt = 3_000, role = "main"),
             RunEvent.TaskEnded(5_000, "succeeded", "x"),
         ))!!
-        assertEquals(2_000L, m.firstFeedbackMs)
+        assertEquals(3_000L, m.firstFeedbackMs)
+        assertEquals(2_000L, m.firstModelArrivalMs)
         assertEquals(2, m.modelCalls)
         assertEquals(1, m.lightCalls)
+    }
+
+    @Test fun serializedReplyTimeDoesNotHideWaitBeforeFeedback() {
+        val m = RunMetrics.of(listOf(
+            started(0),
+            reply(30_000, 1, "phone_list_apps", latency = 5_000, repliedAt = 5_000),
+            activity(30_000, 1, "observe", "phone_list_apps", "c1"),
+            RunEvent.TaskEnded(31_000, "succeeded", "x"),
+        ))!!
+        assertEquals(30_000L, m.firstFeedbackMs)
+        assertEquals(5_000L, m.firstModelArrivalMs)
     }
 
     @Test fun oldRecordsWithoutArrivalTimeUseTheReplyTime() {
         val m = RunMetrics.of(listOf(started(0), reply(2_500, 1, null), RunEvent.TaskEnded(2_500, "succeeded", "x")))!!
         assertEquals(2_500L, m.firstFeedbackMs)
+        assertEquals(2_500L, m.firstModelArrivalMs)
     }
 
     @Test fun replayedStepIsFeedbackWithoutAnyModelCall() {
@@ -144,6 +158,7 @@ class RunMetricsTest {
             RunEvent.TaskEnded(1_000, "succeeded", "x"),
         ))!!
         assertEquals(900L, m.firstFeedbackMs)
+        assertNull(m.firstModelArrivalMs)
         assertEquals(600L, m.actMs)
         assertEquals(0, m.modelCalls)
     }

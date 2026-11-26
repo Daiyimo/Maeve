@@ -9,10 +9,11 @@ import kotlinx.serialization.Serializable
  * 时间零点取 [RunEvent.TaskStarted],此前加载知识、连接设备等准备不算:
  *
  * - [totalMs]:到 [RunEvent.TaskEnded];未结束的运行算到最后一个事件。
- * - [firstFeedbackMs]:到用户第一次看见实际进展——最早一条真正执行的模型回复
- *   到达([RunEvent.ModelReply.repliedAtMs],旧记录退化为它的 [RunEvent.atMs]),
- *   或最早一条活动记录(回放不经过模型时,第一步完成)。被改派掉的轻量模型
- *   回复用户看不到,不计;回答分段显示时首段没有单独事件,也不计。
+ * - [firstFeedbackMs]:到用户第一次看见实际进展——最早一条真正执行的模型回复事件
+ *   ([RunEvent.ModelReply.atMs]),或最早一条活动记录(回放不经过模型时,第一步完成)。
+ *   被改派掉的轻量模型回复用户看不到,不计;回答分段显示时首段没有单独事件,也不计。
+ * - [firstModelArrivalMs]:主模型回复真正到达的时刻([RunEvent.ModelReply.repliedAtMs],
+ *   旧记录退化为 [RunEvent.atMs]);与 firstFeedbackMs 分开,避免串行前置判断掩盖用户等待。
  * - [modelCalls]:模型回复条数,即主循环请求次数;其中轻量模型回复计入
  *   [lightCalls],服务商没报用量的计入 [callsWithoutUsage]。[inputTokens]
  *   已经包含 [cachedTokens]。
@@ -39,6 +40,7 @@ data class RunMetrics(
     val totalMs: Long = 0,
     val ended: Boolean = false,
     val firstFeedbackMs: Long? = null,
+    val firstModelArrivalMs: Long? = null,
     val modelCalls: Int = 0,
     val lightCalls: Int = 0,
     val callsWithoutUsage: Int = 0,
@@ -95,6 +97,7 @@ data class RunMetrics(
         private var goalText = ""
         private var finished: RunEvent.TaskEnded? = null
         private var firstFeedbackAt: Long? = null
+        private var firstModelArrivalAt: Long? = null
         private var replyCount = 0
         private var lightReplyCount = 0
         private var noUsageReplies = 0
@@ -154,12 +157,18 @@ data class RunMetrics(
             retryTime += e.retryWaitMs.coerceAtLeast(0)
             if (!e.acted) return
             highestStep = maxOf(highestStep, e.step)
-            markFeedback(e.repliedAtMs ?: e.atMs)
+            markModelArrival(e.repliedAtMs ?: e.atMs)
+            markFeedback(e.atMs)
         }
 
         private fun onActivity(e: RunEvent.Activity) {
             activityKinds[CallKey(e.source, e.step, e.callId)] = e.kind
             markFeedback(e.atMs)
+        }
+
+        private fun markModelArrival(at: Long) {
+            val previous = firstModelArrivalAt
+            if (previous == null || at < previous) firstModelArrivalAt = at
         }
 
         private fun markFeedback(at: Long) {
@@ -204,6 +213,7 @@ data class RunMetrics(
                 totalMs = ((end?.atMs ?: latestAt) - start).coerceAtLeast(0),
                 ended = end != null,
                 firstFeedbackMs = firstFeedbackAt?.let { (it - start).coerceAtLeast(0) },
+                firstModelArrivalMs = firstModelArrivalAt?.let { (it - start).coerceAtLeast(0) },
                 modelCalls = replyCount,
                 lightCalls = lightReplyCount,
                 callsWithoutUsage = noUsageReplies,

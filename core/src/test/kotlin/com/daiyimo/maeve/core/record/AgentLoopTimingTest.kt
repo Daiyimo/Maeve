@@ -110,7 +110,8 @@ class AgentLoopTimingTest {
         val first = events.filterIsInstance<RunEvent.ModelReply>().first()
         assertEquals(1000L, first.repliedAtMs)
         assertTrue(first.atMs >= 1300)
-        assertEquals(1000L, RunMetrics.of(events)!!.firstFeedbackMs)
+        assertTrue(RunMetrics.of(events)!!.firstFeedbackMs!! >= 1_300L)
+        assertEquals(1000L, RunMetrics.of(events)!!.firstModelArrivalMs)
     }
 
     // 失败的结局带上类别
