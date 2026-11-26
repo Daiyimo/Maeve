@@ -281,6 +281,28 @@ void main() {
     expect(settings.wechatActions, isNot(contains('setBackground')));
   });
 
+  testWidgets('WeChat shows progress while Amoo forwards a background task', (
+    tester,
+  ) async {
+    final settings = FakeSettingsBridge();
+    settings.wechatStatus.addAll({
+      'bound': true,
+      'enabled': true,
+      'background': true,
+      'amooActive': true,
+      'amooProgress': '正在等待 Amoo 响应',
+    });
+    await mount(tester, settings);
+    await open(tester, const AmooWechatPage());
+    expect(find.text('正在等待 Amoo 响应'), findsOneWidget);
+
+    settings.wechatStatus['amooProgress'] = 'Maeve 正在手机上执行';
+    await tester.tap(find.byTooltip('刷新微信状态'));
+    await tester.pumpAndSettle();
+    expect(find.text('正在等待 Amoo 响应'), findsNothing);
+    expect(find.text('Maeve 正在手机上执行'), findsOneWidget);
+  });
+
   testWidgets(
     'Presets and custom protocols populate independent connection fields',
     (tester) async {

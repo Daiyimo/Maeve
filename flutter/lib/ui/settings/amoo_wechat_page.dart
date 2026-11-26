@@ -164,6 +164,7 @@ class _AmooWechatPageState extends State<AmooWechatPage>
             SettingsTile(
               icon: Icons.chat_bubble_outline_rounded,
               title: status == null ? '正在读取微信状态' : state,
+              subtitle: status?['amooProgress'] as String?,
             ),
             Padding(
               padding: const EdgeInsets.all(16),

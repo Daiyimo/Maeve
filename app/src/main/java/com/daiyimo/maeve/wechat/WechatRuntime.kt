@@ -110,11 +110,13 @@ class WechatRuntime(
     }
 
     /** 私有收件控制与 Amoo 可读执行策略一起更新；旧中转脚本始终停用。 */
-    fun syncControl() {
-        relay.syncControl()
+    @Synchronized fun syncControl(): Boolean {
+        val allowMaeve = FeatureFlags.get(context).bridgeAmoo()
+        relay.syncControl(allowMaeve)
         context.externalMediaDirs.firstOrNull()?.let { media ->
-            AmooExecutionPolicy.write(File(media, "amoo"), FeatureFlags.get(context).bridgeAmoo())
+            AmooExecutionPolicy.write(File(media, "amoo"), allowMaeve)
         }
+        return allowMaeve
     }
 
     @Synchronized fun sync(): Boolean {

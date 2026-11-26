@@ -19,13 +19,13 @@ class WechatAmooRelay(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    @Synchronized fun syncControl() {
+    @Synchronized fun syncControl(allowMaeve: Boolean = executionEnabled()) {
         val dir = root() ?: return
         val owner = store.account()?.ownerId
-        atomic(File(dir, "control.json"), buildJsonObject {
+        updateControl(File(dir, "control.json"), buildJsonObject {
             put("enabled", store.enabled() && owner != null)
             put("session", owner?.let { store.peer(it).threadId }.orEmpty())
-            put("allowMaeve", executionEnabled())
+            put("allowMaeve", allowMaeve)
         }.toString())
     }
 
@@ -93,6 +93,13 @@ class WechatAmooRelay(
         const val REPLY_TIMEOUT_MS = 16 * 60_000L
         internal fun requestId(peer: ChannelPeer, messageId: String): String = MessageDigest.getInstance("SHA-256")
             .digest("${peer.threadId}\n$messageId".toByteArray()).joinToString("") { "%02x".format(it) }
+
+        internal fun updateControl(file: File, text: String) {
+            val current = runCatching {
+                file.bufferedReader().use { reader -> text.all { reader.read() == it.code } && reader.read() == -1 }
+            }.getOrDefault(false)
+            if (!current) atomic(file, text)
+        }
 
         internal fun atomic(file: File, text: String) {
             check(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs()) { "无法创建中转目录" }

@@ -1,6 +1,7 @@
 package com.daiyimo.maeve.wechat
 
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
@@ -13,10 +14,15 @@ import com.daiyimo.maeve.R
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.settings.FeatureFlags
 import com.daiyimo.maeve.task.TaskService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /** 只保活微信长轮询；任务执行仍由 TaskService 管理。 */
 class WechatService : Service() {
     private val runtime get() = (application as MaeveApp).wechat
+    private var progress: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -34,21 +40,27 @@ class WechatService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (progress == null) progress = CoroutineScope(Dispatchers.Main.immediate).launch {
+            runtime.systemAmoo.stage.collect { stage ->
+                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(stage))
+            }
+        }
         return START_STICKY
     }
 
     override fun onDestroy() {
+        progress?.cancel()
         runtime.stop()
         super.onDestroy()
     }
 
-    private fun notification(): Notification {
+    private fun notification(stage: AmooRelayStage = runtime.systemAmoo.stage.value): Notification {
         val off = PendingIntent.getService(this, 1, Intent(this, WechatService::class.java).setAction(ACTION_TURN_OFF),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Builder(this, TaskService.CHANNEL_PROGRESS)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(tr(R.string.wechat_notif_title))
-            .setContentText(tr(R.string.wechat_notif_body))
+            .setContentText(tr(stage.label ?: R.string.wechat_notif_body))
             .setOngoing(true).setOnlyAlertOnce(true)
             .setContentIntent(TaskService.openApp(this))
             .addAction(Notification.Action.Builder(null, tr(R.string.wechat_turn_off), off).build())

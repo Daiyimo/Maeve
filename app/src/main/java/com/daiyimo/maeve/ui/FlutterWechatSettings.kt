@@ -3,6 +3,7 @@ package com.daiyimo.maeve.ui
 import android.graphics.Bitmap
 import android.graphics.Color
 import com.daiyimo.maeve.MaeveApp
+import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.settings.FeatureFlags
 import com.daiyimo.maeve.wechat.WechatConnectionState
 import kotlinx.coroutines.*
@@ -67,6 +68,7 @@ internal class FlutterWechatSettings(private val app: MaeveApp, private val scop
                 "background" to runtime.systemAmoo.background,
                 "backgroundReady" to runtime.systemAmoo.backgroundReady,
                 "amooActive" to runtime.systemAmoo.active,
+                "amooProgress" to runtime.systemAmoo.stage.value.label?.let { tr(it) },
                 "relayError" to (runtime.systemAmoo.lastError ?: if (runtime.waitingToDeliver)
                     "Amoo 已生成回复，正在等待微信确认投递。Maeve 会自动重试。" else null),
                 "loggingIn" to loginActive, "qrPng" to image, "error" to loginError,

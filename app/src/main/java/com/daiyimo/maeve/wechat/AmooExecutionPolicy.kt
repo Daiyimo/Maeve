@@ -6,11 +6,11 @@ import kotlinx.serialization.json.*
 /** Amoo 沙箱可读的权限，不包含微信凭据或消息。enabled 与 allowMaeve 属于不同开关。 */
 internal object AmooExecutionPolicy {
     @Synchronized fun write(root: File, allowMaeve: Boolean) {
-        WechatAmooRelay.atomic(File(root, "execution-policy.json"), buildJsonObject {
+        WechatAmooRelay.updateControl(File(root, "execution-policy.json"), buildJsonObject {
             put("allowMaeve", allowMaeve)
         }.toString())
         // 兼容已安装技能读取的旧路径，同时始终禁止旧 ClawPhone 中转器启动。
-        WechatAmooRelay.atomic(File(root, "wechat/control.json"), buildJsonObject {
+        WechatAmooRelay.updateControl(File(root, "wechat/control.json"), buildJsonObject {
             put("enabled", false); put("session", ""); put("allowMaeve", allowMaeve)
         }.toString())
     }

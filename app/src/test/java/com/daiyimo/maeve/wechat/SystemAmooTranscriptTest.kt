@@ -12,6 +12,19 @@ class SystemAmooTranscriptTest {
         assertEquals("停在登录页", parseWechatPhoneResult(id, """{"id":"$id","status":"failed","note":"停在登录页"}""")?.text)
         assertNull(parseWechatPhoneResult(id, """{"id":"other","status":"done","answer":"其他任务"}"""))
     }
+
+    @Test fun waitingForAUserStepIsDistinguishedFromExecuting() {
+        val receipt = parseWechatPhoneResult("wx-test", """{"id":"wx-test","status":"running","waiting_for":"confirmation"}""")
+        assertEquals(WechatPhoneResult(running = true, waitingForUser = true), receipt)
+        assertNull(selectWechatAmooReply(receipt, "系统 Amoo 已转交"))
+    }
+
+    @Test fun terminalPhoneReceiptCanBeDeliveredWhileTheChatIsStillSettling() {
+        val receipt = WechatPhoneResult(running = false, text = "本机执行结果")
+        assertEquals(WechatAmooReply("本机执行结果", settleChat = true), selectWechatAmooReply(receipt, null))
+        assertEquals(WechatAmooReply("本机执行结果"), selectWechatAmooReply(receipt, "已完成聊天"))
+        assertEquals(WechatAmooReply("普通聊天回复"), selectWechatAmooReply(null, "普通聊天回复"))
+    }
     @Test fun staleGeneratingMarkerDoesNotBlockTheCurrentReply() {
         val old = listOf("旧问题", "正在生成")
         assertEquals("本轮答案", SystemAmooTranscript.reply(old + listOf("本轮问题", "本轮答案", "复制"), old, "本轮问题", false))

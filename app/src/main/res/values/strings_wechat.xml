@@ -2,6 +2,11 @@
 <resources>
     <string name="wechat_notif_title">WeChat connected</string>
     <string name="wechat_notif_body">Forwarding WeChat private messages to Amoo</string>
+    <string name="wechat_amoo_opening">Opening Amoo for a WeChat message</string>
+    <string name="wechat_amoo_waiting">Waiting for Amoo to respond</string>
+    <string name="wechat_amoo_running">Maeve is working on the phone</string>
+    <string name="wechat_amoo_needs_phone">Maeve is waiting for you on the phone</string>
+    <string name="wechat_amoo_returning">Returning the result to WeChat</string>
     <string name="wechat_turn_off">Turn off</string>
     <string name="wechat_title">WeChat</string>
     <string name="wechat_settings_sub">Assign Maeve tasks in WeChat</string>
