@@ -183,7 +183,7 @@ class ActionEffects(
 
     companion object {
         private val PRE_DISPATCH_ERRORS = setOf(
-            "invalid_arguments", "screen_unavailable", "element_not_found", "element_ambiguous",
+            "invalid_arguments", "screen_unavailable", "element_not_found", "element_ambiguous", "visual_first",
             "vision_timeout", "vision_unavailable", "target_unresolved", "ref_expired",
             "tap_text_mismatch", "viewport_unavailable", "no_app_open", "invalid_gesture",
             "launch_failed", "app_not_found", "no_focus",

@@ -24,7 +24,6 @@ import kotlinx.serialization.json.contentOrNull
 import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.run.RunProvenance
 import com.daiyimo.maeve.core.run.RunOrigin
-
 /** 一次动作执行前的审批结论。 */
 sealed interface Decision {
     /** 不用判,或判过放行(含付款时用户的同意对上了)。 */
@@ -121,13 +120,14 @@ class ConfirmDecision(
         val typing = if (verb == Verb.TypeText) (args["text"] as? JsonPrimitive)?.contentOrNull else null
         val needsCheck = IrreversibleDetector.needsCheck(target, args)
         val amooAutonomous = provenance.origin == RunOrigin.Amoo && approvals.autonomous()
+        val autonomousNow = if (provenance.origin == RunOrigin.Amoo) amooAutonomous else autonomous
         val app = approvalScreen?.packageName
         val visualEvidence = if ((needsCheck || entering) && tools.interfaces.visualFirst(tools.declared(tool))) {
             val base = aim.aimed ?: aim.now()
             val pkg = base?.packageName
             if (base != null && pkg != null && base.elements.isEmpty()) {
                 tools.interfaces.visualEvidence(tools.declared(tool), base, reuseOcr = entering)
-                    ?: return Decision.Unresolved
+                    ?: if (autonomousNow) null else return Decision.Unresolved
             } else null
         } else null
         val riskScreen = if (amooAutonomous && approvalScreen != null && app != null &&
@@ -169,7 +169,7 @@ class ConfirmDecision(
         if (aim.bySight && !seen.isNullOrBlank() && fresh != null && fresh.packageName == snap?.packageName) return Decision.Clear
         // 自主执行:不可逆动作已在上面被拦下,走到这里说明这一下是安全的;自绘界面(canvas)上没有元素,
         // 裸坐标点击不该再被「目标确认不了」卡住,否则模型反复盲点、最后放弃。
-        if (if (provenance.origin == RunOrigin.Amoo) amooAutonomous else autonomous) return Decision.Clear
+        if (autonomousNow) return Decision.Clear
         return Decision.Unresolved
     }
 

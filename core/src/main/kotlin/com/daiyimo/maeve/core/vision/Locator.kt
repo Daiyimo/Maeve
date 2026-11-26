@@ -218,7 +218,7 @@ class Locator(private val screen: ScreenPort, private val vision: VisionService,
     private suspend fun capture(visualOverride: Boolean? = null): Shot {
         val visual = visualOverride ?: visualFirst()
         if (screen.isProtected()) return Shot.Missing("protected_content", m.protectedScreen)
-        val png = screen.screenshotPng()
+        val png = if (visual) screen.screenshotPngStable() else screen.screenshotPng()
         if (png == null) {
             if (visual) {
                 val empty = screen.currentPackage() == null

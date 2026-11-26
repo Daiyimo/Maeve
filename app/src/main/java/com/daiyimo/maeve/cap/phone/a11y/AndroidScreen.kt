@@ -259,7 +259,9 @@ class AndroidScreen(
         }
     }
 
-    override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long): VisualFrame =
+    override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long): VisualFrame = captureStable(withImage, true, timeoutMs)
+    override suspend fun screenshotPngStable(): ByteArray? = captureStable(true, false, SETTLE_CAP_MS).png
+    private suspend fun captureStable(withImage: Boolean, withOcr: Boolean, timeoutMs: Long): VisualFrame =
         withTimeoutOrNull(timeoutMs.coerceAtLeast(1)) {
             withContext(Dispatchers.IO) {
                 val target = display.current ?: return@withContext VisualFrame(null, null)
@@ -273,11 +275,9 @@ class AndroidScreen(
                     val png = if (!withImage) null else ByteArrayOutputStream().use { output ->
                         bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, output); output.toByteArray()
                     }
-                    val text = try {
+                    val text = if (!withOcr) null else try {
                         PhoneOcr.readFresh(bitmap.copy(android.graphics.Bitmap.Config.ARGB_8888, false))
-                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {
-                        null
-                    }
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
                     if (display.current !== target || foregroundTaskPackage() != pkg ||
                         frameBlack() == true || FrameMath.pageChanged(before, frameSignature())) VisualFrame(null, null)
                     else VisualFrame(png, text, bitmap.width, bitmap.height)
@@ -286,7 +286,6 @@ class AndroidScreen(
                 }
             }
         } ?: VisualFrame(null, null)
-
     override suspend fun frameGrid(): FrameGrid? = withContext(Dispatchers.IO) {
         val bmp = display.current?.frames?.value ?: return@withContext null
         runCatching { FrameGrid.sample(bmp.width, bmp.height, bmp::getPixel) }.getOrNull()

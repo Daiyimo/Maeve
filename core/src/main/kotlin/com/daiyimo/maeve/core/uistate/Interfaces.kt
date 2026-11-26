@@ -333,7 +333,9 @@ internal class Interfaces(
         }
         val observeTool = session.surface.family.tool("observe")
         val shownText = wanted.trim().take(80)
-        val match = DescribedTarget.match(fresh.elements, ElementQuery(wanted, roleFilter, field = verb == Verb.TypeText))
+        val field = verb == Verb.TypeText
+        val vision = session.locator
+        val match = DescribedTarget.match(fresh.elements, ElementQuery(wanted, roleFilter, field = field))
         if (match !is DescribedMatch.Found) session.clearPrimed()
         return when (match) {
             is DescribedMatch.Found -> Described.Resolved(
@@ -348,22 +350,20 @@ internal class Interfaces(
                 "text" to shownText, "count" to match.candidates.size, "snapshot" to fresh.snapshotId,
                 "candidates" to match.candidates.take(DESCRIBED_LISTED).joinToString("; ") { candidateLine(it, verb, fresh.elements) })))
             DescribedMatch.None -> {
-                // 点击、打字偏偏这一屏的树缺了一块或不能用:树里对不上,不等于屏上没有,改看图找(输入框或要点的那个)
-                val vision = session.locator
-                if (verb in SIGHT_FALLBACK_VERBS && session.treeBlind(fresh) && (vision != null || session.visualFirst())) resolveBySight(session, vision, args, shownText, roleFilter, verb == Verb.TypeText)
+                // 视觉优先页没有树节点;element 只按 OCR 原文定位,未命中立即失败,不再花 5 秒问第二遍视觉模型。
+                if (session.visualFirst()) resolveVisualFirstTarget(session, args, shownText, roleFilter, field)
+                else if (verb in SIGHT_FALLBACK_VERBS && session.treeBlind(fresh) && vision != null) resolveBySight(session, vision, args, shownText, roleFilter, field)
                 else Described.Failed(fail("element_not_found", Feedback.format("described.none",
                     "text" to shownText, "role" to (roleFilter?.let { " with role $it" } ?: ""), "observe" to observeTool)))
             }
         }
     }
-
     /** 「不止一个」提示里候选元素的一行:编号、角色、名字、位置,再捎上邻居提示与可不可动。 */
     private fun candidateLine(e: UiElement, verb: Verb, all: List<UiElement>): String {
         val near = DescribedTarget.neighbour(e, all)?.let { " near 「${it.take(30)}」" }.orEmpty()
         val off = if (DescribedTarget.usable(e, verb == Verb.TypeText)) "" else " (not actionable)"
         return "${e.ref} ${e.role} 「${e.name.take(40)}」 at ${e.bounds}$near$off"
     }
-
     /**
      * 看图找按描述指的目标(输入框或要点的那个;与 find_visually 同一套核对:红框复看,没佐证的标出来),参数换成找到的 @vN:
      * 往后与模型自己传 @vN 一样:先核对画面没变,那一下点击要过不可逆判定,打字后按屏上文字核对点没点中。

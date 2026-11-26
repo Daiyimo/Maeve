@@ -248,7 +248,7 @@ internal class ScreenSession(
         val initial = visualSnapshot(packageName)
         val available = initial.hasWindow && !initial.protected
         val frame = if (available && withOcr) screenAttempt { screen.visualFrame(withPng, waitMs) } else null
-        val image = if (available && withPng && !withOcr) screenAttempt { screen.screenshotPng() } else frame?.png
+        val image = if (available && withPng && !withOcr) screenAttempt { screen.screenshotPngStable() } else frame?.png
         val currentPackage = screenAttempt { screen.currentPackage() }
         val stillCurrent = available && currentPackage == packageName && screenAttempt { screen.isProtected() } == false
         val snap = if (stillCurrent) initial.copy(width = frame?.width ?: initial.width, height = frame?.height ?: initial.height)
@@ -329,13 +329,13 @@ internal class ScreenSession(
             put("treeQuality", "unusable")
             put("elements", JsonArray(emptyList()))
             if (lastOcr.isNotEmpty()) put("visibleText", VisibleText.json(lastOcr))
-            put("hint", "Visual-first mode: the UI tree was intentionally not read. Use the latest screenshot/visibleText, or call phone_observe for a fresh visual read. Do not request element refs.")
+            put("hint", "Visual-first mode: the UI tree was intentionally not read. Use the latest screenshot/visibleText, or call phone_observe for a fresh visual read. Do not request element refs or pass element; use x+y with target.")
         })
     }
 
     private fun visualHint(visionAvailable: Boolean, png: ByteArray?, ocr: List<VisibleTextLine>?, protected: Boolean): String = when {
         protected -> HINT_PROTECTED
-        visionAvailable && png != null -> "Visual-first read: the UI tree was intentionally not read. Use the screenshot and visibleText, and tap by coordinates; do not call list_elements or rely on refs."
+        visionAvailable && png != null -> "Visual-first read: the UI tree was intentionally not read. Use the screenshot and visibleText, and tap by coordinates; do not pass element, call list_elements, or rely on refs."
         visionAvailable && !ocr.isNullOrEmpty() -> "Visual-first OCR-only read: the screenshot is unavailable. Use visibleText centers and coordinates; the UI tree was intentionally not read, so do not call list_elements."
         visionAvailable -> "Visual-first read: neither a screenshot nor recognized text is available yet. The UI tree was intentionally not read; wait and retry observe or phone_screenshot, but do not call list_elements."
         !ocr.isNullOrEmpty() -> "OCR-only read: no vision model is configured. Use visibleText centers and coordinates; the UI tree was intentionally not read, so do not call list_elements."
@@ -874,8 +874,8 @@ internal class ScreenSession(
         if (visual) {
             if (foregroundPackage() != fresh.packageName) return null
         } else if (fresh.packageName != lastSnapshot?.packageName) return null
-        val (lines, _) = readScreenText(fresh, 2_500)
-        val readable = lines.orEmpty().filter { it.confidence == null || it.confidence >= .6f }
+        val readable = if (visual && lastOcr.isNotEmpty()) lastOcr.filter { it.confidence == null || it.confidence >= .6f } else
+            readScreenText(fresh, 2_500).first.orEmpty().filter { it.confidence == null || it.confidence >= .6f }
         val match = matchTarget(label, readable) ?: readable.singleOrNull { line ->
             blind && line.bounds.size == 4 && x in line.bounds[0]..line.bounds[2] && y in line.bounds[1]..line.bounds[3]
         } ?: return null

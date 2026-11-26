@@ -92,7 +92,6 @@ class AppAccessScreenPort(
     private fun rejectIfBlocked(packageName: String) {
         appAccess.current().denial(packageName)?.let { throw it }
     }
-
     // ---------- 读屏 ----------
     override suspend fun snapshot() = observed { inner.snapshot() }
     override suspend fun peek() = observed { inner.peek() }
@@ -100,6 +99,7 @@ class AppAccessScreenPort(
     override suspend fun viewport() = betweenChecks { inner.viewport() }
     override suspend fun waitVisualStable(timeoutMs: Long) = betweenChecks { inner.waitVisualStable(timeoutMs) }
     override suspend fun screenshotPng() = betweenChecks { inner.screenshotPng() }
+    override suspend fun screenshotPngStable() = betweenChecks { inner.screenshotPngStable() }
     override suspend fun readVisibleText() = betweenChecks { inner.readVisibleText() }
     override suspend fun visualFrame(withImage: Boolean, timeoutMs: Long) =
         betweenChecks { inner.visualFrame(withImage, timeoutMs) }

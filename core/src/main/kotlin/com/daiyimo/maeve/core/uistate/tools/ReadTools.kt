@@ -68,7 +68,7 @@ internal class Screenshot(f: ScreenFamily) : ScreenTool(f, "screenshot") {
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
         val device = ctx.screen
         if (device.isProtected()) return protectedScreenResult()
-        val png = device.screenshotPng() ?: return fail("screenshot_unavailable", Feedback["screenshot_unavailable"])
+        val png = (if (ctx.session.visualFirst()) device.screenshotPngStable() else device.screenshotPng()) ?: return fail("screenshot_unavailable", Feedback["screenshot_unavailable"])
         val snap = ctx.lastSnapshot
         val shotId = recallFrame(ctx, snap, png)
         return ToolExecution(okObj { snap?.let { put("width", it.width); put("height", it.height) }; put("screenshotId", shotId) }, image = png, imageIds = listOf(shotId))

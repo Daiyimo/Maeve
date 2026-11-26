@@ -49,7 +49,7 @@ private val OCR_SHORTCUT_SPATIAL = listOf(
     "top", "bottom", "left", "right", "upper", "lower", "icon", "图标",
     "上方", "下方", "左上", "右上", "左下", "右下", "中间", "中央",
 )
-private val OCR_SHORTCUT_ROLE = Regex("(按钮|入口|菜单项|控件|button|tab|menuitem|control)$")
+private val OCR_SHORTCUT_ROLE = Regex("(按钮|入口|菜单项|控件|页签|标签|button|tab|menuitem|control)$")
 
 /** OCR 只能证明文字存在,不能证明空间位置或图标身份;有这些约束时仍问视觉模型。 */
 private fun ocrShortcutSafe(target: String, label: String): Boolean {
@@ -76,10 +76,10 @@ internal class Describe(f: ScreenFamily) : ScreenTool(f, "describe") {
         ), listOf("task", "reason")) }
 
     override fun usable(ctx: ToolContext) = visionConfigured(ctx)
-
     override suspend fun execute(a: Args, ctx: ToolContext): ToolExecution {
         val ask = a.str("task", max = 1000)!!
         a.str("reason", max = 300)
+        if (ctx.config.visionEnabled && ctx.session.visualFirst()) return fail("visual_first", "The main model already receives the current screenshot in visual-first mode. Use that image directly; phone_describe is not needed.")
         val caption = try {
             ctx.locator!!.describe(ask)
         } catch (e: ScreenUnavailable) {

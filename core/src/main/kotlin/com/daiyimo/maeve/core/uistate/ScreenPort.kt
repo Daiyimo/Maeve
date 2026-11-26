@@ -233,9 +233,9 @@ interface ScreenPort {
     suspend fun viewport(): Pair<Int, Int>? = null
     /** 只看画面是否连续安静;默认退回端口的普通稳定等待。 */
     suspend fun waitVisualStable(timeoutMs: Long): Boolean = waitStable(timeoutMs)
-
     /** 当前画面的 PNG;取不到(受防截屏保护、没有画面)时为 null。 */
     suspend fun screenshotPng(): ByteArray?
+    suspend fun screenshotPngStable(): ByteArray? = screenshotPng()
     /** 可选的本机文字识别;null 表示当前画面不可读或端口没有 OCR。 */
     suspend fun readVisibleText(): List<VisibleTextLine>? = null
 
