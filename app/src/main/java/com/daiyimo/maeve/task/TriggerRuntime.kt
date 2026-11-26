@@ -42,7 +42,8 @@ import kotlinx.coroutines.launch
 object TriggerRuntime {
     private var recovered = false
     private var watching = false
-    private var lastReadinessFireAt = 0L
+    private var lastUserPresentFireAt = 0L
+    private var lastNetworkFireAt = 0L
     @Volatile private var armedAtMs: Long? = null
     private val restoreScope = CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
 
@@ -50,17 +51,18 @@ object TriggerRuntime {
     @Synchronized fun watchReadiness(context: Context) {
         if (watching) return
         val app = context.applicationContext
-        fun changed() {
+        fun changed(userPresent: Boolean) {
             val now = SystemClock.elapsedRealtime()
-            if (now - lastReadinessFireAt < 5_000L) return
-            lastReadinessFireAt = now
+            val last = if (userPresent) lastUserPresentFireAt else lastNetworkFireAt
+            if (now - last < 5_000L) return
+            if (userPresent) lastUserPresentFireAt = now else lastNetworkFireAt = now
             restoreScope.launch {
                 // 系统可能在 Doze 中推迟精确闹钟；亮屏/网络恢复时直接把到期任务跑掉，不再等第二次闹钟。
                 runCatching { fire(app) }.onFailure { Log.w("MaeveTrigger", "readiness dispatch failed", it) }
             }
         }
         val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) = changed()
+            override fun onReceive(context: Context, intent: Intent) = changed(userPresent = true)
         }
         val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
         if (Build.VERSION.SDK_INT >= 33) app.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
@@ -68,7 +70,7 @@ object TriggerRuntime {
         val network = app.getSystemService(ConnectivityManager::class.java)
         runCatching { network.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) changed()
+                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) changed(userPresent = false)
             }
         }) }.onFailure { Log.w("MaeveTrigger", "network readiness observer unavailable", it) }
         watching = true
@@ -191,6 +193,7 @@ object TriggerRuntime {
         val window = store.windows().firstOrNull { it.key == key && it.state == TriggerWindowState.Dispatched } ?: return
         if (outcome is ConditionOutcome.Error) {
             store.mark(window.key, TriggerWindowState.Failed, outcome.reason)
+            engine(context, store).rearm(System.currentTimeMillis())
             return
         }
         outcome as ConditionOutcome.Checked
@@ -199,6 +202,7 @@ object TriggerRuntime {
         store.upsert(trigger.copy(lastConditionMet = outcome.met))
         if (!outcome.met || wasMet) {
             store.mark(window.key, TriggerWindowState.Skipped, if (wasMet) "condition_unchanged" else "condition_not_met")
+            engine(context, store).rearm(System.currentTimeMillis())
             return
         }
         val blocked = blockedReason(context, trigger)
@@ -209,7 +213,10 @@ object TriggerRuntime {
         }
         store.mark(window.key, TriggerWindowState.ActionDispatched)
         try { TaskService.startTrigger(context, goal, threadId, key, null) }
-        catch (e: Exception) { reportStartFailure(context, store, trigger, window.key, e, resetCondition = true) }
+        catch (e: Exception) {
+            reportStartFailure(context, store, trigger, window.key, e, resetCondition = true)
+            engine(context, store).rearm(System.currentTimeMillis())
+        }
     }
 
     /** 升级或首次启动只播种一次；之后用户删除、暂停或改时间都不会被恢复。 */
@@ -384,14 +391,20 @@ object TriggerRuntime {
         val at = atMs?.takeUnless { FeatureFlags.get(context).quitRequested() }
         // 网络/亮屏回调可能连续来多次；同一个到期时间不再取消重设，避免把系统即将投递的闹钟反复推后。
         if (armedAtMs == at) return
-        armedAtMs = at
+        val previous = armedAtMs
         val alarms = context.getSystemService(AlarmManager::class.java)
         val intent = Intent(context, TriggerAlarmReceiver::class.java).setAction(ACTION)
         val pending = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        alarms.cancel(pending)
-        if (at != null) {
-            if (canScheduleExactly(context)) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
-            else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+        try {
+            alarms.cancel(pending)
+            if (at != null) {
+                if (canScheduleExactly(context)) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+                else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
+            }
+            armedAtMs = at
+        } catch (e: Exception) {
+            armedAtMs = previous
+            throw e
         }
     }
 

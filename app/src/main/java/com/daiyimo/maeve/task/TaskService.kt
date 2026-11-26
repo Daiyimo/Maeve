@@ -534,9 +534,10 @@ class TaskService : Service() {
     private fun onRunEnded(run: TaskRun, store: ConversationStore) {
         // 收尾路径里有文件 IO(经 begin → newConversation)等可能抛异常的操作;
         // run 已在 center.onEnded 前结束,这里兜底记日志,不让异常把服务收尾流程打断。
+        var started: List<TaskRun> = emptyList()
         try {
         val wasShown = taskState.shownRun === run
-        val started = center.onEnded(run)
+        started = center.onEnded(run)
         // 收尾时替接班的拿着的屏幕锁交给第一个放出来的;没有放出来的(排着的被取消、同一对话还有任务在跑)就放开
         run.wakeHandoff?.let { lease ->
             run.wakeHandoff = null
@@ -570,23 +571,46 @@ class TaskService : Service() {
             return
         }
         // 先换成「正在准备」:放出来的任务可能正好接过前台,通知不能还写着排队
-        started.forEach { it.dequeue() }
+        started.forEach { task -> runCatching { task.dequeue() }.onFailure { Log.w(TAG, "could not dequeue ${task.key}", it) } }
         if (foreground === run) center.running().firstOrNull()?.let { next ->
             foreground = next
-            startInForeground(next, progressNotification(next, next.state.value))
+            runCatching { startInForeground(next, progressNotification(next, next.state.value)) }
+                .onFailure { Log.w(TAG, "could not hand over foreground service", it) }
         }
         synchronized(notifyLock) { getSystemService(NotificationManager::class.java).cancel(id(ID_PROGRESS, run)) }
-        started.forEach {
-            launch(it, store)
-            refreshNotifications(it)
+        started.forEach { task ->
+            try { launch(task, store) }
+            catch (e: Exception) { failUnstartedRuns(listOf(task), store, e) }
+            runCatching { refreshNotifications(task) }.onFailure { Log.w(TAG, "could not refresh ${task.key}", it) }
         }
         center.queued().forEachIndexed { i, q -> q.queue(i + 1) }
         center.running().forEach(::refreshNotifications)
         ready.forEach { (threadId, message) -> begin(message, threadId) }
         } catch (e: Exception) {
             // 收尾里的文件 IO 等抛异常时记日志,不让它打断服务收尾(run 已移出 running)
+            failUnstartedRuns(started.filter { it.job == null }, store, e)
             Log.w(TAG, "onRunEnded failed for ${run.key}", e)
         }
+    }
+
+    /** 队列任务已移入 running 但尚未启动时，明确结算并释放后续队列，避免永久卡住。 */
+    private fun failUnstartedRuns(initial: List<TaskRun>, store: ConversationStore, error: Throwable) {
+        val pending = java.util.ArrayDeque(initial)
+        while (pending.isNotEmpty()) {
+            val run = pending.removeFirst()
+            if (run.job != null) continue
+            val reason = error.message ?: error::class.simpleName ?: "unknown"
+            val end = TaskState.Failed(tr(R.string.task_error, reason), FailKind.Environment)
+            run.end(end)
+            run.mcpExternalId?.let { (application as com.daiyimo.maeve.MaeveApp).remoteTasks.ended(it, end, run.steers.value) }
+            run.triggerWindowKey?.let { window ->
+                runCatching { TriggerRuntime.finishTask(applicationContext, window, false, end.reason) }
+                    .onFailure { Log.w(TAG, "could not finish unstarted trigger", it) }
+            }
+            recordTurn(store, run.conversationId, run.goal, end, run.runId.value)
+            pending.addAll(center.onEnded(run))
+        }
+        publishRuns()
     }
 
     /** 排队中的任务被取消(已移出队伍):没开跑,直接记为已取消。 */
