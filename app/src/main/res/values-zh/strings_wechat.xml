@@ -7,6 +7,7 @@
     <string name="wechat_amoo_running">Maeve 正在手机上执行</string>
     <string name="wechat_amoo_needs_phone">Maeve 正在等待你在手机上确认或处理</string>
     <string name="wechat_amoo_returning">正在向微信回传结果</string>
+    <string name="wechat_amoo_settling">本机结果已就绪，正在等待 Amoo 结束对话</string>
     <string name="wechat_turn_off">关闭</string>
     <string name="wechat_title">微信</string>
     <string name="wechat_settings_sub">在微信里给 Maeve 安排任务</string>

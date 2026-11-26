@@ -1,8 +1,11 @@
 package com.daiyimo.maeve.wechat
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.*
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class SystemAmooTranscriptTest {
     @Test fun phoneResultUsesOnlyTheIdAssignedToThisWechatMessage() {
         val id = wechatPhoneRequestId("abc".repeat(24))
@@ -24,6 +27,25 @@ class SystemAmooTranscriptTest {
         assertEquals(WechatAmooReply("本机执行结果", settleChat = true), selectWechatAmooReply(receipt, null))
         assertEquals(WechatAmooReply("本机执行结果"), selectWechatAmooReply(receipt, "已完成聊天"))
         assertEquals(WechatAmooReply("普通聊天回复"), selectWechatAmooReply(null, "普通聊天回复"))
+    }
+
+    @Test fun completedPhoneTaskCanLeaveAmooGeneratingBeyondTheOldGracePeriod() = runTest {
+        val old = listOf("旧回答", "复制")
+        val question = "本轮请求"
+        val chat = old + listOf(question, "正在生成")
+        val settled = awaitAmooChatCompletion(now = { testScheduler.currentTime }, timeoutMs = 10_000) {
+            val busy = testScheduler.currentTime < 5_000
+            val current = if (busy) chat else old + listOf(question, "本轮答案", "复制")
+            SystemAmooTranscript.reply(current, old, question, busy)
+        }
+        assertTrue(settled)
+        assertEquals(5_750L, testScheduler.currentTime)
+    }
+
+    @Test fun missingOrUnfinishedTranscriptDoesNotAuthorizeKeepingTheChatTask() = runTest {
+        val settled = awaitAmooChatCompletion(now = { testScheduler.currentTime }, timeoutMs = 3_000) { null }
+        assertFalse(settled)
+        assertEquals(3_000L, testScheduler.currentTime)
     }
     @Test fun staleGeneratingMarkerDoesNotBlockTheCurrentReply() {
         val old = listOf("旧问题", "正在生成")
