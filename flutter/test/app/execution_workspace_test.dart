@@ -813,13 +813,13 @@ void main() {
     final downloaded = await tester.runAsync(() async {
       bridge.png = Completer<Uint8List>();
       downloadImage.onPressed!();
+      downloadImage.onPressed!(); // 第二次触发发生在导出尚未完成时。
       return bridge.png.future.timeout(const Duration(seconds: 15));
     });
-    expect(downloaded, isNotNull);
     expect(bridge.downloads, 1);
-    expect(downloaded!.take(8), [137, 80, 78, 71, 13, 10, 26, 10]);
+    expect(downloaded?.take(8), [137, 80, 78, 71, 13, 10, 26, 10]);
     await tester.pumpAndSettle();
-    expect(find.text('图片已保存到下载/Maeve'), findsOneWidget);
+    expect(find.text('图片已保存到相册'), findsOneWidget);
   });
 
   testWidgets('A report opened from run history can edit its share title', (

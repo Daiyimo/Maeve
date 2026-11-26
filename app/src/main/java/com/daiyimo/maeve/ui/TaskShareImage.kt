@@ -28,21 +28,22 @@ internal object TaskShareImage {
         return try {
             withContext(Dispatchers.IO) {
                 val resolver = activity.contentResolver
+                val savedAt = System.currentTimeMillis()
                 val values = ContentValues().apply {
-                    put(MediaStore.Downloads.DISPLAY_NAME, "Maeve-${System.currentTimeMillis()}.png")
-                    put(MediaStore.Downloads.MIME_TYPE, "image/png")
-                    put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/Maeve/")
-                    put(MediaStore.Downloads.IS_PENDING, 1)
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, "Maeve-$savedAt.png")
+                    put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/Maeve/")
+                    put(MediaStore.Images.ImageColumns.DATE_TAKEN, savedAt)
+                    put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
-                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-                    ?: return@withContext false
+                val images = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                val uri = resolver.insert(images, values) ?: return@withContext false
                 var completed = false
                 try {
                     val output = resolver.openOutputStream(uri) ?: return@withContext false
                     output.use { it.write(image) }
-                    resolver.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
-                    completed = true
-                    true
+                    completed = resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null) == 1
+                    completed
                 } finally {
                     if (!completed) resolver.delete(uri, null, null)
                 }
@@ -55,8 +56,7 @@ internal object TaskShareImage {
     }
 
     suspend fun open(activity: Activity?, png: ByteArray?): Boolean {
-        if (activity == null || !validPng(png)) return false
-        val image = requireNotNull(png)
+        if (activity == null || png == null || !validPng(png)) return false
 
         var file: File? = null
         var shared = false

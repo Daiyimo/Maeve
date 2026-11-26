@@ -126,8 +126,8 @@ class _TaskSharePageState extends State<TaskSharePage> {
   final _poster = GlobalKey();
   ({TaskReport report, Uint8List? frame, int selectedIndex})? _snapshot;
   final Map<int, Future<Uint8List?>> _frames = {};
-  bool _exporting = false;
-  String? _exportLabel;
+  bool? _exportingDownload;
+  bool get _exporting => _exportingDownload != null;
   String? _editedTitle;
   String? _error;
   String? _success;
@@ -240,8 +240,7 @@ class _TaskSharePageState extends State<TaskSharePage> {
   Future<void> _export({required bool download}) async {
     if (_exporting) return;
     setState(() {
-      _exporting = true;
-      _exportLabel = download ? '正在下载…' : '正在分享…';
+      _exportingDownload = download;
       _error = null;
       _success = null;
     });
@@ -273,7 +272,7 @@ class _TaskSharePageState extends State<TaskSharePage> {
         );
       }
       if (mounted) {
-        setState(() => _success = download ? '图片已保存到下载/Maeve' : '图片已交给系统分享');
+        setState(() => _success = download ? '图片已保存到相册' : '图片已交给系统分享');
       }
     } catch (error) {
       debugPrint('Task share image: ${error.runtimeType}');
@@ -282,10 +281,7 @@ class _TaskSharePageState extends State<TaskSharePage> {
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _exporting = false;
-          _exportLabel = null;
-        });
+        setState(() => _exportingDownload = null);
       }
     }
   }
@@ -408,7 +404,7 @@ class _TaskSharePageState extends State<TaskSharePage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: MaeveGlassTextButton(
-                          label: _exportLabel ?? '下载',
+                          label: _exportingDownload == true ? '正在下载…' : '下载',
                           icon: Icons.download_outlined,
                           compact: true,
                           enabled: !_exporting,
@@ -419,7 +415,7 @@ class _TaskSharePageState extends State<TaskSharePage> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: MaeveGlassTextButton(
-                          label: _exportLabel ?? '分享',
+                          label: _exportingDownload == false ? '正在分享…' : '分享',
                           icon: Icons.ios_share_outlined,
                           prominent: true,
                           compact: true,
