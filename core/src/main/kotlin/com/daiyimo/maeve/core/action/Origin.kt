@@ -24,7 +24,7 @@ data class OriginPolicy(
     val gatedByCaller: Boolean,
     /** 读只在所属的那次调用里计数,最多提醒、不叫停任务(页面脚本里的轮询读)。 */
     val isolatedReads: Boolean,
-    /** 不为 null 时:动作一旦开始就做完并记下(不可取消),最多等这么久。 */
+    /** 不为 null 时:动作最多执行这么久；超时按未确认处理，不自动重发。 */
     val actionCapMs: Long?,
     val frames: Frames,
     /** 记路线要的目标元素与前后锚点(开着回放时)。 */

@@ -46,7 +46,7 @@ internal object WebScriptTool : WebTool {
         val timeoutMs = (a.int("timeoutMs", 1000, SCRIPT_MAX_TIMEOUT_MS) ?: SCRIPT_DEFAULT_TIMEOUT_MS).toLong()
         val calls = ScriptCalls(ctx.callId, ctx.sub, ctx.tools)
         val run = try {
-            // 时限由端口管:只算脚本自己的时间,动作(含等锁屏关卡)在做时不走表,也不会被掐在半中间
+            // 脚本时限由端口管；单步动作另有执行上限，超时按未确认处理，不自动重发。
             ctx.web!!.runScript(code, timeoutMs, calls)
         } catch (e: WebTabCrashed) {
             ScriptRun.Failed("tab_crashed", FAILURE_MESSAGES.getValue("tab_crashed"))

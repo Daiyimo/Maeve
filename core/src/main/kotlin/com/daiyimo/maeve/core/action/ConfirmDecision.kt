@@ -109,6 +109,7 @@ class ConfirmDecision(
         val approvalScreen = if (writing && provenance.origin == RunOrigin.Amoo) aim.now() else null
         if (SelfAppGuard.targetsSelf(selfPackage, writing, args, approvalScreen)) return Decision.OwnApp
         if (AppTiers.tierOf(approvalScreen?.packageName) == AppTier.Deny) return Decision.DeniedApp
+        if (writing && systemPermissionPage(approvalScreen?.packageName)) return Decision.SystemPermission
         if (visualSecret || (entering && approvalScreen?.elements?.any { it.secret } == true)) return Decision.SecretPage
         val everyWrite = writing && !approvals.autonomous() &&
             AppTiers.tierOf((approvalScreen ?: aim.aimed)?.packageName) == AppTier.ConfirmEveryWrite
@@ -153,6 +154,7 @@ class ConfirmDecision(
         // 复看此刻的一屏:硬规则按它再判一次(动作之前换到了受保护的 App 或页面)
         if (SelfAppGuard.targetsSelf(selfPackage, writing, args, fresh)) return Decision.OwnApp
         if (writing && AppTiers.tierOf(fresh?.packageName) == AppTier.Deny) return Decision.DeniedApp
+        if (writing && systemPermissionPage(fresh?.packageName)) return Decision.SystemPermission
         if (visualSecret || (entering && fresh?.elements?.any { it.secret } == true)) return Decision.SecretPage
         // 复看确认过的所见文字(@vN 才有):读屏里没有文字时(自绘界面)付款的同意按它核对象
         val seen = aim.seen
@@ -275,6 +277,29 @@ class ConfirmDecision(
                 null, clickable = false, editable = false, scrollable = false)
         },
     )
+
+    /** 真正投递前再核一次硬规则；等待审批、节奏或锁屏期间前台可能已经变化。 */
+    suspend fun hardRuleRefusal(tool: String, args: JsonObject): String? {
+        val verb = tools.verb(tool)
+        if (!tools.writesScreen(tool) || verb in setOf(Verb.LaunchApp, Verb.OpenLink, Verb.ShareText)) return null
+        val aim = tools.interfaces.actionTarget(tools.declared(tool), args)
+        val screen = aim.now() ?: return null
+        if (SelfAppGuard.targetsSelf(selfPackage, true, args, screen)) return Refusals.OWN_APP
+        if (AppTiers.tierOf(screen.packageName) == AppTier.Deny) return Refusals.APP_DENIED
+        if (systemPermissionPage(screen.packageName)) return Refusals.SYSTEM_PERMISSION
+        val entering = verb == Verb.TypeText || verb == Verb.ClearText
+        val targetText = listOfNotNull(
+            aim.seen,
+            (args["target"] as? JsonPrimitive)?.contentOrNull,
+            (args["element"] as? JsonPrimitive)?.contentOrNull,
+        ).joinToString("\n")
+        if (ScreenDiagnosis.secretText(listOf(targetText)) != null ||
+            tools.interfaces.cachedSecretPage(tools.declared(tool)) ||
+            (entering && (tools.interfaces.secretPage(tools.declared(tool)) || screen.elements.any { it.secret }))) {
+            return Refusals.SECRET_PAGE
+        }
+        return null
+    }
 
     /** 执行了一个写操作:同意按它的规则作废或保留。 */
     fun noteWrite(tool: String) {

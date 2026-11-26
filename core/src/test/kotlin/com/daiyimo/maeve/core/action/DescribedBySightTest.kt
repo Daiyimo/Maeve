@@ -280,4 +280,27 @@ class DescribedBySightTest {
         assertTrue(vision.requests.isEmpty())
         assertTrue(screen.taps.isEmpty())
     }
+
+    @Test fun permissionDialogAppearingAfterOldSnapshotIsNotTapped() = runTest {
+        val taps = mutableListOf<String>()
+        val screen = object : ScreenPort by FakeScreen() {
+            override val appAccess = AppAccessPolicy { AppAccessState(visualFirstDefault = false) }
+            override suspend fun currentPackage() = "com.android.permissioncontroller"
+            override suspend fun snapshot() = ScreenSnapshot("s1", "com.chat",
+                listOf(button("@e1", "允许", y = 500)), 1080, 2400)
+            override suspend fun peek() = ScreenSnapshot("p1", "com.android.permissioncontroller",
+                listOf(button("@e1", "允许", y = 500)), 1080, 2400)
+            override suspend fun tapRef(ref: String, snapshotId: String): ActionResult {
+                taps += "$ref@$snapshotId"
+                return ActionResult.Ok(changed = true)
+            }
+        }
+        val tools = toolDispatcher(screen)
+        tools.execute(Part.ToolCall("o", "phone_observe", "{}"))
+        val executor = ActionExecutor(tools, OperationGuards(), ConfirmationGate(), gate = {}, recorder = ActionRecorder(sink))
+        val o = executor.run(Part.ToolCall("c", "phone_tap", """{"ref":"@e1","snapshotId":"s1"}"""), Origin.Model(1))
+        assertTrue("$o", o is ActionOutcome.Refused)
+        assertEquals("system_permission", (o as ActionOutcome.Refused).code)
+        assertTrue(taps.isEmpty())
+    }
 }

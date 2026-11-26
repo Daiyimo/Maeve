@@ -4,6 +4,8 @@ import com.daiyimo.maeve.core.tool.execute
 import com.daiyimo.maeve.core.guard.OperationGuards
 import com.daiyimo.maeve.core.guard.GuardVerdict
 import com.daiyimo.maeve.core.action.ActionExecutor
+import com.daiyimo.maeve.core.action.ActionEffectStore
+import com.daiyimo.maeve.core.action.ActionEffects
 import com.daiyimo.maeve.core.action.ActionOutcome
 import com.daiyimo.maeve.core.action.ActionRecorder
 import com.daiyimo.maeve.core.action.Origin
@@ -20,7 +22,6 @@ import com.daiyimo.maeve.core.tool.ScriptWebPort
 import com.daiyimo.maeve.core.tool.ToolDispatcher
 import com.daiyimo.maeve.core.cap.web.FakeWebPort
 import com.daiyimo.maeve.core.cap.web.ScriptRun
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -33,6 +34,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.file.Files
 import com.daiyimo.maeve.core.testing.WEB_SCRIPT_TOOL
 import com.daiyimo.maeve.core.assembly.toolDispatcher
 
@@ -94,23 +96,33 @@ class ScriptStepsTest {
         assertEquals(1, events.filterIsInstance<RunEvent.ToolResult>().size) // 没执行的不记成工具结果
     }
 
-    @Test fun startedActionFinishesAndIsRecordedEvenIfCancelled() = runTest {
-        val web = shop()
-        val slow = object : com.daiyimo.maeve.core.cap.web.WebPort by web {
-            override suspend fun tapRef(ref: String, snapshotId: String): com.daiyimo.maeve.core.uistate.ActionResult {
-                kotlinx.coroutines.delay(5_000); return web.tapRef(ref, snapshotId)
+    @Test fun scriptActionCapIsEnforcedAndEffectIsUnknown() = runTest {
+        val dir = Files.createTempDirectory("maeve-script-timeout").toFile()
+        try {
+            val web = shop()
+            val slow = object : com.daiyimo.maeve.core.cap.web.WebPort by web {
+                override suspend fun tapRef(ref: String, snapshotId: String): com.daiyimo.maeve.core.uistate.ActionResult {
+                    kotlinx.coroutines.delay(60_000)
+                    return web.tapRef(ref, snapshotId)
+                }
             }
+            val d = toolDispatcher(FakeScreen(), web = slow)
+            d.execute(Part.ToolCall("n", "web_navigate", """{"url":"https://shop.example.com/"}"""))
+            val store = ActionEffectStore(dir)
+            val executor = ActionExecutor(d, OperationGuards(), com.daiyimo.maeve.core.gate.ConfirmationGate(),
+                gate = { gates++ }, recorder = ActionRecorder(sink), effects = ActionEffects(store, "c", "run"))
+            val sid = executor.run(Part.ToolCall("c1.1", "web_list_elements", "{}"), Origin.Script(4))
+                .execution().content["snapshotId"]!!.jsonPrimitive.content
+            val error = runCatching {
+                executor.run(Part.ToolCall("c1.2", "web_tap", """{"ref":"@e1","snapshotId":"$sid"}"""), Origin.Script(4))
+            }.exceptionOrNull()
+            assertTrue("$error", error is ActionEffects.Blocked)
+            assertEquals("effect_unknown", (error as ActionEffects.Blocked).code)
+            assertEquals(ActionEffectStore.State.Unknown, store.receipts("c").single().state)
+            assertFalse(web.calls.any { it.startsWith("tapRef @e1") })
+        } finally {
+            dir.deleteRecursively()
         }
-        val d = toolDispatcher(FakeScreen(), web = slow)
-        d.execute(Part.ToolCall("n", "web_navigate", """{"url":"https://shop.example.com/"}"""))
-        val s = steps(d)
-        val sid = s.run(Part.ToolCall("c1.1", "web_list_elements", "{}")).content["snapshotId"]!!.jsonPrimitive.content
-        val job = launch { s.run(Part.ToolCall("c1.2", "web_tap", """{"ref":"@e1","snapshotId":"$sid"}""")) }
-        kotlinx.coroutines.delay(1_000)
-        job.cancel() // 脚本超时、任务取消:动作已经开始
-        job.join()
-        assertTrue(web.calls.any { it.startsWith("tapRef @e1") })
-        assertEquals(listOf("c1.1", "c1.2"), events.filterIsInstance<RunEvent.ToolResult>().map { it.callId })
     }
 
     @Test fun repeatedScriptActionsAreNotStoppedByTheirSignature() = runTest {

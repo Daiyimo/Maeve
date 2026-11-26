@@ -24,7 +24,6 @@ import com.daiyimo.maeve.core.tool.ToolDispatcher
 import com.daiyimo.maeve.core.tool.ToolExecution
 import com.daiyimo.maeve.core.tool.Verb
 import com.daiyimo.maeve.core.tool.parseArgs
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -207,6 +206,15 @@ class ActionExecutor(
             return refusedCall(call, args, origin, before, followUp, "approval_screen_changed")
         }
         if (writing) {
+            decision.hardRuleRefusal(call.name, args)?.let { code ->
+                return when (code) {
+                    Refusals.OWN_APP -> ownApp(call, args, origin, before, followUp)
+                    Refusals.APP_DENIED -> deniedApp(call, args, origin, before, followUp)
+                    Refusals.SECRET_PAGE -> secretPage(call, args, origin, before, followUp)
+                    Refusals.SYSTEM_PERMISSION -> systemPermission(call, args, origin, before, followUp)
+                    else -> refusedCall(call, args, origin, before, followUp, code)
+                }
+            }
             guards.noteAction()
             decision.noteWrite(call.name)
         }
@@ -218,7 +226,7 @@ class ActionExecutor(
         site?.let(tools::outwardStart)
         var done = false
         try {
-            val outcome = if (policy.actionCapMs == null) ran(step) else withContext(NonCancellable) { ran(step) }
+            val outcome = ran(step)
             if (screenPaced && outcome is ActionOutcome.Ran) tools.afterWrite(call.name, outcome.exec.content)
             if (site != null && outcome is ActionOutcome.Ran && outcome.exec.content["ok"] != JsonPrimitive(false)) {
                 done = true
