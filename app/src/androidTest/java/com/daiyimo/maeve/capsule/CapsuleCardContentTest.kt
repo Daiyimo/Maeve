@@ -389,6 +389,55 @@ class CapsuleCardContentTest {
         compose.onNodeWithTag("capsule-card").assertHeightIsEqualTo(420.dp)
     }
 
+    @Test fun landscapePreviewKeepsPortraitCanvasAndZoomInteraction() {
+        val frame = Bitmap.createBitmap(2400, 1080, Bitmap.Config.ARGB_8888).apply {
+            android.graphics.Canvas(this).apply {
+                drawColor(android.graphics.Color.RED)
+                drawRect(1600f, 0f, 2400f, 1080f, android.graphics.Paint().apply { color = android.graphics.Color.BLUE })
+            }
+        }
+        val card = detail(run("a", TaskState.Running(3, "n", "tap"), CapsuleKind.Running, "在搜"))
+        var zoomed by mutableStateOf(false)
+        val togglingActions = object : CardActions by actions {
+            override fun zoom(on: Boolean) {
+                calls += "zoom $on"
+                zoomed = on
+            }
+        }
+        compose.setContent {
+            MaeveTheme(dark = false, reduceMotion = true) {
+                CapsuleCard(card, frame, zoomed, togglingActions, { null }, height = 420.dp)
+            }
+        }
+
+        fun assertPortraitCanvas(tag: String) {
+            val size = compose.onNodeWithTag(tag).fetchSemanticsNode().size
+            assertTrue("$tag stays portrait: ${size.width} x ${size.height}", size.height > size.width)
+            assertEquals("$tag uses the main preview canvas", 1200f / 2670f, size.width.toFloat() / size.height, 0.01f)
+            assertTrue("$tag stays inside the card", size.height <= with(compose.density) { 420.dp.roundToPx() } + 1)
+        }
+
+        fun assertLandscapeContained(tag: String) {
+            val image = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
+            val inset = with(compose.density) { 4.dp.roundToPx() }
+            val middle = image.height / 2
+            assertEquals("$tag shows the left edge", android.graphics.Color.RED, image.getPixel(inset, middle))
+            assertEquals("$tag shows the right edge", android.graphics.Color.BLUE, image.getPixel(image.width - inset - 1, middle))
+        }
+
+        // 横帧不再把小画面压成横条;小画面和放大画面都是固定竖屏画布,画面本身 contain 完整显示。
+        assertPortraitCanvas("capsule-screen")
+        assertLandscapeContained("capsule-screen")
+        assertEquals(with(compose.density) { 104.dp.roundToPx() }, compose.onNodeWithTag("capsule-screen").fetchSemanticsNode().size.width)
+        compose.onNodeWithTag("capsule-screen").performClick()
+        compose.runOnIdle { assertEquals(listOf("zoom true"), calls) }
+        assertPortraitCanvas("capsule-zoom")
+        assertLandscapeContained("capsule-zoom")
+        compose.onNodeWithTag("capsule-zoom").performClick()
+        compose.runOnIdle { assertEquals(listOf("zoom true", "zoom false"), calls) }
+        assertPortraitCanvas("capsule-screen")
+    }
+
     @Test fun longTaskCardIsCappedAndScrollsWhileButtonsStay() {
         val frame = Bitmap.createBitmap(36, 80, Bitmap.Config.ARGB_8888)
         val body = (1..60).joinToString("\n") { "第 $it 行" }

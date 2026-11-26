@@ -120,6 +120,8 @@ private val BubbleShape = RoundedCornerShape(12.dp, 12.dp, 4.dp, 12.dp)
 private val CardWidth = 322.dp
 private val ScreenWidth = 104.dp
 private val ZoomWidth = 300.dp
+// 和主屏 TaskPreview 的 StepxNeoFrame 一致:固定竖屏 viewport,横屏帧在里面 contain。
+private const val ScreenCanvasRatio = 1200f / 2670f
 private val Title = TextStyle(fontSize = 14.5.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold)
 private val Sub = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
 private val Body = TextStyle(fontSize = 13.5.sp, lineHeight = 20.sp)
@@ -208,8 +210,8 @@ data class CardInputUi(val open: Boolean = false, val draft: String = "", val sc
  * 任务卡片([CardView.Detail])左边是虚拟屏小画面 [preview](只有那件事有画面时才有),右边按状态放步骤、要你做的事和按钮;
  * 对话卡片([CardView.Chat])是那个对话的来回 [thread](还在读时为 null,中间先空着)。
  * 对话卡片固定 [height] 高(看得见的卡片,不含阴影边;不给时按屏幕高度的 [CardDocking.SHARE]),不随内容变;任务卡片
- * 按内容高、最多 [height],下面不留空——任务卡片中间那段取小画面(按画面的宽高比)和右边文字里高的那个。干活中的步骤最多和小画面
- * 一样高(还没有画面时按主屏的宽高比算,画面来了卡片不跳),步骤再多卡片也不变高:最新一步在底下,旧的往上滚着看;别的内容放不下就在里面滚,
+ * 按内容高、最多 [height],下面不留空——任务卡片中间那段取小画面(固定竖屏画布)和右边文字里高的那个。干活中的步骤最多和小画面
+ * 一样高(还没有画面时也按这个竖屏画布算,画面来了卡片不跳),步骤再多卡片也不变高:最新一步在底下,旧的往上滚着看;别的内容放不下就在里面滚,
  * 要你点的按钮和输入框固定在下面。高度变了(换卡片、内容变了)时一下到位:浮层窗口跟着内容大小,只变一次,不逐帧改窗口;上边不动(见 [CardDocking])。
  * 展开、收起的动效在外面套([OverlayMotion])。
  * [onHandle] 报标题栏在窗口里的位置(像素):按着它能拖卡片。
@@ -242,7 +244,7 @@ fun CapsuleCard(
     }
     Box(modifier.padding(CapsuleShadowRoom)) {
         when {
-            zoomed && preview != null -> Zoomed(preview, actions)
+            zoomed && preview != null -> Zoomed(preview, actions, h)
             card is CardView.Detail -> Detail(card, preview, actions, elapsed, h, handle, inputRow)
             card is CardView.Chat -> ChatCard(card, thread, actions, elapsed, h, handle, inputRow)
             card is CardView.Kept -> KeptCard(card, preview, actions, h, handle)
@@ -572,9 +574,8 @@ private fun Detail(
     CardFrame(height, fixed = false) {
         Header(ScreenCopy.plain(r.run.goal).ifBlank { "Maeve" }, sub, actions, handle)
         val screen = preview?.takeIf { CapsuleCards.showsScreen(card.content) }
-        // 步骤那段的高度上限 = 小画面的高;还没有画面时按主屏的宽高比算同样的高,画面来了不跳
-        val config = LocalConfiguration.current
-        val stepsMax = ScreenWidth / (screen?.let(::ratio) ?: ratio(config.screenWidthDp, config.screenHeightDp))
+        // 步骤那段的高度上限 = 固定竖屏小画面的高;有没有画面、横屏还是竖屏都不跳
+        val stepsMax = ScreenWidth / ScreenCanvasRatio
         Row(Modifier.padding(top = 10.dp).weight(1f, fill = false).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (screen != null) MiniScreen(screen) { actions.zoom(true) }
             Column(Modifier.weight(1f)) {
@@ -897,7 +898,7 @@ private fun MiniScreen(frame: Bitmap, onZoom: () -> Unit) {
     val c = MaeveTheme.colors
     val image = remember(frame) { frame.asImageBitmap() }
     Box(
-        Modifier.testTag("capsule-screen").width(ScreenWidth).aspectRatio(ratio(frame)).clip(ScreenShape)
+        Modifier.testTag("capsule-screen").width(ScreenWidth).aspectRatio(ScreenCanvasRatio).clip(ScreenShape)
             .border(1.dp, c.glassEdge, ScreenShape).background(c.surface)
             .clickable(role = Role.Image, onClickLabel = CardCopy.SCREEN, onClick = onZoom)
             .semantics { contentDescription = CardCopy.SCREEN },
@@ -913,11 +914,11 @@ private fun MiniScreen(frame: Bitmap, onZoom: () -> Unit) {
 
 /** 放大的画面:点一下回到卡片。 */
 @Composable
-private fun Zoomed(frame: Bitmap, actions: CardActions) {
+private fun Zoomed(frame: Bitmap, actions: CardActions, maxHeight: Dp) {
     val image = remember(frame) { frame.asImageBitmap() }
-    val width = minOf(ZoomWidth, (LocalConfiguration.current.screenWidthDp * 0.72f).dp)
+    val width = minOf(ZoomWidth, (LocalConfiguration.current.screenWidthDp * 0.72f).dp, maxHeight * ScreenCanvasRatio)
     Box(
-        Modifier.testTag("capsule-zoom").width(width).aspectRatio(ratio(frame)).glass(MaeveTheme.colors, CardShape, need = false)
+        Modifier.testTag("capsule-zoom").width(width).aspectRatio(ScreenCanvasRatio).glass(MaeveTheme.colors, CardShape, need = false)
             .clickable(role = Role.Image, onClickLabel = CardCopy.ZOOMED) { actions.zoom(false) }
             .semantics { contentDescription = CardCopy.ZOOMED },
     ) {
