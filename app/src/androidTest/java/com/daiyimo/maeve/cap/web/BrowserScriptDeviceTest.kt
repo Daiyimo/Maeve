@@ -217,9 +217,9 @@ class BrowserScriptDeviceTest {
         assertEquals(r.toString(), "invalid_arguments", r.s("error"))
         assertEquals("null", page("window.pwned === undefined ? null : 1"))
     }
-
     @Test
     fun tapsTwiceAndTypesThroughMaeveActions() = runBlocking<Unit> {
+        page("document.getElementById('f').remove()")
         val r = script("""
             const find = (s, name) => s.elements.find(e => e.name === name);
             let s = await maeve.snapshot();

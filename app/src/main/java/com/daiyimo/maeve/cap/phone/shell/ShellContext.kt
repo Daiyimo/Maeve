@@ -25,14 +25,13 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.ApplicationInfo
 import android.os.Build
+import androidx.annotation.RequiresApi
 
-/**
- * shell 进程里的系统上下文。系统服务会核对「包名属于调用方 uid」,
- * 所以对外报 com.android.shell(uid 2000),而不是 Maeve 自己的包名。
- */
+/** 系统服务会核对包名与 UID，因此 shell 助手使用 com.android.shell（UID 2000）。 */
 internal class ShellContext private constructor(base: Context) : ContextWrapper(base) {
     override fun getPackageName(): String = SHELL_PACKAGE
     override fun getOpPackageName(): String = SHELL_PACKAGE
+    @RequiresApi(Build.VERSION_CODES.S)
     override fun getAttributionSource(): AttributionSource =
         AttributionSource.Builder(SHELL_UID).setPackageName(SHELL_PACKAGE).build()
     override fun getApplicationContext(): Context = this

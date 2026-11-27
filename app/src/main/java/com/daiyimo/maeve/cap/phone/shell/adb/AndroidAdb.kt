@@ -23,9 +23,9 @@ object AndroidAdb {
     private const val KEYSTORE = "AndroidKeyStore"
     private const val WRAP_ALIAS = "maeve_adb_key_wrap"
     private const val TAG = "MaeveAdbKey"
-
     // 设备端导出时不带 context;TLS 1.3 里空 context 与不带 context 的结果相同(RFC 8446 §7.5)
     val exporter = KeyingMaterialExporter { socket, label, length ->
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) throw SSLException("Wireless pairing requires Android 12")
         SSLSockets.exportKeyingMaterial(socket, label, ByteArray(0), length) ?: throw SSLException("keying material export failed")
     }
 

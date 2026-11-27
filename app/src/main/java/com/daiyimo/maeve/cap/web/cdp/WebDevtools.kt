@@ -96,7 +96,7 @@ class WebDevtools(private val relay: ((String) -> ParcelFileDescriptor?)?) {
 
     // ---------- 标签生命周期(WebTab 调) ----------
 
-    /** 标签刚建好(主线程):打开调试接口,换成桌面版的 WebView 设置,关掉 X-Requested-With 头。 */
+    /** 标签刚建好(主线程):打开调试接口,换成桌面版的 WebView 设置。 */
     fun prepare(tab: WebTab, context: Context) {
         val st = tab.view.settings
         init(context, st)
@@ -105,9 +105,6 @@ class WebDevtools(private val relay: ((String) -> ParcelFileDescriptor?)?) {
         // 视图换了大小(换了宿主显示、进出接管界面):桌面版的视口缩放跟着重算
         tab.view.addOnLayoutChangeListener { _, l, t, r, b, ol, ot, or, ob ->
             if (r - l != or - ol || b - t != ob - ot) onViewResized(link)
-        }
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) {
-            runCatching { WebSettingsCompat.setRequestedWithHeaderOriginAllowList(st, emptySet()) }
         }
         applySettings(st, mobile = false)
         applyIdentityScript(link)
