@@ -1,4 +1,4 @@
-<!-- deep-ptc:project-cards v1 next=R4,F17,Q18,T14 -->
+<!-- deep-ptc:project-cards v1 next=R4,F17,Q18,T17 -->
 # Project cards
 
 > Maintained by Deep PTC in DeepSeek Harness: edit in a Deep PTC conversation, view 特点卡片 / Project cards.
@@ -55,7 +55,7 @@
 
 
 ## Completed tasks / 已完成任务
-<!-- card id=tasks kind=tasks rev=13 updated=2026-11-26T01:39:23.726Z -->
+<!-- card id=tasks kind=tasks rev=16 updated=2026-11-27T06:36:01.850Z -->
 
 - **T1** [done] 在项目现有定时任务中新增一个实例 case：进入 StepX 账号页，再到 Amoo 成长计划页面完成自动签到。 — 已新增每日 09:00 的 Amoo 内置定时实例，完成视觉优先/UI 兜底、无主模型运行与回归验证；真机仪器测试因 Maeve Dev 助手未配对而受阻。 (11/25)
 - **T2** [done] 将本次 Amoo 修改直接覆盖安装到当前 Maeve 包，不新建 Dev 版本。 — 已用相同 Debug 签名将新 APK 覆盖安装到当前 com.daiyimo.maeve，保留数据；Dev 包不存在，应用启动验证 Status: ok。 (11/25)
@@ -70,3 +70,6 @@
 - **T11** [done] 深度分析并根治非支付游戏画面仍要求用户接管的问题，支付系统以外应尽量连续自主执行。 — 已完成非支付自主执行、视觉优先与动作效果闭环修复；core 3266、Android 1696、Flutter 342 通过，金铲铲真机 19 步完成并回答魔典 6%，0 接管/0 UI 树/0 effect_unknown。 (11/25)
 - **T12** [done] 查清每日 09:00 Amoo 定时任务今天未触发的原因，并修复可修复的调度问题。 — 定位为 StepOS Doze 推迟精确闹钟、应用仅重排未补跑；已改为亮屏/网络恢复直接执行到期任务，锁屏交 TaskGate，并避免重复重排。设备回归 2 项、锁屏唤醒探针、app 单测与构建通过。 (11/26)
 - **T13** [done] 修改分享图模块，使分享图片之外提供下载选项。 — 已完成下载/分享双入口及 MediaStore 下载、FileProvider 分享；修正两处回归测试后 Flutter 20 项、Android 设备 2 项通过，重建并覆盖安装当前 Maeve，真机验证下载文件与系统分享面板。 (11/26)
+- **T14** [done] 检查 Maeve 项目当前进行到哪一步，并汇总已完成、进行中和待处理事项。 — 完成本地只读进度核查，确认 17/17 需求、70 个领先提交及未提交改动；查明 alpinelinux.org 用于 Alpine 沙箱运行时构建，当前无刚刚下载证据。 (11/27)
+- **T15** [done] 审查并收口 Maeve 工作区，形成未提交改动的保留、风险与后续提交批次清单。 — 完成工作区收口审查：忽略大型验证产物、确认 10 个媒体删除无引用、修复 2 处测试声明遗漏，并整理 6 个建议提交批次及待验证风险。 (11/27)
+- **T16** [done] 对 WebView 移除 X-Requested-With 允许列表的改动进行网页回归，并记录实际结果。 — 完成离线网页设备回归与发布前审计：请求头实测为空且专项通过；清单再生成含 7 个新媒体；确认 6 个 P0 发布阻塞，合规与 PR gate 通过。 (11/27)

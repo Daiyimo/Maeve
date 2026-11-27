@@ -1,4 +1,4 @@
-<!-- translated-from: README.md @ d06bb8b9aecb -->
+<!-- translated-from: README.md @ 82f1ddd36909 -->
 <p align="center">
   <a href="README.md">简体中文</a> · <b>English</b>
 </p>
@@ -20,9 +20,9 @@ An AI agent for Android: say what you need, and it works your apps and the web o
 
 <br/>
 
-<img src="docs/media/hero-side.gif" alt="One sentence to Maeve: chat on the left, the background screen on the right opening a WeChat mini-program and reading the special-ops manufacturing picks and daily codes" width="680" />
+<img src="docs/media/hero-side.png" alt="Say one sentence and Maeve gets it done in the background: Maeve chat on the left, a verifiable task-completion record on the right" width="680" />
 
-<sub>"Open the Delta Force mini-program in WeChat and read the special-ops daily codes and manufacturing picks": Maeve's chat on the left, each step on its background screen on the right (sped up; private info blurred)</sub>
+<sub>Maeve's chat on the left; a verifiable task-completion record on the right.</sub>
 
 </div>
 
@@ -34,11 +34,18 @@ Release codename **Dolores** · `v0.1.0` · [SPEC.md](SPEC.md). Maeve is an inde
 
 <table>
 <tr>
-<td align="center" width="33%"><img src="docs/media/demo-delta.gif" width="230" alt="Opens the Delta Force mini-program and reads the special-ops manufacturing picks and daily codes" /><br/><b>"Delta Force mini-program: today's codes and manufacturing picks"</b><br/><sub>Opens the WeChat mini-program and reads the codes and profit ranking</sub></td>
-<td align="center" width="33%"><img src="docs/media/demo-xhs.gif" width="230" alt="Opens Xiaohongshu, reads a creator's recent posts one by one and summarizes" /><br/><b>"What has this creator posted lately?"</b><br/><sub>Opens the app, reads post by post, then sums it up</sub></td>
-<td align="center" width="33%"><img src="docs/media/demo-douyin.gif" width="230" alt="Opens Douyin and reads the top ten trending topics" /><br/><b>"What are the top ten trending topics?"</b><br/><sub>Opens the ranking in the background and reads it out</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/delta-force-codes.png" width="230" alt="Maeve reads today's Delta Force special-ops codes and manufacturing picks in a WeChat mini-program" /><br/><b>"Search for the Delta Force mini-program in WeChat and check today's codes and picks"</b><br/><sub>Reads across pages and organizes the key facts</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/xiaohongshu-codes.png" width="230" alt="Maeve tries to find and decode Xiaohongshu access codes and clearly reports when it does not finish" /><br/><b>"Search Xiaohongshu for Guizang and decode the two access codes"</b><br/><sub>Says clearly when it does not finish instead of pretending</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/amoo-check-in.png" width="230" alt="Maeve checks the Amoo growth-plan check-in and produces a verifiable record" /><br/><b>"Open the Amoo growth plan from STEPX and check today's check-in"</b><br/><sub>Finishes with verifiable facts and an answer</sub></td>
+</tr>
+<tr>
+<td align="center" width="33%"><img src="docs/media/tasks/amoo-device-check.png" width="230" alt="Maeve opens My Devices from Settings account management and checks the Amoo growth-plan check-in" /><br/><b>"Open My Devices from Settings account management and check Amoo check-in"</b><br/><sub>Follows the path into the account page and verifies the state</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/wechat-clawbot.jpg" width="230" alt="Maeve completes access-code decoding and an Amoo check-in query in one WeChat ClawBot conversation" /><br/><b>"Decode the note in WeChat ClawBot, then check Amoo check-in"</b><br/><sub>Completes several things in one conversation</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/amoo-task-demo.gif" width="230" alt="Maeve runs an Amoo task in the background while the main screen stays in WeChat" /><br/><b>"Start a new Amoo growth-plan task for me"</b><br/><sub>Runs in the background while you keep chatting</sub></td>
 </tr>
 </table>
+
+<sub>Access codes and account values in the screenshots are redacted; unfinished tasks are labelled honestly.</sub>
 
 <sub>The demos use apps popular in China, but Maeve isn't tied to them: most apps and websites work if it can see them; payment, banking and brokerage apps, plus password or verification-code pages, remain protected by safety rules.</sub>
 
@@ -59,51 +66,29 @@ Release codename **Dolores** · `v0.1.0` · [SPEC.md](SPEC.md). Maeve is an inde
 
 <p align="center">Jobs run on a separate virtual screen. With several tasks at once, the "Background screens" page lists which app each task is using and how far it got; tap for the live view, tap again to go full screen.</p>
 
-<p align="center"><img src="docs/media/f-background.gif" width="680" alt="Multi-task background screen list and enlarged live view"></p>
-
-<br/>
-
 <h3 align="center">A floating capsule; double-tap to send your screen</h3>
 
 <p align="center">While you're in another app, a capsule at the screen edge shows progress, things needing you, and results. Double-tap it to send the screen you're looking at to Maeve: "how should I reply?" or "note this down".</p>
-
-<p align="center"><img src="docs/media/f-capsule.gif" width="680" alt="Floating capsule shows progress; double-tap sends the current screen to Maeve"></p>
-
-<br/>
 
 <h3 align="center">Steer or stop anytime</h3>
 
 <p align="center">Add a word or change the request mid-task; it reads it before the next step. After you stop, it reports what it did and what's left, so "continue" knows where to pick up.</p>
 
-<p align="center"><img src="docs/media/f-steer.gif" width="680" alt="Steering a running task with an extra message; a summary after stopping"></p>
-
-<br/>
-
 <h3 align="center">It asks before spending money</h3>
 
 <p align="center">Autonomous mode by default: ordinary reversible actions continue, while outward or irreversible actions such as sending, submitting, deleting or placing an order still stop for one-time approval, and payment is always completed by you. Switch to Ask to also confirm every WeChat write and blind taps on self-drawn screens. Login and captchas hand over to you in both modes.</p>
-
-<p align="center"><img src="docs/media/f-confirm.png" width="680" alt="Payment confirmation card: where, what, how much, approve once"></p>
-
-<br/>
 
 <h3 align="center">Memory and skills, smoother with use</h3>
 
 <p align="center">Remembers preferences and ways of doing things you explicitly stated; view, edit, delete them. Passwords, codes and card numbers are never stored; memory is encrypted on the phone. Finished flows become skills for next time.</p>
 
-<p align="center"><img src="docs/media/f-memory.png" width="680" alt="Memory page and skill list"></p>
-
-<br/>
-
 <h3 align="center">Ask right on the page in the browser</h3>
 
 <p align="center">Opens any site and keeps you signed in. Say what you want on the page you're reading and it works right there; paging is paced, and it recognizes anti-bot blocks and hands them to you rather than forcing through.</p>
 
-<p align="center"><img src="docs/media/f-browser.gif" width="680" alt="Asking right on a web page in the built-in browser"></p>
-
 ## Get started in three steps
 
-1. **Install**: build from source (below), or wait for a release package. Currently at M2, no public APK yet.
+1. **Install**: install Maeve on an Android device.
 2. **Connect a model**: Settings › Model, pick a provider and enter a key, or sign in with an account ([models and sign-in](docs/models.en.md)).
 3. **Authorize once**: follow the guide to authorize ADB / wireless debugging and accessibility so the background screen can start ([setup guide](docs/setup-guide.en.md)).
 
@@ -132,6 +117,9 @@ R1 needs no companion device. R2 is optional and off by default. The two remote 
 
 One execution kernel, two shells: a **platform-free Kotlin kernel** does the thinking and deciding, the **Android host** sees the screen and acts, and the **Flutter shell** provides the UI. The kernel has no Android dependency, so the whole loop runs in JVM unit tests with a fake model.
 
+<details>
+<summary>Click to expand the architecture diagram</summary>
+
 ```mermaid
 flowchart TD
     UI["Flutter shell<br/>chat · settings · capsule"] -->|MethodChannel / EventChannel| APP
@@ -152,6 +140,8 @@ flowchart TD
     end
     CORE -->|OpenAI-compatible / Anthropic / Gemini / Responses| LLM["Model providers"]
 ```
+
+</details>
 
 | Layer | Tech | Responsibility |
 |---|---|---|
@@ -176,21 +166,7 @@ Finer layering and dependency direction are in [docs/dev/architecture.md](docs/d
 - **Your own model provider**: execution on device, planning in the cloud; configure the endpoint and key in Settings, no model weights bundled.
 - Model endpoints use HTTPS by default. Plaintext HTTP is allowed only after you explicitly approve a local or LAN service, never for public endpoints or through a proxy; don't read the confirmation gate as a blanket privacy guarantee.
 
-## Build from source
-
-```bash
-git clone https://github.com/Daiyimo/Maeve.git
-cd Maeve
-./gradlew :app:assembleDebug
-```
-
-| Path | What it is |
-|---|---|
-| `core` | Pure-JVM Kotlin: agent loop, tools, context, guards, knowledge and skills |
-| `app` | Android host: accessibility, virtual display, shell helper, WebView, sandbox, permissions |
-| `flutter` | The only application UI; `app` consumes the matching AAR built automatically by Gradle |
-
-Gradle builds the matching Flutter AAR before `preBuild`, so a clean clone can run the command above directly. Toolchain, cache and proxy traps are in [FLUTTER_MIGRATION.md](FLUTTER_MIGRATION.md) and [tooling/toolchain/README.md](tooling/toolchain/README.md).
+## Built-in knowledge and model providers
 
 <details>
 <summary>Built-in app and website knowledge (unlisted apps still work)</summary>

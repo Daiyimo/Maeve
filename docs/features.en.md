@@ -62,7 +62,7 @@ Most apps installed on your phone work, with no per-app integration: Maeve looks
 
 Even without any instructions, Maeve can get things done by looking at the screen. For some apps and websites there is extra usage knowledge (where things are, common ways to do things, what to watch out for), which Maeve looks up automatically when it needs it, so it takes fewer wrong turns. For example, in a chat app it already knows how to find a contact and scroll through chat history; on a job site it knows how to filter jobs and greet recruiters. There are also general how-to skills for a few kinds of tasks.
 
-The apps and websites that already have usage knowledge are listed in the collapsed section under "Build from source" in the [README](../README.en.md) (anything not listed still works). The knowledge keeps growing and anyone can add to it: it is plain text under [`core/src/main/resources/knowledge/`](../core/src/main/resources/knowledge/) and [`core/src/main/resources/skills/`](../core/src/main/resources/skills/). [Contributions welcome](../CONTRIBUTING.md).
+The apps and websites that already have usage knowledge are listed in the collapsed section under "Built-in knowledge and model providers" in the [README](../README.en.md) (anything not listed still works). The knowledge keeps growing and anyone can add to it: it is plain text under [`core/src/main/resources/knowledge/`](../core/src/main/resources/knowledge/) and [`core/src/main/resources/skills/`](../core/src/main/resources/skills/). [Contributions welcome](../CONTRIBUTING.md).
 
 ## Batch jobs
 

@@ -19,9 +19,9 @@
 
 <br/>
 
-<img src="docs/media/hero-side.gif" alt="一句话交给 Maeve：左边是聊天，右边是它在后台屏上打开微信小程序、读取特勤处的制造推荐和今日密码" width="680" />
+<img src="docs/media/hero-side.png" alt="你说一句话，Maeve 在后台把任务办完：左边是 Maeve 聊天，右边是可核查的任务完成记录" width="680" />
 
-<sub>「进入微信打开三角洲小程序，看特勤处今日密码和制造推荐」：左边 Maeve 聊天，右边它在那块后台屏上一步步操作（加速播放；隐私信息已打码）</sub>
+<sub>左边是 Maeve 聊天，右边是任务完成后的可核查记录。</sub>
 
 </div>
 
@@ -33,11 +33,18 @@
 
 <table>
 <tr>
-<td align="center" width="33%"><img src="docs/media/demo-delta.gif" width="230" alt="打开三角洲行动小程序，读取特勤处的制造推荐和今日密码" /><br/><b>「三角洲小程序，特勤处今日密码和制造推荐」</b><br/><sub>进微信小程序，逐屏读出密码与收益榜</sub></td>
-<td align="center" width="33%"><img src="docs/media/demo-xhs.gif" width="230" alt="打开小红书，逐条读一个博主最近的笔记并总结" /><br/><b>「这个博主最近发了什么？」</b><br/><sub>打开 App 逐条读，再给你总结</sub></td>
-<td align="center" width="33%"><img src="docs/media/demo-douyin.gif" width="230" alt="打开抖音，读出热搜榜前十条" /><br/><b>「抖音热搜前十是什么？」</b><br/><sub>后台打开榜单，读给你听</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/delta-force-codes.png" width="230" alt="Maeve 在微信小程序中读取三角洲行动特勤处的今日密码和制造推荐" /><br/><b>「去微信搜三角洲小程序，看今日密码和制造推荐」</b><br/><sub>跨页面读取并整理关键信息</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/xiaohongshu-codes.png" width="230" alt="Maeve 尝试在小红书中查找并解码体验码，未完成时明确说明" /><br/><b>「小红书搜索归藏，找出两个体验码并解码」</b><br/><sub>未完成时明确说明，不伪装成功</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/amoo-check-in.png" width="230" alt="Maeve 完成 Amoo 成长计划签到核对并给出可核查记录" /><br/><b>「打开 STEPX 的 Amoo 成长计划，核对今日签到」</b><br/><sub>办完后给出可核查的事实与回答</sub></td>
+</tr>
+<tr>
+<td align="center" width="33%"><img src="docs/media/tasks/amoo-device-check.png" width="230" alt="Maeve 从设置账号管理进入我的设备，核对 Amoo 成长计划签到状态" /><br/><b>「从设置的账号管理进入我的设备，检查 Amoo 签到」</b><br/><sub>按路径进入账号页并核对状态</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/wechat-clawbot.jpg" width="230" alt="Maeve 在微信 ClawBot 会话中连续完成体验码解码和签到查询" /><br/><b>「在微信 ClawBot 里解码笔记，再查 Amoo 签到」</b><br/><sub>在同一会话里连续完成多件事</sub></td>
+<td align="center" width="33%"><img src="docs/media/tasks/amoo-task-demo.gif" width="230" alt="Maeve 在后台执行 Amoo 任务，主屏继续使用微信" /><br/><b>「帮我做一下 AMOO 的成长计划新任务」</b><br/><sub>后台执行任务，主屏继续聊天</sub></td>
 </tr>
 </table>
+
+<sub>演示截图中的体验码与账号数值已打码；未完成的任务也会如实标注。</sub>
 
 <sub>演示用的是国内常见 App，但 Maeve 不绑定它们：多数 App 和网站看得到就能操作；支付、银行、券商类 App 与密码/验证码页受安全规则保护。</sub>
 
@@ -58,51 +65,29 @@
 
 <p align="center">活在一块单独的虚拟屏上跑。多个任务同时进行时，「后台屏」页列出每个任务在用哪个 App、做到哪了，点开看实时画面，再点放大整屏。</p>
 
-<p align="center"><img src="docs/media/f-background.gif" width="680" alt="多任务后台屏列表与实时画面放大"></p>
-
-<br/>
-
 <h3 align="center">悬浮胶囊，双击把这一屏发给它</h3>
 
 <p align="center">你在别的 App 里时，屏幕边上一颗胶囊显示进展、要你处理的事和结果。双击胶囊，把正在看的这一屏发给 Maeve：「这个怎么回」「帮我记下来」。</p>
-
-<p align="center"><img src="docs/media/f-capsule.gif" width="680" alt="悬浮胶囊显示进展，双击把当前屏幕发给 Maeve"></p>
-
-<br/>
 
 <h3 align="center">随时插话，随时停</h3>
 
 <p align="center">任务跑着也能补一句、改要求，它在下一步之前读到。按停止后会交代做了什么、没做完什么，下次说「继续」它知道从哪接。</p>
 
-<p align="center"><img src="docs/media/f-steer.gif" width="680" alt="任务进行中插话补充要求，停止后给出交代"></p>
-
-<br/>
-
 <h3 align="center">花钱的事，先问你</h3>
 
 <p align="center">默认自主模式：普通可恢复操作连续执行；发送、提交、删除、下单等对外或不可逆动作仍会按守卫拦下并征求这一次同意，付款本身始终由你亲手完成。也可以切回询问模式，让微信写操作与自绘界面里看不清目标的点击也逐次确认。登录、验证码这类要你亲手处理的，两种模式都会请你接管。</p>
-
-<p align="center"><img src="docs/media/f-confirm.png" width="680" alt="付款确认卡片：在哪、买什么、多少钱、同意这一次"></p>
-
-<br/>
 
 <h3 align="center">记忆与技能，越用越顺手</h3>
 
 <p align="center">记住你明确说过的偏好和做事方式，可查看、修改、删除；密码、验证码、卡号这类不记，记忆加密存在手机上。办成的流程沉淀成技能，下次更快。</p>
 
-<p align="center"><img src="docs/media/f-memory.png" width="680" alt="记忆页与技能列表"></p>
-
-<br/>
-
 <h3 align="center">浏览器里，对着页面说</h3>
 
 <p align="center">任何网站都能打开，登录态保留。对着正在读的页面说要求，它就在那一页上办；翻页有节奏，认得出风控拦截页，交给你而不是硬闯。</p>
 
-<p align="center"><img src="docs/media/f-browser.gif" width="680" alt="在内置浏览器里对着网页直接说要求"></p>
-
 ## 三步上手
 
-1. **装**：从源码构建（见下），或等发布包。当前处于 M2，暂无公开 APK。
+1. **安装**：在安卓设备上安装 Maeve。
 2. **接模型**：设置 › 模型，选服务商填 Key，或用账号登录（[模型与登录](docs/models.md)）。
 3. **授权一次**：按引导授权 ADB / 无线调试与无障碍，后台屏才起得来（[安装引导](docs/setup-guide.md)）。
 
@@ -131,6 +116,9 @@ R1 不需要配套设备。R2 可选、默认关闭。两条远程通道不能�
 
 一个执行内核，两层外壳：**平台无关的 Kotlin 内核**负责想和决定，**安卓宿主**负责看屏幕、动手，**Flutter 外壳**负责界面。内核不依赖安卓，能在电脑上用假模型跑完整循环的单测。
 
+<details>
+<summary>点击展开技术架构图</summary>
+
 ```mermaid
 flowchart TD
     UI["Flutter shell<br/>chat · settings · capsule"] -->|MethodChannel / EventChannel| APP
@@ -151,6 +139,8 @@ flowchart TD
     end
     CORE -->|OpenAI-compatible / Anthropic / Gemini / Responses| LLM["Model providers"]
 ```
+
+</details>
 
 | 层 | 技术 | 职责 |
 |---|---|---|
@@ -175,21 +165,7 @@ flowchart TD
 - **你自己的模型服务商**：端侧执行、云端规划，地址和 Key 在设置里配，不内置模型权重。
 - 模型接口默认仅 HTTPS；只有明确批准“本机或局域网 HTTP 服务”时才允许明文 HTTP，且禁止公网 HTTP 与代理转发。别把确认门当成全面的隐私保证。
 
-## 从源码构建
-
-```bash
-git clone https://github.com/Daiyimo/Maeve.git
-cd Maeve
-./gradlew :app:assembleDebug
-```
-
-| 路径 | 是什么 |
-|---|---|
-| `core` | 纯 JVM Kotlin：Agent 循环、工具、上下文、守卫、知识与技能 |
-| `app` | 安卓宿主：无障碍、虚拟屏、shell 助手、WebView、沙箱、权限 |
-| `flutter` | 唯一的应用界面；`app` 消费 Gradle 自动构建出的对应模式 AAR |
-
-Gradle 会在 `preBuild` 前自动构建对应模式的 Flutter AAR，干净克隆可直接执行上面的命令。工具链与缓存、代理的坑见 [FLUTTER_MIGRATION.md](FLUTTER_MIGRATION.md) 与 [tooling/toolchain/README.md](tooling/toolchain/README.md)。
+## 内置知识与模型
 
 <details>
 <summary>内置使用知识的 App 和网站（没写到的照样能用）</summary>
