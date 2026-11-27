@@ -6,12 +6,12 @@ import android.view.WindowManager
 import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.i18n.AppLanguage
 import com.daiyimo.maeve.quit.MaeveQuit
+import com.daiyimo.maeve.task.TriggerRuntime
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.FlutterEngineCache
 import io.flutter.embedding.engine.dart.DartExecutor
 
-/** Every app entry opens the Flutter shell, including the historical component name. */
 open class MainActivity : FlutterActivity() {
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLanguage.wrap(newBase))
@@ -38,8 +38,8 @@ open class MainActivity : FlutterActivity() {
 
     override fun onStart() {
         super.onStart()
-        // 用户先前点了「完全退出」:打开 Maeve 就回来,胶囊和退出时略过的启动工作在这里补上
         MaeveQuit.resume(this)
+        TriggerRuntime.onAppVisible(this)
         (application as MaeveApp).updates.autoCheckInBackground()
         (application as MaeveApp).mcp.ensureRunning()
     }

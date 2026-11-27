@@ -3,19 +3,18 @@ package com.daiyimo.maeve.task
 import com.daiyimo.maeve.i18n.tr
 import android.app.AlarmManager
 import android.app.ForegroundServiceStartNotAllowedException
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.ConnectivityManager
-import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
-import android.os.SystemClock
+import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
 import com.daiyimo.maeve.MaeveApp
@@ -43,51 +42,30 @@ import kotlinx.coroutines.launch
 /** 安卓闹钟的薄壳；时间与去重由持久化 TriggerStore 决定，闹钟广播可以重复来。 */
 object TriggerRuntime {
     private var recovered = false
-    private var watching = false
-    private var lastUserPresentFireAt = 0L
-    private var lastNetworkFireAt = 0L
     @Volatile private var armedAtMs: Long? = null
-    private val restoreScope = CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
 
-    /** 亮屏或网络恢复时直接补跑到期任务，再重排下一次闹钟。 */
-    @Synchronized fun watchReadiness(context: Context) {
-        if (watching) return
-        val app = context.applicationContext
-        fun changed(userPresent: Boolean) {
-            val now = SystemClock.elapsedRealtime()
-            val last = if (userPresent) lastUserPresentFireAt else lastNetworkFireAt
-            if (now - last < 5_000L) return
-            if (userPresent) lastUserPresentFireAt = now else lastNetworkFireAt = now
-            restoreScope.launch {
-                // 系统可能在 Doze 中推迟精确闹钟；亮屏/网络恢复时直接把到期任务跑掉，不再等第二次闹钟。
-                runCatching { fire(app) }.onFailure { Log.w("MaeveTrigger", "readiness dispatch failed", it) }
-            }
-        }
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) = changed(userPresent = true)
-        }
-        val filter = IntentFilter(Intent.ACTION_USER_PRESENT)
-        if (Build.VERSION.SDK_INT >= 33) app.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        else app.registerReceiver(receiver, filter)
-        val network = app.getSystemService(ConnectivityManager::class.java)
-        runCatching { network.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) changed(userPresent = false)
-            }
-        }) }.onFailure { Log.w("MaeveTrigger", "network readiness observer unavailable", it) }
-        watching = true
-    }
+    fun watchReadiness(context: Context) = TriggerReadiness.watchReadiness(context)
+    fun onAppVisible(context: Context) = TriggerReadiness.onAppVisible(context)
 
     fun blockedReason(context: Context): String? {
-        // 锁屏由 TaskGate 处理（可无人值守解锁，否则等待解锁）；这里只拦截模型确实无法工作的离线状态。
         val network = context.getSystemService(ConnectivityManager::class.java)
         val online = network.getNetworkCapabilities(network.activeNetwork)
             ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
         return if (online) null else "offline"
     }
 
-    private fun blockedReason(context: Context, trigger: TriggerDefinition): String? =
-        if (trigger.reminderText != null) null else blockedReason(context)
+    internal fun blockedReason(context: Context, trigger: TriggerDefinition): String? {
+        if (trigger.reminderText != null) return null
+        blockedReason(context)?.let { return it }
+        // The built-in check-in is known to require phone input before any useful work can happen.
+        if (trigger.preset != TriggerPreset.AmooGrowthCheckIn) return null
+        val keyguard = context.getSystemService(KeyguardManager::class.java)
+        val deviceLocked = keyguard.isDeviceLocked
+        if (!deviceLocked && context.getSystemService(PowerManager::class.java).isInteractive) return null
+        val access = (context.applicationContext as MaeveApp).deviceAccess.settings.config.value
+        // 保留待执行时段，解锁后补跑。允许无人值守解锁时仍由 TaskGate 在写入前核验系统状态。
+        return if (!access.enabled || (deviceLocked && (access.kind == null || access.blocked))) "locked" else null
+    }
     /** 存下并布置闹钟;系统没准许准时闹钟(到点可能不准时或起不来)时引导用户去开一次,结果里照实说有没有提示到。 */
     @Synchronized fun schedule(context: Context, definition: TriggerDefinition): Scheduled {
         val store = store(context)
@@ -145,13 +123,18 @@ object TriggerRuntime {
         engine(context, store(context)).rezone(System.currentTimeMillis(), previous, ZoneId.of(current))
     }
 
-    @Synchronized fun fire(context: Context) {
+    @Synchronized fun fire(context: Context, alarmDelivered: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (alarmDelivered) {
+            Log.i("MaeveTrigger", "alarm received: scheduledAt=$armedAtMs receivedAt=$now")
+            if (armedAtMs?.let { it <= now } == true) armedAtMs = null
+        }
         // 已发出的广播可能晚于退出到达:不要认领时段,也不要发提醒,重新打开后仍可按原账本恢复
         if (FeatureFlags.get(context).quitRequested()) {
             arm(context, null)
             return
         }
-        engine(context, store(context)).fire(System.currentTimeMillis())
+        engine(context, store(context)).fire(now)
     }
 
     @Synchronized fun finishTask(context: Context, key: String, successful: Boolean?, reason: String? = null) {
@@ -169,9 +152,10 @@ object TriggerRuntime {
 
     /** A dispatched run may wait in TaskService's queue before it can touch the device. */
     @Synchronized fun deferBeforeStart(context: Context, key: String): Boolean {
-        val blocked = blockedReason(context) ?: return false
         val store = store(context)
         val window = store.windows().firstOrNull { it.key == key } ?: return false
+        val trigger = store.get(window.triggerId) ?: return false
+        val blocked = blockedReason(context, trigger) ?: return false
         val waiting = if (window.state == TriggerWindowState.ActionDispatched) TriggerWindowState.DeferredAction
             else TriggerWindowState.Deferred
         if (!store.mark(key, waiting, blocked)) return false
@@ -331,6 +315,7 @@ object TriggerRuntime {
         blocked = { blockedReason(context, it) }) { trigger, window ->
             if (trigger.reminderText != null) deliverReminder(context, store, trigger, window.key)
             else {
+                Log.i("MaeveTrigger", "dispatching scheduled task: dueAt=${window.dueAtMs} claimedAt=${window.claimedAtMs} dispatchAt=${System.currentTimeMillis()}")
                 val checked = window.state == TriggerWindowState.DeferredAction
                 try { TaskService.startTrigger(context, trigger.goal, trigger.threadId, window.key, trigger.conditionGoal.takeUnless { checked }) }
                 catch (e: Exception) {
@@ -403,19 +388,18 @@ object TriggerRuntime {
         val at = atMs?.takeUnless { FeatureFlags.get(context).quitRequested() }
         // 网络/亮屏回调可能连续来多次；同一个到期时间不再取消重设，避免把系统即将投递的闹钟反复推后。
         if (armedAtMs == at) return
-        val previous = armedAtMs
         val alarms = context.getSystemService(AlarmManager::class.java)
         val intent = Intent(context, TriggerAlarmReceiver::class.java).setAction(ACTION)
         val pending = PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         try {
-            alarms.cancel(pending)
-            if (at != null) {
+            if (at == null) alarms.cancel(pending)
+            else {
                 if (canScheduleExactly(context)) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
                 else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending)
             }
             armedAtMs = at
         } catch (e: Exception) {
-            armedAtMs = previous
+            armedAtMs = null
             throw e
         }
     }
@@ -443,7 +427,7 @@ class TriggerAlarmReceiver : BroadcastReceiver() {
         if (intent.action != "com.daiyimo.maeve.task.TRIGGER_ALARM") return
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
-            try { TriggerRuntime.fire(context.applicationContext) }
+            try { TriggerRuntime.fire(context.applicationContext, alarmDelivered = true) }
             catch (e: Exception) { Log.e("MaeveTrigger", "alarm dispatch failed", e) }
             finally { pending.finish() }
         }

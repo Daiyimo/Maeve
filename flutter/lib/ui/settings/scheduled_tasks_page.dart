@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../app/maeve_controller.dart';
 import '../../widgets/glass_surface.dart';
 import '../common/app_page.dart';
+import 'new_schedule_dialog.dart';
 import 'settings_components.dart';
 
 class ScheduledTasksPage extends StatefulWidget {
@@ -78,7 +79,12 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
       setState(() {
         _snapshot = value;
         if (action == 'runNow') {
-          _notice = value['deferred'] == null ? '已发起本次执行' : '已暂缓，解锁并恢复网络后执行';
+          _notice = switch (value['deferred']) {
+            null => '已发起本次执行',
+            'locked' => '已暂缓，等待手机解锁',
+            'offline' => '已暂缓，等待网络恢复',
+            _ => '已暂缓，系统允许启动后会继续',
+          };
         } else if (action != 'snapshot') {
           _notice = null;
         }
@@ -117,7 +123,7 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
   Future<void> _create({String? goal, String? preset, String? title}) async {
     final input = await showDialog<(String, TimeOfDay)>(
       context: context,
-      builder: (_) => _NewScheduleDialog(
+      builder: (_) => NewScheduleDialog(
         initialGoal: goal ?? '',
         exampleTitle: title,
         fixedTime: preset != null,
@@ -222,6 +228,7 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
       'waiting' => switch (plan['blocked']) {
         'locked' => '等待手机解锁',
         'offline' => '等待网络恢复',
+        'foreground_start_restricted' => '等待系统允许启动',
         _ => '等待执行',
       },
       'Dispatched' || 'ActionDispatched' || 'Claimed' => '执行中',
@@ -347,78 +354,4 @@ class _ScheduledTasksPageState extends State<ScheduledTasksPage>
       ],
     );
   }
-}
-
-class _NewScheduleDialog extends StatefulWidget {
-  const _NewScheduleDialog({
-    required this.initialGoal,
-    this.exampleTitle,
-    this.fixedTime = false,
-  });
-
-  final String initialGoal;
-  final String? exampleTitle;
-  final bool fixedTime;
-
-  @override
-  State<_NewScheduleDialog> createState() => _NewScheduleDialogState();
-}
-
-class _NewScheduleDialogState extends State<_NewScheduleDialog> {
-  late final _goal = TextEditingController(text: widget.initialGoal);
-  TimeOfDay _time = const TimeOfDay(hour: 9, minute: 0);
-
-  @override
-  void dispose() {
-    _goal.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => MaeveGlassDialog(
-    title: Text(widget.exampleTitle ?? '新建定时任务'),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (widget.exampleTitle != null)
-          Text(widget.initialGoal)
-        else
-          TextField(
-            controller: _goal,
-            maxLength: 4000,
-            maxLines: 3,
-            onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
-              labelText: '任务说明',
-              hintText: '例如：打开指定应用并完成签到',
-            ),
-          ),
-        TextButton.icon(
-          icon: const Icon(Icons.access_time_rounded),
-          label: Text('每日 ${_time.format(context)}'),
-          onPressed: widget.fixedTime
-              ? null
-              : () async {
-                  final value = await showTimePicker(
-                    context: context,
-                    initialTime: _time,
-                  );
-                  if (mounted && value != null) setState(() => _time = value);
-                },
-        ),
-      ],
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('取消'),
-      ),
-      FilledButton(
-        onPressed: _goal.text.trim().isEmpty
-            ? null
-            : () => Navigator.pop(context, (_goal.text.trim(), _time)),
-        child: const Text('启用'),
-      ),
-    ],
-  );
 }

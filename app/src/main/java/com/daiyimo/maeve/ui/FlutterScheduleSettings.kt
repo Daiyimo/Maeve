@@ -2,6 +2,7 @@ package com.daiyimo.maeve.ui
 
 import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.core.trigger.TriggerDefinition
+import com.daiyimo.maeve.core.trigger.TriggerDispatchDeferred
 import com.daiyimo.maeve.core.trigger.TriggerPreset
 import com.daiyimo.maeve.core.trigger.TriggerWindowState
 import com.daiyimo.maeve.core.trigger.nextCalendarAt
@@ -54,7 +55,6 @@ internal class FlutterScheduleSettings(private val app: MaeveApp) {
             "remove" -> TriggerRuntime.remove(app, id(call))
             else -> throw IllegalArgumentException("未知定时任务操作")
         }
-        val blocked = TriggerRuntime.blockedReason(app)
         val now = System.currentTimeMillis()
         val snapshot = TriggerRuntime.snapshot(app)
         val windows = snapshot.windows.groupBy { it.triggerId }
@@ -66,6 +66,7 @@ internal class FlutterScheduleSettings(private val app: MaeveApp) {
                 val latest = windows[plan.id]?.maxByOrNull { it.claimedAtMs }
                 val waiting = latest?.state in setOf(TriggerWindowState.Deferred, TriggerWindowState.DeferredAction)
                 val due = plan.enabled && plan.nextAtMs <= now && latest?.inFlight != true
+                val blocked = if (waiting || due) TriggerRuntime.blockedReason(app, plan) else null
                 mapOf(
                     "id" to plan.id, "threadId" to plan.threadId, "goal" to plan.goal, "enabled" to plan.enabled,
                     "title" to plan.preset?.title,
@@ -75,12 +76,11 @@ internal class FlutterScheduleSettings(private val app: MaeveApp) {
                     "calendarDays" to plan.calendarDays,
                     "calendarZone" to plan.calendarZone,
                     "inFlight" to (latest?.inFlight == true),
-                    "state" to (if (waiting || (due && blocked != null && plan.reminderText == null)) "waiting" else latest?.state?.name),
-                    "blocked" to blocked.takeIf { waiting || (due && plan.reminderText == null) },
+                    "state" to (if (waiting || blocked != null) "waiting" else latest?.state?.name),
+                    "blocked" to (blocked ?: latest?.reason?.takeIf { waiting && it == TriggerDispatchDeferred.REASON }),
                 )
             },
         )
     }
-
     private fun id(call: MethodCall): String = requireNotNull(call.argument<String>("id")) { "缺少计划编号" }
 }
