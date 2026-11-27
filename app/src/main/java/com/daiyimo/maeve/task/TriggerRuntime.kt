@@ -228,7 +228,7 @@ object TriggerRuntime {
         if (prefs.getBoolean(BUILT_INS_SEEDED, false)) return
         val store = store(context)
         val now = System.currentTimeMillis()
-        TriggerPreset.missingBuiltInSchedules(store.all(), now).forEach { schedule(context, it) }
+        TriggerPreset.missingBuiltInSchedules(store.all(), now).forEach(store::upsert)
         prefs.edit().putBoolean(BUILT_INS_SEEDED, true).apply()
     }
 

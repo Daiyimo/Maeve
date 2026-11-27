@@ -33,7 +33,7 @@ enum class TriggerPreset(val key: String, val title: String, val goal: String) {
         /** 空库或升级时还缺哪些内置计划；已有同名 preset（含用户手动建的）只保留，不重复添加。 */
         fun missingBuiltInSchedules(triggers: List<TriggerDefinition>, nowMs: Long): List<TriggerDefinition> =
             entries.mapNotNull { preset ->
-                preset.builtInSchedule(nowMs)?.takeIf { builtIn ->
+                preset.builtInSchedule(nowMs)?.copy(enabled = false)?.takeIf { builtIn ->
                     triggers.none { it.id == builtIn.id || it.preset == preset }
                 }
             }
