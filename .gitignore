@@ -25,3 +25,15 @@ CLAUDE.md
 __pycache__/
 *.py[cod]
 *.egg-info/
+
+# 本地诊断输出、素材暂存与 Windows 误生成的空文件
+.diag/
+/exports/
+素材/
+/nul
+
+# 本地验证产物:体积大或为仓库快照,只保留在本机
+/.api30-verify/
+/.fixture-verify/
+/.verify-repo.xml
+/.verify-system-image.zip

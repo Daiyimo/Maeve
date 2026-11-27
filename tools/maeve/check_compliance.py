@@ -104,7 +104,7 @@ allowed = {
     "tools/relay/NOTICE",
     "ATTRIBUTION.md",
 }
-skip_dirs = {".git", "build", ".gradle", ".kotlin", ".idea", "__pycache__"}
+skip_dirs = {".git", "build", ".gradle", ".kotlin", ".idea", "__pycache__", ".api30-verify", ".fixture-verify"}
 code_exts = {".kt", ".kts", ".java", ".xml", ".aidl", ".py", ".go", ".mod",
              ".json", ".pro", ".gradle", ".properties", ".yml", ".yaml",
              ".sh", ".bat", ".txt", ".md", ".dart"}
