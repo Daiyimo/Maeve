@@ -190,17 +190,16 @@ class TaskRun(
     /** 这次任务连上的外部 MCP server;结束时关闭会话。 */
     @Volatile private var mcpConnections: com.daiyimo.maeve.settings.McpConnections? = null
 
-    /**
-     * 这次任务接上的全部外部 MCP 端点,交给 toolDispatcher 的就这一份。别的来源(以后的扩展等)也提供这类端点时在这里拼上,
-     * 不给 toolDispatcher 另加参数;各来源连上的都要归任务的 ResourceScope,收尾时一起关。
-     */
+    /** 外部 MCP 端点由任务的 ResourceScope 持有，收尾时一起关闭。 */
     private fun mcpEndpoints(): List<com.daiyimo.maeve.core.cap.mcp.McpConnection> = buildList {
         mcpConnections?.let { addAll(it.connections) }
     }
     /** App 给的模型来源、评测钩子、屏幕画面的开关。 */
     private val env = TaskEnvironment.of(service)
-    /** 这段对话对外的会话号:这次运行建的模型(主、轻量、看图,及核查、意图判断、停止交代等旁路)都用它。 */
-    private val session = ModelSession.of(conversationId)
+    /** 同一轮的模型请求共用一个会话号。定时执行每轮新建，开跑时来源已登记。 */
+    private val session by lazy {
+        if (provenance.origin == RunOrigin.Trigger) ModelSession.fresh() else ModelSession.of(conversationId)
+    }
     /** App 给的手机服务(共用的 shell 连接、「去设置」提示)、记忆、经验路线、异常退出后的恢复。 */
     private val phoneServices = PhoneServices.of(service)
     private val memoryRuntime = MemoryRuntime.of(service)

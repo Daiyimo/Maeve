@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /** 真机测试用的脚本模型:每次 complete 先报到(第几次、收到的历史),再等测试喂下一步工具调用。 */
 class ScriptedModel : ChatModel {
-    class Call(val number: Int, val messages: List<Message>)
+    class Call(val number: Int, val messages: List<Message>, val tools: List<ToolSpec>)
 
     override val capabilities = Capabilities(toolCalls = true, vision = false, contextTokens = 64_000, reasoning = false)
     private val calls = Channel<Call>(Channel.UNLIMITED)
@@ -49,7 +49,7 @@ class ScriptedModel : ChatModel {
         // 给新对话起标题:固定回答,不占脚本也不计次
         if (system == TITLE_PROMPT) return ModelReply(listOf(Part.Text("测试对话")), StopReason.EndTurn, null)
         intent?.let { if (system == INTENT_PROMPT) return ModelReply(listOf(Part.Text(it)), StopReason.EndTurn, null) }
-        calls.send(Call(n.incrementAndGet(), messages))
+        calls.send(Call(n.incrementAndGet(), messages, tools))
         val parts = replies.receive()
         return ModelReply(parts, if (parts.any { it is Part.ToolCall }) StopReason.ToolUse else StopReason.EndTurn, null)
     }

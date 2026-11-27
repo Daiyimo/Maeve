@@ -428,7 +428,8 @@ class TaskService : Service() {
                 // 让 run 正常移出 running(否则 execute 的 finally 与 onRunEnded 都不跑,run 永久卡死)
                 TaskState.Cancelled
             } else try {
-                run.execute(runCatching { store.turns(run.conversationId) }.getOrDefault(emptyList()).map(::withKeptState))
+                if (run.provenance.origin == RunOrigin.Trigger) run.execute(emptyList())
+                else run.execute(runCatching { store.turns(run.conversationId) }.getOrDefault(emptyList()).map(::withKeptState))
             } catch (e: CancellationException) {
                 TaskState.Cancelled
             } catch (e: RemoteException) {
@@ -447,7 +448,6 @@ class TaskService : Service() {
             } catch (e: Exception) {
                 TaskState.Failed(tr(R.string.task_error, e.message ?: e::class.simpleName), FailKind.Environment)
             }
-            // shell 进程没了,虚拟屏和上面的 App 一起没了;任务没法接着做
             val end = if (run.shellDied && result !is TaskState.Succeeded) TaskState.Failed(SHELL_DIED, FailKind.Environment) else result
             // 停下了:界面当场显示已停止,交代随后补上(先登记「正在整理」,界面收到终态时就知道还有话要来)
             val draft = if (end == TaskState.Cancelled) run.draftText() else null
