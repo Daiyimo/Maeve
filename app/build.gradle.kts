@@ -27,11 +27,13 @@ val releaseKeyAlias = signingValue("maeve.release.keyAlias", "MAEVE_RELEASE_KEY_
 val releaseKeyPassword = signingValue("maeve.release.keyPassword", "MAEVE_RELEASE_KEY_PASSWORD")
 val hasReleaseKey = releaseStoreFile != null && releaseStorePassword != null &&
     releaseKeyAlias != null && releaseKeyPassword != null
-if (!hasReleaseKey && gradle.startParameter.taskNames.any { Regex("(?i)release").containsMatchIn(it) }) {
-    throw GradleException(
-        "[maeve] 没有发布密钥,拒绝构建 release。调试包与 perf 包仍可用调试签名;" +
-            "正式发行请按 local.properties.example 配置密钥。"
-    )
+val requireReleaseSigning by tasks.registering {
+    doLast {
+        if (!hasReleaseKey) throw GradleException("[maeve] 没有发布密钥，拒绝打包 release。请按 local.properties.example 配置密钥。")
+    }
+}
+tasks.matching { it.name in setOf("packageRelease", "packageReleaseBundle", "signReleaseBundle") }.configureEach {
+    dependsOn(requireReleaseSigning)
 }
 
 android {
@@ -96,7 +98,7 @@ android {
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
         }
         // 真机验收时并排安装,保留发行版和用户数据;默认构建标识不变。
         if (providers.gradleProperty("devInstall").isPresent) getByName("debug") {
