@@ -226,7 +226,6 @@ internal class SandboxTools(
     private suspend fun commandResult(r: CommandResult, ws: String): ToolExecution {
         val (shown, clipped) = OutputClip.clip(r.output)
         val truncated = clipped || r.droppedBytes > 0
-        // 存不下完整输出也照样交出结果
         val full = if (clipped) runCatching { sandbox.tree.shared { sandbox.saveOutput(ws, r.output) } }.getOrNull() else null
         val hints = listOfNotNull(
             HINT_TIMED_OUT.takeIf { r.timedOut },

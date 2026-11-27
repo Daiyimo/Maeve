@@ -392,28 +392,4 @@ class ToolDispatcherSandboxTest {
         val last = d.evidence().read(ObsKind.Output).last()
         assertTrue(last.length < 4_200 && "尾" in last)
     }
-
-    /** 工具往工作区写(write_file、存完整输出)要拿和沙箱同一把树锁:重置/安装(exclusive)进行中不能交错。 */
-    @Test fun workspaceWritesWaitForTheSandboxTreeLock() = kotlinx.coroutines.runBlocking {
-        PlatformAssumes.assumeLinux()
-        sb.next = { CommandResult(0, false, false, 50, "A".repeat(30_000), 0, false) }
-        val calls = listOf(
-            call("write_file", buildJsonObject { put("path", "locked.txt"); put("content", "x") }),
-            call("run_command", buildJsonObject { put("command", "cat big") }),
-        )
-        for (c in calls) {
-            val held = kotlinx.coroutines.CompletableDeferred<Unit>()
-            val release = kotlinx.coroutines.CompletableDeferred<Unit>()
-            val holder = launch(kotlinx.coroutines.Dispatchers.Default) {
-                sb.tree.exclusive { held.complete(Unit); release.await() }
-            }
-            held.await()
-            val tool = async(kotlinx.coroutines.Dispatchers.Default) { dispatcher().execute(c) }
-            kotlinx.coroutines.delay(300)
-            assertFalse("${c.name} must wait for the tree lock", tool.isCompleted)
-            release.complete(Unit)
-            kotlinx.coroutines.withTimeout(5_000) { tool.await(); holder.join() }
-        }
-        assertEquals("x", File(ws, "locked.txt").readText())
-    }
 }

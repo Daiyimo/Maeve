@@ -41,6 +41,8 @@ import com.daiyimo.maeve.core.run.waitOrSteer
 import com.daiyimo.maeve.core.tool.failCode
 import com.daiyimo.maeve.core.capability.Paced
 
+private const val PHONE_TAP_CAP_MS = 10_000L
+
 /**
  * 所有改变外部世界的动作唯一的执行入口:[ToolDispatcher.execute] 要一张 [ActionPass],只有这里有。
  * 每个来源都按同一顺序:操作守卫 → 锁屏/被拿走的关卡(写操作)→ 不可逆判定与同意核对(按过关卡之后此刻的屏幕)→
@@ -277,7 +279,10 @@ class ActionExecutor(
         val changes = tools.declaredRisk(call.name) != Risk.Read && (s.offScreen || ClassifiedRisk.changesState(s.verb))
         val mark = tools.ledgerMark()
         val raw = (s.preset ?: offScreen?.exhausted(call.name)?.let { ToolExecution(it) } ?: if (changes && !tools.composite(call.name) && effects != null) {
-            effects.execute(call, s.origin, s.approvalDigest, outward = s.outward) { execute(s, sub) }
+            val phoneTap = call.name == "phone_tap"
+            effects.execute(call, s.origin, s.approvalDigest, outward = s.outward, finishOnCancellation = phoneTap) {
+                execute(s, sub, cap = if (phoneTap) PHONE_TAP_CAP_MS else s.origin.policy.actionCapMs)
+            }
         } else execute(s, sub))
             .let { r -> s.note?.let { r.with(content = JsonObject(r.content + it)) } ?: r }
             .let { r -> if (s.pacedMs > 0) r.with(waitMs = r.waitMs + s.pacedMs) else r }
@@ -338,32 +343,15 @@ class ActionExecutor(
         return ActionOutcome.Ran(exec, s.before, after, content, durationMs, shotId.takeIf { picture != null }, picture, seen)
     }
 
-    /** 旧工具没有显式投递状态时,按可证明的事实补;派发后超时永远是 unknown,不是 not_sent。 */
-    private fun ToolExecution.withActionDelivery(): ToolExecution {
-        val wire = (content["delivery"] as? JsonPrimitive)?.takeIf { it.isString }?.content
-        val reported = delivery ?: ActionDelivery.entries.firstOrNull { it.wire == wire }
-        val resolved = reported ?: when {
-            content["executed"] == JsonPrimitive(false) -> ActionDelivery.NotSent
-            content["submissionUnconfirmed"] == JsonPrimitive(true) || content["error"] == JsonPrimitive("action_timeout") -> ActionDelivery.Unknown
-            content["effect"] is JsonObject -> ActionDelivery.Sent
-            changed != null -> ActionDelivery.Sent
-            content["ok"] == JsonPrimitive(true) -> ActionDelivery.Sent
-            content["ok"] == JsonPrimitive(false) -> ActionDelivery.Unknown
-            else -> null
-        }
-        if (resolved == null) return this
-        return with(content = JsonObject(content + ("delivery" to JsonPrimitive(resolved.wire))), delivery = resolved)
-    }
-
     private fun screenChangedDuringLock() = ToolExecution(buildJsonObject {
         put("ok", false); put("error", "screen_changed_during_lock"); put("executed", false)
         put("delivery", "not_sent"); put("counts_as_failure", false); put("recoverable", true)
         put("message", "The phone locked and was unlocked while this action was being prepared. The action was not sent. Read the current screen and verify the previous action before choosing a new target.")
     })
 
-    private suspend fun execute(s: Step, sub: SubActions?): ToolExecution {
+    private suspend fun execute(s: Step, sub: SubActions?, cap: Long? = s.origin.policy.actionCapMs): ToolExecution {
         val call = if (s.offScreen && offScreen != null) offScreen.capTimeout(s.call, s.args) else s.call
-        val cap = s.origin.policy.actionCapMs ?: return tools.execute(call, pass, s.origin.step, sub)
+        if (cap == null) return tools.execute(call, pass, s.origin.step, sub)
         // 动作自己有上限
         return withTimeoutOrNull(cap) { tools.execute(call, pass, s.origin.step, sub) } ?: ToolExecution(buildJsonObject {
             put("ok", false); put("error", "action_timeout"); put("message", "the action did not finish within ${cap / 1000} s; read the screen before going on")
