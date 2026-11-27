@@ -2,6 +2,7 @@ package com.daiyimo.maeve.task
 
 import com.daiyimo.maeve.i18n.tr
 import android.app.AlarmManager
+import android.app.ForegroundServiceStartNotAllowedException
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -24,6 +25,7 @@ import com.daiyimo.maeve.core.agent.Turn
 import com.daiyimo.maeve.ui.MainActivity
 import com.daiyimo.maeve.core.trigger.Scheduled
 import com.daiyimo.maeve.core.trigger.TriggerDefinition
+import com.daiyimo.maeve.core.trigger.TriggerDispatchDeferred
 import com.daiyimo.maeve.core.trigger.TriggerEngine
 import com.daiyimo.maeve.core.trigger.ConditionOutcome
 import com.daiyimo.maeve.core.trigger.TriggerSnapshot
@@ -214,7 +216,8 @@ object TriggerRuntime {
         store.mark(window.key, TriggerWindowState.ActionDispatched)
         try { TaskService.startTrigger(context, goal, threadId, key, null) }
         catch (e: Exception) {
-            reportStartFailure(context, store, trigger, window.key, e, resetCondition = true)
+            if (startRestricted(e)) store.mark(key, TriggerWindowState.DeferredAction, TriggerDispatchDeferred.REASON)
+            else reportStartFailure(context, store, trigger, window.key, e, resetCondition = true)
             engine(context, store).rearm(System.currentTimeMillis())
         }
     }
@@ -278,6 +281,10 @@ object TriggerRuntime {
             else TaskService.startTrigger(context, trigger.goal, trigger.threadId, window.key, trigger.conditionGoal)
             return null
         } catch (e: Exception) {
+            if (startRestricted(e)) {
+                store.mark(window.key, TriggerWindowState.Deferred, TriggerDispatchDeferred.REASON)
+                return TriggerDispatchDeferred.REASON
+            }
             reportStartFailure(context, store, trigger, window.key, e)
             throw e
         } finally {
@@ -325,7 +332,11 @@ object TriggerRuntime {
             else {
                 val checked = window.state == TriggerWindowState.DeferredAction
                 try { TaskService.startTrigger(context, trigger.goal, trigger.threadId, window.key, trigger.conditionGoal.takeUnless { checked }) }
-                catch (e: Exception) { reportStartFailure(context, store, trigger, window.key, e, resetCondition = checked); throw e }
+                catch (e: Exception) {
+                    if (startRestricted(e)) throw TriggerDispatchDeferred(e)
+                    reportStartFailure(context, store, trigger, window.key, e, resetCondition = checked)
+                    throw e
+                }
             }
         }
 
@@ -413,6 +424,9 @@ object TriggerRuntime {
     private const val PROMPTED = "exact_alarm_prompted"
     private const val KEY_DEVICE_ZONE = "device_timezone"
     private const val BUILT_INS_SEEDED = "builtin_schedules_seeded_v1"
+
+    private fun startRestricted(error: Exception): Boolean =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && error is ForegroundServiceStartNotAllowedException
 }
 
 /** 准时闹钟权限的引导:没开时只主动提醒一次,之后在定时任务页一直写明。 */
