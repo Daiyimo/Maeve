@@ -1,8 +1,6 @@
 package com.daiyimo.maeve.wechat
 
-import android.app.Notification
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -10,8 +8,6 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import com.daiyimo.maeve.MaeveApp
-import com.daiyimo.maeve.R
-import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.settings.FeatureFlags
 import com.daiyimo.maeve.task.TaskService
 import kotlinx.coroutines.CoroutineScope
@@ -31,8 +27,8 @@ class WechatService : Service() {
         if (intent?.action == ACTION_TURN_OFF && !FeatureFlags.get(this).quitRequested()) runtime.setEnabled(false)
         val foreground = runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                startForeground(NOTIFICATION_ID, notification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-            } else startForeground(NOTIFICATION_ID, notification())
+                startForeground(NOTIFICATION_ID, wechatForegroundNotification(runtime.systemAmoo.stage.value), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else startForeground(NOTIFICATION_ID, wechatForegroundNotification(runtime.systemAmoo.stage.value))
         }.onFailure { Log.w("MaeveWechat", "WeChat service could not enter the foreground", it) }.isSuccess
         if (!foreground || FeatureFlags.get(this).quitRequested() || !runtime.sync()) {
             runtime.stop()
@@ -42,7 +38,7 @@ class WechatService : Service() {
         }
         if (progress == null) progress = CoroutineScope(Dispatchers.Main.immediate).launch {
             runtime.systemAmoo.stage.collect { stage ->
-                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(stage))
+                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, wechatForegroundNotification(stage))
             }
         }
         return START_STICKY
@@ -52,19 +48,6 @@ class WechatService : Service() {
         progress?.cancel()
         runtime.stop()
         super.onDestroy()
-    }
-
-    private fun notification(stage: AmooRelayStage = runtime.systemAmoo.stage.value): Notification {
-        val off = PendingIntent.getService(this, 1, Intent(this, WechatService::class.java).setAction(ACTION_TURN_OFF),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return Notification.Builder(this, TaskService.CHANNEL_PROGRESS)
-            .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(tr(R.string.wechat_notif_title))
-            .setContentText(tr(stage.label ?: R.string.wechat_notif_body))
-            .setOngoing(true).setOnlyAlertOnce(true)
-            .setContentIntent(TaskService.openApp(this))
-            .addAction(Notification.Action.Builder(null, tr(R.string.wechat_turn_off), off).build())
-            .build()
     }
 
     companion object {

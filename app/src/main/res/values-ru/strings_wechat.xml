@@ -2,6 +2,12 @@
 <resources>
     <string name="wechat_notif_title">WeChat подключён</string>
     <string name="wechat_notif_body">Пересылка личных сообщений WeChat в Amoo</string>
+    <string name="wechat_amoo_opening">Открываем Amoo для сообщения WeChat</string>
+    <string name="wechat_amoo_waiting">Ожидаем ответ Amoo</string>
+    <string name="wechat_amoo_running">Maeve работает на телефоне</string>
+    <string name="wechat_amoo_needs_phone">Maeve ожидает подтверждения или действия на телефоне</string>
+    <string name="wechat_amoo_returning">Возвращаем результат в WeChat</string>
+    <string name="wechat_amoo_settling">Результат готов. Ожидаем завершения диалога Amoo</string>
     <string name="wechat_turn_off">Выключить</string>
     <string name="wechat_title">WeChat</string>
     <string name="wechat_settings_sub">Давайте задачи Maeve через WeChat</string>

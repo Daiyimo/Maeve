@@ -5,11 +5,7 @@ import com.daiyimo.maeve.core.run.Delivery
 import com.daiyimo.maeve.core.run.SendOutcome
 import kotlinx.serialization.json.*
 import java.io.File
-import java.io.FileOutputStream
 import java.security.MessageDigest
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import java.nio.file.AtomicMoveNotSupportedException
 
 /** 双向信箱只交换消息；微信凭据始终保存在应用私有目录。 */
 class WechatAmooRelay(
@@ -101,15 +97,6 @@ class WechatAmooRelay(
             if (!current) atomic(file, text)
         }
 
-        internal fun atomic(file: File, text: String) {
-            check(file.parentFile!!.isDirectory || file.parentFile!!.mkdirs()) { "无法创建中转目录" }
-            val temp = File(file.parentFile, file.name + ".tmp")
-            FileOutputStream(temp).use { it.write(text.toByteArray(Charsets.UTF_8)); it.fd.sync() }
-            try {
-                Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
-            } catch (_: AtomicMoveNotSupportedException) {
-                Files.move(temp.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            }
-        }
+        internal fun atomic(file: File, text: String) = writeWechatMailbox(file, text)
     }
 }

@@ -2,6 +2,12 @@
 <resources>
     <string name="wechat_notif_title">WeChat terhubung</string>
     <string name="wechat_notif_body">Meneruskan pesan pribadi WeChat ke Amoo</string>
+    <string name="wechat_amoo_opening">Membuka Amoo untuk pesan WeChat</string>
+    <string name="wechat_amoo_waiting">Menunggu respons Amoo</string>
+    <string name="wechat_amoo_running">Maeve sedang bekerja di ponsel</string>
+    <string name="wechat_amoo_needs_phone">Maeve menunggu konfirmasi atau tindakan Anda di ponsel</string>
+    <string name="wechat_amoo_returning">Mengembalikan hasil ke WeChat</string>
+    <string name="wechat_amoo_settling">Hasil siap. Menunggu Amoo menyelesaikan percakapan</string>
     <string name="wechat_turn_off">Matikan</string>
     <string name="wechat_title">WeChat</string>
     <string name="wechat_settings_sub">Berikan tugas kepada Maeve di WeChat</string>

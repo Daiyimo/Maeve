@@ -1,13 +1,10 @@
 package com.daiyimo.maeve.ui
 
-import android.graphics.Bitmap
-import android.graphics.Color
 import com.daiyimo.maeve.MaeveApp
 import com.daiyimo.maeve.i18n.tr
 import com.daiyimo.maeve.settings.FeatureFlags
 import com.daiyimo.maeve.wechat.WechatConnectionState
 import kotlinx.coroutines.*
-import java.io.ByteArrayOutputStream
 
 /** 登录等待属于当前设置会话；应用后台微信监听属于 WechatRuntime。 */
 internal class FlutterWechatSettings(private val app: MaeveApp, private val scope: CoroutineScope) {
@@ -31,7 +28,7 @@ internal class FlutterWechatSettings(private val app: MaeveApp, private val scop
                     val start = runtime.startLogin()
                     val key = checkNotNull(start.qrcode?.takeIf { it.isNotBlank() }) { "二维码响应不完整" }
                     val content = checkNotNull(start.qrContent?.takeIf { it.isNotBlank() }) { "二维码内容为空" }
-                    qr = withContext(Dispatchers.Default) { png(content) }
+                    qr = withContext(Dispatchers.Default) { wechatQrPng(content) }
                     login = scope.launch {
                         try {
                             if (runtime.awaitLogin(key) == null) error = "二维码已过期，请重新获取"
@@ -81,18 +78,5 @@ internal class FlutterWechatSettings(private val app: MaeveApp, private val scop
                 },
             )
         }
-    }
-
-    private fun png(content: String): ByteArray {
-        val matrix = encodeQr(content)
-        val scale = maxOf(1, 320 / matrix.size)
-        val size = matrix.size * scale
-        val pixels = IntArray(size * size) { index ->
-            if (matrix[index % size / scale, index / size / scale]) Color.BLACK else Color.WHITE
-        }
-        val bitmap = Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888)
-        return try {
-            ByteArrayOutputStream().use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, out); out.toByteArray() }
-        } finally { bitmap.recycle() }
     }
 }

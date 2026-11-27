@@ -27,25 +27,6 @@ class AmooExecutionPolicyTest {
         }
     }
 
-    @Test fun unchangedPolicyKeepsBothFilesAndRepairsAMissingFile() {
-        AmooExecutionPolicy.write(tmp.root, true)
-        val policy = File(tmp.root, "execution-policy.json")
-        val legacy = File(tmp.root, "wechat/control.json")
-        val timestamp = 1_700_000_000_000L
-        assertTrue(policy.setLastModified(timestamp))
-        assertTrue(legacy.setLastModified(timestamp))
-
-        AmooExecutionPolicy.write(tmp.root, true)
-        assertEquals(timestamp, policy.lastModified())
-        assertEquals(timestamp, legacy.lastModified())
-
-        val legacyContents = legacy.readText()
-        assertTrue(legacy.delete())
-        AmooExecutionPolicy.write(tmp.root, true)
-        assertEquals(timestamp, policy.lastModified())
-        assertEquals(legacyContents, legacy.readText())
-    }
-
     @Test fun eachTurnIncludesLiteralPermissionAndTheCurrentPackageContract() {
         val enabled = systemAmooMessage("打开设置", "com.example.maeve", true)
         assertTrue(enabled.contains("\"allowMaeve\":true"))

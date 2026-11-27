@@ -56,9 +56,7 @@ class _AmooWechatPageState extends State<AmooWechatPage>
     WidgetsBinding.instance.removeObserver(this);
     final bridge = _bridge;
     if (bridge != null) {
-      unawaited(
-        bridge.wechat('cancelLogin').catchError((_) => <String, dynamic>{}),
-      );
+      bridge.wechat('cancelLogin').ignore();
     }
     super.dispose();
   }

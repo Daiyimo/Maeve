@@ -2,6 +2,12 @@
 <resources>
     <string name="wechat_notif_title">WeChat に接続中</string>
     <string name="wechat_notif_body">WeChat のプライベートメッセージを Amoo に転送</string>
+    <string name="wechat_amoo_opening">WeChat メッセージのため Amoo を開いています</string>
+    <string name="wechat_amoo_waiting">Amoo の応答を待っています</string>
+    <string name="wechat_amoo_running">Maeve がスマホで作業しています</string>
+    <string name="wechat_amoo_needs_phone">Maeve がスマホでの確認または操作を待っています</string>
+    <string name="wechat_amoo_returning">結果を WeChat に返しています</string>
+    <string name="wechat_amoo_settling">結果は準備できました。Amoo がチャットを終了するのを待っています</string>
     <string name="wechat_turn_off">オフにする</string>
     <string name="wechat_title">WeChat</string>
     <string name="wechat_settings_sub">WeChat から Maeve にタスクを依頼</string>
