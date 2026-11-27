@@ -2,7 +2,6 @@ package com.daiyimo.maeve.cap.phone.shell
 
 import android.annotation.SuppressLint
 import android.app.ActivityManager
-import android.content.AttributionSource
 import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -147,7 +146,7 @@ object HelperProcess {
                         putLong(HelperHandoff.KEY_GAVE_UP_AT, r.gaveUpAtMs)
                     }
                 }
-                val result = invokeProvider(holder, HelperHandoff.METHOD_ATTACH, extras)
+                val result = invokeHelperProvider(holder, authority, HelperHandoff.METHOD_ATTACH, extras)
                 if (result?.getBoolean(HelperHandoff.KEY_ACCEPTED) != true) {
                     Log.w(TAG, "handoff rejected: ${result?.getString(HelperHandoff.KEY_REASON)}")
                     return Outcome.Rejected
@@ -191,22 +190,12 @@ object HelperProcess {
             )
         }
 
-        /** 在已取得的 provider 上发起一次调用(attach 和保活戳都走它)。 */
-        private fun invokeProvider(holder: Any, method: String, extras: Bundle?): Bundle? {
-            val provider = holder.javaClass.getField("provider").get(holder)!!
-            val call = provider.javaClass.methods.first {
-                it.name == "call" && it.parameterTypes.size == 5 && it.parameterTypes[0] == AttributionSource::class.java
-            }
-            val caller = AttributionSource.Builder(Process.myUid()).setPackageName(ShellContext.SHELL_PACKAGE).build()
-            return call.invoke(provider, caller, authority, method, null, extras) as Bundle?
-        }
-
         /** 保活戳:经 provider 给 Maeve 发一次不需要口令的调用,让系统看到「provider 有客户端在用」。 */
         private fun pingProvider(): Boolean {
             val token = Binder()
             val holder = runCatching { getProvider.invoke(amService, authority, userId, token, TAG) }.getOrNull() ?: return false
             return try {
-                invokeProvider(holder, HelperHandoff.METHOD_PING, null) != null
+                invokeHelperProvider(holder, authority, HelperHandoff.METHOD_PING, null) != null
             } catch (t: Throwable) {
                 Log.w(TAG, "keep-alive ping failed", t)
                 false
