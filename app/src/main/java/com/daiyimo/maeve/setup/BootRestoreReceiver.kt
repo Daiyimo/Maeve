@@ -24,16 +24,14 @@ class BootRestoreReceiver : BootRestoreHandler() {
             // 重新布置闹钟要读改写 triggers 账本、同步时区要重算计划、ensureRunning 要走 binder,都是磁盘加 IPC 的活,放 IO
             withContext(Dispatchers.IO) {
                 when (intent.action) {
-                    // 开机、时间被改、时区变了、精确闹钟权限变了:都按当前时间把闹钟重新布置一遍
-                    Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED,
-                    Intent.ACTION_TIMEZONE_CHANGED,
+                    Intent.ACTION_TIME_CHANGED,
                     AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED ->
                         TriggerRuntime.rearmAfterSystemChange(context)
-                    // 换了时区:跟随设备时区的当地时间计划立刻按新时区重算(内部会重新布置闹钟),显式钉了其他时区的不动
-                    Intent.ACTION_TIMEZONE_CHANGED -> TriggerRuntime.syncTimeZone(context)
-                    // 开机时局域网那种电脑连接开着就重新监听(USB 那种不跨重启:换了开机编号,这里已按关着算,上次的连接信息也清掉)
-                    Intent.ACTION_BOOT_COMPLETED ->
+                    Intent.ACTION_TIMEZONE_CHANGED -> TriggerRuntime.rearmAfterSystemChange(context, syncZone = true)
+                    Intent.ACTION_BOOT_COMPLETED -> {
+                        TriggerRuntime.rearmAfterSystemChange(context, syncZone = true)
                         (context.applicationContext as MaeveApp).mcp.ensureRunning()
+                    }
                 }
             }
         } catch (e: Exception) {

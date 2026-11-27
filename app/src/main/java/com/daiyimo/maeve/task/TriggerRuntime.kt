@@ -126,8 +126,9 @@ object TriggerRuntime {
     }
 
     /** 开机、改时间、精确闹钟权限变化后，系统可能已撤掉旧闹钟；强制重新登记。 */
-    @Synchronized fun rearmAfterSystemChange(context: Context) {
+    @Synchronized fun rearmAfterSystemChange(context: Context, syncZone: Boolean = false) {
         armedAtMs = null
+        if (syncZone) syncTimeZone(context)
         rearm(context)
     }
 
